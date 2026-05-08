@@ -1,0 +1,14 @@
+nicegui
+mlx-lm
+markitdown
+translate-toolkit
+lxml
+rapidfuzz
+flashtext
+networkx
+transformers
+torch
+sentencepiece
+sacremoses
+pandas
+python-docx
