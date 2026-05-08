@@ -49,27 +49,48 @@ class TranslationMemory:
                 )
 
     def lookup_fuzzy(
-        self, text: str, threshold: float = 75.0, limit: int = 3
+        self, text: str, threshold: float = 90.0, limit: int = 3
     ) -> List[Dict]:
+        """
+        Fuzzy lookup in TM. 
+        Enforces a high threshold (default 90%) and penalizes extreme length differences.
+        """
         sources = [e["source"] for e in self.entries if e["source"]]
         if not sources:
             return []
 
-        matches = process.extract(text, sources, scorer=fuzz.ratio, limit=limit)
+        # We use a slightly lower initial limit for process.extract to filter ourselves later
+        matches = process.extract(text, sources, scorer=fuzz.ratio, limit=limit * 5)
         results = []
+        input_len = len(text)
+        
         for src, score, _ in matches:
             if score >= threshold:
+                # Length check: avoid segments that are vastly different in length
+                src_len = len(src)
+                len_ratio = max(src_len, input_len) / min(src_len, input_len) if min(src_len, input_len) > 0 else 10
+                
+                if len_ratio > 2.5: # If one is more than 2.5x longer than the other, skip
+                    continue
+
                 for e in self.entries:
                     if e["source"] == src:
                         results.append({**e, "score": score})
                         break
+            if len(results) >= limit:
+                break
         return results
 
     def search_concordance(self, text: str, top_n: int = 5) -> List[Dict]:
+        """
+        Search for word matches. 
+        Penalizes suggestions that are much longer than the input text.
+        """
         words = [w for w in text.split() if len(w) >= 2]
         if not words:
             return []
 
+        input_len = len(text)
         scored_entries = []
         for entry in self.entries:
             src_text = entry["source"]
@@ -78,9 +99,22 @@ class TranslationMemory:
             count = sum(1 for w in words if w.lower() in src_text.lower() or w.lower() in tgt_text.lower())
 
             if count > 0:
+                # Base relevance: percentage of query words found
                 relevance = (count / len(words)) * 100
-                if relevance > 10:
-                    scored_entries.append({**entry, "relevance": relevance})
+                
+                # Length penalty: if hit is much longer than input, it's less relevant
+                hit_len = len(src_text)
+                len_penalty = 1.0
+                if input_len > 0:
+                    ratio = hit_len / input_len
+                    if ratio > 2.0: len_penalty = 0.6
+                    if ratio > 4.0: len_penalty = 0.3
+                    if ratio > 10.0: len_penalty = 0.0 # Ignore massive segments for tiny inputs
+                
+                final_relevance = relevance * len_penalty
+                
+                if final_relevance > 20: # Slightly higher threshold for concordance
+                    scored_entries.append({**entry, "relevance": final_relevance})
 
         scored_entries.sort(key=lambda x: x["relevance"], reverse=True)
         return scored_entries[:top_n]

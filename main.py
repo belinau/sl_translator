@@ -206,40 +206,46 @@ async def init_resources():
 def page_home():
     _apply_colors()
     ui.add_head_html("""<style>
-        .proj-card { transition: box-shadow .15s, transform .15s; cursor: pointer; }
-        .proj-card:hover { box-shadow: 0 8px 24px -4px rgba(59,130,246,.15);
-                           transform: translateY(-1px); }
+        .proj-card { 
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+            cursor: pointer; 
+            border: 1px solid #e2e8f0;
+        }
+        .proj-card:hover { 
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.02);
+            transform: translateY(-4px);
+            border-color: #3b82f6;
+        }
+        .hero-gradient {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        }
     </style>""")
 
     with ui.column().classes("w-full min-h-screen bg-slate-50"):
-        with ui.row().classes(
-            "w-full items-center bg-white border-b border-slate-200 px-8 py-4 shadow-sm"
-        ):
-            ui.icon("blur_on", size="md").classes("text-accent mr-2")
-            with ui.column().classes("gap-0"):
-                ui.label("Zen Translator").classes(
-                    "text-xl font-extrabold tracking-tight"
-                )
-                ui.label("Projects").classes("text-xs text-slate-400")
+        # Premium Header / Hero
+        with ui.row().classes("w-full hero-gradient px-8 py-12 items-center justify-between shadow-lg"):
+            with ui.row().classes("items-center gap-4"):
+                ui.icon("blur_on", size="56px").classes("text-blue-400 animate-pulse")
+                with ui.column().classes("gap-0"):
+                    ui.label("Zen Translator").classes("text-3xl font-black text-white tracking-tighter")
+                    ui.label("Professional Translation Workspace").classes("text-blue-200/60 text-xs font-bold uppercase tracking-[0.2em]")
+            
+            with ui.row().classes("gap-4"):
+                ui.label("V 2.0").classes("text-white/20 text-[10px] font-black border border-white/10 px-2 py-1 rounded")
 
-        with ui.column().classes("w-full max-w-3xl mx-auto px-6 py-10 gap-6"):
-            with ui.card().classes(
-                "w-full p-6 rounded-2xl border border-blue-100 bg-white shadow-sm"
-            ):
-                with ui.row().classes("items-center justify-between mb-4 w-full"):
-                    with ui.row().classes("items-center gap-2"):
-                        ui.icon("add_circle", size="sm").classes("text-accent")
-                        ui.label("New Project").classes(
-                            "text-base font-bold text-slate-700"
-                        )
-
-                    with ui.row().classes(
-                        "gap-2 items-center bg-slate-50 px-3 py-1 rounded-lg border border-slate-200"
-                    ):
+        with ui.column().classes("w-full max-w-4xl mx-auto px-6 -mt-8 gap-8 pb-20"):
+            # New Project Card
+            with ui.card().classes("w-full p-8 rounded-3xl border-none bg-white shadow-2xl"):
+                with ui.row().classes("w-full items-center justify-between mb-6"):
+                    with ui.column().classes("gap-1"):
+                        ui.label("Start a New Translation").classes("text-xl font-bold text-slate-800")
+                        ui.label("Upload a .docx file to begin your project").classes("text-sm text-slate-400")
+                    
+                    with ui.row().classes("gap-3 items-center bg-slate-50 p-2 rounded-2xl border border-slate-100"):
                         lang_opts = ["en", "sl", "de", "fr", "it"]
-                        src_lang = ui.select(lang_opts, value="en").classes("w-12")
-                        ui.icon("arrow_forward", size="sm").classes("text-slate-400")
-                        tgt_lang = ui.select(lang_opts, value="sl").classes("w-12")
+                        src_lang = ui.select(lang_opts, value="en").props("outlined dense rounded").classes("w-20 bg-white")
+                        ui.icon("swap_horiz", size="sm").classes("text-slate-300")
+                        tgt_lang = ui.select(lang_opts, value="sl").props("outlined dense rounded").classes("w-20 bg-white")
 
                 async def upload_wrapper(e):
                     await _handle_new_upload(e, f"{src_lang.value}->{tgt_lang.value}")
@@ -247,11 +253,12 @@ def page_home():
                 ui.upload(
                     on_upload=upload_wrapper,
                     auto_upload=True,
-                    label="Drop a .docx file to start a new project",
+                    label="Drop files here or click to browse",
                     max_files=1,
-                ).classes("w-full").props("color=accent accept=.docx")
+                ).classes("w-full").props("color=accent accept=.docx flat bordered")
 
-            proj_container = ui.column().classes("w-full gap-3")
+            # Project List
+            proj_container = ui.column().classes("w-full gap-4")
             _render_project_list(proj_container)
 
 
@@ -260,49 +267,42 @@ def _render_project_list(container: ui.column):
     projects = list_projects()
     with container:
         if not projects:
-            ui.label("No saved projects yet.").classes(
-                "text-sm text-slate-400 italic px-1"
-            )
+            with ui.column().classes("w-full items-center py-20 opacity-20"):
+                ui.icon("folder_open", size="64px")
+                ui.label("No active projects").classes("text-lg font-bold")
             return
-        ui.label("Saved projects").classes(
-            "text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1"
-        )
-        for p in projects:
-            pct = int(p["done"] / p["total"] * 100) if p["total"] else 0
-            with (
-                ui.card()
-                .classes(
-                    "w-full p-4 rounded-xl border border-slate-200 bg-white proj-card"
-                )
-                .on("click", lambda pid=p["id"]: ui.navigate.to(f"/translate/{pid}"))
-            ):
-                with ui.row().classes("w-full items-center gap-4 no-wrap"):
-                    with ui.column().classes("gap-1 flex-1 min-w-0"):
-                        ui.label(p["filename"]).classes(
-                            "text-sm font-semibold text-slate-800 truncate"
-                        )
-                        with ui.row().classes("items-center gap-3"):
-                            ui.label(p["lang_pair"]).classes(
-                                "text-[10px] text-slate-400"
-                            )
-                            ui.label(f"{p['done']}/{p['total']} done").classes(
-                                "text-[10px] text-slate-400"
-                            )
-                            ui.label(p["saved_at"][:16].replace("T", " ")).classes(
-                                "text-[10px] text-slate-300"
-                            )
-                        ui.linear_progress(value=pct / 100, color="positive").props(
-                            'size="6px" :show-value="false"'
-                        ).classes("w-full rounded-full mt-1")
-                    ui.label(f"{pct}%").classes(
-                        "text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-full shrink-0"
-                    )
-                    ui.button(icon="delete").props(
-                        "flat round dense size=xs color=red-4"
-                    ).tooltip("Delete").on(
-                        "click.stop",
-                        lambda e, pid=p["id"], c=container: _delete_and_refresh(pid, c),
-                    )
+
+        ui.label("RECENT PROJECTS").classes("text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] px-2 mb-2")
+        
+        # Grid layout for projects
+        with ui.grid(columns=2).classes("w-full gap-4"):
+            for p in projects:
+                pct = int(p["done"] / p["total"] * 100) if p["total"] else 0
+                with (
+                    ui.card()
+                    .classes("p-6 rounded-2xl bg-white proj-card flex flex-col gap-4")
+                    .on("click", lambda pid=p["id"]: ui.navigate.to(f"/translate/{pid}"))
+                ):
+                    with ui.row().classes("w-full justify-between items-start"):
+                        with ui.column().classes("gap-0.5 flex-1"):
+                            ui.label(p["filename"]).classes("text-base font-bold text-slate-800 truncate leading-tight")
+                            ui.label(p["lang_pair"]).classes("text-[10px] font-black text-blue-500 uppercase tracking-widest")
+                        
+                        ui.button(icon="delete", on_click=lambda e, pid=p["id"], c=container: _delete_and_refresh(pid, c)) \
+                            .props("flat round dense size=sm color=slate-300") \
+                            .classes("hover:text-red-400 transition-colors") \
+                            .on("click.stop")
+
+                    with ui.row().classes("w-full items-center gap-4 mt-2"):
+                        with ui.column().classes("flex-1 gap-1"):
+                            ui.linear_progress(value=pct / 100, color="positive").props("size=8px rounded").classes("w-full")
+                            with ui.row().classes("w-full justify-between items-center"):
+                                ui.label(f"{p['done']} / {p['total']} segments").classes("text-[10px] text-slate-400 font-medium")
+                                ui.label(f"{pct}%").classes("text-[10px] font-bold text-slate-600")
+
+                    with ui.row().classes("w-full border-t border-slate-50 pt-4 mt-auto items-center justify-between"):
+                        ui.label(f"Saved {p['saved_at'][:16].replace('T', ' ')}").classes("text-[9px] text-slate-300 font-medium italic")
+                        ui.icon("arrow_forward", size="14px").classes("text-blue-200")
 
 
 def _delete_and_refresh(project_id: str, container: ui.column):
@@ -414,16 +414,26 @@ def _search_intelligence(query: str, lang_pair: str) -> Dict:
 def page_translate(project_id: str):
     _apply_colors()
     ui.add_head_html("""<style>
-        .active-card { box-shadow: 0 8px 30px -6px rgba(59,130,246,.2); }
-        .seg-row { transition: background .1s; }
-        .seg-row:hover { background: #f8fafc; }
+        .active-card { 
+            box-shadow: 0 20px 50px -12px rgba(15, 23, 42, 0.1); 
+            border: 1px solid #e2e8f0;
+        }
+        .seg-row { transition: all 0.2s ease; border-radius: 8px; margin-bottom: 2px; }
+        .seg-row:hover { background: #f1f5f9; transform: translateX(4px); }
         html { scroll-behavior: smooth; }
         .kg-term { 
-            border-bottom: 2px dotted #3b82f6; 
-            background: rgba(59,130,246,0.05);
+            border-bottom: 2px solid #3b82f6; 
+            background: rgba(59,130,246,0.08);
             padding: 0 2px;
             border-radius: 2px;
             cursor: help;
+            font-weight: 500;
+        }
+        .source-area {
+            background: #f8fafc;
+            border-left: 4px solid #3b82f6;
+            border-radius: 0 8px 8px 0;
+            padding: 16px 20px;
         }
         .editor-container {
             display: grid;
@@ -431,21 +441,22 @@ def page_translate(project_id: str):
             grid-template-rows: 1fr;
             width: 100%;
             background: white;
-            border: 1px solid #e2e8f0;
-            border-radius: 0.75rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
             overflow: hidden;
+            transition: all 0.2s ease;
         }
         .editor-container:focus-within {
             border-color: #3b82f6;
-            box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+            box-shadow: 0 0 0 4px rgba(59,130,246,0.1);
         }
         .stack-layer {
             grid-column: 1;
             grid-row: 1;
             font-family: 'Inter', -apple-system, sans-serif !important;
-            font-size: 14px !important;
-            line-height: 1.5 !important;
-            padding: 12px 16px !important;
+            font-size: 16px !important;
+            line-height: 1.6 !important;
+            padding: 16px 20px !important;
             margin: 0;
             box-sizing: border-box;
             white-space: pre-wrap;
@@ -471,9 +482,24 @@ def page_translate(project_id: str):
             box-shadow: none !important;
         }
         .ghost-text {
-            color: #f59e0b;
-            font-weight: 500;
-            opacity: 0.7;
+            color: #94a3b8;
+            font-weight: 400;
+        }
+        .intel-header {
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.1em;
+            color: #64748b;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .intel-header::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: #f1f5f9;
         }
     </style>""")
 
@@ -706,7 +732,7 @@ def page_translate(project_id: str):
         loop = asyncio.get_running_loop()
 
         def _look():
-            a = tm.lookup_fuzzy(seg["source"], threshold=65.0, limit=1) if tm else []
+            a = tm.lookup_fuzzy(seg["source"], threshold=90.0, limit=1) if tm else []
             b = glossary.lookup_terms(seg["source"], src, tgt) if glossary else []
             c = tm.search_concordance(seg["source"], top_n=2) if tm else []
             k = kg.extract_entities(seg["source"]) if kg else []
@@ -747,7 +773,7 @@ def page_translate(project_id: str):
         loop = asyncio.get_running_loop()
 
         def _look():
-            a = tm.lookup_fuzzy(seg["source"], threshold=65.0, limit=3) if tm else []
+            a = tm.lookup_fuzzy(seg["source"], threshold=90.0, limit=3) if tm else []
             b = glossary.lookup_terms(seg["source"], src, tgt) if glossary else []
             c = tm.search_concordance(seg["source"], top_n=3) if tm else []
             return a, b, c
@@ -785,88 +811,67 @@ def page_translate(project_id: str):
                 # Glossary (Compact chips)
                 if g_h:
                     has = True
-                    with ui.row().classes("w-full gap-2 items-center flex-wrap"):
-                        ui.icon("book", size="13px").classes("text-emerald-600 shrink-0")
-                        ui.label("GLOSSARY").classes("text-[9px] font-bold text-emerald-600 uppercase tracking-widest shrink-0")
-                        for g in g_h:
-                            ui.button(
-                                f"{g['source_term']} → {g['target_term']}",
-                                on_click=lambda e, g=g: _ins(g["target_term"]),
-                            ).props("flat dense rounded").classes(
-                                "bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 "
-                                "text-[10px] text-emerald-800 px-2 h-7 normal-case"
-                            ).tooltip(g.get("note") or "Click to insert")
+                    with ui.column().classes("w-full gap-2 mb-2"):
+                        ui.label("GLOSSARY HITS").classes("intel-header")
+                        with ui.row().classes("w-full gap-2 items-center flex-wrap"):
+                            for g in g_h:
+                                ui.button(
+                                    f"{g['target_term']}",
+                                    on_click=lambda e, g=g: _ins(g["target_term"]),
+                                ).props("unelevated rounded").classes(
+                                    "bg-emerald-100 hover:bg-emerald-200 "
+                                    "text-[11px] font-bold text-emerald-800 px-3 h-8 normal-case"
+                                ).tooltip(f"{g['source_term']} → {g['target_term']} | {g.get('note') or 'Click to insert'}")
 
                 if tm_m:
                     has = True
-                    with ui.column().classes("w-full gap-1 mt-1"):
-                        ui.label("TRANSLATION MEMORY").classes(
-                            "text-[9px] font-bold text-indigo-500 uppercase tracking-widest"
-                        )
+                    with ui.column().classes("w-full gap-2 mt-2"):
+                        ui.label("TM MATCHES").classes("intel-header")
                         for m in tm_m:
                             score = int(m.get("score", 0))
                             badge = (
                                 "text-emerald-700 bg-emerald-50 border-emerald-200"
                                 if score >= 85
-                                else "text-indigo-700 bg-indigo-50 border-indigo-200"
+                                else "text-blue-700 bg-blue-50 border-blue-200"
                             )
                             with ui.row().classes(
-                                "w-full bg-slate-50 border border-slate-200 rounded-lg p-2 items-center gap-2"
-                            ):
+                                "w-full bg-white border border-slate-200 rounded-xl p-3 items-center gap-4 hover:border-blue-300 transition-colors cursor-pointer"
+                            ).on("click", lambda e, m=m: _rep(m["target"])):
                                 ui.label(f"{score}%").classes(
-                                    f"text-[10px] font-bold px-1.5 py-0.5 rounded border {badge} shrink-0"
+                                    f"text-[10px] font-black px-2 py-1 rounded-lg border {badge} shrink-0"
                                 )
-                                with ui.column().classes("gap-0 flex-1 min-w-0"):
+                                with ui.column().classes("gap-0.5 flex-1 min-w-0"):
                                     ui.label(m["source"]).classes(
-                                        "text-[10px] text-slate-400 italic leading-snug"
+                                        "text-[11px] text-slate-400 italic leading-snug"
                                     ).style("white-space:normal;word-break:break-word")
                                     ui.label(m["target"]).classes(
-                                        "text-[12px] text-slate-800 font-medium leading-snug"
+                                        "text-[13px] text-slate-800 font-bold leading-snug"
                                     ).style("white-space:normal;word-break:break-word")
 
-                                btn_cls = (
-                                    "bg-indigo-600 text-white hover:bg-indigo-700"
-                                    if score >= 85
-                                    else "bg-slate-200 text-slate-700 hover:bg-slate-300"
-                                )
-                                btn_label = "Use" if score >= 85 else "Insert"
-                                btn_action = (
-                                    (lambda e, m=m: _rep(m["target"]))
-                                    if score >= 85
-                                    else (lambda e, m=m: _ins(m["target"]))
-                                )
-                                ui.button(btn_label, on_click=btn_action).props(
-                                    "flat dense rounded"
-                                ).classes(
-                                    f"{btn_cls} text-[10px] px-3 h-7 normal-case shrink-0"
-                                )
+                                ui.icon("content_paste", size="18px").classes("text-slate-300")
 
                 srcs = {m["source"] for m in tm_m}
                 conc = [c for c in c_h if c["source"] not in srcs]
                 if conc:
                     has = True
-                    with ui.column().classes("w-full gap-1 mt-1"):
-                        ui.label("CONCORDANCE").classes(
-                            "text-[9px] font-bold text-slate-400 uppercase tracking-widest"
-                        )
+                    with ui.column().classes("w-full gap-2 mt-2"):
+                        ui.label("CONCORDANCE").classes("intel-header")
                         for c in conc[:2]:
                             with ui.row().classes(
-                                "w-full bg-slate-50/50 border border-slate-100 rounded-lg p-2 items-start gap-2"
-                            ):
-                                ui.icon("manage_search", size="13px").classes(
-                                    "text-slate-300 mt-0.5 shrink-0"
-                                )
-                                with ui.column().classes("gap-0 flex-1"):
+                                "w-full bg-white/50 border border-slate-100 rounded-xl p-3 items-start gap-4 hover:border-slate-300 transition-colors cursor-pointer"
+                            ).on("click", lambda e, c=c: _ins(c["target"])):
+                                ui.icon("search", size="16px").classes("text-slate-300 mt-1 shrink-0")
+                                with ui.column().classes("gap-0.5 flex-1"):
                                     ui.label(c["source"]).classes(
-                                        "text-[10px] text-slate-400 italic leading-snug"
+                                        "text-[11px] text-slate-400 italic leading-snug"
                                     ).style("white-space:normal;word-break:break-word")
                                     ui.label(c["target"]).classes(
-                                        "text-[11px] text-slate-700 leading-snug"
+                                        "text-[12px] text-slate-700 font-medium leading-snug"
                                     ).style("white-space:normal;word-break:break-word")
 
                 if not has:
-                    ui.label("No TM or glossary matches.").classes(
-                        "text-[10px] text-slate-300 italic"
+                    ui.label("No immediate TM or glossary matches.").classes(
+                        "text-[10px] text-slate-300 italic py-2"
                     )
 
         except RuntimeError:
@@ -972,7 +977,7 @@ def page_translate(project_id: str):
                 continue
             try:
                 a = (
-                    tm.lookup_fuzzy(seg["source"], threshold=70.0, limit=1)
+                    tm.lookup_fuzzy(seg["source"], threshold=90.0, limit=1)
                     if tm
                     else []
                 )
@@ -1033,7 +1038,7 @@ def page_translate(project_id: str):
         border = (
             "border-emerald-400" if seg["status"] == "done" else "border-transparent"
         )
-        bg = "bg-white" if seg["status"] == "done" else ""
+        bg = "bg-white" if seg["status"] == "done" else "bg-slate-50/30"
         
         qa = _run_qa(seg, ws["lang_pair"]) if seg["target"].strip() else []
         has_error = any(w["type"] == "error" for w in qa)
@@ -1042,30 +1047,35 @@ def page_translate(project_id: str):
         with (
             ui.row()
             .classes(
-                f"w-full {bg} border-l-4 {border} px-4 py-3 rounded-r-lg "
-                "cursor-pointer seg-row no-wrap gap-6 items-center"
+                f"w-full {bg} border-l-4 {border} px-6 py-4 rounded-xl "
+                "cursor-pointer seg-row no-wrap gap-8 items-center border border-slate-100 mb-2"
             )
             .props(f'id="seg-{seg["id"]}"')
             .on("click", lambda s=seg: _set_active(s["id"]))
         ):
-            ui.label(seg["source"]).classes(
-                "w-1/2 text-[14px] text-slate-600 font-serif leading-relaxed line-clamp-2"
-            )
+            with ui.column().classes("w-1/2 gap-1"):
+                ui.label(f"#{seg['id'] + 1}").classes("text-[8px] font-black text-slate-300 tracking-widest")
+                ui.label(seg["source"]).classes(
+                    "text-[14px] text-slate-600 font-serif leading-relaxed line-clamp-2"
+                )
             
-            with ui.row().classes("w-1/2 items-center gap-2 no-wrap"):
-                lbl = seg["target"] if seg["target"].strip() else "…"
+            with ui.row().classes("w-1/2 items-center gap-3 no-wrap"):
+                lbl = seg["target"] if seg["target"].strip() else "Waiting for translation..."
                 sty = (
                     "text-slate-800 font-medium"
                     if seg["target"].strip()
-                    else "text-slate-300 italic"
+                    else "text-slate-300 italic font-light"
                 )
                 ui.label(lbl).classes(
                     f"text-[14px] {sty} leading-relaxed line-clamp-2 flex-1"
                 )
                 if has_error:
-                    ui.icon("error", color="negative", size="16px").tooltip("QA Errors found")
+                    ui.icon("error", color="negative", size="18px").tooltip("Critical QA Error")
                 elif has_warn:
-                    ui.icon("warning", color="warning", size="16px").tooltip("QA Warnings found")
+                    ui.icon("warning", color="warning", size="18px").tooltip("QA Warning")
+                
+                if seg["status"] == "done":
+                    ui.icon("check_circle", color="emerald-400", size="18px")
 
     def _render_active(seg: dict):
         refs = {"ti": None, "ghost": None}
@@ -1073,128 +1083,139 @@ def page_translate(project_id: str):
 
         with (
             ui.card()
-            .classes("w-full bg-white border border-blue-100 active-card p-5 rounded-2xl flex flex-col gap-3 my-2")
+            .classes("w-full bg-white active-card p-0 rounded-2xl flex flex-col gap-0 my-6 overflow-hidden")
             .props(f'id="card-seg-{seg["id"]}"')
         ):
+            # 1. HEADER (Segment Info)
+            with ui.row().classes("w-full px-6 py-3 bg-slate-50/50 border-b border-slate-100 justify-between items-center"):
+                with ui.row().classes("items-center gap-2"):
+                    ui.icon("tag", size="14px", color="slate-400")
+                    ui.label(f"SEGMENT {seg['id'] + 1}").classes("text-[10px] font-black text-slate-400 tracking-[.2em]")
+                
+                with ui.row().classes("items-center gap-1"):
+                    if seg["status"] == "done":
+                        ui.badge("CONFIRMED", color="emerald-500").classes("text-[9px] font-bold px-2 py-0.5 rounded-full")
+                    else:
+                        ui.badge("DRAFTING", color="blue-400").classes("text-[9px] font-bold px-2 py-0.5 rounded-full")
 
             async def run_ai_force():
                 await _ai(seg, refs["ti"], force=True)
 
-            with ui.row().classes("w-full justify-between items-start no-wrap"):
-                ui.html(_get_highlighted_source(seg["source"])).classes("text-base text-slate-800 font-serif leading-relaxed flex-1 pr-4")
-                ui.label(f"#{seg['id'] + 1}").classes("text-[10px] font-bold text-slate-300 uppercase tracking-widest bg-slate-50 px-2 py-0.5 rounded border border-slate-100 shrink-0")
+            # 2. SOURCE AREA
+            with ui.column().classes("w-full px-6 pt-6 pb-4 gap-2"):
+                ui.label("SOURCE").classes("intel-header")
+                with ui.element('div').classes("source-area"):
+                    ui.html(_get_highlighted_source(seg["source"])).classes("text-lg text-slate-800 font-serif leading-relaxed")
+
+            # 3. EDITING AREA
+            with ui.column().classes("w-full px-6 py-4 gap-2"):
+                ui.label("TARGET").classes("intel-header")
+                
+                qa_container = ui.column().classes("w-full gap-1 mb-2")
+                
+                with ui.column().classes("w-full gap-0 relative"):
+                    chip_row = ui.column().classes("w-full") # Placeholder for predictive chips if needed
+                    
+                    async def _on_interaction(e):
+                        val = refs["ti"].value
+                        seg["target"] = val
+                        
+                        if e.args and isinstance(e.args, list) and len(e.args) > 1:
+                            seg["_cursor_pos"] = e.args[1]
+                        elif e.args and isinstance(e.args, int):
+                            seg["_cursor_pos"] = e.args
+                        
+                        cursor_pos = seg.get("_cursor_pos", len(val))
+                        await _smart(val, seg, chip_row, refs["ti"], refs["ghost"], cursor_pos=cursor_pos)
+                        
+                        async def run_qa():
+                            with cli:
+                                if qa_container.is_deleted: return
+                                warnings = _run_qa(seg, ws["lang_pair"])
+                                qa_container.clear()
+                                with qa_container:
+                                    for w in warnings:
+                                        color = "bg-red-50 text-red-700 border-red-100" if w["type"] == "error" else "bg-amber-50 text-amber-700 border-amber-100"
+                                        icon = "error" if w["type"] == "error" else "warning"
+                                        with ui.row().classes(f"w-full {color} px-3 py-2 rounded-lg text-xs items-center gap-2 border"):
+                                            ui.icon(icon, size="16px")
+                                            ui.label(w["message"]).classes("font-medium")
+                        asyncio.create_task(run_qa())
+
+                    with ui.element('div').classes('editor-container').props(f'id="seg-{seg["id"]}"'):
+                        ti = ui.textarea(value=seg["target"]) \
+                            .classes("stack-layer real-textarea") \
+                            .props('borderless autogrow input-style="padding: 0; font-size: 16px; line-height: 1.6; font-family: inherit;"') \
+                            .on('input', _on_interaction, args=['target.value', 'target.selectionStart']) \
+                            .on('click', _on_interaction, args=['target.value', 'target.selectionStart']) \
+                            .on('keyup', _on_interaction, args=['target.value', 'target.selectionStart']) \
+                            .on('focus', _on_interaction)
+                        refs["ti"] = ti
+
+                        ghost = ui.html("").classes("stack-layer mirror-sync")
+                        ghost.set_visibility(False)
+                        ghost._suggestion = ""
+                        refs["ghost"] = ghost
+
+            # 4. INTELLIGENCE / TM / CONCORDANCE AREA (BELOW EDIT FIELD)
+            static_panel = ui.column().classes("w-full px-6 py-4 bg-slate-50/30 border-t border-slate-100 gap-3")
             
-            qa_container = ui.column().classes("w-full gap-1 mt-1")
-
-            with ui.column().classes("w-full gap-0 relative"):
-                chip_row = ui.column().classes("w-full")
-                static_panel = ui.column().classes("w-full gap-1 mt-1")
+            # 5. FOOTER ACTIONS
+            with ui.row().classes("w-full px-6 py-4 bg-slate-50/50 border-t border-slate-100 justify-between items-center"):
+                with ui.row().classes("items-center gap-2"):
+                    ui.button(icon="auto_awesome", on_click=run_ai_force).props("flat round dense size=md color=accent").tooltip("Regenerate AI Draft")
+                    ui.separator().props("vertical").classes("mx-2 h-6 opacity-20")
+                    ui.button(icon="keyboard_arrow_up", on_click=lambda: _set_active(seg["id"] - 1)).props("flat round dense size=md color=slate-400").classes("hover:bg-slate-200") if seg["id"] > 0 else None
+                    ui.button(icon="keyboard_arrow_down", on_click=lambda: _set_active(seg["id"] + 1)).props("flat round dense size=md color=slate-400").classes("hover:bg-slate-200") if seg["id"] < len(ws["segments"]) - 1 else None
                 
-                async def _on_interaction(e):
-                    val = refs["ti"].value
-                    seg["target"] = val
-                    
-                    # Update cursor position from event args if provided
-                    if e.args and isinstance(e.args, list) and len(e.args) > 1:
-                        seg["_cursor_pos"] = e.args[1] # target.selectionStart
-                    elif e.args and isinstance(e.args, int):
-                        seg["_cursor_pos"] = e.args
-                    
-                    cursor_pos = seg.get("_cursor_pos", len(val))
-                    
-                    # Prediction & QA
-                    await _smart(val, seg, chip_row, refs["ti"], refs["ghost"], cursor_pos=cursor_pos)
-                    
-                    async def run_qa():
-                        with cli:
-                            if qa_container.is_deleted: return
-                            warnings = _run_qa(seg, ws["lang_pair"])
-                            qa_container.clear()
-                            with qa_container:
-                                for w in warnings:
-                                    color = "bg-red-50 text-red-700 border-red-100" if w["type"] == "error" else "bg-amber-50 text-amber-700 border-amber-100"
-                                    icon = "error" if w["type"] == "error" else "warning"
-                                    with ui.row().classes(f"w-full {color} px-3 py-1.5 rounded-lg text-[11px] items-center gap-2 border"):
-                                        ui.icon(icon, size="14px")
-                                        ui.label(w["message"]).classes("font-medium")
-                    asyncio.create_task(run_qa())
+                with ui.row().classes("items-center gap-4"):
+                    ui.label("TAB to complete • ⌘ ENTER to confirm").classes("text-[10px] text-slate-400 font-bold uppercase tracking-wider")
+                    ui.button("CONFIRM", on_click=lambda: _confirm_segment()).props("unelevated rounded color=emerald-500").classes("px-8 py-2 font-black tracking-[.2em] text-[11px] shadow-lg shadow-emerald-200/50")
 
-                with ui.element('div').classes('editor-container').props(f'id="seg-{seg["id"]}"'):
-                    # 1. Textarea Layer (Input handler)
-                    ti = ui.textarea(value=seg["target"]) \
-                        .classes("stack-layer real-textarea") \
-                        .props('borderless autogrow input-style="padding: 0; font-size: 14px; line-height: 1.5; font-family: inherit;"') \
-                        .on('input', _on_interaction, args=['target.value', 'target.selectionStart']) \
-                        .on('click', _on_interaction, args=['target.value', 'target.selectionStart']) \
-                        .on('keyup', _on_interaction, args=['target.value', 'target.selectionStart']) \
-                        .on('focus', _on_interaction)
-                    refs["ti"] = ti
+            # Setup event handlers
+            refs["ti"].on("keydown.meta.enter.prevent", lambda: _confirm_segment())
+            refs["ti"].on("keydown.ctrl.enter.prevent", lambda: _confirm_segment())
 
-                    # 2. Ghost Layer (Visible on top, no padding doubling)
-                    ghost = ui.html("").classes("stack-layer mirror-sync")
-                    ghost.set_visibility(False)
-                    ghost._suggestion = ""
-                    refs["ghost"] = ghost
+            async def _tab(e):
+                g = getattr(refs["ghost"], "_suggestion", "")
+                if g:
+                    js_insert = f'''
+                        const el = getElement({ti.id}).querySelector("textarea");
+                        if (el) {{
+                            const start = el.selectionStart;
+                            const text = el.value;
+                            const sugg = {json.dumps(g)};
+                            el.value = text.substring(0, start) + sugg + text.substring(start);
+                            el.selectionStart = el.selectionEnd = start + sugg.length;
+                            el.dispatchEvent(new Event("input", {{ bubbles: true }}));
+                        }}
+                    '''
+                    await ui.run_javascript(js_insert)
+                    refs["ghost"]._suggestion = ""
+                    refs["ghost"].set_visibility(False)
+                    ti.run_method('focus')
+
+            refs["ti"].on("keydown.tab.prevent", _tab)
+            
+            async def _bg_init():
+                if ws["project_id"] not in GLOBAL_VOCAB:
+                    GLOBAL_VOCAB[ws["project_id"]] = set()
+                v = GLOBAL_VOCAB[ws["project_id"]]
+                for s in ws["segments"]:
+                    for t in [s["source"], s["target"]]:
+                        if t: v.update(re.findall(r"[\wčšžČŠŽ]{3,}", t))
                 
-                # Setup event handlers
-                async def _confirm_key(e=None):
-                    await _confirm_segment()
+                with cli:
+                    try:
+                        if not seg["target"].strip():
+                            await _ai(seg, refs["ti"])
+                        if not static_panel.is_deleted:
+                            await _inline_panel(seg, refs["ti"], static_panel)
+                        if not refs["ti"].is_deleted:
+                            await _smart(refs["ti"].value or "", seg, chip_row, refs["ti"], refs["ghost"])
+                    except: pass
 
-                with ui.row().classes("w-full items-center justify-between mt-2 pt-2 border-t border-slate-50"):
-                    with ui.row().classes("items-center gap-1"):
-                        ui.button(icon="auto_awesome", on_click=run_ai_force).props("flat round dense size=sm color=accent").tooltip("AI Re-draft")
-                        ui.button(icon="keyboard_arrow_up", on_click=lambda: _set_active(seg["id"] - 1)).props("flat round dense size=sm").classes("ml-2") if seg["id"] > 0 else None
-                        ui.button(icon="keyboard_arrow_down", on_click=lambda: _set_active(seg["id"] + 1)).props("flat round dense size=sm") if seg["id"] < len(ws["segments"]) - 1 else None
-                    
-                    with ui.row().classes("items-center gap-3"):
-                        ui.label("Tab to autocomplete • ⌘↵").classes("text-[10px] text-slate-300 font-mono")
-                        ui.button("CONFIRM", on_click=_confirm_key).props("unelevated rounded color=emerald-500 size=sm").classes("px-4 font-bold tracking-widest text-[10px]")
-
-                refs["ti"].on("keydown.meta.enter.prevent", _confirm_key)
-                refs["ti"].on("keydown.ctrl.enter.prevent", _confirm_key)
-
-                async def _tab(e):
-                    g = getattr(refs["ghost"], "_suggestion", "")
-                    if g:
-                        # Insert suggestion via NiceGUI getElement helper
-                        js_insert = f'''
-                            const el = getElement({ti.id}).querySelector("textarea");
-                            if (el) {{
-                                const start = el.selectionStart;
-                                const text = el.value;
-                                const sugg = {json.dumps(g)};
-                                el.value = text.substring(0, start) + sugg + text.substring(start);
-                                el.selectionStart = el.selectionEnd = start + sugg.length;
-                                el.dispatchEvent(new Event("input", {{ bubbles: true }}));
-                            }}
-                        '''
-                        await ui.run_javascript(js_insert)
-                        refs["ghost"]._suggestion = ""
-                        refs["ghost"].set_visibility(False)
-                        ti.run_method('focus')
-
-                refs["ti"].on("keydown.tab.prevent", _tab)
-                
-                async def _bg_init():
-                    # Populate project vocabulary
-                    if ws["project_id"] not in GLOBAL_VOCAB:
-                        GLOBAL_VOCAB[ws["project_id"]] = set()
-                    v = GLOBAL_VOCAB[ws["project_id"]]
-                    for s in ws["segments"]:
-                        for t in [s["source"], s["target"]]:
-                            if t: v.update(re.findall(r"[\wčšžČŠŽ]{3,}", t))
-                    
-                    with cli:
-                        try:
-                            if not seg["target"].strip():
-                                await _ai(seg, refs["ti"])
-                            if not static_panel.is_deleted:
-                                await _inline_panel(seg, refs["ti"], static_panel)
-                            if not refs["ti"].is_deleted:
-                                await _smart(refs["ti"].value or "", seg, chip_row, refs["ti"], refs["ghost"])
-                        except: pass
-
-                asyncio.create_task(_bg_init())
+            asyncio.create_task(_bg_init())
 
     @ui.refreshable
     def _bar():
