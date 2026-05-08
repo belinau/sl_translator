@@ -392,8 +392,8 @@ def _search_intelligence(query: str, lang_pair: str) -> Dict:
     # 1. KG Search
     if kg:
         for node_id, data in kg.G.nodes(data=True):
-            term = data.get("term") or data.get("label") or data.get("id")
-            if query.lower() in term.lower():
+            term = data.get("term") or data.get("label") or data.get("id") or str(node_id)
+            if term and isinstance(term, str) and query.lower() in term.lower():
                 rels = kg.find_neighbors(node_id, max_depth=1)
                 results["kg"].append({**data, "relations": rels})
 
@@ -480,6 +480,9 @@ def page_translate(project_id: str):
             background: transparent !important;
             border: none !important;
             box-shadow: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            min-height: 0 !important;
         }
         .ghost-text {
             color: #94a3b8;
@@ -512,10 +515,7 @@ def page_translate(project_id: str):
     # --- Intelligence Panel Logic ---
     def _add_to_kg(src: str, tgt: str, notify: bool = True):
         src_l, tgt_l = data["lang_pair"].split("->")
-        concept_id = f"concept:{uuid.uuid4().hex[:8]}"
-        kg.add_concept_node(concept_id, label=f"Concept: {src}")
-        kg.add_term_node(src, src_l, concept_id=concept_id)
-        kg.add_term_node(tgt, tgt_l, concept_id=concept_id)
+        kg.promote_pair(src, tgt, src_l, tgt_l, verified=True)
         kg.save()
         if notify:
             ui.notify(f"Promoted '{src}' to Knowledge Graph", type="positive", icon="auto_awesome")
@@ -1116,15 +1116,20 @@ def page_translate(project_id: str):
                 with ui.column().classes("w-full gap-0 relative"):
                     chip_row = ui.column().classes("w-full") # Placeholder for predictive chips if needed
                     
-                    async def _on_interaction(e):
+                    async def _on_interaction(e=None):
                         val = refs["ti"].value
                         seg["target"] = val
                         
-                        if e.args and isinstance(e.args, list) and len(e.args) > 1:
-                            seg["_cursor_pos"] = e.args[1]
-                        elif e.args and isinstance(e.args, int):
-                            seg["_cursor_pos"] = e.args
+                    async def _on_interaction(e=None):
+                        val = refs["ti"].value
+                        seg["target"] = val
                         
+                        if getattr(e, "args", None):
+                            if isinstance(e.args, list) and len(e.args) > 1:
+                                seg["_cursor_pos"] = e.args[1]
+                            elif isinstance(e.args, int):
+                                seg["_cursor_pos"] = e.args
+
                         cursor_pos = seg.get("_cursor_pos", len(val))
                         await _smart(val, seg, chip_row, refs["ti"], refs["ghost"], cursor_pos=cursor_pos)
                         
@@ -1180,17 +1185,20 @@ def page_translate(project_id: str):
                 g = getattr(refs["ghost"], "_suggestion", "")
                 if g:
                     js_insert = f'''
-                        const el = getElement({ti.id}).querySelector("textarea");
-                        if (el) {{
-                            const start = el.selectionStart;
-                            const text = el.value;
-                            const sugg = {json.dumps(g)};
-                            el.value = text.substring(0, start) + sugg + text.substring(start);
-                            el.selectionStart = el.selectionEnd = start + sugg.length;
-                            el.dispatchEvent(new Event("input", {{ bubbles: true }}));
+                    const el = getElement({refs["ti"].id});
+                    if (el) {{
+                        const ta = el.querySelector('textarea') || (el.$el && el.$el.querySelector('textarea'));
+                        if (ta) {{
+                            const start = ta.selectionStart;
+                            const end = ta.selectionEnd;
+                            const val = ta.value;
+                            ta.value = val.substring(0, start) + {json.dumps(g)} + val.substring(end);
+                            ta.selectionStart = ta.selectionEnd = start + {len(g)};
+                            ta.dispatchEvent(new Event('input', {{ bubbles: true }}));
                         }}
+                    }}
                     '''
-                    await ui.run_javascript(js_insert)
+                    await ui.run_javascript(js_insert, respond=False)
                     refs["ghost"]._suggestion = ""
                     refs["ghost"].set_visibility(False)
                     ti.run_method('focus')
