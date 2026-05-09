@@ -1,24 +1,7 @@
 # translate_core/knowledge_graph.py
 #
-# KG v2 — Rich schema for professional translation systems
+# KG v16 — Final Correct Version (Grammar Logic + PyTorch/Jinja Fixes)
 #
-# Node types:
-#   term        — language-specific surface form (+ lemma, pos, variants, frequency)
-#   concept     — language-independent semantic anchor (+ domain, definition, external_ids)
-#   collocation — multi-word expression (+ component_terms, frequency)
-#   tm_segment  — actual TM segment linked to term nodes (source/target text + quality)
-#   domain      — subject matter taxonomy node
-#
-# Edge types (relation field):
-#   instantiates_concept  — term -> concept
-#   translates_to         — term:en -> term:sl  (+ confidence, verified)
-#   has_variant           — term -> term (inflection / case form)
-#   hyponym_of            — IS-A hierarchy
-#   contains_term         — collocation -> term
-#   appears_in_segment    — term -> tm_segment
-#   yields_term           — tm_segment -> term
-#   belongs_to_domain     — term/concept -> domain
-#   related_to            — generic fallback
 
 from __future__ import annotations
 
@@ -27,6 +10,7 @@ import pathlib
 import re
 import unicodedata
 from collections import Counter, defaultdict
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 import networkx as nx
@@ -34,66 +18,126 @@ from flashtext import KeywordProcessor
 
 import config
 
+# ---------------------------------------------------------------------------
+# Imports for NLP
+# ---------------------------------------------------------------------------
+try:
+    import spacy
+
+    HAS_SPACY = True
+except ImportError:
+    HAS_SPACY = False
+
+try:
+    import classla
+
+    HAS_CLASSLA = True
+except ImportError:
+    HAS_CLASSLA = False
+
+try:
+    import stanza
+
+    HAS_STANZA = True
+except ImportError:
+    HAS_STANZA = False
+
+# Optional imports
+try:
+    from pathlib import Path
+
+    import pyvis
+    from jinja2 import Environment, FileSystemLoader
+    from pyvis.network import Network
+
+    HAS_PYVIS = True
+except ImportError:
+    HAS_PYVIS = False
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _normalize(text: str) -> str:
-    """Lowercase + strip accents — used for building the lookup index."""
     nfkd = unicodedata.normalize("NFKD", text.lower())
     return "".join(c for c in nfkd if not unicodedata.combining(c))
 
 
-def _tokenize_simple(text: str) -> List[str]:
-    """
-    Lightweight tokenizer that handles both EN and SL without external deps.
-    Returns lowercase tokens ≥3 chars, stripped of punctuation.
-    Falls back gracefully when classla / spaCy are not installed.
-    """
-    tokens = re.findall(r"[\wčšžČŠŽ]{3,}", text.lower())
-    # De-duplicate while preserving order
-    seen: set = set()
-    out = []
-    for t in tokens:
-        if t not in seen:
-            seen.add(t)
-            out.append(t)
-    return out
+def _get_timestamp() -> str:
+    return datetime.now().isoformat()
 
 
 # ---------------------------------------------------------------------------
 # KnowledgeGraph
 # ---------------------------------------------------------------------------
 
+
 class KnowledgeGraph:
-    """
-    Rich bilingual knowledge graph stored as NetworkX DiGraph + JSON.
-
-    Quick-start
-    -----------
-    kg = KnowledgeGraph()
-    kg.seed_from_tm(tm.entries)   # populate from existing TM
-    kg.save()
-
-    entity_hits = kg.extract_entities(source_text, domain_hint="agriculture")
-    # → list of rich dicts ready to inject into LLM prompt
-    """
-
-    # ------------------------------------------------------------------
-    # Construction / persistence
-    # ------------------------------------------------------------------
-
     def __init__(self, db_path: pathlib.Path = config.KG_DB_PATH):
         self.db_path = pathlib.Path(db_path)
         self.G: nx.DiGraph = nx.DiGraph()
-
-        # Primary lookup: exact surface form → node_id
         self._exact_kp = KeywordProcessor(case_sensitive=False)
-        # Secondary lookup: normalized form → node_id  (handles SL accents)
-        self._norm_kp  = KeywordProcessor(case_sensitive=False)
+        self._norm_kp = KeywordProcessor(case_sensitive=False)
+
+        self.nlp_en = None
+        self.nlp_sl = None
+
+        # 1. Load Spacy for English
+        if HAS_SPACY:
+            try:
+                print("[KG] Loading English model (Spacy)...")
+                self.nlp_en = spacy.load("en_core_web_sm", disable=["ner"])
+            except Exception as e:
+                print(
+                    f"[KG Warning] English model missing. Run: python -m spacy download en_core_web_sm. ({e})"
+                )
+
+        # 2. Load Classla or Stanza for Slovenian
+        if HAS_CLASSLA:
+            try:
+                print("[KG] Loading Slovenian model (Classla)...")
+                self.nlp_sl = classla.Pipeline(
+                    "sl",
+                    processors="tokenize,pos,lemma,depparse",
+                    use_gpu=False,
+                    verbose=False,
+                )
+            except Exception as e:
+                print(f"[KG Warning] Classla failed: {e}")
+        elif HAS_STANZA:
+            try:
+                print("[KG] Loading Slovenian model (Stanza fallback)...")
+
+                # --- PATCH FOR PYTORCH 2.6+ ---
+                import torch
+
+                _original_torch_load = torch.load
+
+                def _patched_torch_load(*args, **kwargs):
+                    kwargs["weights_only"] = False
+                    return _original_torch_load(*args, **kwargs)
+
+                torch.load = _patched_torch_load
+                # -----------------------------
+
+                self.nlp_sl = stanza.Pipeline(
+                    "sl",
+                    processors="tokenize,pos,lemma,depparse",
+                    use_gpu=False,
+                    verbose=False,
+                )
+
+                torch.load = _original_torch_load
+
+            except Exception as e:
+                print(f"[KG Warning] Stanza fallback failed: {e}")
 
         self._load()
+
+    # ------------------------------------------------------------------
+    # Persistence
+    # ------------------------------------------------------------------
 
     def _load(self):
         if not self.db_path.exists():
@@ -127,12 +171,7 @@ class KnowledgeGraph:
             json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
         )
 
-    # ------------------------------------------------------------------
-    # Index helpers
-    # ------------------------------------------------------------------
-
     def _index_term_node(self, node_id: str, data: Dict):
-        """Register all surface forms of a term node in both KPs."""
         term = data.get("term", "")
         if term:
             self._exact_kp.add_keyword(term, node_id)
@@ -143,15 +182,14 @@ class KnowledgeGraph:
                 self._norm_kp.add_keyword(_normalize(variant), node_id)
 
     def _rebuild_indices(self):
-        """Full rebuild — call after bulk operations."""
         self._exact_kp = KeywordProcessor(case_sensitive=False)
-        self._norm_kp  = KeywordProcessor(case_sensitive=False)
+        self._norm_kp = KeywordProcessor(case_sensitive=False)
         for node_id, data in self.G.nodes(data=True):
             if data.get("type") == "term":
                 self._index_term_node(node_id, data)
 
     # ------------------------------------------------------------------
-    # Node / edge factories
+    # Node / Edge Factories
     # ------------------------------------------------------------------
 
     def add_concept_node(
@@ -160,8 +198,7 @@ class KnowledgeGraph:
         label: str,
         domain: str = "",
         definition: str = "",
-        external_ids: Dict[str, str] = None,
-        metadata: Dict[str, Any] = None,
+        **kwargs,
     ) -> str:
         if not self.G.has_node(concept_id):
             self.G.add_node(
@@ -171,8 +208,8 @@ class KnowledgeGraph:
                 label=label,
                 domain=domain,
                 definition=definition,
-                external_ids=external_ids or {},
-                **(metadata or {}),
+                created_at=_get_timestamp(),
+                **kwargs,
             )
         return concept_id
 
@@ -181,52 +218,31 @@ class KnowledgeGraph:
         term: str,
         lang: str,
         concept_id: str = None,
-        lemma: str = "",
-        pos: str = "",
-        domain: str = "",
-        register: str = "neutral",
-        variants: List[str] = None,
-        confidence: float = 0.8,
-        source: str = "manual",
-        metadata: Dict[str, Any] = None,
+        is_phrase: bool = False,
+        **kwargs,
     ) -> str:
         node_id = f"term:{lang}:{term.lower()}"
         if not self.G.has_node(node_id):
-            node_data: Dict[str, Any] = dict(
+            self.G.add_node(
+                node_id,
                 id=node_id,
                 type="term",
                 term=term,
-                lemma=lemma or term,
                 lang=lang,
-                pos=pos,
-                domain=domain,
-                register=register,
-                variants=variants or [],
-                confidence=confidence,
+                is_phrase=is_phrase,
                 frequency=1,
-                source=source,
-                **(metadata or {}),
+                created_at=_get_timestamp(),
+                **kwargs,
             )
-            self.G.add_node(node_id, **node_data)
-            self._index_term_node(node_id, node_data)
+            self._index_term_node(node_id, self.G.nodes[node_id])
         else:
-            # Increment frequency on re-encounter
             self.G.nodes[node_id]["frequency"] = (
                 self.G.nodes[node_id].get("frequency", 1) + 1
             )
-            # Merge in new variants
-            existing = set(self.G.nodes[node_id].get("variants", []))
-            for v in (variants or []):
-                if v and v not in existing:
-                    existing.add(v)
-                    self._exact_kp.add_keyword(v, node_id)
-                    self._norm_kp.add_keyword(_normalize(v), node_id)
-            self.G.nodes[node_id]["variants"] = list(existing)
 
         if concept_id and self.G.has_node(concept_id):
             if not self.G.has_edge(node_id, concept_id):
                 self.G.add_edge(node_id, concept_id, relation="instantiates_concept")
-
         return node_id
 
     def add_collocation_node(
@@ -248,15 +264,11 @@ class KnowledgeGraph:
                 lang=lang,
                 domain=domain,
                 frequency=frequency,
+                created_at=_get_timestamp(),
             )
             self._exact_kp.add_keyword(phrase, node_id)
-            self._norm_kp.add_keyword(_normalize(phrase), node_id)
         else:
             self.G.nodes[node_id]["frequency"] += 1
-
-        for cid in (component_ids or []):
-            if self.G.has_node(cid) and not self.G.has_edge(node_id, cid):
-                self.G.add_edge(node_id, cid, relation="contains_term")
         return node_id
 
     def add_segment_node(
@@ -280,17 +292,14 @@ class KnowledgeGraph:
                 target_lang=target_lang,
                 origin=origin,
                 quality_score=quality_score,
+                created_at=_get_timestamp(),
             )
         return seg_id
 
     def add_domain_node(self, domain_id: str, label: str, parent_id: str = "") -> str:
         if not self.G.has_node(domain_id):
             self.G.add_node(
-                domain_id,
-                id=domain_id,
-                type="domain",
-                label=label,
-                parent=parent_id,
+                domain_id, id=domain_id, type="domain", label=label, parent=parent_id
             )
         if parent_id and self.G.has_node(parent_id):
             if not self.G.has_edge(domain_id, parent_id):
@@ -304,38 +313,37 @@ class KnowledgeGraph:
         confidence: float = 0.8,
         verified: bool = False,
         source: str = "auto",
+        context: str = None,
+        validated_by: str = None,
     ):
-        """Bidirectional translation edge with confidence."""
         if self.G.has_node(src_term_id) and self.G.has_node(tgt_term_id):
-            # Forward
+            edge_data = {
+                "confidence": confidence,
+                "verified": verified,
+                "source": source,
+                "last_updated": _get_timestamp(),
+            }
+            if context:
+                edge_data["context"] = context
+            if validated_by:
+                edge_data["validated_by"] = validated_by
+
             if self.G.has_edge(src_term_id, tgt_term_id):
-                # Increase confidence if we see it again
                 old = self.G.edges[src_term_id, tgt_term_id].get("confidence", 0.5)
                 self.G.edges[src_term_id, tgt_term_id]["confidence"] = min(
-                    0.99, old + (1 - old) * 0.1
+                    0.99, old + 0.1
                 )
             else:
                 self.G.add_edge(
-                    src_term_id,
-                    tgt_term_id,
-                    relation="translates_to",
-                    confidence=confidence,
-                    verified=verified,
-                    source=source,
+                    src_term_id, tgt_term_id, relation="translates_to", **edge_data
                 )
-            # Reverse
+
             if not self.G.has_edge(tgt_term_id, src_term_id):
                 self.G.add_edge(
-                    tgt_term_id,
-                    src_term_id,
-                    relation="translates_to",
-                    confidence=confidence,
-                    verified=verified,
-                    source=source,
+                    tgt_term_id, src_term_id, relation="translates_to", **edge_data
                 )
 
     def add_variant(self, term_id: str, variant: str):
-        """Register a surface variant (e.g. inflected form) for an existing term node."""
         if not self.G.has_node(term_id):
             return
         variants = self.G.nodes[term_id].get("variants", [])
@@ -343,10 +351,9 @@ class KnowledgeGraph:
             variants.append(variant)
             self.G.nodes[term_id]["variants"] = variants
             self._exact_kp.add_keyword(variant, term_id)
-            self._norm_kp.add_keyword(_normalize(variant), term_id)
 
     # ------------------------------------------------------------------
-    # TM-driven population  (the main population path)
+    # SEEDING: Spacy (EN) + Classla/Stanza (SL)
     # ------------------------------------------------------------------
 
     def seed_from_tm(
@@ -354,273 +361,202 @@ class KnowledgeGraph:
         tm_entries: List[Dict],
         source_lang: str = "en",
         target_lang: str = "sl",
-        min_token_len: int = 3,
-        max_phrase_words: int = 4,
+        min_freq: int = 2,
+        max_phrases: int = 15000,
     ):
-        """
-        Walk all TM segments, extract frequent tokens/phrases, and wire them
-        into the KG with frequency counts and segment provenance.
+        if not HAS_SPACY or not self.nlp_en:
+            print("[KG ERROR] Spacy (EN) missing.")
+            return
+        if not self.nlp_sl:
+            print("[KG ERROR] Slovenian Pipeline (Classla/Stanza) missing.")
+            return
 
-        After this call you should call kg.save().
-        """
-        # --- Pass 1: count token/phrase frequency across entire corpus --------
-        src_freq: Counter = Counter()
-        tgt_freq: Counter = Counter()
-        src_bigrams: Counter = Counter()
-        tgt_bigrams: Counter = Counter()
+        print(f"[KG] Professional Extraction on {len(tm_entries)} segments...")
 
-        for entry in tm_entries:
-            src_tokens = _tokenize_simple(entry.get("source", ""))
-            tgt_tokens = _tokenize_simple(entry.get("target", ""))
+        src_counts = Counter()
+        tgt_counts = Counter()
 
-            for t in src_tokens:
-                if len(t) >= min_token_len:
-                    src_freq[t] += 1
-            for t in tgt_tokens:
-                if len(t) >= min_token_len:
-                    tgt_freq[t] += 1
+        texts_src = [e.get("source", "") for e in tm_entries]
+        texts_tgt = [e.get("target", "") for e in tm_entries]
 
-            # Bigrams (2-word MWEs)
-            for i in range(len(src_tokens) - 1):
-                bg = f"{src_tokens[i]} {src_tokens[i+1]}"
-                src_bigrams[bg] += 1
-            for i in range(len(tgt_tokens) - 1):
-                bg = f"{tgt_tokens[i]} {tgt_tokens[i+1]}"
-                tgt_bigrams[bg] += 1
+        # 1. Process English (Spacy)
+        print("  [1/2] Processing Source (EN - Spacy)...")
+        for doc in self.nlp_en.pipe(texts_src, batch_size=1000):
+            for chunk in doc.noun_chunks:
+                # --- GRAMMATICAL CLEANING ---
+                # Skip chunks that are purely Pronouns or Determiners (e.g. "that", "this")
+                # Find start index of the actual noun phrase
+                start_index = 0
+                for i, token in enumerate(chunk):
+                    # If word is DET (the, a) or PRON (that, it), skip it
+                    if token.pos_ not in ("DET", "PRON"):
+                        start_index = i
+                        break
+                else:
+                    # If loop finished, it's all determiners/pronouns
+                    continue
 
-        # --- Pass 2: build nodes for sufficiently frequent terms ---------------
-        # Only include tokens that appear ≥2 times (avoid hapax legomena noise)
-        significant_src = {t for t, c in src_freq.items() if c >= 2}
-        significant_tgt = {t for t, c in tgt_freq.items() if c >= 2}
-        significant_src_bi = {b for b, c in src_bigrams.items() if c >= 2}
-        significant_tgt_bi = {b for b, c in tgt_bigrams.items() if c >= 2}
+                # Reconstruct phrase from the first valid token
+                clean_tokens = [t.text for t in chunk[start_index:]]
+                text = " ".join(clean_tokens)
 
-        # Build term nodes with frequency
-        for token, freq in src_freq.items():
-            if token in significant_src:
-                nid = f"term:{source_lang}:{token}"
-                if not self.G.has_node(nid):
-                    self.add_term_node(token, source_lang, source="tm_seed")
-                self.G.nodes[nid]["frequency"] = freq
+                text = text.lower().strip()
+                text = re.sub(r"[.,;:!?)\]]+$", "", text)
 
-        for token, freq in tgt_freq.items():
-            if token in significant_tgt:
-                nid = f"term:{target_lang}:{token}"
-                if not self.G.has_node(nid):
-                    self.add_term_node(token, target_lang, source="tm_seed")
-                self.G.nodes[nid]["frequency"] = freq
+                if len(text) < 3 or text.isdigit():
+                    continue
 
-        # Bigram collocation nodes
-        for phrase, freq in src_bigrams.items():
-            if phrase in significant_src_bi:
-                self.add_collocation_node(phrase, source_lang, frequency=freq)
-        for phrase, freq in tgt_bigrams.items():
-            if phrase in significant_tgt_bi:
-                self.add_collocation_node(phrase, target_lang, frequency=freq)
+                src_counts[text] += 1
 
-        # --- Pass 3: segment nodes + provenance edges + co-occurrence pairs ----
-        # We accumulate co-occurring (src_token, tgt_token) pairs to estimate
-        # translation probability via pointwise mutual information (PMI) proxy.
-        cooccur: Counter = Counter()
+        # 2. Process Slovenian (Classla/Stanza)
+        print("  [2/2] Processing Target (SL - Classla/Stanza)...")
+        count = 0
+        for text in texts_tgt:
+            count += 1
+            if count % 1000 == 0:
+                print(f"    Processed {count}/{len(texts_tgt)}...", end="\r")
 
-        for i, entry in enumerate(tm_entries):
-            src_text = entry.get("source", "")
-            tgt_text = entry.get("target", "")
-            origin   = entry.get("origin", "tm")
-            seg_id   = f"seg:{origin}:{i}"
+            doc = self.nlp_sl(text)
+            for phrase in self._get_dependency_phrases(doc):
+                tgt_counts[phrase] += 1
 
-            self.add_segment_node(
-                seg_id, src_text, tgt_text, source_lang, target_lang,
-                origin=origin, quality_score=1.0,
-            )
+        print("\n[KG] Filtering and Linking...")
 
-            src_tokens = [t for t in _tokenize_simple(src_text) if t in significant_src]
-            tgt_tokens = [t for t in _tokenize_simple(tgt_text) if t in significant_tgt]
+        src_significant = [p for p, c in src_counts.items() if c >= min_freq]
+        tgt_significant = [p for p, c in tgt_counts.items() if c >= min_freq]
 
-            for st in src_tokens:
-                sid = f"term:{source_lang}:{st}"
-                if self.G.has_node(sid) and not self.G.has_edge(sid, seg_id):
-                    self.G.add_edge(sid, seg_id, relation="appears_in_segment")
-
-            for tt in tgt_tokens:
-                tid = f"term:{target_lang}:{tt}"
-                if self.G.has_node(tid) and not self.G.has_edge(seg_id, tid):
-                    self.G.add_edge(seg_id, tid, relation="yields_term")
-
-            # Co-occurrence: every (src_token, tgt_token) pair in this segment
-            for st in src_tokens:
-                for tt in tgt_tokens:
-                    cooccur[(st, tt)] += 1
-
-        # --- Pass 4: derive high-confidence translation edges via PMI ----------
-        # Simple heuristic: if cooccur(s,t) / freq(s) >= 0.4 it's likely a translation
-        for (st, tt), count in cooccur.items():
-            if count < 2:
-                continue
-            src_f = src_freq.get(st, 1)
-            confidence = min(0.95, count / src_f)
-            if confidence >= 0.35:
-                sid = f"term:{source_lang}:{st}"
-                tid = f"term:{target_lang}:{tt}"
-                self.link_translations(sid, tid, confidence=confidence, source="tm_pmi")
+        src_significant = sorted(
+            src_significant, key=lambda p: src_counts[p], reverse=True
+        )[:max_phrases]
+        tgt_significant = sorted(
+            tgt_significant, key=lambda p: tgt_counts[p], reverse=True
+        )[:max_phrases]
 
         print(
-            f"[KG] seed_from_tm complete: "
-            f"{self.G.number_of_nodes()} nodes, "
-            f"{self.G.number_of_edges()} edges"
+            f"[KG] Identified {len(src_significant)} Source & {len(tgt_significant)} Target concepts."
         )
 
+        # Build KPs
+        src_kp = KeywordProcessor()
+        for p in src_significant:
+            src_kp.add_keyword(p)
+
+        tgt_kp = KeywordProcessor()
+        for p in tgt_significant:
+            tgt_kp.add_keyword(p)
+
+        cooccur = Counter()
+
+        for i, entry in enumerate(tm_entries):
+            if i % 5000 == 0:
+                print(f"  Linking {i}...", end="\r")
+
+            src_text = entry.get("source", "").lower()
+            tgt_text = entry.get("target", "").lower()
+
+            found_src = src_kp.extract_keywords(src_text)
+            found_tgt = tgt_kp.extract_keywords(tgt_text)
+
+            src_ids = []
+            for phrase in found_src:
+                cid = self.add_concept_node(
+                    f"concept:{phrase.replace(' ', '_')}", label=phrase
+                )
+                tid = self.add_term_node(
+                    phrase, source_lang, concept_id=cid, is_phrase=True
+                )
+                src_ids.append(tid)
+
+            tgt_ids = []
+            for phrase in found_tgt:
+                tid = self.add_term_node(phrase, target_lang, is_phrase=True)
+                tgt_ids.append(tid)
+
+            for s in src_ids:
+                for t in tgt_ids:
+                    cooccur[(s, t)] += 1
+
+        for (s, t), count in cooccur.items():
+            if count >= min_freq:
+                self.link_translations(
+                    s,
+                    t,
+                    confidence=min(0.95, count / self.G.nodes[s].get("frequency", 1)),
+                )
+
+        print(f"\n[KG] Seeding complete: {self.G.number_of_nodes()} nodes.")
+
     # ------------------------------------------------------------------
-    # Lookup / entity extraction
+    # Dependency Noun Phrase Extractor (For Classla/Stanza)
     # ------------------------------------------------------------------
 
-    def extract_entities(
-        self,
-        text: str,
-        domain_hint: str = None,
-        target_lang: str = "sl",
-    ) -> List[Dict]:
-        """
-        Find KG entities in *text*.
-        Returns rich dicts ready to inject into the LLM system prompt.
+    def _get_dependency_phrases(self, doc):
+        phrases = set()
+        for sentence in doc.sentences:
+            words = {w.id: w for w in sentence.words}
+            for word in sentence.words:
+                if word.upos in ("NOUN", "PROPN"):
+                    phrase_ids = [word.id]
+                    for child in sentence.words:
+                        if child.head == word.id:
+                            if child.deprel in (
+                                "amod",
+                                "nmod",
+                                "case",
+                                "det",
+                                "flat",
+                                "compound",
+                                "nummod",
+                                "advmod",
+                            ):
+                                if child.upos != "PUNCT":
+                                    phrase_ids.append(child.id)
+                    phrase_ids.sort()
+                    phrase_text = " ".join([words[wid].text for wid in phrase_ids])
+                    phrase_text = phrase_text.lower().strip()
+                    phrase_text = re.sub(r"[.,;:!?)\]]+$", "", phrase_text)
+                    if len(phrase_text) >= 3:
+                        phrases.add(phrase_text)
+        return list(phrases)
 
-        Each result contains:
-          - All standard node fields (term, lang, domain, frequency…)
-          - 'translations': ranked list of translation candidates
-          - 'example_segments': up to 2 TM segments containing this term
-          - 'domain_match': bool (True when node domain matches domain_hint)
-        """
-        # Match via exact KP first, then normalized KP for accented variants
-        found_ids: set = set(self._exact_kp.extract_keywords(text))
-        found_ids |= set(self._norm_kp.extract_keywords(_normalize(text)))
+    # ------------------------------------------------------------------
+    # Lookup
+    # ------------------------------------------------------------------
 
+    def extract_entities(self, text: str, target_lang: str = "sl") -> List[Dict]:
+        found_ids = set(self._exact_kp.extract_keywords(text.lower()))
         results = []
         for node_id in found_ids:
             if not self.G.has_node(node_id):
                 continue
-            node_data = dict(self.G.nodes[node_id])
-
-            # Domain scoring
-            if domain_hint:
-                node_data["domain_match"] = (
-                    node_data.get("domain", "") == domain_hint
-                )
-            else:
-                node_data["domain_match"] = False
-
-            # Translation candidates
-            node_data["translations"] = self._get_translations(
-                node_id, target_lang=target_lang
-            )
-
-            # Exemplar TM segments
-            node_data["example_segments"] = self._get_example_segments(node_id, limit=2)
-
-            results.append(node_data)
-
-        # Sort: domain matches first, then by frequency desc
+            data = dict(self.G.nodes[node_id])
+            data["translations"] = self._get_translations(node_id, target_lang)
+            data["example_segments"] = self._get_example_segments(node_id, limit=2)
+            results.append(data)
         results.sort(
-            key=lambda x: (-int(x.get("domain_match", False)), -x.get("frequency", 0))
+            key=lambda x: (-int(x.get("is_phrase", False)), -x.get("frequency", 0))
         )
         return results
 
-    def _get_translations(
-        self, term_id: str, target_lang: str = "sl"
-    ) -> List[Dict]:
-        """
-        Return ranked translation candidates for *term_id*.
-
-        Strategy:
-        1. Direct 'translates_to' edges → highest confidence
-        2. Concept-pivot (term → concept ← sibling term in target_lang)
-        3. TM co-occurrence path (term → segment → target term)
-        """
-        candidates: List[Dict] = []
-        seen_terms: set = set()
-
-        def _add(term: str, lang: str, confidence: float, verified: bool, path: str):
-            key = (term, lang)
-            if key in seen_terms:
-                # Boost confidence if we see same candidate via multiple paths
-                for c in candidates:
-                    if c["term"] == term and c["lang"] == lang:
-                        c["confidence"] = min(0.99, c["confidence"] + 0.05)
-                return
-            seen_terms.add(key)
-            candidates.append(
-                {
-                    "term": term,
-                    "lang": lang,
-                    "confidence": confidence,
-                    "verified": verified,
-                    "path": path,
-                }
-            )
-
-        if not self.G.has_node(term_id):
-            return candidates
-
-        # 1. Direct translation edges
+    def _get_translations(self, term_id: str, target_lang: str = "sl") -> List[Dict]:
+        res = []
+        seen = set()
         for _, tgt_id, edata in self.G.out_edges(term_id, data=True):
             if edata.get("relation") == "translates_to":
                 t_data = self.G.nodes.get(tgt_id, {})
                 if t_data.get("lang") == target_lang:
-                    _add(
-                        t_data.get("term", tgt_id),
-                        target_lang,
-                        edata.get("confidence", 0.5),
-                        edata.get("verified", False),
-                        "direct",
-                    )
-
-        # 2. Concept pivot
-        for _, concept_id, edata in self.G.out_edges(term_id, data=True):
-            if edata.get("relation") == "instantiates_concept":
-                for _, sibling_id, _ in self.G.out_edges(concept_id, data=True):
-                    if sibling_id == term_id:
-                        continue
-                    s_data = self.G.nodes.get(sibling_id, {})
-                    if (
-                        s_data.get("type") == "term"
-                        and s_data.get("lang") == target_lang
-                    ):
-                        _add(
-                            s_data.get("term", sibling_id),
-                            target_lang,
-                            s_data.get("confidence", 0.4),
-                            False,
-                            "concept_pivot",
+                    if t_data.get("term") not in seen:
+                        res.append(
+                            {
+                                "term": t_data.get("term"),
+                                "confidence": edata.get("confidence", 0.5),
+                                "verified": edata.get("verified", False),
+                            }
                         )
-
-        # 3. TM co-occurrence path (term → segment → target term)
-        for _, seg_id, _ in self.G.out_edges(term_id, data=True):
-            seg_data = self.G.nodes.get(seg_id, {})
-            if seg_data.get("type") != "tm_segment":
-                continue
-            for _, tgt_term_id, ydata in self.G.out_edges(seg_id, data=True):
-                if ydata.get("relation") != "yields_term":
-                    continue
-                t_data = self.G.nodes.get(tgt_term_id, {})
-                if t_data.get("lang") == target_lang:
-                    # Use the edge confidence if present, else frequency-based estimate
-                    edge_conf = 0.0
-                    if self.G.has_edge(term_id, tgt_term_id):
-                        edge_conf = self.G.edges[term_id, tgt_term_id].get(
-                            "confidence", 0.0
-                        )
-                    if edge_conf >= 0.35:
-                        _add(
-                            t_data.get("term", tgt_term_id),
-                            target_lang,
-                            edge_conf,
-                            False,
-                            "tm_cooccur",
-                        )
-
-        return sorted(candidates, key=lambda x: -x["confidence"])
+                        seen.add(t_data.get("term"))
+        return sorted(res, key=lambda x: -x["confidence"])
 
     def _get_example_segments(self, term_id: str, limit: int = 2) -> List[Dict]:
-        """Return TM segment nodes that contain this term."""
         segments = []
         for _, seg_id, edata in self.G.out_edges(term_id, data=True):
             if edata.get("relation") == "appears_in_segment":
@@ -638,8 +574,88 @@ class KnowledgeGraph:
         return segments
 
     # ------------------------------------------------------------------
-    # Editing-experience helpers
+    # Visualization
     # ------------------------------------------------------------------
+
+    def visualize(self, output_path: str = "kg_visualization.html", limit: int = 100):
+        if not HAS_PYVIS:
+            print(
+                "[KG] Visualization requires 'pyvis'. Install with: pip install pyvis"
+            )
+            return
+
+        print(f"[KG] Visualizing top {limit} concepts...")
+        nodes = [
+            n
+            for n, d in self.G.nodes(data=True)
+            if d.get("type") == "term" and d.get("is_phrase")
+        ]
+        nodes = sorted(
+            nodes, key=lambda n: self.G.nodes[n].get("frequency", 0), reverse=True
+        )[:limit]
+
+        if not nodes:
+            print("[KG] No terms found to visualize.")
+            return
+
+        sub_g = self.G.subgraph(nodes)
+        net = Network(
+            height="900px",
+            width="100%",
+            directed=True,
+            notebook=False,
+            cdn_resources="in_line",
+        )
+
+        # --- ROBUST TEMPLATE FIX ---
+        if net.template is None:
+            try:
+                template_dir = Path(pyvis.__file__).parent / "templates"
+                env = Environment(loader=FileSystemLoader(str(template_dir)))
+                net.template = env.get_template("template.html")
+            except Exception as e:
+                print(f"[KG] Critical Error loading Pyvis templates: {e}")
+                return
+        # ---------------------------
+
+        net.from_nx(sub_g)
+
+        for node in net.nodes:
+            node["label"] = node.get("term", "")
+            node["value"] = node.get("frequency", 1)
+            node["title"] = f"{node.get('term')} (Freq: {node.get('frequency', 0)})"
+
+        try:
+            net.write_html(output_path)
+            print(f"[KG] Visualization saved to {output_path}")
+        except Exception as e:
+            print(f"[KG] Error saving visualization: {e}")
+
+    # ------------------------------------------------------------------
+    # Helpers (Full Suite)
+    # ------------------------------------------------------------------
+
+    def promote_pair(
+        self,
+        source_text: str,
+        target_text: str,
+        source_lang: str = "en",
+        target_lang: str = "sl",
+        verified: bool = True,
+        domain: str = "",
+        context: str = None,
+        validated_by: str = None,
+    ):
+        src = source_text.strip()
+        tgt = target_text.strip()
+        cid = self.add_concept_node(
+            f"concept:{src.replace(' ', '_')}", label=src, domain=domain
+        )
+        sid = self.add_term_node(src, source_lang, concept_id=cid, is_phrase=True)
+        tid = self.add_term_node(tgt, target_lang, is_phrase=True)
+        self.link_translations(
+            sid, tid, confidence=1.0, verified=verified, source="manual"
+        )
 
     def get_inline_hints(
         self,
@@ -649,35 +665,18 @@ class KnowledgeGraph:
         target_lang: str = "sl",
         max_hints: int = 6,
     ) -> List[Dict]:
-        """
-        Real-time inline hints for the translation editor.
-
-        Given what the translator has typed so far (partial_target) and the
-        source segment, return ranked term-completion candidates drawn from:
-          - KG term nodes in target_lang that translate source entities
-          - Collocation nodes whose phrase starts with the last partial word
-
-        Return format:
-          [{"term": str, "confidence": float, "source_term": str, "type": "kg|coll"}]
-        """
-        results: List[Dict] = []
-        seen: set = set()
-
-        # Identify last partial word the translator is typing
+        results = []
+        seen = set()
         words = partial_target.rstrip().split()
         last_word = words[-1].lower() if words else ""
 
-        # 1. Source entities → their translation candidates
-        src_entities = self.extract_entities(
-            source_text, target_lang=target_lang
-        )
+        src_entities = self.extract_entities(source_text, target_lang=target_lang)
         for entity in src_entities:
             src_term = entity.get("term", "")
             for t in entity.get("translations", []):
                 candidate = t["term"]
                 if candidate in seen:
                     continue
-                # Only surface candidates that complete the current partial word
                 if last_word and not candidate.lower().startswith(last_word):
                     continue
                 seen.add(candidate)
@@ -691,92 +690,37 @@ class KnowledgeGraph:
                     }
                 )
 
-        # 2. Collocation completions
-        if last_word and len(last_word) >= 2:
-            for node_id, data in self.G.nodes(data=True):
-                if data.get("type") == "collocation" and data.get("lang") == target_lang:
-                    phrase = data.get("phrase", "")
-                    if phrase.lower().startswith(last_word):
-                        if phrase not in seen:
-                            seen.add(phrase)
-                            results.append(
-                                {
-                                    "term": phrase,
-                                    "confidence": min(
-                                        0.9,
-                                        data.get("frequency", 1) / 10,
-                                    ),
-                                    "source_term": "",
-                                    "type": "collocation",
-                                    "verified": False,
-                                }
-                            )
-
         results.sort(key=lambda x: -x["confidence"])
         return results[:max_hints]
 
     def get_term_tooltip(
-        self,
-        term: str,
-        source_lang: str = "en",
-        target_lang: str = "sl",
+        self, term: str, source_lang: str = "en", target_lang: str = "sl"
     ) -> Optional[Dict]:
-        """
-        Return rich tooltip data for a term underlined in the source panel.
-
-        Includes: known translations ranked by confidence, domain, definition,
-        and up to 2 example TM segments.
-        """
         node_id = f"term:{source_lang}:{term.lower()}"
-
-        # Also try via lookup (handles variants)
         if not self.G.has_node(node_id):
             found = self._exact_kp.extract_keywords(term)
             if found:
                 node_id = found[0]
             else:
                 return None
-
         if not self.G.has_node(node_id):
             return None
 
         data = dict(self.G.nodes[node_id])
         data["translations"] = self._get_translations(node_id, target_lang)
         data["example_segments"] = self._get_example_segments(node_id, limit=3)
-
-        # Concept label
         for _, cid, edata in self.G.out_edges(node_id, data=True):
             if edata.get("relation") == "instantiates_concept":
                 concept_data = self.G.nodes.get(cid, {})
                 data["concept_label"] = concept_data.get("label", "")
                 data["concept_definition"] = concept_data.get("definition", "")
                 break
-
         return data
 
     def get_consistency_report(
-        self,
-        segments: List[Dict],
-        source_lang: str = "en",
-        target_lang: str = "sl",
+        self, segments: List[Dict], source_lang: str = "en", target_lang: str = "sl"
     ) -> List[Dict]:
-        """
-        Scan confirmed segments for translation inconsistencies.
-
-        Returns a list of warnings:
-          {
-            "term": str,
-            "used_translations": [str, ...],
-            "recommended": str,
-            "confidence": float,
-            "segment_ids": [int, ...]
-          }
-
-        Useful for a project-wide consistency panel in the editor.
-        """
-        # Map: source_term → [(segment_id, target_translation_used)]
-        usage: Dict[str, List[Tuple[int, str]]] = defaultdict(list)
-
+        usage = defaultdict(list)
         for seg in segments:
             if seg.get("status") != "done":
                 continue
@@ -788,101 +732,43 @@ class KnowledgeGraph:
                 if not src_term:
                     continue
                 translations = self._get_translations(
-                    f"term:{source_lang}:{src_term.lower()}",
-                    target_lang=target_lang,
+                    f"term:{source_lang}:{src_term.lower()}", target_lang=target_lang
                 )
                 if not translations:
                     continue
-                recommended = translations[0]["term"]
-                # Check what was actually used in target
                 tgt_text = seg.get("target", "").lower()
+                found_match = False
                 for t in translations:
                     if t["term"].lower() in tgt_text:
                         usage[src_term].append((seg["id"], t["term"]))
+                        found_match = True
                         break
-                else:
+                if not found_match:
                     usage[src_term].append((seg["id"], "?"))
 
         warnings = []
         for src_term, occurrences in usage.items():
             used = {t for _, t in occurrences}
             if len(used) <= 1:
-                continue  # Consistent
-
+                continue
             translations = self._get_translations(
-                f"term:{source_lang}:{src_term.lower()}",
-                target_lang=target_lang,
+                f"term:{source_lang}:{src_term.lower()}", target_lang=target_lang
             )
             recommended = translations[0]["term"] if translations else list(used)[0]
-
             warnings.append(
                 {
                     "term": src_term,
                     "used_translations": list(used),
                     "recommended": recommended,
-                    "confidence": translations[0]["confidence"] if translations else 0.5,
+                    "confidence": translations[0]["confidence"]
+                    if translations
+                    else 0.5,
                     "segment_ids": [sid for sid, _ in occurrences],
                 }
             )
-
         return sorted(warnings, key=lambda x: -x["confidence"])
 
-    # ------------------------------------------------------------------
-    # Manual management helpers (used by main.py _add_to_kg etc.)
-    # ------------------------------------------------------------------
-
-    def promote_pair(
-        self,
-        source_text: str,
-        target_text: str,
-        source_lang: str = "en",
-        target_lang: str = "sl",
-        verified: bool = True,
-        domain: str = "",
-    ):
-        """
-        Promote a confirmed translation pair into the KG.
-        Creates term nodes, a concept anchor, and a high-confidence
-        translation edge — for use when a translator confirms a segment.
-        """
-        src_tokens = _tokenize_simple(source_text)
-        tgt_tokens = _tokenize_simple(target_text)
-
-        # Whole-segment concept anchor
-        concept_id = f"concept:{source_text[:32].replace(' ', '_').lower()}"
-        self.add_concept_node(concept_id, label=source_text[:64], domain=domain)
-
-        # Individual content-word term nodes
-        for st in src_tokens:
-            if len(st) >= 3:
-                self.add_term_node(
-                    st, source_lang, concept_id=concept_id,
-                    domain=domain, source="confirmed", confidence=0.9,
-                )
-        for tt in tgt_tokens:
-            if len(tt) >= 3:
-                self.add_term_node(
-                    tt, target_lang, concept_id=concept_id,
-                    domain=domain, source="confirmed", confidence=0.9,
-                )
-
-        # Link every src token to every tgt token (simplified; PMI would be better)
-        # In practice for short segments (≤6 tokens) this is fine
-        if len(src_tokens) <= 6 and len(tgt_tokens) <= 6:
-            for st in src_tokens:
-                for tt in tgt_tokens:
-                    sid = f"term:{source_lang}:{st}"
-                    tid = f"term:{target_lang}:{tt}"
-                    if self.G.has_node(sid) and self.G.has_node(tid):
-                        self.link_translations(
-                            sid, tid,
-                            confidence=0.9,
-                            verified=verified,
-                            source="confirmed",
-                        )
-
     def search_prefix(self, prefix: str, target_lang: str) -> List[str]:
-        """Autocomplete: terms in KG that start with prefix."""
         if not prefix:
             return []
         pl = prefix.lower()
@@ -927,18 +813,12 @@ class KnowledgeGraph:
             results.append(nd)
         return results
 
-    # ------------------------------------------------------------------
-    # Stats
-    # ------------------------------------------------------------------
-
     def stats(self) -> Dict[str, int]:
-        by_type: Counter = Counter(
-            data.get("type", "unknown")
-            for _, data in self.G.nodes(data=True)
+        by_type = Counter(
+            data.get("type", "unknown") for _, data in self.G.nodes(data=True)
         )
-        by_rel: Counter = Counter(
-            data.get("relation", "unknown")
-            for _, _, data in self.G.edges(data=True)
+        by_rel = Counter(
+            data.get("relation", "unknown") for _, _, data in self.G.edges(data=True)
         )
         return {
             "nodes_total": self.G.number_of_nodes(),
