@@ -1,5 +1,3 @@
-# main.py  –  Zen Translator
-
 import asyncio
 import concurrent.futures
 import html as html_lib
@@ -14,7 +12,7 @@ from typing import Dict, List, Tuple
 
 try:
     import docx
-    from nicegui import app, context, ui
+    from nicegui import app, context, events, ui
 
     import config
     from translate_core import (
@@ -450,115 +448,52 @@ def _search_intelligence(query: str, lang_pair: str) -> Dict:
 def page_translate(project_id: str):
     _apply_colors()
 
-    # CSS: Completely cleaned up DOM tracking and absolute positions - we use pure CSS Grid overlaps now
-    ui.add_head_html("""<style>
-        .active-card {
-            box-shadow: 0 20px 50px -12px rgba(15, 23, 42, 0.1);
-            border: 1px solid #e2e8f0;
+    # =====================================================================
+    # JS Helper for cursor-aware word operations (CSP Safe)
+    #
+    # Character class covers:
+    #   \w          — ASCII word chars (a-z, A-Z, 0-9, _)
+    #   čšžČŠŽ      — Slovenian-specific letters (explicit, reliable cross-browser)
+    #   \u0100-\u024F — Latin Extended-A and Extended-B (broader Slavic/European coverage)
+    # =====================================================================
+    ui.add_head_html("""
+    <script>
+    window.ZenEditor = {
+        _getTa: function(id) {
+            const wrapper = document.getElementById(id);
+            if (!wrapper) return null;
+            return wrapper.querySelector('textarea');
+        },
+        getInfo: function(textareaId) {
+            const ta = this._getTa(textareaId);
+            if (!ta) return null;
+            const v = ta.value, p = ta.selectionStart;
+            let s = p, e = p;
+            // Explicit SL chars + Latin Extended range for robust non-ASCII word detection
+            const re = /[\\w\\u010D\\u0161\\u017E\\u010C\\u0160\\u017D\\u0100-\\u024F]/;
+            while (s > 0 && re.test(v[s-1])) s--;
+            while (e < v.length && re.test(v[e])) e++;
+            return {
+                word: v.slice(s, e),
+                prefix: v.slice(s, p),
+                start: s,
+                end: e,
+                pos: p,
+                value: v
+            };
+        },
+        replaceWord: function(textareaId, replacement) {
+            const ta = this._getTa(textareaId);
+            if (!ta) return;
+            const info = this.getInfo(textareaId);
+            if (!info) return;
+            ta.setRangeText(replacement, info.start, info.end, 'end');
+            ta.dispatchEvent(new Event('input', {bubbles: true}));
+            ta.focus();
         }
-        .seg-row { transition: all 0.2s ease; border-radius: 8px; margin-bottom: 2px; }
-        .seg-row:hover { background: #f1f5f9; transform: translateX(4px); }
-        html { scroll-behavior: smooth; }
-        .kg-term {
-            border-bottom: 2px solid #3b82f6;
-            background: rgba(59,130,246,0.08);
-            padding: 0 2px;
-            border-radius: 2px;
-            cursor: help;
-            font-weight: 500;
-        }
-        .source-area {
-            background: #f8fafc;
-            border-left: 4px solid #3b82f6;
-            border-radius: 0 8px 8px 0;
-            padding: 16px 20px;
-        }
-        .editor-container {
-            display: grid;
-            grid-template-columns: 1fr;
-            grid-template-rows: 1fr;
-            width: 100%;
-            background: white;
-            border: 2px solid #e2e8f0;
-            border-radius: 12px;
-            overflow: hidden;
-            transition: all 0.2s ease;
-            position: relative;
-        }
-        .editor-container:focus-within {
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 4px rgba(59,130,246,0.1);
-        }
-        .stack-layer {
-            grid-column: 1;
-            grid-row: 1;
-            font-family: 'Inter', -apple-system, sans-serif !important;
-            font-size: 16px !important;
-            line-height: 1.6 !important;
-            padding: 16px 20px !important;
-            margin: 0;
-            box-sizing: border-box;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            word-break: break-word;
-        }
-        .real-textarea {
-            z-index: 10;
-            background: transparent !important;
-        }
-        .real-textarea .q-field__control,
-        .real-textarea .q-field__native,
-        .real-textarea .q-field__control:before,
-        .real-textarea .q-field__control:after {
-            background: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            min-height: 0 !important;
-        }
-
-        .intel-header {
-            font-size: 10px;
-            font-weight: 800;
-            letter-spacing: 0.1em;
-            color: #64748b;
-            text-transform: uppercase;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .intel-header::after {
-            content: "";
-            flex: 1;
-            height: 1px;
-            background: #f1f5f9;
-        }
-    </style>""")
-
-    # JS Helper: Canonical Vue/Quasar cursor insertion bypassing external floating span hacks
-    ui.add_head_html("""<script>
-        window.insertAtCursor = function(wrapperId, textToInsert) {
-            const wrapper = document.getElementById(wrapperId);
-            if (!wrapper) return false;
-
-            // Standard resolution for Quasar q-input internal textarea
-            const ta = wrapper.tagName === 'TEXTAREA' ? wrapper : wrapper.querySelector('textarea');
-            if (!ta) return false;
-
-            const start = ta.selectionStart;
-            const end = ta.selectionEnd;
-            const val = ta.value;
-            const newVal = val.substring(0, start) + textToInsert + val.substring(end);
-
-            ta.value = newVal;
-            ta.selectionStart = ta.selectionEnd = start + textToInsert.length;
-
-            // Dispatch standard input event to ensure Python state (v-model) perfectly syncs up
-            ta.dispatchEvent(new Event('input', { bubbles: true }));
-            return true;
-        };
-    </script>""")
+    };
+    </script>
+    """)
 
     data = load_project(project_id)
     if data is None:
@@ -577,11 +512,6 @@ def page_translate(project_id: str):
                 type="positive",
                 icon="auto_awesome",
             )
-        if "search_field" in locals() or "search_field" in globals():
-            try:
-                _render_intel.refresh()
-            except:
-                pass
 
     def _scan_tm_for_kg():
         if not tm:
@@ -989,81 +919,434 @@ def page_translate(project_id: str):
         except RuntimeError:
             pass
 
-    async def _smart(
-        cur: str,
-        seg: dict,
-        chip_row: ui.column,
-        ti: ui.textarea,
-        refs: dict,
-        cursor_pos: int = -1,
-    ):
-        """
-        Unified NLP intelligence for inline predictions.
-        Replaces previous raw regex + static dictionary hacks.
-        Uses pure Knowledge Graph semantic traversal to offer real-time translations correctly positioned.
-        """
-        # Debounce to avoid flooding on rapid key-presses
-        token = seg.get("_smart_token", 0) + 1
-        seg["_smart_token"] = token
-        await asyncio.sleep(0.05)
-        if seg.get("_smart_token") != token:
-            return
+    # ------------------------------------------------------------------
+    # Active segment renderer
+    # ------------------------------------------------------------------
+    def _render_active(seg: dict):
+        refs = {"ti": None, "suggestion_bar": None}
+        cli = context.client
+        ta_id = f"ta-{project_id}-{seg['id']}"
 
-        src, tgt = ws["lang_pair"].split("->")
-        pos = cursor_pos if cursor_pos >= 0 else len(cur)
-        text_before = cur[:pos]
-        text_after = cur[pos:]
+        with (
+            ui.card()
+            .classes(
+                "w-full bg-white active-card p-0 rounded-2xl flex flex-col gap-0 my-6 overflow-hidden"
+            )
+            .props(f'id="card-seg-{seg["id"]}"')
+        ):
+            # --- Header ---
+            with ui.row().classes(
+                "w-full px-6 py-3 bg-slate-50/50 border-b border-slate-100 justify-between items-center"
+            ):
+                with ui.row().classes("items-center gap-2"):
+                    ui.icon("tag", size="14px", color="slate-400")
+                    ui.label(f"SEGMENT {seg['id'] + 1}").classes(
+                        "text-[10px] font-black text-slate-400 tracking-[.2em]"
+                    )
+                with ui.row().classes("items-center gap-1"):
+                    if seg["status"] == "done":
+                        ui.badge("CONFIRMED", color="emerald-500").classes(
+                            "text-[9px] font-bold px-2 py-0.5 rounded-full"
+                        )
+                    else:
+                        ui.badge("DRAFTING", color="blue-400").classes(
+                            "text-[9px] font-bold px-2 py-0.5 rounded-full"
+                        )
 
-        ghost_text = ""
+            # --- Source ---
+            with ui.column().classes("w-full px-6 pt-6 pb-4 gap-2"):
+                ui.label("SOURCE").classes("intel-header")
+                with ui.element("div").classes("source-area"):
+                    ui.html(_get_highlighted_source(seg["source"])).classes(
+                        "text-lg text-slate-800 font-serif leading-relaxed"
+                    )
 
-        # Only invoke intelligent NLP if Knowledge Graph is active and there's context
-        if kg and text_before.strip():
-            # Get the exact fragment being currently typed
-            words = text_before.rstrip().split()
-            last_word = words[-1].lower() if words else ""
+            # --- Target Editor ---
+            with ui.column().classes("w-full px-6 py-4 gap-2"):
+                ui.label("TARGET").classes("intel-header")
+                qa_container = ui.column().classes("w-full gap-1 mb-2")
 
-            if last_word:
-                # 1. Ask KG for deep source-entity mapped translation recommendations
-                # Returns entities matched against source text and filtered by partial target input
-                hints = kg.get_inline_hints(
-                    partial_target=text_before,
-                    source_text=seg["source"],
-                    source_lang=src,
-                    target_lang=tgt,
-                    max_hints=3,
+                # Textarea with a real DOM id for JS access
+                ti = (
+                    ui.textarea(value=seg["target"])
+                    .classes("w-full")
+                    .props(
+                        f'id="{ta_id}" outlined autogrow '
+                        'input-style="font-family: Inter, -apple-system, sans-serif; font-size: 16px; line-height: 1.6;"'
+                    )
+                )
+                refs["ti"] = ti
+
+                # =====================================================================
+                # INLINE SUGGESTION BAR
+                # =====================================================================
+                suggestion_bar = ui.row().classes(
+                    "w-full gap-2 items-center min-h-[32px] flex-wrap"
+                )
+                refs["suggestion_bar"] = suggestion_bar
+
+                async def _update_suggestions():
+                    """Fetch word-at-cursor via JS and render chips inside suggestion_bar.
+
+                    Uses info["prefix"] (text from word-start to cursor) for KG lookup,
+                    which gives correct prefix-completion semantics. info["word"] (full
+                    word at cursor including chars after the cursor) is only used for the
+                    minimum-length guard and for the 'replace' chip type check.
+                    """
+                    with cli:
+                        try:
+                            info = await ui.run_javascript(
+                                f'window.ZenEditor.getInfo("{ta_id}")'
+                            )
+                        except Exception as e:
+                            print(f"[Inline] JS error: {e}")
+                            return
+
+                    if not info:
+                        return
+
+                    word = info.get("word", "")
+                    # prefix = text from word-start to cursor position.
+                    # This is what the user has typed so far of the current word.
+                    prefix = info.get("prefix", "")
+
+                    # Clear bar if the current word is too short to be meaningful
+                    if len(word) < 2:
+                        with cli:
+                            with suggestion_bar:
+                                suggestion_bar.clear()
+                        return
+
+                    src_l, tgt_l = ws["lang_pair"].split("->")
+
+                    # Query KG and Glossary
+                    suggestions = []
+                    if kg:
+                        try:
+                            # Pass prefix (not word) — this is the key fix.
+                            # prefix is what the user has typed so far of this word;
+                            # word also includes characters after the cursor.
+                            hints = kg.get_inline_hints(
+                                word_prefix=prefix,
+                                source_text=seg["source"],
+                                source_lang=src_l,
+                                target_lang=tgt_l,
+                                max_hints=6,
+                            )
+                            for h in hints:
+                                cand = h.get("term", "")
+                                if not cand:
+                                    continue
+                                # A candidate that extends the current prefix is a completion.
+                                # A candidate that differs entirely is a replacement suggestion.
+                                cand_lower = cand.lower()
+                                any_word_extends = any(
+                                    w.startswith(prefix.lower()) and len(w) > len(prefix)
+                                    for w in cand_lower.split()
+                                )
+                                if any_word_extends:
+                                    suggestions.append(
+                                        {
+                                            "display": cand,
+                                            "insert": cand,
+                                            "type": "complete",
+                                            "confidence": h.get("confidence", 0.5),
+                                        }
+                                    )
+                                elif cand_lower != word.lower():
+                                    suggestions.append(
+                                        {
+                                            "display": cand,
+                                            "insert": cand,
+                                            "type": "replace",
+                                            "confidence": h.get("confidence", 0.5),
+                                        }
+                                    )
+                        except Exception as e:
+                            print(f"[Inline] KG error: {e}")
+
+                    if glossary:
+                        try:
+                            for g in glossary.lookup_terms(word, src_l, tgt_l):
+                                cand = g["target_term"]
+                                if not any(s["insert"] == cand for s in suggestions):
+                                    suggestions.append(
+                                        {
+                                            "display": cand,
+                                            "insert": cand,
+                                            "type": "glossary",
+                                            "confidence": 1.0,
+                                        }
+                                    )
+                        except Exception as e:
+                            print(f"[Inline] Glossary error: {e}")
+
+                    suggestions.sort(key=lambda x: -x["confidence"])
+
+                    # Render suggestions
+                    with cli:
+                        with suggestion_bar:
+                            suggestion_bar.clear()
+                            if suggestions:
+                                ui.label("SUGGEST:").classes(
+                                    "text-[9px] font-black text-slate-400 tracking-widest self-center mr-1"
+                                )
+                                for idx, s in enumerate(suggestions[:4]):
+                                    if s["type"] == "glossary":
+                                        chip_cls = "bg-emerald-100 text-emerald-800"
+                                    elif s["confidence"] > 0.85:
+                                        chip_cls = "bg-blue-100 text-blue-800"
+                                    else:
+                                        chip_cls = "bg-slate-100 text-slate-600"
+
+                                    label = s["display"]
+                                    if idx == 0:
+                                        label += " ↹"
+
+                                    # Closure capture for each chip
+                                    def make_click(cand=s["insert"]):
+                                        async def _on_click():
+                                            try:
+                                                with cli:
+                                                    await ui.run_javascript(
+                                                        f'window.ZenEditor.replaceWord("{ta_id}", {json.dumps(cand)})'
+                                                    )
+                                                    new_val = await ui.run_javascript(
+                                                        f'window.ZenEditor._getTa("{ta_id}").value'
+                                                    )
+                                                    ti.value = new_val
+                                                    seg["target"] = new_val
+                                                    with suggestion_bar:
+                                                        suggestion_bar.clear()
+                                            except Exception as e:
+                                                print(f"[Inline] Click error: {e}")
+
+                                        return _on_click
+
+                                    ui.chip(label, on_click=make_click()).props(
+                                        "dense clickable"
+                                    ).classes(
+                                        f"{chip_cls} text-[11px] font-bold px-2 suggestion-chip"
+                                    )
+
+                # Trigger suggestions on input (typing) and click
+                async def _on_input(e):
+                    await asyncio.sleep(0.2)  # Debounce
+                    await _update_suggestions()
+
+                ti.on("input", lambda e: asyncio.create_task(_on_input(e)))
+                ti.on("click", lambda e: asyncio.create_task(_update_suggestions()))
+
+                # QA on value change
+                async def _run_qa_async():
+                    with cli:
+                        if qa_container.is_deleted:
+                            return
+                        warnings = _run_qa(seg, ws["lang_pair"])
+                        qa_container.clear()
+                        with qa_container:
+                            for w in warnings:
+                                color = (
+                                    "bg-red-50 text-red-700 border-red-100"
+                                    if w["type"] == "error"
+                                    else "bg-amber-50 text-amber-700 border-amber-100"
+                                )
+                                icon = "error" if w["type"] == "error" else "warning"
+                                with ui.row().classes(
+                                    f"w-full {color} px-3 py-2 rounded-lg text-xs items-center gap-2 border"
+                                ):
+                                    ui.icon(icon, size="16px")
+                                    ui.label(w["message"]).classes("font-medium")
+
+                ti.on_value_change(lambda e: asyncio.create_task(_run_qa_async()))
+
+            # --- Static inline panel (TM / Glossary / Concordance) ---
+            static_panel = ui.column().classes(
+                "w-full px-6 py-4 bg-slate-50/30 border-t border-slate-100 gap-3"
+            )
+
+            # --- Footer actions ---
+            with ui.row().classes(
+                "w-full px-6 py-4 bg-slate-50/50 border-t border-slate-100 justify-between items-center"
+            ):
+                with ui.row().classes("items-center gap-2"):
+                    ui.button(
+                        icon="auto_awesome",
+                        on_click=lambda: asyncio.create_task(
+                            _ai(seg, refs["ti"], force=True)
+                        ),
+                    ).props("flat round dense size=md color=accent").tooltip(
+                        "Regenerate AI Draft"
+                    )
+                    ui.separator().props("vertical").classes("mx-2 h-6 opacity-20")
+                    if seg["id"] > 0:
+                        ui.button(
+                            icon="keyboard_arrow_up",
+                            on_click=lambda: _set_active(seg["id"] - 1),
+                        ).props("flat round dense size=md color=slate-400")
+                    if seg["id"] < len(ws["segments"]) - 1:
+                        ui.button(
+                            icon="keyboard_arrow_down",
+                            on_click=lambda: _set_active(seg["id"] + 1),
+                        ).props("flat round dense size=md color=slate-400")
+
+                with ui.row().classes("items-center gap-4"):
+                    ui.label("TAB replaces word • ⌘ ENTER confirms").classes(
+                        "text-[10px] text-slate-400 font-bold uppercase tracking-wider"
+                    )
+                    ui.button("CONFIRM", on_click=lambda: _confirm_segment()).props(
+                        "unelevated rounded color=emerald-500"
+                    ).classes(
+                        "px-8 py-2 font-black tracking-[.2em] text-[11px] shadow-lg shadow-emerald-200/50"
+                    )
+
+            # --- Keyboard shortcuts ---
+            async def _on_key(e: events.KeyEventArguments):
+                # Confirm Segment: Ctrl/Cmd + Enter
+                if (
+                    e.key.enter
+                    and (e.modifiers.ctrl or e.modifiers.meta)
+                    and e.action.keydown
+                ):
+                    await _confirm_segment()
+                    return
+
+                # Replace Word: Tab — uses prefix for KG lookup (same fix as _update_suggestions)
+                if e.key.tab and e.action.keydown:
+                    try:
+                        with cli:
+                            info = await ui.run_javascript(
+                                f'window.ZenEditor.getInfo("{ta_id}")'
+                            )
+                    except Exception as ex:
+                        print(f"[Inline] TAB error: {ex}")
+                        return
+
+                    if not info:
+                        return
+
+                    word = info.get("word", "")
+                    prefix = info.get("prefix", "")
+
+                    if len(word) < 2:
+                        return
+
+                    src_l, tgt_l = ws["lang_pair"].split("->")
+                    replacement = None
+
+                    if kg:
+                        try:
+                            hints = kg.get_inline_hints(
+                                word_prefix=prefix,
+                                source_text=seg["source"],
+                                source_lang=src_l,
+                                target_lang=tgt_l,
+                                max_hints=1,
+                            )
+                            if hints:
+                                replacement = hints[0].get("term")
+                        except Exception as ex:
+                            print(f"[Inline] TAB KG error: {ex}")
+
+                    if not replacement and glossary:
+                        try:
+                            g = glossary.lookup_terms(word, src_l, tgt_l)
+                            if g:
+                                replacement = g[0]["target_term"]
+                        except Exception as ex:
+                            print(f"[Inline] TAB glossary error: {ex}")
+
+                    if replacement:
+                        try:
+                            with cli:
+                                await ui.run_javascript(
+                                    f'window.ZenEditor.replaceWord("{ta_id}", {json.dumps(replacement)})'
+                                )
+                                new_val = await ui.run_javascript(
+                                    f'window.ZenEditor._getTa("{ta_id}").value'
+                                )
+                                ti.value = new_val
+                                seg["target"] = new_val
+                                with suggestion_bar:
+                                    suggestion_bar.clear()
+                        except Exception as ex:
+                            print(f"[Inline] TAB replace error: {ex}")
+
+            ui.keyboard(on_key=_on_key, ignore=[])
+
+            # --- Background init using Timer ---
+            def _bg_init():
+                if ws["project_id"] not in GLOBAL_VOCAB:
+                    GLOBAL_VOCAB[ws["project_id"]] = set()
+                v = GLOBAL_VOCAB[ws["project_id"]]
+                for s in ws["segments"]:
+                    for t in [s["source"], s["target"]]:
+                        if t:
+                            v.update(re.findall(r"[\wčšžČŠŽ]{3,}", t))
+
+                with cli:
+                    try:
+                        if not seg["target"].strip():
+                            asyncio.create_task(_ai(seg, refs["ti"]))
+                        if not static_panel.is_deleted:
+                            asyncio.create_task(
+                                _inline_panel(seg, refs["ti"], static_panel)
+                            )
+                        asyncio.create_task(_update_suggestions())
+                    except Exception as e:
+                        print(f"[Inline] BG init error: {e}")
+
+            ui.timer(0.1, _bg_init, once=True, immediate=False)
+
+    def _render_inactive(seg: dict):
+        border = (
+            "border-emerald-400" if seg["status"] == "done" else "border-transparent"
+        )
+        bg = "bg-white" if seg["status"] == "done" else "bg-slate-50/30"
+        qa = _run_qa(seg, ws["lang_pair"]) if seg["target"].strip() else []
+        has_error = any(w["type"] == "error" for w in qa)
+        has_warn = any(w["type"] == "warning" for w in qa)
+
+        with (
+            ui.row()
+            .classes(
+                f"w-full {bg} border-l-4 {border} px-6 py-4 rounded-xl cursor-pointer seg-row no-wrap gap-8 items-center border border-slate-100 mb-2"
+            )
+            .props(f'id="seg-{seg["id"]}"')
+            .on("click", lambda s=seg: _set_active(s["id"]))
+        ):
+            with ui.column().classes("w-1/2 gap-1"):
+                ui.label(f"#{seg['id'] + 1}").classes(
+                    "text-[8px] font-black text-slate-300 tracking-widest"
+                )
+                ui.label(seg["source"]).classes(
+                    "text-[14px] text-slate-600 font-serif leading-relaxed line-clamp-2"
                 )
 
-                # 2. Extract strictly compatible prefix extension to avoid jarring overwrites
-                for hint in hints:
-                    cand = hint.get("term", "")
-                    if cand.lower().startswith(last_word):
-                        suggestion = cand[len(last_word) :]
-                        if suggestion and not text_after.lower().startswith(
-                            suggestion.lower()
-                        ):
-                            ghost_text = suggestion
-                            break
-
-        # Cache reference for tab completion
-        refs["ghost"]["suggestion"] = ghost_text
-        refs["ghost"]["text_before"] = text_before
-        refs["ghost"]["text_after"] = text_after
-
-        # Clean, native DOM state synchronization using standard ui.html
-        try:
-            ghost_html = refs.get("ghost_html")
-            if ghost_html and not ghost_html.is_deleted:
-                if ghost_text:
-                    # Securely escape and render transparent/colored text overlaps
-                    tb = html_lib.escape(text_before)
-                    ta = html_lib.escape(text_after)
-                    g = html_lib.escape(ghost_text)
-                    content = f'<span style="color: transparent;">{tb}</span><span style="color: #94a3b8; font-weight: 500;">{g}</span><span style="color: transparent;">{ta}</span>'
-                    ghost_html.content = content
-                else:
-                    ghost_html.content = ""
-        except Exception:
-            pass
+            with ui.row().classes("w-1/2 items-center gap-3 no-wrap"):
+                lbl = (
+                    seg["target"]
+                    if seg["target"].strip()
+                    else "Waiting for translation..."
+                )
+                sty = (
+                    "text-slate-800 font-medium"
+                    if seg["target"].strip()
+                    else "text-slate-300 italic font-light"
+                )
+                ui.label(lbl).classes(
+                    f"text-[14px] {sty} leading-relaxed line-clamp-2 flex-1"
+                )
+                if has_error:
+                    ui.icon("error", color="negative", size="18px").tooltip(
+                        "Critical QA Error"
+                    )
+                elif has_warn:
+                    ui.icon("warning", color="warning", size="18px").tooltip(
+                        "QA Warning"
+                    )
+                if seg["status"] == "done":
+                    ui.icon("check_circle", color="emerald-400", size="18px")
 
     async def _batch():
         if ws["is_batch"]:
@@ -1141,270 +1424,6 @@ def page_translate(project_id: str):
         content = "\n\n".join(lines)
         ui.download(content.encode("utf-8"), f"translated_{ws['filename']}.txt")
 
-    def _render_inactive(seg: dict):
-        border = (
-            "border-emerald-400" if seg["status"] == "done" else "border-transparent"
-        )
-        bg = "bg-white" if seg["status"] == "done" else "bg-slate-50/30"
-        qa = _run_qa(seg, ws["lang_pair"]) if seg["target"].strip() else []
-        has_error = any(w["type"] == "error" for w in qa)
-        has_warn = any(w["type"] == "warning" for w in qa)
-
-        with (
-            ui.row()
-            .classes(
-                f"w-full {bg} border-l-4 {border} px-6 py-4 rounded-xl cursor-pointer seg-row no-wrap gap-8 items-center border border-slate-100 mb-2"
-            )
-            .props(f'id="seg-{seg["id"]}"')
-            .on("click", lambda s=seg: _set_active(s["id"]))
-        ):
-            with ui.column().classes("w-1/2 gap-1"):
-                ui.label(f"#{seg['id'] + 1}").classes(
-                    "text-[8px] font-black text-slate-300 tracking-widest"
-                )
-                ui.label(seg["source"]).classes(
-                    "text-[14px] text-slate-600 font-serif leading-relaxed line-clamp-2"
-                )
-
-            with ui.row().classes("w-1/2 items-center gap-3 no-wrap"):
-                lbl = (
-                    seg["target"]
-                    if seg["target"].strip()
-                    else "Waiting for translation..."
-                )
-                sty = (
-                    "text-slate-800 font-medium"
-                    if seg["target"].strip()
-                    else "text-slate-300 italic font-light"
-                )
-                ui.label(lbl).classes(
-                    f"text-[14px] {sty} leading-relaxed line-clamp-2 flex-1"
-                )
-                if has_error:
-                    ui.icon("error", color="negative", size="18px").tooltip(
-                        "Critical QA Error"
-                    )
-                elif has_warn:
-                    ui.icon("warning", color="warning", size="18px").tooltip(
-                        "QA Warning"
-                    )
-                if seg["status"] == "done":
-                    ui.icon("check_circle", color="emerald-400", size="18px")
-
-    def _render_active(seg: dict):
-        refs = {"ti": None, "ghost_html": None, "ghost": {}}
-        cli = context.client
-
-        with (
-            ui.card()
-            .classes(
-                "w-full bg-white active-card p-0 rounded-2xl flex flex-col gap-0 my-6 overflow-hidden"
-            )
-            .props(f'id="card-seg-{seg["id"]}"')
-        ):
-            with ui.row().classes(
-                "w-full px-6 py-3 bg-slate-50/50 border-b border-slate-100 justify-between items-center"
-            ):
-                with ui.row().classes("items-center gap-2"):
-                    ui.icon("tag", size="14px", color="slate-400")
-                    ui.label(f"SEGMENT {seg['id'] + 1}").classes(
-                        "text-[10px] font-black text-slate-400 tracking-[.2em]"
-                    )
-                with ui.row().classes("items-center gap-1"):
-                    if seg["status"] == "done":
-                        ui.badge("CONFIRMED", color="emerald-500").classes(
-                            "text-[9px] font-bold px-2 py-0.5 rounded-full"
-                        )
-                    else:
-                        ui.badge("DRAFTING", color="blue-400").classes(
-                            "text-[9px] font-bold px-2 py-0.5 rounded-full"
-                        )
-
-            async def run_ai_force():
-                await _ai(seg, refs["ti"], force=True)
-
-            with ui.column().classes("w-full px-6 pt-6 pb-4 gap-2"):
-                ui.label("SOURCE").classes("intel-header")
-                with ui.element("div").classes("source-area"):
-                    ui.html(_get_highlighted_source(seg["source"])).classes(
-                        "text-lg text-slate-800 font-serif leading-relaxed"
-                    )
-
-            with ui.column().classes("w-full px-6 py-4 gap-2"):
-                ui.label("TARGET").classes("intel-header")
-                qa_container = ui.column().classes("w-full gap-1 mb-2")
-
-                with ui.column().classes("w-full gap-0 relative"):
-                    chip_row = ui.column().classes("w-full")
-
-                    async def _on_interaction(e=None):
-                        val = None
-                        if getattr(e, "args", None):
-                            if isinstance(e.args, list) and len(e.args) > 0:
-                                val = e.args[0]
-                                if len(e.args) > 1 and isinstance(
-                                    e.args[1], (int, float)
-                                ):
-                                    seg["_cursor_pos"] = int(e.args[1])
-                            elif isinstance(e.args, int):
-                                seg["_cursor_pos"] = e.args
-                        if val is None:
-                            val = refs["ti"].value or ""
-                        seg["target"] = val
-
-                        cursor_pos = seg.get("_cursor_pos", len(val))
-
-                        # Fire intelligence pipeline
-                        await _smart(
-                            val, seg, chip_row, refs["ti"], refs, cursor_pos=cursor_pos
-                        )
-
-                        async def run_qa():
-                            with cli:
-                                if qa_container.is_deleted:
-                                    return
-                                warnings = _run_qa(seg, ws["lang_pair"])
-                                qa_container.clear()
-                                with qa_container:
-                                    for w in warnings:
-                                        color = (
-                                            "bg-red-50 text-red-700 border-red-100"
-                                            if w["type"] == "error"
-                                            else "bg-amber-50 text-amber-700 border-amber-100"
-                                        )
-                                        icon = (
-                                            "error"
-                                            if w["type"] == "error"
-                                            else "warning"
-                                        )
-                                        with ui.row().classes(
-                                            f"w-full {color} px-3 py-2 rounded-lg text-xs items-center gap-2 border"
-                                        ):
-                                            ui.icon(icon, size="16px")
-                                            ui.label(w["message"]).classes(
-                                                "font-medium"
-                                            )
-
-                        asyncio.create_task(run_qa())
-
-                    # Core HTML/CSS setup using perfect overlay mapping instead of hacky floating JS nodes
-                    with (
-                        ui.element("div")
-                        .classes("editor-container")
-                        .props(f'id="seg-{seg["id"]}"')
-                    ):
-                        # 1. Pure HTML backend layer for ghost text alignment rendering
-                        ghost_html = ui.html("").classes(
-                            "stack-layer pointer-events-none"
-                        )
-                        refs["ghost_html"] = ghost_html
-
-                        # 2. Native interactive textarea layer
-                        _interaction_js = (
-                            "(e) => emit(e.target.value, e.target.selectionStart)"
-                        )
-                        ta_wrap_id = f"ta-wrap-{seg['id']}"
-                        ti = (
-                            ui.textarea(value=seg["target"])
-                            .classes("stack-layer real-textarea")
-                            .props(
-                                f'id="{ta_wrap_id}" borderless autogrow '
-                                'input-style="padding: 0; font-size: 16px; line-height: 1.6; font-family: inherit; color: inherit;"'
-                            )
-                            .on("input", _on_interaction, js_handler=_interaction_js)
-                            .on("click", _on_interaction, js_handler=_interaction_js)
-                            .on("keyup", _on_interaction, js_handler=_interaction_js)
-                            .on("focus", _on_interaction, js_handler=_interaction_js)
-                        )
-                        refs["ti"] = ti
-                        refs["ghost"] = {
-                            "suggestion": "",
-                            "text_before": "",
-                            "text_after": "",
-                        }
-
-            static_panel = ui.column().classes(
-                "w-full px-6 py-4 bg-slate-50/30 border-t border-slate-100 gap-3"
-            )
-
-            with ui.row().classes(
-                "w-full px-6 py-4 bg-slate-50/50 border-t border-slate-100 justify-between items-center"
-            ):
-                with ui.row().classes("items-center gap-2"):
-                    ui.button(icon="auto_awesome", on_click=run_ai_force).props(
-                        "flat round dense size=md color=accent"
-                    ).tooltip("Regenerate AI Draft")
-                    ui.separator().props("vertical").classes("mx-2 h-6 opacity-20")
-                    if seg["id"] > 0:
-                        ui.button(
-                            icon="keyboard_arrow_up",
-                            on_click=lambda: _set_active(seg["id"] - 1),
-                        ).props("flat round dense size=md color=slate-400").classes(
-                            "hover:bg-slate-200"
-                        )
-                    if seg["id"] < len(ws["segments"]) - 1:
-                        ui.button(
-                            icon="keyboard_arrow_down",
-                            on_click=lambda: _set_active(seg["id"] + 1),
-                        ).props("flat round dense size=md color=slate-400").classes(
-                            "hover:bg-slate-200"
-                        )
-
-                with ui.row().classes("items-center gap-4"):
-                    ui.label("TAB to complete • ⌘ ENTER to confirm").classes(
-                        "text-[10px] text-slate-400 font-bold uppercase tracking-wider"
-                    )
-                    ui.button("CONFIRM", on_click=lambda: _confirm_segment()).props(
-                        "unelevated rounded color=emerald-500"
-                    ).classes(
-                        "px-8 py-2 font-black tracking-[.2em] text-[11px] shadow-lg shadow-emerald-200/50"
-                    )
-
-            refs["ti"].on("keydown.meta.enter.prevent", lambda: _confirm_segment())
-            refs["ti"].on("keydown.ctrl.enter.prevent", lambda: _confirm_segment())
-
-            async def _tab(e):
-                g = refs["ghost"].get("suggestion", "")
-                if g:
-                    safe_g = json.dumps(g)
-                    # Trigger the DOM update and sync the state instantly via standard JS integration
-                    await ui.run_javascript(
-                        f"window.insertAtCursor('{ta_wrap_id}', {safe_g})"
-                    )
-
-                    # Wipe UI references cleanly immediately after
-                    refs["ghost"]["suggestion"] = ""
-                    if "ghost_html" in refs and not refs["ghost_html"].is_deleted:
-                        refs["ghost_html"].content = ""
-
-                    # Refocus strictly correctly
-                    refs["ti"].run_method("focus")
-
-            refs["ti"].on("keydown.tab.prevent", _tab)
-
-            async def _bg_init():
-                if ws["project_id"] not in GLOBAL_VOCAB:
-                    GLOBAL_VOCAB[ws["project_id"]] = set()
-                v = GLOBAL_VOCAB[ws["project_id"]]
-                for s in ws["segments"]:
-                    for t in [s["source"], s["target"]]:
-                        if t:
-                            v.update(re.findall(r"[\wčšžČŠŽ]{3,}", t))
-                with cli:
-                    try:
-                        if not seg["target"].strip():
-                            await _ai(seg, refs["ti"])
-                        if not static_panel.is_deleted:
-                            await _inline_panel(seg, refs["ti"], static_panel)
-                        if not refs["ti"].is_deleted:
-                            await _smart(
-                                refs["ti"].value or "", seg, chip_row, refs["ti"], refs
-                            )
-                    except:
-                        pass
-
-            asyncio.create_task(_bg_init())
-
     @ui.refreshable
     def _bar():
         with ui.row().classes(
@@ -1462,7 +1481,7 @@ def page_translate(project_id: str):
             with ui.column().classes("w-full max-w-4xl mx-auto px-4 gap-1"):
                 _flow()
 
-    asyncio.create_task(asyncio.to_thread(_scan_tm_for_kg))
+    ui.timer(1.0, _scan_tm_for_kg, once=True)
 
 
 def _apply_colors():
