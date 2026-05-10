@@ -708,21 +708,21 @@ def page_translate(project_id: str):
     async def _confirm_segment():
         idx = ws["active_index"]
         seg = ws["segments"][idx]
-        if seg["target"].strip():
-            seg["status"] = "done"
-            _add_to_kg(seg["source"], seg["target"])
-            save_pair_to_tm(seg["source"], seg["target"], ws["lang_pair"])
-            _set_active(idx + 1)
-        next_idx = ws["active_index"] + 1
-        with context.client:
-            if next_idx < len(ws["segments"]):
-                ws["active_index"] = next_idx
+        if not seg["target"].strip():
+            return
+
+        seg["status"] = "done"
+        _add_to_kg(seg["source"], seg["target"])
+        save_pair_to_tm(seg["source"], seg["target"], ws["lang_pair"])
+
+        next_idx = idx + 1
+        if next_idx < len(ws["segments"]):
+            _set_active(next_idx)
+            with context.client:
                 _bar.refresh()
-                _flow.refresh()
-                ui.run_javascript(
-                    f'setTimeout(() => {{ const el = document.getElementById("seg-{next_idx}"); if(el) el.scrollIntoView({{behavior: "smooth", block: "center"}}); }}, 50);'
-                )
-            else:
+        else:
+            ws["active_index"] = next_idx
+            with context.client:
                 ui.notify("Document complete! 🎉", type="positive")
                 _bar.refresh()
                 _flow.refresh()
@@ -1041,7 +1041,8 @@ def page_translate(project_id: str):
                                 # A candidate that differs entirely is a replacement suggestion.
                                 cand_lower = cand.lower()
                                 any_word_extends = any(
-                                    w.startswith(prefix.lower()) and len(w) > len(prefix)
+                                    w.startswith(prefix.lower())
+                                    and len(w) > len(prefix)
                                     for w in cand_lower.split()
                                 )
                                 if any_word_extends:
@@ -1129,8 +1130,9 @@ def page_translate(project_id: str):
                                         f"{chip_cls} text-[11px] font-bold px-2 suggestion-chip"
                                     )
 
-                # Trigger suggestions on input (typing) and click
+                # Sync textarea value to seg dict on every keystroke
                 async def _on_input(e):
+                    seg["target"] = ti.value or ""
                     await asyncio.sleep(0.2)  # Debounce
                     await _update_suggestions()
 
