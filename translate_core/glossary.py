@@ -120,6 +120,7 @@ class Glossary:
 
         # Handle TSV lines that might be at the bottom of an XML file (mixed format)
         # We look for lines with tabs that were not part of XML tags
+        src_lang, tgt_lang = self._detect_lang_pair(filename)
         lines = content.split("\n")
         for line in lines:
             if "<" in line or ">" in line:
@@ -129,10 +130,24 @@ class Glossary:
                 if len(parts) >= 2:
                     src, tgt = parts[0].strip(), parts[1].strip()
                     if src and tgt:
-                        self._add_simple_entry(src, tgt, "en", "sl", filename)
+                        self._add_simple_entry(src, tgt, src_lang, tgt_lang, filename)
+
+    @staticmethod
+    def _detect_lang_pair(filename: str) -> tuple:
+        """Extract (src_lang, tgt_lang) from filename pattern like 'glossary-EN-SL.txt'.
+
+        Returns ("en", "sl") as default if no pattern is found.
+        """
+        m = re.search(r"([A-Za-z]{2})-([A-Za-z]{2})(?=\.\w+$)", filename)
+        if m:
+            return m.group(1).lower(), m.group(2).lower()
+        return "en", "sl"
 
     def _parse_tsv(self, content: str, filename: str):
         """Parses simple Tab-Separated files."""
+        # Detect language pair from filename: e.g. "glossary-EN-SL.txt" → EN→SL
+        src_lang, tgt_lang = self._detect_lang_pair(filename)
+
         lines = content.split("\n")
         for line in lines:
             if not line.strip():
@@ -141,7 +156,7 @@ class Glossary:
             if len(parts) >= 2:
                 src, tgt = parts[0].strip(), parts[1].strip()
                 if src and tgt:
-                    self._add_simple_entry(src, tgt, "en", "sl", filename)
+                    self._add_simple_entry(src, tgt, src_lang, tgt_lang, filename)
 
     def _load_csv(self, path: Path):
         """Parses CSV files."""
@@ -231,17 +246,23 @@ class Glossary:
                     results.append(e)
                     break
         return results
-    def search_prefix(self, prefix: str, source_lang: str, target_lang: str) -> List[str]:
+
+    def search_prefix(
+        self, prefix: str, source_lang: str, target_lang: str
+    ) -> List[str]:
         """
-        Finds target terms whose source term (or target term itself in editing mode) 
+        Finds target terms whose source term (or target term itself in editing mode)
         starts with the given prefix.
         """
-        if not prefix: return []
+        if not prefix:
+            return []
         prefix_low = prefix.lower()
         matches = []
         for e in self.entries:
             if e["source_lang"] == source_lang and e["target_lang"] == target_lang:
-                if e["source_term"].lower().startswith(prefix_low) or e["target_term"].lower().startswith(prefix_low):
+                if e["source_term"].lower().startswith(prefix_low) or e[
+                    "target_term"
+                ].lower().startswith(prefix_low):
                     matches.append(e["source_term"])
                     matches.append(e["target_term"])
-        return list(set(matches)) # Unique results
+        return list(set(matches))  # Unique results
