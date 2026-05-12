@@ -12,7 +12,7 @@ from typing import Dict, List, Tuple
 
 try:
     import docx
-    from nicegui import app, context, events, ui
+    from nicegui import app, background_tasks, context, events, ui
 
     import config
     from translate_core import (
@@ -448,53 +448,6 @@ def _search_intelligence(query: str, lang_pair: str) -> Dict:
 def page_translate(project_id: str):
     _apply_colors()
 
-    # =====================================================================
-    # JS Helper for cursor-aware word operations (CSP Safe)
-    #
-    # Character class covers:
-    #   \w          — ASCII word chars (a-z, A-Z, 0-9, _)
-    #   čšžČŠŽ      — Slovenian-specific letters (explicit, reliable cross-browser)
-    #   \u0100-\u024F — Latin Extended-A and Extended-B (broader Slavic/European coverage)
-    # =====================================================================
-    ui.add_head_html("""
-    <script>
-    window.ZenEditor = {
-        _getTa: function(id) {
-            const wrapper = document.getElementById(id);
-            if (!wrapper) return null;
-            return wrapper.querySelector('textarea');
-        },
-        getInfo: function(textareaId) {
-            const ta = this._getTa(textareaId);
-            if (!ta) return null;
-            const v = ta.value, p = ta.selectionStart;
-            let s = p, e = p;
-            // Explicit SL chars + Latin Extended range for robust non-ASCII word detection
-            const re = /[\\w\\u010D\\u0161\\u017E\\u010C\\u0160\\u017D\\u0100-\\u024F]/;
-            while (s > 0 && re.test(v[s-1])) s--;
-            while (e < v.length && re.test(v[e])) e++;
-            return {
-                word: v.slice(s, e),
-                prefix: v.slice(s, p),
-                start: s,
-                end: e,
-                pos: p,
-                value: v
-            };
-        },
-        replaceWord: function(textareaId, replacement) {
-            const ta = this._getTa(textareaId);
-            if (!ta) return;
-            const info = this.getInfo(textareaId);
-            if (!info) return;
-            ta.setRangeText(replacement, info.start, info.end, 'end');
-            ta.dispatchEvent(new Event('input', {bubbles: true}));
-            ta.focus();
-        }
-    };
-    </script>
-    """)
-
     data = load_project(project_id)
     if data is None:
         ui.label("Project not found.").classes("m-8 text-red-500")
@@ -701,13 +654,21 @@ def page_translate(project_id: str):
             _autosave()
             with cli:
                 _flow.refresh()
-                ui.run_javascript(
-                    f'setTimeout(() => {{ const el = document.getElementById("seg-{idx}"); if(el) el.scrollIntoView({{behavior: "smooth", block: "center"}}); }}, 50);'
-                )
+                card_id = ws["segments"][idx].get("_card_id")
+                if card_id and cli.has_socket_connection:
+                    try:
+                        ui.run_javascript(
+                            f'setTimeout(() => {{ const el = getHtmlElement({card_id}); if(el) el.scrollIntoView({{behavior: "smooth", block: "center"}}); }}, 50);'
+                        )
+                    except KeyError as e:
+                        if "Session is disconnected" in str(e):
+                            return
+                        raise
 
     async def _confirm_segment():
         idx = ws["active_index"]
         seg = ws["segments"][idx]
+
         if not seg["target"].strip():
             return
 
@@ -775,7 +736,7 @@ def page_translate(project_id: str):
 
         try:
             ti.props("loading")
-            orig = ti.value
+            orig = seg["target"]
         except RuntimeError:
             return
 
@@ -786,8 +747,9 @@ def page_translate(project_id: str):
                 lambda: translator.translate(seg["source"], src, tgt, a, b, c, k),
             )
             try:
-                if ti.value == orig:
-                    ti.value = text
+                # Only apply AI draft if user hasn't edited since AI started.
+                # We read back from the browser via NiceGUI's proper API to be sure.
+                if seg["target"] == orig:
                     seg["target"] = text
                     seg["_ai_draft"] = text
                     if "_sugg_cache" in seg:
@@ -805,6 +767,7 @@ def page_translate(project_id: str):
                 pass
 
     async def _inline_panel(seg: dict, ti: ui.textarea, container: ui.column):
+        _panel_client = container.client
         src, tgt = ws["lang_pair"].split("->")
         loop = asyncio.get_running_loop()
 
@@ -817,106 +780,122 @@ def page_translate(project_id: str):
         tm_m, g_h, c_h = await loop.run_in_executor(None, _look)
 
         try:
-            if container.is_deleted:
+            if container.is_deleted or not _panel_client.has_socket_connection:
                 return
-            container.clear()
+            with _panel_client:
+                container.clear()
         except RuntimeError:
             return
 
         def _ins(txt: str):
             try:
-                cur = ti.value or ""
+                cur = seg["target"] or ""
                 sep = " " if cur and not cur.endswith(" ") else ""
                 nv = (cur + sep + txt).strip()
-                ti.value = nv
                 seg["target"] = nv
+                # bind_value auto-syncs to ti
             except RuntimeError:
                 pass
 
         def _rep(txt: str):
             try:
-                ti.value = txt
                 seg["target"] = txt
+                # bind_value auto-syncs to ti
             except RuntimeError:
                 pass
 
         try:
-            with container:
-                has = False
-                if g_h:
-                    has = True
-                    with ui.column().classes("w-full gap-2 mb-2"):
-                        ui.label("GLOSSARY HITS").classes("intel-header")
-                        with ui.row().classes("w-full gap-2 items-center flex-wrap"):
-                            for g in g_h:
-                                ui.button(
-                                    f"{g['target_term']}",
-                                    on_click=lambda e, g=g: _ins(g["target_term"]),
-                                ).props("unelevated rounded").classes(
-                                    "bg-emerald-100 hover:bg-emerald-200 text-[11px] font-bold text-emerald-800 px-3 h-8 normal-case"
-                                ).tooltip(
-                                    f"{g['source_term']} → {g['target_term']} | {g.get('note') or 'Click to insert'}"
-                                )
-                if tm_m:
-                    has = True
-                    with ui.column().classes("w-full gap-2 mt-2"):
-                        ui.label("TM MATCHES").classes("intel-header")
-                        for m in tm_m:
-                            score = int(m.get("score", 0))
-                            badge = (
-                                "text-emerald-700 bg-emerald-50 border-emerald-200"
-                                if score >= 85
-                                else "text-blue-700 bg-blue-50 border-blue-200"
-                            )
-                            with (
-                                ui.row()
-                                .classes(
-                                    "w-full bg-white border border-slate-200 rounded-xl p-3 items-center gap-4 hover:border-blue-300 transition-colors cursor-pointer"
-                                )
-                                .on("click", lambda e, m=m: _rep(m["target"]))
+            with _panel_client:
+                with container:
+                    has = False
+                    if g_h:
+                        has = True
+                        with ui.column().classes("w-full gap-2 mb-2"):
+                            ui.label("GLOSSARY HITS").classes("intel-header")
+                            with ui.row().classes(
+                                "w-full gap-2 items-center flex-wrap"
                             ):
-                                ui.label(f"{score}%").classes(
-                                    f"text-[10px] font-black px-2 py-1 rounded-lg border {badge} shrink-0"
+                                for g in g_h:
+                                    ui.button(
+                                        f"{g['target_term']}",
+                                        on_click=lambda e, g=g: _ins(g["target_term"]),
+                                    ).props("unelevated rounded").classes(
+                                        "bg-emerald-100 hover:bg-emerald-200 text-[11px] font-bold text-emerald-800 px-3 h-8 normal-case"
+                                    ).tooltip(
+                                        f"{g['source_term']} → {g['target_term']} | {g.get('note') or 'Click to insert'}"
+                                    )
+                    if tm_m:
+                        has = True
+                        with ui.column().classes("w-full gap-2 mt-2"):
+                            ui.label("TM MATCHES").classes("intel-header")
+                            for m in tm_m:
+                                score = int(m.get("score", 0))
+                                badge = (
+                                    "text-emerald-700 bg-emerald-50 border-emerald-200"
+                                    if score >= 85
+                                    else "text-blue-700 bg-blue-50 border-blue-200"
                                 )
-                                with ui.column().classes("gap-0.5 flex-1 min-w-0"):
-                                    ui.label(m["source"]).classes(
-                                        "text-[11px] text-slate-400 italic leading-snug"
-                                    ).style("white-space:normal;word-break:break-word")
-                                    ui.label(m["target"]).classes(
-                                        "text-[13px] text-slate-800 font-bold leading-snug"
-                                    ).style("white-space:normal;word-break:break-word")
-                                ui.icon("content_paste", size="18px").classes(
-                                    "text-slate-300"
-                                )
-                srcs = {m["source"] for m in tm_m}
-                conc = [c for c in c_h if c["source"] not in srcs]
-                if conc:
-                    has = True
-                    with ui.column().classes("w-full gap-2 mt-2"):
-                        ui.label("CONCORDANCE").classes("intel-header")
-                        for c in conc[:2]:
-                            with (
-                                ui.row()
-                                .classes(
-                                    "w-full bg-white/50 border border-slate-100 rounded-xl p-3 items-start gap-4 hover:border-slate-300 transition-colors cursor-pointer"
-                                )
-                                .on("click", lambda e, c=c: _ins(c["target"]))
-                            ):
-                                ui.icon("search", size="16px").classes(
-                                    "text-slate-300 mt-1 shrink-0"
-                                )
-                                with ui.column().classes("gap-0.5 flex-1"):
-                                    ui.label(c["source"]).classes(
-                                        "text-[11px] text-slate-400 italic leading-snug"
-                                    ).style("white-space:normal;word-break:break-word")
-                                    ui.label(c["target"]).classes(
-                                        "text-[12px] text-slate-700 font-medium leading-snug"
-                                    ).style("white-space:normal;word-break:break-word")
-                if not has:
-                    ui.label("No immediate TM or glossary matches.").classes(
-                        "text-[10px] text-slate-300 italic py-2"
-                    )
+                                with (
+                                    ui.row()
+                                    .classes(
+                                        "w-full bg-white border border-slate-200 rounded-xl p-3 items-center gap-4 hover:border-blue-300 transition-colors cursor-pointer"
+                                    )
+                                    .on("click", lambda e, m=m: _rep(m["target"]))
+                                ):
+                                    ui.label(f"{score}%").classes(
+                                        f"text-[10px] font-black px-2 py-1 rounded-lg border {badge} shrink-0"
+                                    )
+                                    with ui.column().classes("gap-0.5 flex-1 min-w-0"):
+                                        ui.label(m["source"]).classes(
+                                            "text-[11px] text-slate-400 italic leading-snug"
+                                        ).style(
+                                            "white-space:normal;word-break:break-word"
+                                        )
+                                        ui.label(m["target"]).classes(
+                                            "text-[13px] text-slate-800 font-bold leading-snug"
+                                        ).style(
+                                            "white-space:normal;word-break:break-word"
+                                        )
+                                    ui.icon("content_paste", size="18px").classes(
+                                        "text-slate-300"
+                                    )
+                    srcs = {m["source"] for m in tm_m}
+                    conc = [c for c in c_h if c["source"] not in srcs]
+                    if conc:
+                        has = True
+                        with ui.column().classes("w-full gap-2 mt-2"):
+                            ui.label("CONCORDANCE").classes("intel-header")
+                            for c in conc[:2]:
+                                with (
+                                    ui.row()
+                                    .classes(
+                                        "w-full bg-white/50 border border-slate-100 rounded-xl p-3 items-start gap-4 hover:border-slate-300 transition-colors cursor-pointer"
+                                    )
+                                    .on("click", lambda e, c=c: _ins(c["target"]))
+                                ):
+                                    ui.icon("search", size="16px").classes(
+                                        "text-slate-300 mt-1 shrink-0"
+                                    )
+                                    with ui.column().classes("gap-0.5 flex-1"):
+                                        ui.label(c["source"]).classes(
+                                            "text-[11px] text-slate-400 italic leading-snug"
+                                        ).style(
+                                            "white-space:normal;word-break:break-word"
+                                        )
+                                        ui.label(c["target"]).classes(
+                                            "text-[13px] text-slate-800 font-semibold leading-snug"
+                                        ).style(
+                                            "white-space:normal;word-break:break-word"
+                                        )
+                                    ui.icon("arrow_forward", size="16px").classes(
+                                        "text-slate-300 mt-1 shrink-0"
+                                    )
+                    if not has:
+                        ui.label("No intelligence for this segment.").classes(
+                            "text-xs text-slate-400 italic"
+                        )
         except RuntimeError:
+            return
             pass
 
     # ------------------------------------------------------------------
@@ -925,15 +904,13 @@ def page_translate(project_id: str):
     def _render_active(seg: dict):
         refs = {"ti": None, "suggestion_bar": None}
         cli = context.client
-        ta_id = f"ta-{project_id}-{seg['id']}"
 
-        with (
-            ui.card()
-            .classes(
-                "w-full bg-white active-card p-0 rounded-2xl flex flex-col gap-0 my-6 overflow-hidden"
-            )
-            .props(f'id="card-seg-{seg["id"]}"')
-        ):
+        card = ui.card().classes(
+            "w-full bg-white active-card p-0 rounded-2xl flex flex-col gap-0 my-6 overflow-hidden"
+        )
+        seg["_card_id"] = card.id
+
+        with card:
             # --- Header ---
             with ui.row().classes(
                 "w-full px-6 py-3 bg-slate-50/50 border-b border-slate-100 justify-between items-center"
@@ -966,201 +943,273 @@ def page_translate(project_id: str):
                 ui.label("TARGET").classes("intel-header")
                 qa_container = ui.column().classes("w-full gap-1 mb-2")
 
-                # Textarea with a real DOM id for JS access
+                # Textarea with two-way binding to seg dict so it is always the source of truth.
+                # bind_value syncs every keystroke automatically — no manual ti.value shuffling.
                 ti = (
                     ui.textarea(value=seg["target"])
+                    .bind_value(seg, "target")
                     .classes("w-full")
                     .props(
-                        f'id="{ta_id}" outlined autogrow '
+                        "outlined autogrow "
                         'input-style="font-family: Inter, -apple-system, sans-serif; font-size: 16px; line-height: 1.6;"'
                     )
                 )
                 refs["ti"] = ti
 
                 # =====================================================================
-                # INLINE SUGGESTION BAR
+                # INLINE SUGGESTION BAR — completely new cursor-aware implementation
                 # =====================================================================
                 suggestion_bar = ui.row().classes(
                     "w-full gap-2 items-center min-h-[32px] flex-wrap"
                 )
                 refs["suggestion_bar"] = suggestion_bar
+                _seg_client = context.client
 
-                async def _update_suggestions():
-                    """Fetch word-at-cursor via JS and render chips inside suggestion_bar.
-
-                    Uses info["prefix"] (text from word-start to cursor) for KG lookup,
-                    which gives correct prefix-completion semantics. info["word"] (full
-                    word at cursor including chars after the cursor) is only used for the
-                    minimum-length guard and for the 'replace' chip type check.
-                    """
-                    with cli:
-                        try:
-                            info = await ui.run_javascript(
-                                f'window.ZenEditor.getInfo("{ta_id}")'
-                            )
-                        except Exception as e:
-                            print(f"[Inline] JS error: {e}")
-                            return
-
-                    if not info:
+                async def _suggestions_build(self_word: str):
+                    """Build suggestion chips from glossary, KG, and TM for the last typed word."""
+                    if suggestion_bar.is_deleted or ti.is_deleted:
                         return
 
-                    word = info.get("word", "")
-                    # prefix = text from word-start to cursor position.
-                    # This is what the user has typed so far of the current word.
-                    prefix = info.get("prefix", "")
-
-                    # Clear bar if the current word is too short to be meaningful
-                    if len(word) < 2:
-                        with cli:
-                            with suggestion_bar:
-                                suggestion_bar.clear()
+                    if len(self_word) < 2:
+                        suggestion_bar.clear()
                         return
 
                     src_l, tgt_l = ws["lang_pair"].split("->")
+                    loop = asyncio.get_running_loop()
+                    candidates = []
 
-                    # Query KG and Glossary
-                    suggestions = []
-                    if kg:
+                    def _query_glossary():
+                        if not glossary:
+                            return []
                         try:
-                            # Pass prefix (not word) — this is the key fix.
-                            # prefix is what the user has typed so far of this word;
-                            # word also includes characters after the cursor.
+                            hits = glossary.lookup_terms(self_word, src_l, tgt_l)
+                            return [
+                                {
+                                    "display": h["target_term"],
+                                    "insert": h["target_term"],
+                                    "kind": "glossary",
+                                }
+                                for h in hits
+                            ]
+                        except Exception:
+                            return []
+
+                    def _query_kg():
+                        if not kg:
+                            return []
+                        try:
                             hints = kg.get_inline_hints(
-                                word_prefix=prefix,
+                                word_prefix=self_word[:3],
                                 source_text=seg["source"],
                                 source_lang=src_l,
                                 target_lang=tgt_l,
-                                max_hints=6,
+                                max_hints=4,
                             )
-                            for h in hints:
-                                cand = h.get("term", "")
-                                if not cand:
-                                    continue
-                                # A candidate that extends the current prefix is a completion.
-                                # A candidate that differs entirely is a replacement suggestion.
-                                cand_lower = cand.lower()
-                                any_word_extends = any(
-                                    w.startswith(prefix.lower())
-                                    and len(w) > len(prefix)
-                                    for w in cand_lower.split()
-                                )
-                                if any_word_extends:
-                                    suggestions.append(
-                                        {
-                                            "display": cand,
-                                            "insert": cand,
-                                            "type": "complete",
-                                            "confidence": h.get("confidence", 0.5),
-                                        }
-                                    )
-                                elif cand_lower != word.lower():
-                                    suggestions.append(
-                                        {
-                                            "display": cand,
-                                            "insert": cand,
-                                            "type": "replace",
-                                            "confidence": h.get("confidence", 0.5),
-                                        }
-                                    )
-                        except Exception as e:
-                            print(f"[Inline] KG error: {e}")
+                            return [
+                                {
+                                    "display": h.get("term", ""),
+                                    "insert": h.get("term", ""),
+                                    "kind": "kg",
+                                }
+                                for h in hints
+                                if h.get("term")
+                            ]
+                        except Exception:
+                            return []
 
-                    if glossary:
+                    def _query_tm():
+                        if not tm:
+                            return []
                         try:
-                            for g in glossary.lookup_terms(word, src_l, tgt_l):
-                                cand = g["target_term"]
-                                if not any(s["insert"] == cand for s in suggestions):
-                                    suggestions.append(
-                                        {
-                                            "display": cand,
-                                            "insert": cand,
-                                            "type": "glossary",
-                                            "confidence": 1.0,
-                                        }
-                                    )
+                            hits = tm.search_prefix(self_word)[:3]
+                            return [
+                                {
+                                    "display": " ".join(tgt.split()[:2]),
+                                    "insert": tgt,
+                                    "kind": "tm",
+                                }
+                                for tgt in hits
+                                if tgt
+                            ]
+                        except Exception:
+                            return []
+
+                    try:
+                        glos_results, kg_results, tm_results = await asyncio.gather(
+                            loop.run_in_executor(None, _query_glossary),
+                            loop.run_in_executor(None, _query_kg),
+                            loop.run_in_executor(None, _query_tm),
+                        )
+                    except Exception as e:
+                        print(f"[Inline] query error: {e}")
+                        return
+
+                    # Merge: glossary > kg > tm, dedup by insert text
+                    seen = set()
+                    for c in glos_results + kg_results + tm_results:
+                        if c["insert"] not in seen:
+                            seen.add(c["insert"])
+                            candidates.append(c)
+
+                    if not candidates:
+                        suggestion_bar.clear()
+                        return
+
+                    # Render — mirrors test_inline_prediction.py pattern exactly
+                    suggestion_bar.clear()
+                    with suggestion_bar:
+                        ui.label("SUGGEST:").classes(
+                            "text-[9px] font-black text-slate-400 tracking-widest self-center mr-1"
+                        )
+                        for idx, c in enumerate(candidates[:3]):
+                            kind = c["kind"]
+                            color = (
+                                "bg-emerald-100 text-emerald-800"
+                                if kind == "glossary"
+                                else "bg-blue-100 text-blue-800"
+                                if kind == "kg"
+                                else "bg-slate-100 text-slate-600"
+                            )
+                            text = c["display"]
+                            if idx == 0:
+                                text += " ↹"
+
+                            async def _rep():
+                                seg["target"] = seg["target"] + " " + c["insert"]
+                                suggestion_bar.clear()
+
+                            ui.chip(text, on_click=_rep).props(
+                                "dense clickable"
+                            ).classes(f"{color} text-[11px] font-bold px-2")
+
+                # Debounced typing handler — 40ms debounce, mirrors test pattern
+                _debounce_task = {"task": None}
+
+                async def _typing_handler(e: events.ValueChangeEventArguments):
+                    if _debounce_task["task"] and not _debounce_task["task"].done():
+                        _debounce_task["task"].cancel()
+
+                    async def _delayed_build():
+                        await asyncio.sleep(0.04)
+                        word = e.value.split()[-1] if e.value else ""
+                        await _suggestions_build(word)
+
+                    _debounce_task["task"] = background_tasks.create(
+                        _delayed_build(), name="inline_suggest"
+                    )
+
+                ti.on_value_change(_typing_handler)
+
+                # QA — synchronous, no JS needed
+                def _qa_render():
+                    if qa_container.is_deleted:
+                        return
+                    warnings = _run_qa(seg, ws["lang_pair"])
+                    qa_container.clear()
+                    with qa_container:
+                        for w in warnings:
+                            color = (
+                                "bg-red-50 text-red-700 border-red-100"
+                                if w["type"] == "error"
+                                else "bg-amber-50 text-amber-700 border-amber-100"
+                            )
+                            icon = "error" if w["type"] == "error" else "warning"
+                            with ui.row().classes(
+                                f"w-full {color} px-3 py-2 rounded-lg text-xs items-center gap-2 border"
+                            ):
+                                ui.icon(icon, size="16px")
+                                ui.label(w["message"]).classes("font-medium")
+
+                def _qa_handler(e: events.ValueChangeEventArguments):
+                    _qa_render()
+
+                ti.on_value_change(_qa_handler)
+
+                # Keyboard shortcuts
+                async def _kbd_handler(e: events.KeyEventArguments):
+                    if (
+                        e.key.enter
+                        and (e.modifiers.ctrl or e.modifiers.meta)
+                        and e.action.keydown
+                    ):
+                        await _confirm_segment()
+                        return
+
+                    if e.key.tab and e.action.keydown:
+                        try:
+                            info = await _seg_client.run_javascript(f"""
+                                (function() {{
+                                    const ta = getHtmlElement({ti.id}).querySelector('textarea');
+                                    if (!ta) return null;
+                                    const v = ta.value, p = ta.selectionStart;
+                                    let s = p, e = p;
+                                    const re = /[\\w\\u010D\\u0161\\u017E\\u010C\\u0160\\u017D\\u0100-\\u024F]/;
+                                    while (s > 0 && re.test(v[s-1])) s--;
+                                    while (e < v.length && re.test(v[e])) e++;
+                                    return {{word: v.slice(s,e), prefix: v.slice(s,p), start: s, end: e}};
+                                }})()
+                            """)
+                        except KeyError as e:
+                            if "Session is disconnected" in str(e):
+                                return
+                            raise
                         except Exception as e:
-                            print(f"[Inline] Glossary error: {e}")
-
-                    suggestions.sort(key=lambda x: -x["confidence"])
-
-                    # Render suggestions
-                    with cli:
-                        with suggestion_bar:
-                            suggestion_bar.clear()
-                            if suggestions:
-                                ui.label("SUGGEST:").classes(
-                                    "text-[9px] font-black text-slate-400 tracking-widest self-center mr-1"
-                                )
-                                for idx, s in enumerate(suggestions[:4]):
-                                    if s["type"] == "glossary":
-                                        chip_cls = "bg-emerald-100 text-emerald-800"
-                                    elif s["confidence"] > 0.85:
-                                        chip_cls = "bg-blue-100 text-blue-800"
-                                    else:
-                                        chip_cls = "bg-slate-100 text-slate-600"
-
-                                    label = s["display"]
-                                    if idx == 0:
-                                        label += " ↹"
-
-                                    # Closure capture for each chip
-                                    def make_click(cand=s["insert"]):
-                                        async def _on_click():
-                                            try:
-                                                with cli:
-                                                    await ui.run_javascript(
-                                                        f'window.ZenEditor.replaceWord("{ta_id}", {json.dumps(cand)})'
-                                                    )
-                                                    new_val = await ui.run_javascript(
-                                                        f'window.ZenEditor._getTa("{ta_id}").value'
-                                                    )
-                                                    ti.value = new_val
-                                                    seg["target"] = new_val
-                                                    with suggestion_bar:
-                                                        suggestion_bar.clear()
-                                            except Exception as e:
-                                                print(f"[Inline] Click error: {e}")
-
-                                        return _on_click
-
-                                    ui.chip(label, on_click=make_click()).props(
-                                        "dense clickable"
-                                    ).classes(
-                                        f"{chip_cls} text-[11px] font-bold px-2 suggestion-chip"
-                                    )
-
-                # Sync textarea value to seg dict on every keystroke
-                async def _on_input(e):
-                    seg["target"] = ti.value or ""
-                    await asyncio.sleep(0.2)  # Debounce
-                    await _update_suggestions()
-
-                ti.on("input", lambda e: asyncio.create_task(_on_input(e)))
-                ti.on("click", lambda e: asyncio.create_task(_update_suggestions()))
-
-                # QA on value change
-                async def _run_qa_async():
-                    with cli:
-                        if qa_container.is_deleted:
+                            print(f"[Inline] tab-JS error: {e}")
                             return
-                        warnings = _run_qa(seg, ws["lang_pair"])
-                        qa_container.clear()
-                        with qa_container:
-                            for w in warnings:
-                                color = (
-                                    "bg-red-50 text-red-700 border-red-100"
-                                    if w["type"] == "error"
-                                    else "bg-amber-50 text-amber-700 border-amber-100"
-                                )
-                                icon = "error" if w["type"] == "error" else "warning"
-                                with ui.row().classes(
-                                    f"w-full {color} px-3 py-2 rounded-lg text-xs items-center gap-2 border"
-                                ):
-                                    ui.icon(icon, size="16px")
-                                    ui.label(w["message"]).classes("font-medium")
 
-                ti.on_value_change(lambda e: asyncio.create_task(_run_qa_async()))
+                        if not info:
+                            return
+
+                        word = info.get("word", "")
+                        prefix = info.get("prefix", "")
+                        if len(word) < 2:
+                            return
+
+                        src_l, tgt_l = ws["lang_pair"].split("->")
+                        replacement = None
+
+                        if kg:
+                            try:
+                                hints = kg.get_inline_hints(
+                                    word_prefix=prefix,
+                                    source_text=seg["source"],
+                                    source_lang=src_l,
+                                    target_lang=tgt_l,
+                                    max_hints=1,
+                                )
+                                if hints:
+                                    replacement = hints[0].get("term")
+                            except Exception as e:
+                                print(f"[Inline] tab-KG error: {e}")
+
+                        if not replacement and glossary:
+                            try:
+                                hits = glossary.lookup_terms(word, src_l, tgt_l)
+                                if hits:
+                                    replacement = hits[0]["target_term"]
+                            except Exception as e:
+                                print(f"[Inline] tab-glossary error: {e}")
+
+                        if replacement:
+                            try:
+                                await _seg_client.run_javascript(f"""
+                                    (function() {{
+                                        const ta = getHtmlElement({ti.id}).querySelector('textarea');
+                                        if (!ta) return;
+                                        ta.setRangeText({json.dumps(replacement)}, {info["start"]}, {info["end"]}, 'end');
+                                        ta.dispatchEvent(new Event('input', {{bubbles: true}}));
+                                        ta.focus();
+                                    }})()
+                                """)
+                                suggestion_bar.clear()
+                            except KeyError as e:
+                                if "Session is disconnected" in str(e):
+                                    return
+                                raise
+                            except Exception as e:
+                                print(f"[Inline] tab-replace error: {e}")
+
+                ui.keyboard(on_key=_kbd_handler, ignore=[])
 
             # --- Static inline panel (TM / Glossary / Concordance) ---
             static_panel = ui.column().classes(
@@ -1174,8 +1223,8 @@ def page_translate(project_id: str):
                 with ui.row().classes("items-center gap-2"):
                     ui.button(
                         icon="auto_awesome",
-                        on_click=lambda: asyncio.create_task(
-                            _ai(seg, refs["ti"], force=True)
+                        on_click=lambda: background_tasks.create(
+                            _ai(seg, refs["ti"], force=True), name="ai_regenerate"
                         ),
                     ).props("flat round dense size=md color=accent").tooltip(
                         "Regenerate AI Draft"
@@ -1202,103 +1251,41 @@ def page_translate(project_id: str):
                         "px-8 py-2 font-black tracking-[.2em] text-[11px] shadow-lg shadow-emerald-200/50"
                     )
 
-            # --- Keyboard shortcuts ---
-            async def _on_key(e: events.KeyEventArguments):
-                # Confirm Segment: Ctrl/Cmd + Enter
-                if (
-                    e.key.enter
-                    and (e.modifiers.ctrl or e.modifiers.meta)
-                    and e.action.keydown
-                ):
-                    await _confirm_segment()
-                    return
-
-                # Replace Word: Tab — uses prefix for KG lookup (same fix as _update_suggestions)
-                if e.key.tab and e.action.keydown:
-                    try:
-                        with cli:
-                            info = await ui.run_javascript(
-                                f'window.ZenEditor.getInfo("{ta_id}")'
-                            )
-                    except Exception as ex:
-                        print(f"[Inline] TAB error: {ex}")
-                        return
-
-                    if not info:
-                        return
-
-                    word = info.get("word", "")
-                    prefix = info.get("prefix", "")
-
-                    if len(word) < 2:
-                        return
-
-                    src_l, tgt_l = ws["lang_pair"].split("->")
-                    replacement = None
-
-                    if kg:
-                        try:
-                            hints = kg.get_inline_hints(
-                                word_prefix=prefix,
-                                source_text=seg["source"],
-                                source_lang=src_l,
-                                target_lang=tgt_l,
-                                max_hints=1,
-                            )
-                            if hints:
-                                replacement = hints[0].get("term")
-                        except Exception as ex:
-                            print(f"[Inline] TAB KG error: {ex}")
-
-                    if not replacement and glossary:
-                        try:
-                            g = glossary.lookup_terms(word, src_l, tgt_l)
-                            if g:
-                                replacement = g[0]["target_term"]
-                        except Exception as ex:
-                            print(f"[Inline] TAB glossary error: {ex}")
-
-                    if replacement:
-                        try:
-                            with cli:
-                                await ui.run_javascript(
-                                    f'window.ZenEditor.replaceWord("{ta_id}", {json.dumps(replacement)})'
-                                )
-                                new_val = await ui.run_javascript(
-                                    f'window.ZenEditor._getTa("{ta_id}").value'
-                                )
-                                ti.value = new_val
-                                seg["target"] = new_val
-                                with suggestion_bar:
-                                    suggestion_bar.clear()
-                        except Exception as ex:
-                            print(f"[Inline] TAB replace error: {ex}")
-
-            ui.keyboard(on_key=_on_key, ignore=[])
-
-            # --- Background init using Timer ---
-            def _bg_init():
+            # --- Background init ---
+            async def _bg_init():
+                await asyncio.sleep(0.1)
                 if ws["project_id"] not in GLOBAL_VOCAB:
                     GLOBAL_VOCAB[ws["project_id"]] = set()
                 v = GLOBAL_VOCAB[ws["project_id"]]
                 for s in ws["segments"]:
                     for t in [s["source"], s["target"]]:
                         if t:
-                            v.update(re.findall(r"[\wčšžČŠŽ]{3,}", t))
-
-                with cli:
-                    try:
-                        if not seg["target"].strip():
-                            asyncio.create_task(_ai(seg, refs["ti"]))
-                        if not static_panel.is_deleted:
-                            asyncio.create_task(
-                                _inline_panel(seg, refs["ti"], static_panel)
+                            v.update(
+                                re.findall(
+                                    r"[\w\u010D\u0161\u017E\u010C\u0160\u017D]{3,}", t
+                                )
                             )
-                        asyncio.create_task(_update_suggestions())
-                    except Exception as e:
-                        print(f"[Inline] BG init error: {e}")
 
-            ui.timer(0.1, _bg_init, once=True, immediate=False)
+                try:
+                    if not seg["target"].strip():
+                        background_tasks.create(_ai(seg, refs["ti"]), name="ai_init")
+                    if not static_panel.is_deleted:
+                        background_tasks.create(
+                            _inline_panel(seg, refs["ti"], static_panel),
+                            name="inline_panel",
+                        )
+
+                    # Run suggestions init in background with client context
+                    async def _suggestions_init():
+                        await _suggestions_build()
+
+                    background_tasks.create(
+                        _suggestions_init(), name="suggestions_init"
+                    )
+                except Exception as e:
+                    print(f"[Inline] BG init error: {e}")
+
+            background_tasks.create(_bg_init(), name="bg_init")
 
     def _render_inactive(seg: dict):
         border = (
@@ -1314,7 +1301,6 @@ def page_translate(project_id: str):
             .classes(
                 f"w-full {bg} border-l-4 {border} px-6 py-4 rounded-xl cursor-pointer seg-row no-wrap gap-8 items-center border border-slate-100 mb-2"
             )
-            .props(f'id="seg-{seg["id"]}"')
             .on("click", lambda s=seg: _set_active(s["id"]))
         ):
             with ui.column().classes("w-1/2 gap-1"):

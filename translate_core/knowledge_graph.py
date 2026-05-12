@@ -55,6 +55,114 @@ except ImportError:
     HAS_PYVIS = False
 
 # ---------------------------------------------------------------------------
+# Slovenian stop-word / noise filter for SL term extraction
+# ---------------------------------------------------------------------------
+
+SL_STOP_LEMMAS = {
+    # Function words, conjunctions, particles
+    "kot",
+    "ali",
+    "ne",
+    "pa",
+    "še",
+    "se",
+    "je",
+    "bil",
+    "biti",
+    "bi",
+    "ta",
+    # Pronouns
+    "on",
+    "ona",
+    "ono",
+    "oni",
+    "one",
+    "jaz",
+    "ti",
+    "mi",
+    "vi",
+    # Relative / interrogative
+    "kdo",
+    "kar",
+    "ki",
+    "da",
+    # Prepositions
+    "v",
+    "na",
+    "z",
+    "s",
+    "po",
+    "od",
+    "pri",
+    "za",
+    "o",
+    "ob",
+    "do",
+    "brez",
+    "proti",
+    "med",
+    "nad",
+    "pod",
+    "pred",
+    "čez",
+    "skozi",
+    "okrog",
+    "zunaj",
+    "notri",
+    "gor",
+    "dol",
+    # Adverbs / deictics
+    "tukaj",
+    "tam",
+    "zdaj",
+    "potem",
+    # Fragments / suffixes that are not real lemmas
+    "del",
+    "delo",
+    "anje",
+    "eni",
+    "ega",
+    "emu",
+    "ilo",
+    "ila",
+    "anj",
+    "anja",
+    "ov",
+    "ova",
+    "ovo",
+    "ev",
+    "eva",
+    "evo",
+    "en",
+    "ena",
+    "eno",
+    "ene",
+    "enega",
+    "enemu",
+    "enim",
+}
+
+SL_NOISE = {
+    "kot",
+    "ali",
+    "del",
+    "anja",
+    "anje",
+    "ov",
+    "ova",
+    "ev",
+    "eva",
+    "ega",
+    "eni",
+    "emu",
+    "ila",
+    "ilo",
+    "en",
+    "ena",
+    "eno",
+}
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -88,7 +196,9 @@ def _token_boundary_match(term: str, text: str) -> bool:
         if idx == -1:
             return False
         before_ok = idx == 0 or not text_l[idx - 1].isalpha()
-        after_ok = (idx + len(term_l)) >= len(text_l) or not text_l[idx + len(term_l)].isalpha()
+        after_ok = (idx + len(term_l)) >= len(text_l) or not text_l[
+            idx + len(term_l)
+        ].isalpha()
         if before_ok and after_ok:
             return True
         start = idx + 1
@@ -365,7 +475,7 @@ class KnowledgeGraph:
         tgt_term_id: str,
         confidence: float = 0.8,
         verified: bool = False,
-        source: str = "auto",
+        provenance: str = "auto",
         context: str = None,
         validated_by: str = None,
     ):
@@ -381,7 +491,7 @@ class KnowledgeGraph:
         edge_data = {
             "confidence": confidence,
             "verified": verified,
-            "source": source,
+            "provenance": provenance,
             "last_updated": _get_timestamp(),
         }
         if context:
@@ -395,7 +505,9 @@ class KnowledgeGraph:
             self.G.edges[src_term_id, tgt_term_id]["confidence"] = min(0.99, old + 0.05)
             self.G.edges[src_term_id, tgt_term_id]["last_updated"] = _get_timestamp()
         else:
-            self.G.add_edge(src_term_id, tgt_term_id, relation="translates_to", **edge_data)
+            self.G.add_edge(
+                src_term_id, tgt_term_id, relation="translates_to", **edge_data
+            )
 
         # Reverse direction — always kept in sync
         if self.G.has_edge(tgt_term_id, src_term_id):
@@ -403,7 +515,9 @@ class KnowledgeGraph:
             self.G.edges[tgt_term_id, src_term_id]["confidence"] = min(0.99, old + 0.05)
             self.G.edges[tgt_term_id, src_term_id]["last_updated"] = _get_timestamp()
         else:
-            self.G.add_edge(tgt_term_id, src_term_id, relation="translates_to", **edge_data)
+            self.G.add_edge(
+                tgt_term_id, src_term_id, relation="translates_to", **edge_data
+            )
 
     def add_variant(self, term_id: str, variant: str):
         if not self.G.has_node(term_id):
@@ -423,7 +537,7 @@ class KnowledgeGraph:
         tm_entries: List[Dict],
         source_lang: str = "en",
         target_lang: str = "sl",
-        min_freq: int = 2,
+        min_freq: int = 3,
         max_phrases: int = 15000,
         domain: str = "",
     ):
@@ -507,6 +621,11 @@ class KnowledgeGraph:
 
         src_significant = [p for p, c in src_counts.items() if c >= min_freq]
         tgt_significant = [p for p, c in tgt_lemma_counts.items() if c >= min_freq]
+
+        # Filter out SL function words and fragments
+        tgt_significant = [
+            p for p in tgt_significant if p not in SL_NOISE and len(p) >= 3
+        ]
 
         src_significant = sorted(
             src_significant, key=lambda p: src_counts[p], reverse=True
@@ -605,7 +724,16 @@ class KnowledgeGraph:
         results: List[Tuple[str, str]] = []
         seen_lemmas: set = set()
 
-        VALID_DEPRELS = {"amod", "nmod", "det", "flat", "compound", "nummod", "advmod", "nmod:poss"}
+        VALID_DEPRELS = {
+            "amod",
+            "nmod",
+            "det",
+            "flat",
+            "compound",
+            "nummod",
+            "advmod",
+            "nmod:poss",
+        }
 
         for sentence in doc.sentences:
             words = {w.id: w for w in sentence.words}
@@ -622,14 +750,23 @@ class KnowledgeGraph:
                     phrase_ids.sort()
 
                     # Surface form (inflected, for display and variants)
-                    surface = " ".join(words[wid].text for wid in phrase_ids).lower().strip()
+                    surface = (
+                        " ".join(words[wid].text for wid in phrase_ids).lower().strip()
+                    )
                     surface = re.sub(r"[.,;:!?)\]]+$", "", surface)
 
                     # Lemma form (for deduplication and canonical node key)
-                    lemma = " ".join(words[wid].lemma for wid in phrase_ids).lower().strip()
+                    lemma = (
+                        " ".join(words[wid].lemma for wid in phrase_ids).lower().strip()
+                    )
                     lemma = re.sub(r"[.,;:!?)\]]+$", "", lemma)
 
-                    if len(lemma) >= 3 and lemma not in seen_lemmas:
+                    # Filter out stop words and short fragments
+                    if lemma in SL_STOP_LEMMAS:
+                        continue
+                    if len(lemma) < 3:
+                        continue
+                    if lemma not in seen_lemmas:
                         seen_lemmas.add(lemma)
                         results.append((lemma, surface))
 
@@ -778,7 +915,7 @@ class KnowledgeGraph:
             tid,
             confidence=1.0,
             verified=verified,
-            source="manual",
+            provenance="manual",
             context=context,
             validated_by=validated_by,
         )
@@ -936,11 +1073,14 @@ class KnowledgeGraph:
             if data.get("type") in ("term", "collocation"):
                 if data.get("lang") == target_lang:
                     # Check both lemma (term) and display form
-                    for candidate in filter(None, [
-                        data.get("term"),
-                        data.get("display_form"),
-                        data.get("phrase"),
-                    ]):
+                    for candidate in filter(
+                        None,
+                        [
+                            data.get("term"),
+                            data.get("display_form"),
+                            data.get("phrase"),
+                        ],
+                    ):
                         if candidate.lower().startswith(pl):
                             matches.append(candidate)
                             break
