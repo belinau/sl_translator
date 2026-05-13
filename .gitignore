@@ -7,6 +7,7 @@ __pycache__/
 # Dependencies
 .venv/
 venv/
+data/
 
 # Logs and temp files
 *.log
@@ -21,3 +22,4 @@ venv/
 # Editors
 .vscode/
 .idea/
+.zed/
