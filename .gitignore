@@ -1,6 +1,23 @@
-data/
-__pycache__/
+# Compiled and build artifacts
 *.pyc
-.env
+__pycache__/
+*.o
+*.obj
+
+# Dependencies
+.venv/
 venv/
+
+# Logs and temp files
 *.log
+*.tmp
+*.swp
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
