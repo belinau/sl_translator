@@ -940,7 +940,7 @@ def page_translate(project_id: str):
         card = ui.card().classes(
             "w-full bg-white active-card p-0 rounded-2xl flex flex-col gap-0 my-6 overflow-hidden"
         )
-        seg["_card_id"] = card.id
+        seg["_card_id"] = card.html_id  # Use html_id for getHtmlElement()
 
         with card:
             # --- Header ---
@@ -1026,14 +1026,14 @@ def page_translate(project_id: str):
                     word = text[start:end].strip()
                     return word, start, end
 
-                def _make_chip_handler(suggestion: str, start: int, end: int, textarea_id: int, client):
+                def _make_chip_handler(suggestion: str, start: int, end: int, textarea_html_id: str, client):
                     """Create chip click handler with proper closure capture."""
                     from functools import partial
                     
                     async def _insert():
                         js = f"""
                             (function() {{
-                                const el = getHtmlElement({textarea_id});
+                                const el = getHtmlElement({textarea_html_id!r});
                                 if (!el) return false;
                                 const ta = el.querySelector('textarea');
                                 if (!ta) return false;
@@ -1054,9 +1054,10 @@ def page_translate(project_id: str):
 
                 async def _fetch_cursor_info(client) -> dict:
                     """Fetch current cursor info from client-side JS."""
+                    # Use ti.html_id (e.g., "c123") instead of ti.id (integer) for getHtmlElement()
                     js = f"""
                         (function() {{
-                            const el = getHtmlElement({ti.id});
+                            const el = getHtmlElement({ti.html_id!r});
                             if (!el) return {{word: "", start: 0, end: 0}};
                             const ta = el.querySelector('textarea');
                             if (!ta) return {{word: "", start: 0, end: 0}};
@@ -1233,9 +1234,9 @@ def page_translate(project_id: str):
                                 # Add tab indicator for first suggestion
                                 text = sugg + (" ↹" if idx == 0 else "")
                                 
-                                # Create chip with proper closure
+                                # Create chip with proper closure - use ti.html_id not ti.id
                                 ui.chip(text, on_click=lambda _, s=sugg, st=start_pos, en=end_pos: 
-                                    _make_chip_handler(s, st, en, ti.id, _seg_client)
+                                    _make_chip_handler(s, st, en, ti.html_id, _seg_client)
                                 ).props("dense clickable").classes(f"{color} text-[11px] font-bold px-2")
 
                 async def _on_typing(e: events.ValueChangeEventArguments):
@@ -1284,10 +1285,10 @@ def page_translate(project_id: str):
                         )
                         
                         if replacement:
-                            # Insert at cursor
+                            # Insert at cursor - use ti.html_id not ti.id
                             js = f"""
                                 (function() {{
-                                    const el = getHtmlElement({ti.id});
+                                    const el = getHtmlElement({ti.html_id!r});
                                     if (!el) return;
                                     const ta = el.querySelector('textarea');
                                     if (!ta) return;
