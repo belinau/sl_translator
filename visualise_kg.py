@@ -1,53 +1,64 @@
-"""visualise_kg.py — Standalone KG inspector for Zen Translator.
-
-Reads your live KG JSON at config.KG_DB_PATH and writes a self-contained
-HTML file with an interactive D3 force-directed graph. No pyvis required.
-
-Usage:
-    python visualise_kg.py                        # uses config.KG_DB_PATH
-    python visualise_kg.py path/to/kg.json        # explicit path
-    python visualise_kg.py --limit 500            # show up to N term nodes
-    python visualise_kg.py --out kg_view.html     # custom output path
-
-The HTML file is fully self-contained (D3 bundled via CDN at generation time,
-then inlined — or left as CDN if you have internet when opening the file).
-Open it in any modern browser; no server needed.
-"""
+# visualise_kg.py
+#
+# Standalone D3.js Force Graph Visualizer updated for KG v21 ontology
+# Supports Terms, Concepts, Translation Mappings, Agents & Source Texts.
+#
 
 from __future__ import annotations
 
 import argparse
 import json
+import math
 import pathlib
 import sys
-import textwrap
-from collections import Counter, defaultdict
+from collections import Counter
 
 # ---------------------------------------------------------------------------
 # Argument parsing
 # ---------------------------------------------------------------------------
-
 parser = argparse.ArgumentParser(description="Visualise Zen Translator Knowledge Graph")
-parser.add_argument("kg_path", nargs="?", default=None, help="Path to KG JSON file (default: config.KG_DB_PATH)")
-parser.add_argument("--limit", type=int, default=300, help="Max term nodes to show (default: 300)")
-parser.add_argument("--out", default="kg_inspect.html", help="Output HTML path (default: kg_inspect.html)")
-parser.add_argument("--lang", default=None, help="Filter to a specific language (e.g. en, sl)")
-parser.add_argument("--min-freq", type=int, default=1, help="Minimum term frequency to include (default: 1)")
+parser.add_argument(
+    "kg_path",
+    nargs="?",
+    default=None,
+    help="Path to KG JSON file (default: config.KG_DB_PATH)",
+)
+parser.add_argument(
+    "--limit", type=int, default=300, help="Max term nodes to show (default: 300)"
+)
+parser.add_argument(
+    "--out",
+    default="kg_inspect.html",
+    help="Output HTML path (default: kg_inspect.html)",
+)
+parser.add_argument(
+    "--lang", default=None, help="Filter to a specific language (e.g. en, sl)"
+)
+parser.add_argument(
+    "--min-freq",
+    type=int,
+    default=1,
+    help="Minimum term frequency to include (default: 1)",
+)
 args = parser.parse_args()
 
 # ---------------------------------------------------------------------------
 # Resolve KG path
 # ---------------------------------------------------------------------------
-
 if args.kg_path:
     kg_path = pathlib.Path(args.kg_path)
 else:
     try:
         import config
+
         kg_path = pathlib.Path(config.KG_DB_PATH)
     except ImportError:
-        print("[ERROR] Could not import config. Either pass the KG JSON path as an argument,")
-        print("        or run this script from your project root where config.py lives.")
+        print(
+            "[ERROR] Could not import config. Either pass the KG JSON path as an argument,"
+        )
+        print(
+            "        or run this script from your project root where config.py lives."
+        )
         print("        Usage: python visualise_kg.py path/to/knowledge_graph.json")
         sys.exit(1)
 
@@ -61,10 +72,6 @@ all_nodes = raw.get("nodes", [])
 all_edges = raw.get("edges", [])
 print(f"[KG Inspector] Raw: {len(all_nodes)} nodes, {len(all_edges)} edges")
 
-# ---------------------------------------------------------------------------
-# Filter and select nodes
-# ---------------------------------------------------------------------------
-
 # Index nodes by id
 node_by_id = {n["id"]: n for n in all_nodes}
 
@@ -72,126 +79,188 @@ node_by_id = {n["id"]: n for n in all_nodes}
 type_counts = Counter(n.get("type", "unknown") for n in all_nodes)
 print(f"[KG Inspector] Node types: {dict(type_counts)}")
 
+# ---------------------------------------------------------------------------
+# Filter and select nodes (Including new ontology structures)
+# ---------------------------------------------------------------------------
 # Select term nodes meeting criteria, sorted by frequency desc
 term_nodes = [
-    n for n in all_nodes
+    n
+    for n in all_nodes
     if n.get("type") == "term"
     and n.get("frequency", 1) >= args.min_freq
     and (args.lang is None or n.get("lang") == args.lang)
 ]
 term_nodes.sort(key=lambda n: n.get("frequency", 0), reverse=True)
-term_nodes = term_nodes[:args.limit]
+term_nodes = term_nodes[: args.limit]
 selected_ids = {n["id"] for n in term_nodes}
 
-# Also include concept nodes connected to selected terms
+# Harvest connected translation mapping nodes, agents, source texts & concepts
+mapping_nodes = []
+agent_nodes = []
+source_nodes = []
 concept_nodes = []
-for edge in all_edges:
-    if edge.get("relation") == "instantiates_concept":
-        if edge["source"] in selected_ids:
-            cid = edge["target"]
-            if cid in node_by_id and cid not in selected_ids:
-                concept_nodes.append(node_by_id[cid])
-                selected_ids.add(cid)
 
-all_selected = term_nodes + concept_nodes
-print(f"[KG Inspector] Visualising: {len(term_nodes)} terms + {len(concept_nodes)} concepts = {len(all_selected)} nodes")
+# First pass: Get connected concepts and mappings
+for edge in all_edges:
+    src, tgt = edge["source"], edge["target"]
+    rel = edge.get("relation")
+
+    if rel == "instantiates_concept" and src in selected_ids:
+        if tgt in node_by_id and tgt not in selected_ids:
+            concept_nodes.append(node_by_id[tgt])
+            selected_ids.add(tgt)
+
+    elif rel == "has_mapping" and src in selected_ids:
+        if tgt in node_by_id and tgt not in selected_ids:
+            mapping_nodes.append(node_by_id[tgt])
+            selected_ids.add(tgt)
+
+# Second pass: Pull elements connected to selected mappings
+for edge in all_edges:
+    src, tgt = edge["source"], edge["target"]
+    rel = edge.get("relation")
+
+    if src in selected_ids and node_by_id[src].get("type") == "translation_mapping":
+        if rel == "maps_to" and tgt in node_by_id and tgt not in selected_ids:
+            # Pull in target term linked to this mapping
+            term_nodes.append(node_by_id[tgt])
+            selected_ids.add(tgt)
+        elif rel == "instantiated_in" and tgt in node_by_id and tgt not in selected_ids:
+            source_nodes.append(node_by_id[tgt])
+            selected_ids.add(tgt)
+        elif rel == "attributed_to" and tgt in node_by_id and tgt not in selected_ids:
+            agent_nodes.append(node_by_id[tgt])
+            selected_ids.add(tgt)
+
+all_selected = term_nodes + concept_nodes + mapping_nodes + agent_nodes + source_nodes
+print(
+    f"[KG Inspector] Visualising: {len(term_nodes)} terms, {len(concept_nodes)} concepts, {len(mapping_nodes)} mappings, {len(agent_nodes)} agents, {len(source_nodes)} sources"
+)
 
 # Filter edges to only those between selected nodes
 selected_edges = [
-    e for e in all_edges
-    if e["source"] in selected_ids and e["target"] in selected_ids
+    e for e in all_edges if e["source"] in selected_ids and e["target"] in selected_ids
 ]
 print(f"[KG Inspector] Filtered edges: {len(selected_edges)}")
 
 # ---------------------------------------------------------------------------
-# Build graph data for D3
+# Build Graph Data for D3
 # ---------------------------------------------------------------------------
-
-# Language colour mapping
+# Palette colors
 LANG_COLORS = {
-    "en": "#3b82f6",   # blue
-    "sl": "#10b981",   # emerald
-    "de": "#f59e0b",   # amber
-    "fr": "#8b5cf6",   # violet
-    "it": "#ef4444",   # red
+    "en": "#3b82f6",  # blue
+    "sl": "#10b981",  # emerald
 }
 CONCEPT_COLOR = "#64748b"  # slate
+MAPPING_COLOR = "#ec4899"  # pink/magenta (lineage bridges)
+AGENT_COLOR = "#f97316"  # orange
+SOURCE_COLOR = "#06b6d4"  # teal
+
 
 def node_color(n: dict) -> str:
-    if n.get("type") == "concept":
+    ntype = n.get("type")
+    if ntype == "concept":
         return CONCEPT_COLOR
+    if ntype == "translation_mapping":
+        return MAPPING_COLOR
+    if ntype == "agent":
+        return AGENT_COLOR
+    if ntype == "source_text":
+        return SOURCE_COLOR
     return LANG_COLORS.get(n.get("lang", ""), "#94a3b8")
 
+
 def node_size(n: dict) -> float:
-    freq = n.get("frequency", 1)
-    # Scale: min 4, max 24, log-ish
-    import math
-    return max(4, min(24, 4 + math.log1p(freq) * 3))
+    ntype = n.get("type")
+    if ntype == "term":
+        freq = n.get("frequency", 1)
+        return max(5, min(22, 5 + math.log1p(freq) * 3))
+    if ntype == "concept":
+        return 12
+    if ntype == "translation_mapping":
+        return 8
+    if ntype == "agent":
+        return 10
+    if ntype == "source_text":
+        return 11
+    return 8
+
 
 def node_label(n: dict) -> str:
-    return n.get("display_form") or n.get("term") or n.get("label") or n.get("id", "")
+    return (
+        n.get("display_form")
+        or n.get("term")
+        or n.get("label")
+        or n.get("name")
+        or n.get("title")
+        or n.get("id", "")
+    )
 
-# Build D3-compatible nodes and links
+
 d3_nodes = []
 for n in all_selected:
-    d3_nodes.append({
-        "id": n["id"],
-        "label": node_label(n),
-        "type": n.get("type", "term"),
-        "lang": n.get("lang", ""),
-        "freq": n.get("frequency", 1),
-        "is_phrase": n.get("is_phrase", False),
-        "domain": n.get("domain", ""),
-        "verified": False,  # will be updated from edges
-        "color": node_color(n),
-        "size": node_size(n),
-    })
-
-# Mark verified nodes (any verified translation edge touching them)
-verified_ids: set = set()
-for e in selected_edges:
-    if e.get("relation") == "translates_to" and e.get("verified"):
-        verified_ids.add(e["source"])
-        verified_ids.add(e["target"])
-for n in d3_nodes:
-    if n["id"] in verified_ids:
-        n["verified"] = True
+    d3_nodes.append(
+        {
+            "id": n["id"],
+            "label": node_label(n),
+            "type": n.get("type", "term"),
+            "lang": n.get("lang", ""),
+            "freq": n.get("frequency", 1),
+            "is_phrase": n.get("is_phrase", False),
+            "domain": n.get("domain", ""),
+            "lineage": n.get("lineage", ""),
+            "register": n.get("register", ""),
+            "gloss": n.get("gloss", ""),
+            "confidence": n.get("confidence", 1.0),
+            "role": n.get("role", ""),
+            "year": n.get("year", ""),
+            "verified": n.get("verified", False),
+            "color": node_color(n),
+            "size": node_size(n),
+        }
+    )
 
 EDGE_STYLE = {
-    "translates_to":        {"color": "#94a3b8", "width": 1.5, "dashed": False},
-    "instantiates_concept": {"color": "#c4b5fd", "width": 1.0, "dashed": True},
-    "subclass_of":          {"color": "#fcd34d", "width": 1.0, "dashed": True},
-    "appears_in_segment":   {"color": "#6ee7b7", "width": 0.8, "dashed": True},
+    "translates_to": {
+        "color": "#475569",
+        "width": 0.8,
+        "dashed": False,
+    },  # legacy fallback edge
+    "has_mapping": {"color": "#ec4899", "width": 1.0, "dashed": True},
+    "maps_to": {"color": "#ec4899", "width": 1.5, "dashed": False},
+    "instantiated_in": {"color": "#06b6d4", "width": 0.8, "dashed": True},
+    "attributed_to": {"color": "#f97316", "width": 0.8, "dashed": True},
+    "instantiates_concept": {"color": "#94a3b8", "width": 1.0, "dashed": True},
+    "subclass_of": {"color": "#fcd34d", "width": 1.0, "dashed": True},
 }
 
 d3_links = []
-seen_link_pairs: set = set()
+seen_link_pairs = set()
+
 for e in selected_edges:
-    pair = tuple(sorted([e["source"], e["target"]]))
     rel = e.get("relation", "related_to")
-    # Deduplicate bidirectional translates_to edges for display
+    pair = tuple(sorted([e["source"], e["target"]]))
+
+    # Deduplicate legacy translates_to if we already mapped them
     if rel == "translates_to" and pair in seen_link_pairs:
         continue
     seen_link_pairs.add(pair)
+
     style = EDGE_STYLE.get(rel, {"color": "#cbd5e1", "width": 1.0, "dashed": False})
-    d3_links.append({
-        "source": e["source"],
-        "target": e["target"],
-        "relation": rel,
-        "confidence": e.get("confidence", 0.5),
-        "verified": e.get("verified", False),
-        **style,
-    })
+    d3_links.append(
+        {
+            "source": e["source"],
+            "target": e["target"],
+            "relation": rel,
+            "confidence": e.get("confidence", 0.5),
+            "verified": e.get("verified", False),
+            **style,
+        }
+    )
 
 # ---------------------------------------------------------------------------
 # Stats for sidebar
 # ---------------------------------------------------------------------------
-
-lang_counts = Counter(n.get("lang", "?") for n in term_nodes)
-phrase_count = sum(1 for n in term_nodes if n.get("is_phrase"))
-verified_count = len(verified_ids)
-domain_counts = Counter(n.get("domain", "") for n in all_selected if n.get("domain"))
-
 stats = {
     "total_nodes_in_kg": len(all_nodes),
     "total_edges_in_kg": len(all_edges),
@@ -199,17 +268,14 @@ stats = {
     "showing_edges": len(d3_links),
     "term_nodes": len(term_nodes),
     "concept_nodes": len(concept_nodes),
-    "phrase_nodes": phrase_count,
-    "verified_nodes": verified_count,
-    "lang_counts": dict(lang_counts),
-    "domain_counts": dict(domain_counts.most_common(10)),
-    "type_counts": dict(type_counts),
+    "mapping_nodes": len(mapping_nodes),
+    "agent_nodes": len(agent_nodes),
+    "source_nodes": len(source_nodes),
 }
 
 # ---------------------------------------------------------------------------
-# HTML template
+# HTML generation
 # ---------------------------------------------------------------------------
-
 graph_data_json = json.dumps({"nodes": d3_nodes, "links": d3_links}, ensure_ascii=False)
 stats_json = json.dumps(stats, ensure_ascii=False)
 lang_colors_json = json.dumps(LANG_COLORS, ensure_ascii=False)
@@ -233,7 +299,9 @@ html = f"""<!DOCTYPE html>
     --accent-en: #3b82f6;
     --accent-sl: #10b981;
     --accent-concept: #64748b;
-    --accent-verified: #fbbf24;
+    --accent-mapping: #ec4899;
+    --accent-agent: #f97316;
+    --accent-source: #06b6d4;
     --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
     --font-ui: 'IBM Plex Sans', system-ui, sans-serif;
   }}
@@ -251,8 +319,8 @@ html = f"""<!DOCTYPE html>
 
   /* ---- Sidebar ---- */
   #sidebar {{
-    width: 300px;
-    min-width: 300px;
+    width: 310px;
+    min-width: 310px;
     background: var(--surface);
     border-right: 1px solid var(--border);
     display: flex;
@@ -348,7 +416,6 @@ html = f"""<!DOCTYPE html>
   .pill[data-lang="sl"].active {{ background: var(--accent-sl); }}
   .pill[data-lang="all"].active {{ background: #475569; }}
   .pill[data-type="phrases"].active {{ background: #7c3aed; }}
-  .pill[data-type="verified"].active {{ background: var(--accent-verified); color: #000; }}
 
   #stats {{
     padding: 14px 16px;
@@ -366,7 +433,7 @@ html = f"""<!DOCTYPE html>
 
   .stat-label {{
     font-size: 10px;
-    color: var(--text-muted);
+    color: var(--text-dim);
     letter-spacing: .05em;
   }}
 
@@ -386,14 +453,6 @@ html = f"""<!DOCTYPE html>
     margin-top: 4px;
     padding-top: 8px;
     border-top: 1px solid var(--border);
-  }}
-
-  .lang-bar {{
-    display: flex;
-    height: 4px;
-    border-radius: 2px;
-    overflow: hidden;
-    margin-top: 6px;
   }}
 
   #node-detail {{
@@ -441,23 +500,19 @@ html = f"""<!DOCTYPE html>
   }}
 
   .translation-chip {{
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
     background: var(--surface2);
     border: 1px solid var(--border);
     border-radius: 6px;
-    padding: 4px 10px;
+    padding: 6px 10px;
     font-size: 11px;
-    margin: 2px;
-    font-family: var(--font-mono);
+    margin-bottom: 6px;
   }}
 
   .conf-bar {{
     height: 3px;
     border-radius: 2px;
     background: var(--border);
-    margin-top: 2px;
+    margin-top: 5px;
     width: 100%;
   }}
   .conf-fill {{
@@ -469,11 +524,11 @@ html = f"""<!DOCTYPE html>
   .verified-badge {{
     font-size: 8px;
     font-weight: 800;
-    letter-spacing: .1em;
-    background: var(--accent-verified);
+    background: #fbbf24;
     color: #000;
-    padding: 1px 5px;
+    padding: 1px 4px;
     border-radius: 3px;
+    margin-left: 4px;
   }}
 
   /* ---- Canvas ---- */
@@ -514,19 +569,6 @@ html = f"""<!DOCTYPE html>
     color: var(--text-dim);
     font-family: var(--font-mono);
     font-size: 9px;
-  }}
-
-  /* ---- Minimap ---- */
-  #minimap {{
-    position: absolute;
-    bottom: 16px;
-    right: 16px;
-    width: 140px;
-    height: 90px;
-    background: rgba(17,24,39,.85);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    overflow: hidden;
   }}
 
   /* ---- Legend ---- */
@@ -576,7 +618,6 @@ html = f"""<!DOCTYPE html>
     border-radius: 6px;
     cursor: pointer;
     transition: all .15s;
-    font-family: var(--font-ui);
   }}
   .btn:hover {{
     border-color: var(--accent-en);
@@ -595,7 +636,7 @@ html = f"""<!DOCTYPE html>
 <div id="sidebar">
   <div id="sidebar-header">
     <h1>KG Inspector</h1>
-    <p id="kg-path-label">Zen Translator · Knowledge Graph</p>
+    <p>Zen Translator · Knowledge Graph</p>
   </div>
 
   <div id="controls">
@@ -604,16 +645,15 @@ html = f"""<!DOCTYPE html>
       <input type="text" id="search-input" placeholder="filter by term…">
     </div>
     <div class="control-group">
-      <label>Language</label>
+      <label>Language Filter</label>
       <div class="filter-pills" id="lang-filter">
         <span class="pill active" data-lang="all">ALL</span>
       </div>
     </div>
     <div class="control-group">
-      <label>Show</label>
+      <label>Options</label>
       <div class="filter-pills">
         <span class="pill active" id="pill-phrases" data-type="phrases">Phrases only</span>
-        <span class="pill" id="pill-verified" data-type="verified">Verified ★</span>
       </div>
     </div>
     <div class="control-group">
@@ -639,7 +679,6 @@ html = f"""<!DOCTYPE html>
 <div id="graph-wrap">
   <svg id="graph-svg"></svg>
   <div id="tooltip"></div>
-  <div id="minimap"><svg id="minimap-svg"></svg></div>
   <div id="legend"></div>
 </div>
 
@@ -651,33 +690,27 @@ const GRAPH = {graph_data_json};
 const STATS = {stats_json};
 const LANG_COLORS = {lang_colors_json};
 const CONCEPT_COLOR = "#64748b";
+const MAPPING_COLOR = "#ec4899";
+const AGENT_COLOR = "#f97316";
+const SOURCE_COLOR = "#06b6d4";
 
 // ============================================================
 // SIDEBAR STATS
 // ============================================================
 function renderStats() {{
   const el = document.getElementById('stats');
-  const lc = STATS.lang_counts;
-  const total = Object.values(lc).reduce((a,b)=>a+b, 0) || 1;
-
-  const barSegs = Object.entries(lc).map(([lang, count]) => {{
-    const color = LANG_COLORS[lang] || '#94a3b8';
-    const pct = (count / total * 100).toFixed(1);
-    return `<div style="flex:${{count}};background:${{color}}" title="${{lang}}: ${{count}}"></div>`;
-  }}).join('');
-
   el.innerHTML = `
-    <div class="stat-section-label">Graph overview</div>
-    ${{statRow('Total KG nodes', STATS.total_nodes_in_kg.toLocaleString())}}
-    ${{statRow('Total KG edges', STATS.total_edges_in_kg.toLocaleString())}}
-    ${{statRow('Showing nodes', STATS.showing_nodes)}}
-    ${{statRow('Showing edges', STATS.showing_edges)}}
-    ${{statRow('Phrase nodes', STATS.phrase_nodes)}}
-    ${{statRow('Verified pairs', STATS.verified_nodes)}}
-    <div class="stat-section-label">By language</div>
-    ${{Object.entries(lc).map(([l,c])=> statRow(l.toUpperCase(), c)).join('')}}
-    <div class="lang-bar">${{barSegs}}</div>
-    ${{Object.keys(STATS.domain_counts).length ? '<div class="stat-section-label">Domains</div>' + Object.entries(STATS.domain_counts).map(([d,c])=>statRow(d||'(untagged)', c)).join('') : ''}}
+    <div class="stat-section-label">Graph Overview</div>
+    ${{statRow('Total KG Nodes', STATS.total_nodes_in_kg.toLocaleString())}}
+    ${{statRow('Total KG Edges', STATS.total_edges_in_kg.toLocaleString())}}
+    ${{statRow('Visible Nodes', STATS.showing_nodes)}}
+    ${{statRow('Visible Edges', STATS.showing_edges)}}
+    <div class="stat-section-label">By Structural Type</div>
+    ${{statRow('Terms (Nodes)', STATS.term_nodes)}}
+    ${{statRow('Mappings (Lineages)', STATS.mapping_nodes)}}
+    ${{statRow('Concepts (Philosophy)', STATS.concept_nodes)}}
+    ${{statRow('Agents (Authors)', STATS.agent_nodes)}}
+    ${{statRow('Sources (Books)', STATS.source_nodes)}}
   `;
 }}
 
@@ -688,7 +721,7 @@ function statRow(label, value) {{
 renderStats();
 
 // ============================================================
-// LANG FILTER PILLS (build from data)
+// LANG FILTER PILLS
 // ============================================================
 const langs = [...new Set(GRAPH.nodes.map(n=>n.lang).filter(Boolean))];
 const langFilter = document.getElementById('lang-filter');
@@ -708,48 +741,53 @@ const wrap = document.getElementById('graph-wrap');
 
 let width = wrap.clientWidth, height = wrap.clientHeight;
 
-// Build node/link maps
 let nodes = GRAPH.nodes.map(d => ({{...d}}));
 let links = GRAPH.links.map(d => ({{...d}}));
 
 const nodeById = new Map(nodes.map(n => [n.id, n]));
 
-// Active filters
 let activeLang = 'all';
 let showPhrasesOnly = true;
-let showVerifiedOnly = false;
 let searchQuery = '';
 let strength = -30;
 
 function filteredData() {{
   let fn = nodes.filter(n => {{
-    if (n.type === 'concept') return true; // always keep concepts if connected
+    if (n.type !== 'term') return true; // keep non-term nodes (mappings, concepts, agents, sources)
     if (activeLang !== 'all' && n.lang && n.lang !== activeLang) return false;
-    if (showPhrasesOnly && !n.is_phrase && n.type === 'term') return false;
-    if (showVerifiedOnly && !n.verified) return false;
+    if (showPhrasesOnly && !n.is_phrase) return false;
     if (searchQuery) {{
       const q = searchQuery.toLowerCase();
       if (!n.label.toLowerCase().includes(q)) return false;
     }}
     return true;
   }});
+
   const fnIds = new Set(fn.map(n => n.id));
-  // Remove orphaned concepts
-  fn = fn.filter(n => n.type !== 'concept' || links.some(l =>
-    (l.source.id || l.source) === n.id || (l.target.id || l.target) === n.id && fnIds.has(l.source.id || l.source)
-  ));
+
+  // Prune any now-orphaned mappings, agents, sources, or concepts
+  fn = fn.filter(n => {{
+    if (n.type === 'term') return true;
+    // Check if connected to at least one remaining term
+    return links.some(l => {{
+      const sid = l.source.id || l.source;
+      const tid = l.target.id || l.target;
+      return (sid === n.id && fnIds.has(tid)) || (tid === n.id && fnIds.has(sid));
+    }});
+  }});
+
   const finalIds = new Set(fn.map(n => n.id));
   const fl = links.filter(l => {{
     const sid = l.source.id || l.source;
     const tid = l.target.id || l.target;
     return finalIds.has(sid) && finalIds.has(tid);
   }});
+
   return {{ nodes: fn, links: fl }};
 }}
 
 // ---- SVG setup ----
 const defs = svg.append('defs');
-// Arrowhead
 defs.append('marker')
   .attr('id', 'arrow')
   .attr('viewBox', '0 -4 8 8')
@@ -758,21 +796,12 @@ defs.append('marker')
   .attr('orient', 'auto')
   .append('path').attr('d', 'M0,-4L8,0L0,4').attr('fill', '#334155');
 
-// Glow filter for highlighted nodes
-const glow = defs.append('filter').attr('id', 'glow');
-glow.append('feGaussianBlur').attr('stdDeviation', 3).attr('result', 'blur');
-const feMerge = glow.append('feMerge');
-feMerge.append('feMergeNode').attr('in', 'blur');
-feMerge.append('feMergeNode').attr('in', 'SourceGraphic');
-
 const g = svg.append('g').attr('class', 'graph-root');
 
-// Zoom
 const zoom = d3.zoom()
   .scaleExtent([0.05, 8])
   .on('zoom', e => {{
     g.attr('transform', e.transform);
-    updateMinimap();
   }});
 svg.call(zoom);
 
@@ -792,7 +821,7 @@ function buildGraph() {{
     .attr('stroke-width', d => d.width || 1)
     .attr('stroke-opacity', 0.5)
     .attr('stroke-dasharray', d => d.dashed ? '4 3' : null)
-    .attr('marker-end', d => d.relation === 'translates_to' ? null : 'url(#arrow)');
+    .attr('marker-end', d => d.relation === 'maps_to' ? 'url(#arrow)' : null);
 
   // Nodes
   const nodeG = g.append('g').attr('class', 'nodes')
@@ -816,7 +845,7 @@ function buildGraph() {{
   labelSel = nodeG.append('text')
     .text(d => d.label)
     .attr('font-size', d => Math.max(8, Math.min(13, d.size * 0.9)))
-    .attr('dy', d => d.size + 10)
+    .attr('dy', d => d.size + 11)
     .attr('text-anchor', 'middle')
     .attr('fill', '#94a3b8')
     .attr('paint-order', 'stroke')
@@ -825,18 +854,16 @@ function buildGraph() {{
     .style('pointer-events', 'none')
     .style('display', d => d.size > 6 ? 'block' : 'none');
 
-  // Simulation
   if (simulation) simulation.stop();
 
   simulation = d3.forceSimulation(fn)
     .force('link', d3.forceLink(fl).id(d => d.id).distance(d => {{
-      if (d.relation === 'translates_to') return 80;
-      if (d.relation === 'instantiates_concept') return 60;
-      return 100;
+      if (d.relation === 'maps_to' || d.relation === 'has_mapping') return 45;
+      return 80;
     }}).strength(0.4))
     .force('charge', d3.forceManyBody().strength(strength))
     .force('center', d3.forceCenter(width/2, height/2))
-    .force('collision', d3.forceCollide().radius(d => d.size + 4))
+    .force('collision', d3.forceCollide().radius(d => d.size + 5))
     .on('tick', ticked);
 
   document.getElementById('stat-live-nodes').textContent = fn.length;
@@ -850,8 +877,6 @@ function ticked() {{
 
   g.selectAll('.node-g')
     .attr('transform', d => `translate(${{d.x}},${{d.y}})`);
-
-  updateMinimap();
 }}
 
 // ---- Drag ----
@@ -864,9 +889,8 @@ function dragged(event, d) {{
 }}
 function dragEnd(event, d) {{
   if (!event.active) simulation.alphaTarget(0);
-  // Shift+drag: pin node
   if (event.sourceEvent && event.sourceEvent.shiftKey) {{
-    // keep pinned
+    // shift-drag pins node
   }} else {{
     d.fx = null; d.fy = null;
   }}
@@ -874,6 +898,9 @@ function dragEnd(event, d) {{
 
 // ---- Click / hover ----
 function onNodeClick(event, d) {{
+  const fn = filteredData().nodes;
+  const fl = filteredData().links;
+
   if (event.shiftKey) {{
     if (d.fx !== null && d.fx !== undefined) {{
       d.fx = null; d.fy = null;
@@ -884,9 +911,11 @@ function onNodeClick(event, d) {{
     }}
     return;
   }}
+
   selectedNode = d;
-  renderDetail(d);
-  // Highlight connected nodes
+  renderDetail(d, fn, fl);
+
+  // Highlight connection web
   const connectedIds = new Set();
   g.selectAll('.links line').each(e => {{
     const sid = e.source.id || e.source;
@@ -894,13 +923,14 @@ function onNodeClick(event, d) {{
     if (sid === d.id) connectedIds.add(tid);
     if (tid === d.id) connectedIds.add(sid);
   }});
+
   g.selectAll('.node-g circle')
-    .attr('opacity', n => n.id === d.id || connectedIds.has(n.id) ? 1 : 0.2);
+    .attr('opacity', n => n.id === d.id || connectedIds.has(n.id) ? 1 : 0.15);
   g.selectAll('.links line')
     .attr('stroke-opacity', e => {{
       const sid = e.source.id || e.source;
       const tid = e.target.id || e.target;
-      return (sid === d.id || tid === d.id) ? 0.9 : 0.05;
+      return (sid === d.id || tid === d.id) ? 0.9 : 0.04;
     }});
   g.selectAll('.node-g text')
     .style('display', n => (n.id === d.id || connectedIds.has(n.id)) ? 'block' : 'none');
@@ -909,7 +939,7 @@ function onNodeClick(event, d) {{
 function onHover(event, d) {{
   const tt = document.getElementById('tooltip');
   tt.innerHTML = `<div class="tt-term" style="color:${{d.color}}">${{d.label}}</div>
-    <div class="tt-meta">${{d.lang ? d.lang.toUpperCase() + ' · ' : ''}}freq ${{d.freq}}${{d.verified ? ' · ★ verified' : ''}}${{d.is_phrase ? ' · phrase' : ''}}</div>`;
+    <div class="tt-meta">${{d.type.toUpperCase()}}${{d.verified ? ' · ★ verified' : ''}}</div>`;
   tt.style.opacity = 1;
   moveTooltip(event);
 }}
@@ -921,7 +951,6 @@ function onHoverOut() {{
 svg.on('mousemove', e => moveTooltip(e));
 svg.on('click', function(event) {{
   if (event.target === this || event.target.tagName === 'svg') {{
-    // Clicked background — deselect
     selectedNode = null;
     g.selectAll('.node-g circle').attr('opacity', 1);
     g.selectAll('.links line').attr('stroke-opacity', 0.5);
@@ -939,58 +968,197 @@ function moveTooltip(event) {{
 }}
 
 // ---- Node detail panel ----
-function renderDetail(d) {{
-  // Find connected links and their nodes from current simulation
-  const outgoing = [], incoming = [];
-  g.selectAll('.links line').each(e => {{
-    const sid = e.source.id || e.source;
-    const tid = e.target.id || e.target;
-    if (sid === d.id && e.relation === 'translates_to') {{
-      const tNode = nodeById.get(tid);
-      if (tNode) outgoing.push({{node: tNode, conf: e.confidence, verified: e.verified}});
-    }}
-  }});
+function renderDetail(d, fn, fl) {{
+  const el = document.getElementById('node-detail');
 
-  // Sort by confidence
-  outgoing.sort((a,b) => b.conf - a.conf);
+  if (d.type === 'term') {{
+    const mappings = [];
 
-  const translationsHtml = outgoing.length
-    ? outgoing.map(t => `
-      <div class="translation-chip">
-        <span style="color:${{t.node.color}}">${{t.node.label}}</span>
-        ${{t.verified ? '<span class="verified-badge">★</span>' : ''}}
-        <div style="flex:1">
-          <div class="conf-bar"><div class="conf-fill" style="width:${{(t.conf*100).toFixed(0)}}%;opacity:${{0.4+t.conf*0.6}}"></div></div>
-        </div>
-        <span style="font-size:9px;color:#64748b">${{(t.conf*100).toFixed(0)}}%</span>
-      </div>`).join('')
-    : '<span style="color:#475569;font-size:11px">No translations in current view</span>';
+    // Scan links connected to this term to trace full translation path through mappings
+    fl.forEach(l => {{
+      const sid = l.source.id || l.source;
+      const tid = l.target.id || l.target;
+      if (sid === d.id && l.relation === 'has_mapping') {{
+        const mapNode = fn.find(n => n.id === tid);
+        if (mapNode) {{
+          fl.forEach(l2 => {{
+            const s2 = l2.source.id || l2.source;
+            const t2 = l2.target.id || l2.target;
+            if (s2 === mapNode.id && l2.relation === 'maps_to') {{
+              const tgtNode = fn.find(n => n.id === t2);
+              if (tgtNode) {{
+                mappings.push({{
+                  term: tgtNode.label,
+                  color: tgtNode.color,
+                  lineage: mapNode.lineage || 'general',
+                  gloss: mapNode.gloss || '',
+                  conf: mapNode.confidence || 0.5,
+                  verified: mapNode.verified
+                }});
+              }}
+            }}
+          }});
+        }}
+      }}
+    }});
 
-  document.getElementById('node-detail').innerHTML = `
-    <div class="detail-term" style="color:${{d.color}}">${{d.label}}</div>
-    <div class="detail-meta">
-      ${{d.lang ? d.lang.toUpperCase() : 'concept'}}
-      · freq ${{d.freq}}
-      ${{d.verified ? '· <span style="color:#fbbf24">★ verified</span>' : ''}}
-      ${{d.is_phrase ? '· phrase' : ''}}
-      ${{d.domain ? '· ' + d.domain : ''}}
-    </div>
-    <div class="detail-section">Translations</div>
-    ${{translationsHtml}}
-    <div class="detail-section">Node ID</div>
-    <div style="font-family:var(--font-mono);font-size:9px;color:#475569;word-break:break-all">${{d.id}}</div>
-  `;
+    // Fallback legacy translates_to check
+    fl.forEach(l => {{
+      const sid = l.source.id || l.source;
+      const tid = l.target.id || l.target;
+      if (sid === d.id && l.relation === 'translates_to') {{
+        const tgtNode = fn.find(n => n.id === tid);
+        if (tgtNode && !mappings.some(m => m.term === tgtNode.label)) {{
+          mappings.push({{
+            term: tgtNode.label,
+            color: tgtNode.color,
+            lineage: 'legacy',
+            gloss: '',
+            conf: l.confidence || 0.5,
+            verified: l.verified
+          }});
+        }}
+      }}
+    }});
+
+    mappings.sort((a,b) => b.conf - a.conf);
+
+    const transHtml = mappings.length
+      ? mappings.map(m => `
+        <div class="translation-chip">
+          <span style="color:${{m.color}}">${{m.term}}</span>
+          ${{m.verified ? '<span class="verified-badge">★</span>' : ''}}
+          <div style="font-size:9px;color:var(--text-dim);margin-top:2px;">
+            Lineage: <em>${{m.lineage}}</em> ${{m.gloss ? ' · Note: ' + m.gloss : ''}}
+          </div>
+          <div class="conf-bar"><div class="conf-fill" style="width:${{(m.conf*100).toFixed(0)}}%"></div></div>
+        </div>`).join('')
+      : '<div style="color:var(--text-muted);font-size:11px;font-style:italic">No translation mappings visible</div>';
+
+    el.innerHTML = `
+      <div class="detail-term" style="color:${{d.color}}">${{d.label}}</div>
+      <div class="detail-meta">TERM · ${{d.lang.toUpperCase()}} · freq ${{d.freq}} ${{d.is_phrase ? '· phrase' : ''}}</div>
+      <div class="detail-section">Contextual Translations</div>
+      ${{transHtml}}
+      <div class="detail-section">Node ID</div>
+      <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-muted);word-break:break-all">${{d.id}}</div>
+    `;
+  }}
+  else if (d.type === 'translation_mapping') {{
+    let sourceTerm = "(unknown)";
+    let targetTerm = "(unknown)";
+    let agents = [];
+    let sources = [];
+
+    fl.forEach(l => {{
+      const sid = l.source.id || l.source;
+      const tid = l.target.id || l.target;
+      if (tid === d.id && l.relation === 'has_mapping') {{
+        const sNode = fn.find(n => n.id === sid);
+        if (sNode) sourceTerm = sNode.label;
+      }}
+      if (sid === d.id && l.relation === 'maps_to') {{
+        const tNode = fn.find(n => n.id === tid);
+        if (tNode) targetTerm = tNode.label;
+      }}
+      if (sid === d.id && l.relation === 'instantiated_in') {{
+        const srcNode = fn.find(n => n.id === tid);
+        if (srcNode) sources.push(srcNode.label);
+      }}
+      if (sid === d.id && l.relation === 'attributed_to') {{
+        const agNode = fn.find(n => n.id === tid);
+        if (agNode) agents.push(agNode.label);
+      }}
+    }});
+
+    const lineage = d.lineage || "general";
+    const register = d.register || "academic";
+    const gloss = d.gloss || "(no note)";
+    const conf = d.confidence || 0.5;
+
+    el.innerHTML = `
+      <div class="detail-term" style="color:${{d.color}}">Mapping Context</div>
+      <div class="detail-meta">TRANSLATION MAPPING ${{d.verified ? '· <span style="color:#fbbf24">★ verified</span>' : ''}}</div>
+
+      <div style="font-size:12px;margin-bottom:12px;">
+        <strong>${{sourceTerm}}</strong> ➔ <strong>${{targetTerm}}</strong>
+      </div>
+
+      <div class="detail-section">Lineage Parameters</div>
+      <div style="font-size:11px;display:flex;flex-direction:column;gap:4px;">
+        <div>• Lineage: <em>${{lineage}}</em></div>
+        <div>• Register: <code>${{register}}</code></div>
+        <div>• Note: <span style="color:var(--text-dim)">${{gloss}}</span></div>
+        <div>• Confidence: <code>${{(conf*100).toFixed(0)}}%</code></div>
+      </div>
+
+      ${{agents.length ? '<div class="detail-section">Attributed Authors/Translators</div>' + agents.map(a => `<div>• ${{a}}</div>`).join('') : ''}}
+      ${{sources.length ? '<div class="detail-section">Published In</div>' + sources.map(s => `<div>• <em>${{s}}</em></div>`).join('') : ''}}
+
+      <div class="detail-section">Node ID</div>
+      <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-muted);word-break:break-all">${{d.id}}</div>
+    `;
+  }}
+  else if (d.type === 'agent') {{
+    const linkedMaps = [];
+    fl.forEach(l => {{
+      const sid = l.source.id || l.source;
+      const tid = l.target.id || l.target;
+      if (tid === d.id && l.relation === 'attributed_to') {{
+        linkedMaps.push(sid);
+      }}
+    }});
+
+    el.innerHTML = `
+      <div class="detail-term" style="color:${{d.color}}">${{d.label}}</div>
+      <div class="detail-meta">AGENT · ${{d.role || 'author/translator'}}</div>
+
+      <div class="detail-section">Linked Translations (${{linkedMaps.length}})</div>
+      ${{linkedMaps.length ? '<div style="font-size:11px;">' + linkedMaps.map(m => `<div>• <code>${{m}}</code></div>`).join('') + '</div>' : '<div style="color:var(--text-muted);font-style:italic">No active mappings shown</div>'}}
+
+      <div class="detail-section">Node ID</div>
+      <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-muted);word-break:break-all">${{d.id}}</div>
+    `;
+  }}
+  else if (d.type === 'source_text') {{
+    const linkedMaps = [];
+    fl.forEach(l => {{
+      const sid = l.source.id || l.source;
+      const tid = l.target.id || l.target;
+      if (tid === d.id && l.relation === 'instantiated_in') {{
+        linkedMaps.push(sid);
+      }}
+    }});
+
+    el.innerHTML = `
+      <div class="detail-term" style="color:${{d.color}}"><em>${{d.label}}</em></div>
+      <div class="detail-meta">SOURCE TEXT ${{d.year ? '· ' + d.year : ''}}</div>
+
+      <div class="detail-section">Linked Translations (${{linkedMaps.length}})</div>
+      ${{linkedMaps.length ? '<div style="font-size:11px;">' + linkedMaps.map(m => `<div>• <code>${{m}}</code></div>`).join('') + '</div>' : '<div style="color:var(--text-muted);font-style:italic">No active mappings shown</div>'}}
+
+      <div class="detail-section">Node ID</div>
+      <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-muted);word-break:break-all">${{d.id}}</div>
+    `;
+  }}
+  else if (d.type === 'concept') {{
+    el.innerHTML = `
+      <div class="detail-term" style="color:${{d.color}}">${{d.label}}</div>
+      <div class="detail-meta">CONCEPT ${{d.domain ? '· ' + d.domain : ''}}</div>
+      <p style="font-size:11px;line-height:1.4;margin-top:6px;color:var(--text-dim)">${{d.definition || '(No definition provided)'}}</p>
+      <div class="detail-section">Node ID</div>
+      <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-muted);word-break:break-all">${{d.id}}</div>
+    `;
+  }}
 }}
 
 // ============================================================
 // FILTERS & CONTROLS
 // ============================================================
-
-// Add live node/edge count to stats
 document.getElementById('stats').insertAdjacentHTML('beforeend', `
-  <div class="stat-section-label">Current view</div>
-  <div class="stat-row"><span class="stat-label">Visible nodes</span><span class="stat-value" id="stat-live-nodes">–</span></div>
-  <div class="stat-row"><span class="stat-label">Visible edges</span><span class="stat-value" id="stat-live-edges">–</span></div>
+  <div class="stat-section-label">Current View</div>
+  <div class="stat-row"><span class="stat-label">Visible Nodes</span><span class="stat-value" id="stat-live-nodes">–</span></div>
+  <div class="stat-row"><span class="stat-label">Visible Edges</span><span class="stat-value" id="stat-live-edges">–</span></div>
 `);
 
 function rebuildGraph() {{
@@ -1000,7 +1168,6 @@ function rebuildGraph() {{
     '<p class="detail-empty">Click a node to inspect it.</p>';
 }}
 
-// Language pills
 document.getElementById('lang-filter').addEventListener('click', e => {{
   const pill = e.target.closest('.pill');
   if (!pill) return;
@@ -1010,21 +1177,12 @@ document.getElementById('lang-filter').addEventListener('click', e => {{
   rebuildGraph();
 }});
 
-// Phrases toggle
 document.getElementById('pill-phrases').addEventListener('click', function() {{
   showPhrasesOnly = !showPhrasesOnly;
   this.classList.toggle('active', showPhrasesOnly);
   rebuildGraph();
 }});
 
-// Verified toggle
-document.getElementById('pill-verified').addEventListener('click', function() {{
-  showVerifiedOnly = !showVerifiedOnly;
-  this.classList.toggle('active', showVerifiedOnly);
-  rebuildGraph();
-}});
-
-// Search
 let searchTimeout;
 document.getElementById('search-input').addEventListener('input', function() {{
   clearTimeout(searchTimeout);
@@ -1034,7 +1192,6 @@ document.getElementById('search-input').addEventListener('input', function() {{
   }}, 250);
 }});
 
-// Strength slider
 document.getElementById('strength-slider').addEventListener('input', function() {{
   strength = +this.value;
   document.getElementById('strength-val').textContent = this.value;
@@ -1044,17 +1201,14 @@ document.getElementById('strength-slider').addEventListener('input', function() 
   }}
 }});
 
-// Reheat
 document.getElementById('btn-reheat').addEventListener('click', () => {{
   if (simulation) simulation.alpha(0.8).restart();
 }});
 
-// Reset zoom
 document.getElementById('btn-reset-zoom').addEventListener('click', () => {{
-  svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity.translate(width/2, height/2).scale(0.8));
+  svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity.translate(width/2, height/2).scale(0.7));
 }});
 
-// Unpin all
 document.getElementById('btn-pin-all').addEventListener('click', () => {{
   nodes.forEach(n => {{ n.fx = null; n.fy = null; }});
   g.selectAll('.node-g circle')
@@ -1070,13 +1224,16 @@ function buildLegend() {{
   const el = document.getElementById('legend');
   const items = [
     ...Object.entries(LANG_COLORS).map(([lang, color]) => ({{
-      type: 'dot', color, label: lang.toUpperCase() + ' term'
+      type: 'dot', color, label: lang.toUpperCase() + ' Term'
     }})),
     {{ type: 'dot', color: '#64748b', label: 'Concept' }},
-    {{ type: 'dot', color: '#fbbf24', label: '★ Verified', ring: true }},
-    {{ type: 'line', color: '#94a3b8', label: 'translates_to', dashed: false }},
-    {{ type: 'line', color: '#c4b5fd', label: 'instantiates', dashed: true }},
+    {{ type: 'dot', color: '#ec4899', label: 'Lineage Bridge' }},
+    {{ type: 'dot', color: '#f97316', label: 'Translator/Author' }},
+    {{ type: 'dot', color: '#06b6d4', label: 'Source Text/Book' }},
+    {{ type: 'line', color: '#ec4899', label: 'has_mapping', dashed: true }},
+    {{ type: 'line', color: '#ec4899', label: 'maps_to', dashed: false }},
   ];
+
   el.innerHTML = items.map(item => {{
     if (item.type === 'dot') {{
       const ring = item.ring ? `outline: 2px solid ${{item.color}}; outline-offset: 1px; background: transparent;` : `background:${{item.color}}`;
@@ -1088,35 +1245,6 @@ function buildLegend() {{
   }}).join('');
 }}
 buildLegend();
-
-// ============================================================
-// MINIMAP
-// ============================================================
-const mmSvg = d3.select('#minimap-svg').attr('width', 140).attr('height', 90);
-const mmG = mmSvg.append('g');
-
-function updateMinimap() {{
-  if (!simulation) return;
-  const fn = simulation.nodes();
-  if (!fn.length) return;
-
-  const xs = fn.map(n => n.x).filter(isFinite);
-  const ys = fn.map(n => n.y).filter(isFinite);
-  if (!xs.length) return;
-
-  const minX = Math.min(...xs), maxX = Math.max(...xs);
-  const minY = Math.min(...ys), maxY = Math.max(...ys);
-  const rangeX = maxX - minX || 1, rangeY = maxY - minY || 1;
-  const scaleX = 130 / rangeX, scaleY = 80 / rangeY;
-  const sc = Math.min(scaleX, scaleY) * 0.9;
-
-  mmG.selectAll('circle').data(fn).join('circle')
-    .attr('cx', d => isFinite(d.x) ? (d.x - minX) * sc + 5 : 0)
-    .attr('cy', d => isFinite(d.y) ? (d.y - minY) * sc + 5 : 0)
-    .attr('r', 2)
-    .attr('fill', d => d.color)
-    .attr('opacity', 0.7);
-}}
 
 // ============================================================
 // RESIZE
@@ -1131,16 +1259,15 @@ window.addEventListener('resize', () => {{
 // INIT
 // ============================================================
 buildGraph();
-// Start centered
-svg.call(zoom.transform, d3.zoomIdentity.translate(width/2, height/2).scale(0.7));
+svg.call(zoom.transform, d3.zoomIdentity.translate(width/2, height/2).scale(0.65));
 </script>
 </body>
-</html>"""
+</html>
+"""
 
 # ---------------------------------------------------------------------------
 # Write output
 # ---------------------------------------------------------------------------
-
 out_path = pathlib.Path(args.out)
 out_path.write_text(html, encoding="utf-8")
 print(f"[KG Inspector] Written: {out_path.resolve()}")

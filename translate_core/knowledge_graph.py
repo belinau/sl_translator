@@ -1,6 +1,6 @@
 # translate_core/knowledge_graph.py
 #
-# KG v17 — Domain-aware, lemmatised SL phrases, fixed inline hints
+# KG v22 — Bidirectional-Aware, Intertextual, Rhizomatic, Gender-Inclusive & Curation-Ready
 #
 
 from __future__ import annotations
@@ -57,9 +57,7 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # Slovenian stop-word / noise filter for SL term extraction
 # ---------------------------------------------------------------------------
-
 SL_STOP_LEMMAS = {
-    # Function words, conjunctions, particles
     "kot",
     "ali",
     "ne",
@@ -71,7 +69,6 @@ SL_STOP_LEMMAS = {
     "biti",
     "bi",
     "ta",
-    # Pronouns
     "on",
     "ona",
     "ono",
@@ -81,12 +78,10 @@ SL_STOP_LEMMAS = {
     "ti",
     "mi",
     "vi",
-    # Relative / interrogative
     "kdo",
     "kar",
     "ki",
     "da",
-    # Prepositions
     "v",
     "na",
     "z",
@@ -111,12 +106,10 @@ SL_STOP_LEMMAS = {
     "notri",
     "gor",
     "dol",
-    # Adverbs / deictics
     "tukaj",
     "tam",
     "zdaj",
     "potem",
-    # Fragments / suffixes that are not real lemmas
     "del",
     "delo",
     "anje",
@@ -162,16 +155,17 @@ SL_NOISE = {
     "eno",
 }
 
+# Regex to detect Slovenian non-binary spellings, including trailing underscores (e.g., "prevajalke_")
+SL_GENDER_INCLUSIVE_RE = re.compile(
+    r"\b([a-zA-ZčšžČŠŽ]+)([_/*])([a-zA-ZčšžČŠŽ]*)\b", re.IGNORECASE
+)
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
 def _normalize(text: str) -> str:
-    """Strip diacritics for fuzzy fallback matching.
-    NOTE: Only used as a last-resort fallback; not applied to SL terms
-    in primary lookup paths because SL diacritics are phonemically contrastive.
-    """
+    """Strip diacritics for fuzzy fallback matching."""
     nfkd = unicodedata.normalize("NFKD", text.lower())
     return "".join(c for c in nfkd if not unicodedata.combining(c))
 
@@ -181,15 +175,11 @@ def _get_timestamp() -> str:
 
 
 def _token_boundary_match(term: str, text: str) -> bool:
-    """Check if term appears in text at word boundaries.
-    Uses whitespace/punctuation split rather than \\b to handle SL non-ASCII chars correctly.
-    """
+    """Check if term appears in text at word boundaries."""
     term_l = term.lower()
     text_l = text.lower()
-    # Fast path: not present at all
     if term_l not in text_l:
         return False
-    # Check boundaries: char before start and after end must be non-alpha or string edge
     start = 0
     while True:
         idx = text_l.find(term_l, start)
@@ -207,8 +197,6 @@ def _token_boundary_match(term: str, text: str) -> bool:
 # ---------------------------------------------------------------------------
 # KnowledgeGraph
 # ---------------------------------------------------------------------------
-
-
 class KnowledgeGraph:
     def __init__(self, db_path: pathlib.Path = config.KG_DB_PATH):
         self.db_path = pathlib.Path(db_path)
@@ -219,7 +207,6 @@ class KnowledgeGraph:
         self.nlp_en = None
         self.nlp_sl = None
 
-        # 1. Load Spacy for English
         if HAS_SPACY:
             try:
                 print("[KG] Loading English model (Spacy)...")
@@ -229,7 +216,6 @@ class KnowledgeGraph:
                     f"[KG Warning] English model missing. Run: python -m spacy download en_core_web_sm. ({e})"
                 )
 
-        # 2. Load Classla or Stanza for Slovenian
         if HAS_CLASSLA:
             try:
                 print("[KG] Loading Slovenian model (Classla)...")
@@ -263,17 +249,12 @@ class KnowledgeGraph:
                     use_gpu=False,
                     verbose=False,
                 )
-
                 torch.load = _original_torch_load
 
             except Exception as e:
                 print(f"[KG Warning] Stanza fallback failed: {e}")
 
         self._load()
-
-    # ------------------------------------------------------------------
-    # Persistence
-    # ------------------------------------------------------------------
 
     def _load(self):
         if not self.db_path.exists():
@@ -312,10 +293,14 @@ class KnowledgeGraph:
         lang = data.get("lang", "")
         if term:
             self._exact_kp.add_keyword(term, node_id)
-            # Only add normalised (diacritic-stripped) index for non-SL terms,
-            # since SL diacritics are phonemically contrastive.
             if lang != "sl":
                 self._norm_kp.add_keyword(_normalize(term), node_id)
+
+        strategies = data.get("gender_strategies", {})
+        for strat_val in strategies.values():
+            if strat_val:
+                self._exact_kp.add_keyword(strat_val, node_id)
+
         for variant in data.get("variants", []):
             if variant:
                 self._exact_kp.add_keyword(variant, node_id)
@@ -332,6 +317,46 @@ class KnowledgeGraph:
     # ------------------------------------------------------------------
     # Node / Edge Factories
     # ------------------------------------------------------------------
+    def add_agent_node(
+        self, agent_id: str, name: str, role: str = "author", **kwargs
+    ) -> str:
+        node_id = f"agent:{agent_id.lower()}"
+        if not self.G.has_node(node_id):
+            self.G.add_node(
+                node_id,
+                id=node_id,
+                type="agent",
+                name=name,
+                role=role,
+                created_at=_get_timestamp(),
+                **kwargs,
+            )
+        return node_id
+
+    def add_source_text_node(
+        self,
+        text_id: str,
+        title: str,
+        author_id: str = None,
+        year: int = None,
+        **kwargs,
+    ) -> str:
+        node_id = f"source:{text_id.lower()}"
+        if not self.G.has_node(node_id):
+            self.G.add_node(
+                node_id,
+                id=node_id,
+                type="source_text",
+                title=title,
+                year=year,
+                created_at=_get_timestamp(),
+                **kwargs,
+            )
+        if author_id:
+            auth_node = f"agent:{author_id.lower()}"
+            if self.G.has_node(auth_node) and not self.G.has_edge(node_id, auth_node):
+                self.G.add_edge(node_id, auth_node, relation="written_by")
+        return node_id
 
     def add_concept_node(
         self,
@@ -354,6 +379,22 @@ class KnowledgeGraph:
             )
         return concept_id
 
+    def link_concepts_rhizomatic(
+        self, concept_a: str, concept_b: str, relation_type: str = "extends"
+    ):
+        valid_relations = {
+            "critiques",
+            "extends",
+            "redefines",
+            "reappropriates",
+            "related_to",
+        }
+        rel = relation_type if relation_type in valid_relations else "related_to"
+        if self.G.has_node(concept_a) and self.G.has_node(concept_b):
+            self.G.add_edge(
+                concept_a, concept_b, relation=rel, last_updated=_get_timestamp()
+            )
+
     def add_term_node(
         self,
         term: str,
@@ -361,18 +402,18 @@ class KnowledgeGraph:
         concept_id: str = None,
         is_phrase: bool = False,
         display_form: str = None,
+        is_animate: bool = False,
+        gender_strategies: Dict[str, str] = None,
         **kwargs,
     ) -> str:
-        """Add or update a term node.
-
-        Args:
-            term: The canonical (lemma) form of the term, used as the node key.
-            lang: Language code.
-            concept_id: Optional concept node to link to.
-            is_phrase: Whether this is a multi-word phrase.
-            display_form: Optional surface/inflected form for display (SL terms especially).
-        """
         node_id = f"term:{lang}:{term.lower()}"
+
+        strategies = gender_strategies or {}
+        if lang == "sl" and not strategies:
+            strategies = self._parse_gender_strategies(display_form or term)
+            if strategies:
+                is_animate = True
+
         if not self.G.has_node(node_id):
             node_data = dict(
                 id=node_id,
@@ -380,6 +421,8 @@ class KnowledgeGraph:
                 term=term,
                 lang=lang,
                 is_phrase=is_phrase,
+                is_animate=is_animate,
+                gender_strategies=strategies,
                 frequency=1,
                 created_at=_get_timestamp(),
                 **kwargs,
@@ -392,10 +435,15 @@ class KnowledgeGraph:
         else:
             node = self.G.nodes[node_id]
             node["frequency"] = node.get("frequency", 1) + 1
-            # Update is_phrase if this encounter knows it's a phrase
             if is_phrase and not node.get("is_phrase"):
                 node["is_phrase"] = True
-            # Register new display/surface form as a variant
+            if is_animate:
+                node["is_animate"] = True
+
+            existing_strat = node.get("gender_strategies", {})
+            existing_strat.update(strategies)
+            node["gender_strategies"] = existing_strat
+
             if display_form and display_form.lower() != term.lower():
                 variants = node.get("variants", [])
                 if display_form not in variants:
@@ -407,6 +455,26 @@ class KnowledgeGraph:
             if not self.G.has_edge(node_id, concept_id):
                 self.G.add_edge(node_id, concept_id, relation="instantiates_concept")
         return node_id
+
+    def _parse_gender_strategies(self, text: str) -> Dict[str, str]:
+        if not text:
+            return {}
+        match = SL_GENDER_INCLUSIVE_RE.search(text)
+        if not match:
+            return {}
+
+        base, marker, suffix = match.groups()
+        strategies = {}
+        if marker == "_":
+            if suffix == "":
+                strategies["female_trailing_underscore"] = text
+            else:
+                strategies["underscore_inclusivity"] = text
+        elif marker == "/":
+            strategies["slash_inclusivity"] = text
+        elif marker == "*":
+            strategies["asterisk_inclusivity"] = text
+        return strategies
 
     def add_collocation_node(
         self,
@@ -469,6 +537,82 @@ class KnowledgeGraph:
                 self.G.add_edge(domain_id, parent_id, relation="subclass_of")
         return domain_id
 
+    # ------------------------------------------------------------------
+    # Context-Aware Translation Mapping Node
+    # ------------------------------------------------------------------
+    def link_translations_with_context(
+        self,
+        src_term_id: str,
+        tgt_term_id: str,
+        confidence: float = 0.8,
+        lineage: str = "general",
+        register: str = "academic",
+        gloss: str = None,
+        source_text_id: str = None,
+        agent_id: str = None,
+        year: int = None,
+        verified: bool = False,
+    ) -> str:
+        if not (self.G.has_node(src_term_id) and self.G.has_node(tgt_term_id)):
+            return ""
+
+        safe_lineage = lineage.lower().replace(" ", "_")
+        mapping_id = f"map:{src_term_id}>>{tgt_term_id}:{safe_lineage}"
+
+        if not self.G.has_node(mapping_id):
+            self.G.add_node(
+                mapping_id,
+                id=mapping_id,
+                type="translation_mapping",
+                confidence=confidence,
+                lineage=lineage,
+                register=register,
+                gloss=gloss,
+                year=year,
+                verified=verified,
+                created_at=_get_timestamp(),
+            )
+        else:
+            node = self.G.nodes[mapping_id]
+            node["confidence"] = min(0.99, node.get("confidence", 0.5) + 0.05)
+            if gloss:
+                node["gloss"] = gloss
+            if year:
+                node["year"] = year
+
+        if not self.G.has_edge(src_term_id, mapping_id):
+            self.G.add_edge(src_term_id, mapping_id, relation="has_mapping")
+        if not self.G.has_edge(mapping_id, tgt_term_id):
+            self.G.add_edge(mapping_id, tgt_term_id, relation="maps_to")
+
+        if source_text_id:
+            src_node = f"source:{source_text_id.lower()}"
+            if self.G.has_node(src_node) and not self.G.has_edge(mapping_id, src_node):
+                self.G.add_edge(mapping_id, src_node, relation="instantiated_in")
+
+        if agent_id:
+            agent_node = f"agent:{agent_id.lower()}"
+            if self.G.has_node(agent_node) and not self.G.has_edge(
+                mapping_id, agent_node
+            ):
+                self.G.add_edge(mapping_id, agent_node, relation="attributed_to")
+
+        legacy_data = {
+            "confidence": confidence,
+            "verified": verified,
+            "provenance": lineage,
+            "last_updated": _get_timestamp(),
+        }
+        if not self.G.has_edge(src_term_id, tgt_term_id):
+            self.G.add_edge(
+                src_term_id, tgt_term_id, relation="translates_to", **legacy_data
+            )
+            self.G.add_edge(
+                tgt_term_id, src_term_id, relation="translates_to", **legacy_data
+            )
+
+        return mapping_id
+
     def link_translations(
         self,
         src_term_id: str,
@@ -479,45 +623,14 @@ class KnowledgeGraph:
         context: str = None,
         validated_by: str = None,
     ):
-        """Link two term nodes as translations of each other.
-
-        When a pair already exists in both directions, both edges are updated
-        symmetrically. Confidence boost on re-encounter is capped and only
-        applied to the direction that already existed.
-        """
-        if not (self.G.has_node(src_term_id) and self.G.has_node(tgt_term_id)):
-            return
-
-        edge_data = {
-            "confidence": confidence,
-            "verified": verified,
-            "provenance": provenance,
-            "last_updated": _get_timestamp(),
-        }
-        if context:
-            edge_data["context"] = context
-        if validated_by:
-            edge_data["validated_by"] = validated_by
-
-        # Forward direction
-        if self.G.has_edge(src_term_id, tgt_term_id):
-            old = self.G.edges[src_term_id, tgt_term_id].get("confidence", 0.5)
-            self.G.edges[src_term_id, tgt_term_id]["confidence"] = min(0.99, old + 0.05)
-            self.G.edges[src_term_id, tgt_term_id]["last_updated"] = _get_timestamp()
-        else:
-            self.G.add_edge(
-                src_term_id, tgt_term_id, relation="translates_to", **edge_data
-            )
-
-        # Reverse direction — always kept in sync
-        if self.G.has_edge(tgt_term_id, src_term_id):
-            old = self.G.edges[tgt_term_id, src_term_id].get("confidence", 0.5)
-            self.G.edges[tgt_term_id, src_term_id]["confidence"] = min(0.99, old + 0.05)
-            self.G.edges[tgt_term_id, src_term_id]["last_updated"] = _get_timestamp()
-        else:
-            self.G.add_edge(
-                tgt_term_id, src_term_id, relation="translates_to", **edge_data
-            )
+        self.link_translations_with_context(
+            src_term_id=src_term_id,
+            tgt_term_id=tgt_term_id,
+            confidence=confidence,
+            lineage=provenance,
+            gloss=context,
+            verified=verified,
+        )
 
     def add_variant(self, term_id: str, variant: str):
         if not self.G.has_node(term_id):
@@ -529,9 +642,8 @@ class KnowledgeGraph:
             self._exact_kp.add_keyword(variant, term_id)
 
     # ------------------------------------------------------------------
-    # SEEDING: Spacy (EN) + Classla/Stanza (SL)
+    # SEEDING: Bidirectional Language-Direction Aware Seeding Logic
     # ------------------------------------------------------------------
-
     def seed_from_tm(
         self,
         tm_entries: List[Dict],
@@ -540,18 +652,12 @@ class KnowledgeGraph:
         min_freq: int = 3,
         max_phrases: int = 15000,
         domain: str = "",
+        default_lineage: str = "general",
+        default_source_id: str = None,
+        default_agent_id: str = None,
+        default_year: int = None,
+        lineage_rules: Dict[str, Dict[str, str]] = None,
     ):
-        """Seed the KG from TM entries.
-
-        SL phrases are stored by lemma form (for deduplication) with the most
-        common surface form recorded as display_form. EN phrases use Spacy
-        noun chunks plus PMI bigrams/trigrams for better coverage of
-        multi-word philosophical and critical-theory terms.
-
-        Args:
-            domain: Optional domain tag to attach to all seeded nodes
-                    (e.g. 'philosophy', 'contemporary_art', 'queer_theory').
-        """
         if not HAS_SPACY or not self.nlp_en:
             print("[KG ERROR] Spacy (EN) missing.")
             return
@@ -559,20 +665,25 @@ class KnowledgeGraph:
             print("[KG ERROR] Slovenian Pipeline (Classla/Stanza) missing.")
             return
 
-        print(f"[KG] Professional Extraction on {len(tm_entries)} segments...")
+        print(
+            f"[KG] Analytical Seeding ({source_lang.upper()} -> {target_lang.upper()}) on {len(tm_entries)} segments..."
+        )
 
-        src_counts: Counter = Counter()
-        # tgt_counts maps lemma form -> Counter of surface forms
-        tgt_lemma_counts: Counter = Counter()
-        tgt_surface_counts: Dict[str, Counter] = defaultdict(Counter)
+        en_counts: Counter = Counter()
+        sl_lemma_counts: Counter = Counter()
+        sl_surface_counts: Dict[str, Counter] = defaultdict(Counter)
+        gender_profiles_found: Dict[str, Dict[str, str]] = defaultdict(dict)
 
-        texts_src = [e.get("source", "") for e in tm_entries]
-        texts_tgt = [e.get("target", "") for e in tm_entries]
+        if source_lang == "en":
+            texts_en = [e.get("source", "") for e in tm_entries]
+            texts_sl = [e.get("target", "") for e in tm_entries]
+        else:
+            texts_en = [e.get("target", "") for e in tm_entries]
+            texts_sl = [e.get("source", "") for e in tm_entries]
 
-        # 1. Process English (Spacy) — noun chunks + bigram/trigram fallback
-        print("  [1/2] Processing Source (EN - Spacy)...")
-        for doc in self.nlp_en.pipe(texts_src, batch_size=1000):
-            # Noun chunks with grammatical cleaning
+        # 1. English NLP Analysis (SpaCy)
+        print("  [1/2] Parsing English Segments...")
+        for doc in self.nlp_en.pipe(texts_en, batch_size=1000):
             for chunk in doc.noun_chunks:
                 start_index = 0
                 for i, token in enumerate(chunk):
@@ -585,14 +696,10 @@ class KnowledgeGraph:
                 clean_tokens = [t.text for t in chunk[start_index:]]
                 text = " ".join(clean_tokens).lower().strip()
                 text = re.sub(r"[.,;:!?)\]]+$", "", text)
-
                 if len(text) < 3 or text.isdigit():
                     continue
-                src_counts[text] += 1
+                en_counts[text] += 1
 
-            # Bigrams and trigrams from the whole sentence for multi-word terms
-            # that noun_chunks misses (e.g. 'affective labour', 'male gaze',
-            # 'compulsory heterosexuality', 'conditions of possibility')
             tokens = [
                 t.lemma_.lower()
                 for t in doc
@@ -601,129 +708,216 @@ class KnowledgeGraph:
             for n in (2, 3):
                 for i in range(len(tokens) - n + 1):
                     gram = " ".join(tokens[i : i + n])
-                    if gram not in src_counts:
-                        src_counts[gram] += 1  # count once per doc via noun_chunks path
+                    if gram not in en_counts:
+                        en_counts[gram] += 1
 
-        # 2. Process Slovenian (Classla/Stanza) — lemmatised phrases
-        print("  [2/2] Processing Target (SL - Classla/Stanza)...")
-        count = 0
-        for text in texts_tgt:
-            count += 1
-            if count % 1000 == 0:
-                print(f"    Processed {count}/{len(texts_tgt)}...", end="\r")
-
-            doc = self.nlp_sl(text)
-            for lemma_form, surface_form in self._get_dependency_phrases(doc):
-                tgt_lemma_counts[lemma_form] += 1
-                tgt_surface_counts[lemma_form][surface_form] += 1
-
-        print("\n[KG] Filtering and Linking...")
-
-        src_significant = [p for p, c in src_counts.items() if c >= min_freq]
-        tgt_significant = [p for p, c in tgt_lemma_counts.items() if c >= min_freq]
-
-        # Filter out SL function words and fragments
-        tgt_significant = [
-            p for p in tgt_significant if p not in SL_NOISE and len(p) >= 3
-        ]
-
-        src_significant = sorted(
-            src_significant, key=lambda p: src_counts[p], reverse=True
-        )[:max_phrases]
-        tgt_significant = sorted(
-            tgt_significant, key=lambda p: tgt_lemma_counts[p], reverse=True
-        )[:max_phrases]
-
+        # 2. Slovenian NLP Analysis with Optimized Batched Execution
+        CHUNK_SIZE = 200
         print(
-            f"[KG] Identified {len(src_significant)} Source & {len(tgt_significant)} Target concepts."
+            f"  [2/2] Parsing Slovenian Segments (Protecting Inflective Marks in batches of {CHUNK_SIZE})..."
         )
 
-        # Build KPs
-        src_kp = KeywordProcessor()
-        for p in src_significant:
-            src_kp.add_keyword(p)
+        for chunk_idx in range(0, len(texts_sl), CHUNK_SIZE):
+            chunk = texts_sl[chunk_idx : chunk_idx + CHUNK_SIZE]
 
-        tgt_kp = KeywordProcessor()
-        for p in tgt_significant:
-            tgt_kp.add_keyword(p)
+            mappings = {}
+            prot_idx = 0
+            protected_segments = []
+
+            for text in chunk:
+
+                def repl(match):
+                    nonlocal prot_idx
+                    placeholder = f"GENDERINCLPROT{prot_idx}"
+                    mappings[placeholder] = match.group(0)
+                    prot_idx += 1
+                    return placeholder
+
+                protected_text = SL_GENDER_INCLUSIVE_RE.sub(repl, text)
+                protected_segments.append(protected_text)
+
+            combined_text = "\n\n".join(protected_segments)
+
+            try:
+                doc = self.nlp_sl(combined_text)
+                for lemma_form, surface_form in self._get_dependency_phrases(doc):
+                    lemma_form = self._restore_gender_tokens(lemma_form, mappings)
+                    surface_form = self._restore_gender_tokens(surface_form, mappings)
+
+                    sl_lemma_counts[lemma_form] += 1
+                    sl_surface_counts[lemma_form][surface_form] += 1
+
+                    profile = self._parse_gender_strategies(surface_form)
+                    if profile:
+                        gender_profiles_found[lemma_form].update(profile)
+            except Exception as e:
+                print(
+                    f"\n[KG Warning] Batch at index {chunk_idx} failed, falling back to sequential processing: {e}"
+                )
+                for raw_text in chunk:
+                    protected_text, mappings_single = self._protect_gender_tokens(
+                        raw_text
+                    )
+                    try:
+                        doc = self.nlp_sl(protected_text)
+                        for lemma_form, surface_form in self._get_dependency_phrases(
+                            doc
+                        ):
+                            lemma_form = self._restore_gender_tokens(
+                                lemma_form, mappings_single
+                            )
+                            surface_form = self._restore_gender_tokens(
+                                surface_form, mappings_single
+                            )
+
+                            sl_lemma_counts[lemma_form] += 1
+                            sl_surface_counts[lemma_form][surface_form] += 1
+
+                            profile = self._parse_gender_strategies(surface_form)
+                            if profile:
+                                gender_profiles_found[lemma_form].update(profile)
+                    except Exception:
+                        pass
+
+            print(
+                f"    Processed Slovenian segments: {min(chunk_idx + CHUNK_SIZE, len(texts_sl))}/{len(texts_sl)}...",
+                end="\r",
+            )
+
+        print("\n[KG] Organizing mappings and linking contextual nodes...")
+
+        en_significant = [p for p, c in en_counts.items() if c >= min_freq]
+        sl_significant = [
+            p
+            for p, c in sl_lemma_counts.items()
+            if p not in SL_NOISE and len(p) >= 3 and c >= min_freq
+        ]
+
+        en_significant = sorted(
+            en_significant, key=lambda p: en_counts[p], reverse=True
+        )[:max_phrases]
+        sl_significant = sorted(
+            sl_significant, key=lambda p: sl_lemma_counts[p], reverse=True
+        )[:max_phrases]
+
+        en_kp = KeywordProcessor()
+        for p in en_significant:
+            en_kp.add_keyword(p)
+
+        sl_kp = KeywordProcessor()
+        for p in sl_significant:
+            sl_kp.add_keyword(p)
 
         cooccur: Counter = Counter()
-        # Track per-source-term total co-occurrence count for confidence scoring
         src_cooccur_total: Counter = Counter()
 
         for i, entry in enumerate(tm_entries):
-            if i % 5000 == 0:
-                print(f"  Linking {i}...", end="\r")
-
             src_text = entry.get("source", "").lower()
             tgt_text = entry.get("target", "").lower()
 
-            found_src = src_kp.extract_keywords(src_text)
-            found_tgt = tgt_kp.extract_keywords(tgt_text)
+            en_text = src_text if source_lang == "en" else tgt_text
+            sl_text = tgt_text if source_lang == "en" else src_text
 
-            src_ids = []
-            for phrase in found_src:
+            found_en = en_kp.extract_keywords(en_text)
+            found_sl = sl_kp.extract_keywords(sl_text)
+
+            en_ids = []
+            for phrase in found_en:
                 cid = self.add_concept_node(
-                    f"concept:{phrase.replace(' ', '_')}",
-                    label=phrase,
-                    domain=domain,
+                    f"concept:{phrase.replace(' ', '_')}", label=phrase, domain=domain
                 )
-                tid = self.add_term_node(
-                    phrase, source_lang, concept_id=cid, is_phrase=True
-                )
-                src_ids.append(tid)
+                tid = self.add_term_node(phrase, "en", concept_id=cid, is_phrase=True)
+                en_ids.append(tid)
 
-            tgt_ids = []
-            for lemma in found_tgt:
-                # Use most common surface form as display_form
-                best_surface = tgt_surface_counts[lemma].most_common(1)[0][0]
+            sl_ids = []
+            for lemma in found_sl:
+                best_surface = sl_surface_counts[lemma].most_common(1)[0][0]
+                has_gender_strat = lemma in gender_profiles_found
                 tid = self.add_term_node(
                     lemma,
-                    target_lang,
+                    "sl",
                     is_phrase=True,
                     display_form=best_surface,
+                    is_animate=has_gender_strat,
+                    gender_strategies=gender_profiles_found.get(lemma, {}),
                 )
-                tgt_ids.append(tid)
+                sl_ids.append(tid)
 
-            for s in src_ids:
-                for t in tgt_ids:
-                    cooccur[(s, t)] += 1
-                    src_cooccur_total[s] += 1
+            if source_lang == "en":
+                for s in en_ids:
+                    for t in sl_ids:
+                        cooccur[(s, t)] += 1
+                        src_cooccur_total[s] += 1
+            else:
+                for s in sl_ids:
+                    for t in en_ids:
+                        cooccur[(s, t)] += 1
+                        src_cooccur_total[s] += 1
 
         for (s, t), count in cooccur.items():
             if count >= min_freq:
-                # Confidence = fraction of co-occurrences this specific pair accounts for,
-                # relative to the source term's total co-occurrence count across all targets.
                 total = max(1, src_cooccur_total[s])
-                self.link_translations(
-                    s,
-                    t,
+
+                src_term_text = self.G.nodes[s].get("term", "")
+                tgt_term_text = self.G.nodes[t].get("term", "")
+
+                current_lineage = default_lineage
+                current_source_id = default_source_id
+                current_agent_id = default_agent_id
+                current_year = default_year
+
+                combined_text_lower = f"{src_term_text} {tgt_term_text}".lower()
+                if lineage_rules:
+                    for keyword, overrides in lineage_rules.items():
+                        if keyword.lower() in combined_text_lower:
+                            if "lineage" in overrides:
+                                current_lineage = overrides["lineage"]
+                            if "source_id" in overrides:
+                                current_source_id = overrides["source_id"]
+                            if "agent_id" in overrides:
+                                current_agent_id = overrides["agent_id"]
+                            if "year" in overrides:
+                                current_year = overrides["year"]
+                            break
+
+                self.link_translations_with_context(
+                    src_term_id=s,
+                    tgt_term_id=t,
                     confidence=min(0.95, count / total),
+                    lineage=current_lineage,
+                    source_text_id=current_source_id,
+                    agent_id=current_agent_id,
+                    year=current_year,
                 )
 
-        print(f"\n[KG] Seeding complete: {self.G.number_of_nodes()} nodes.")
+        print(
+            f"\n[KG] Seeding complete: Graph contains {self.G.number_of_nodes()} nodes."
+        )
 
-    # ------------------------------------------------------------------
-    # Dependency Noun Phrase Extractor (For Classla/Stanza)
-    # Returns (lemma_form, surface_form) pairs for deduplication
-    # ------------------------------------------------------------------
+    def _protect_gender_tokens(self, text: str) -> Tuple[str, Dict[str, str]]:
+        mappings = {}
+        idx = 0
+
+        def repl(match):
+            nonlocal idx
+            placeholder = f"GENDERINCLPROT{idx}"
+            mappings[placeholder] = match.group(0)
+            idx += 1
+            return placeholder
+
+        protected = SL_GENDER_INCLUSIVE_RE.sub(repl, text)
+        return protected, mappings
+
+    def _restore_gender_tokens(self, text: str, mappings: Dict[str, str]) -> str:
+        restored = text
+        for placeholder, original in mappings.items():
+            restored = restored.replace(placeholder.lower(), original)
+            restored = restored.replace(placeholder, original)
+        return restored
 
     def _get_dependency_phrases(self, doc) -> List[Tuple[str, str]]:
-        """Extract noun phrases from a Classla/Stanza doc.
-
-        Returns:
-            List of (lemma_form, surface_form) tuples.
-            lemma_form is used as the canonical key; surface_form is for display.
-
-        Notes on deprel choices:
-            - 'case' (prepositions) intentionally excluded: they inflate phrases
-              with grammatical noise (v, na, z, za, ...).
-            - 'nmod:poss' included if labelled by Classla for genitive possessives.
-            - 'amod', 'flat', 'compound', 'nummod' retained for rich NP coverage.
-        """
         results: List[Tuple[str, str]] = []
         seen_lemmas: set = set()
-
         VALID_DEPRELS = {
             "amod",
             "nmod",
@@ -749,33 +943,26 @@ class KnowledgeGraph:
                             phrase_ids.append(child.id)
                     phrase_ids.sort()
 
-                    # Surface form (inflected, for display and variants)
                     surface = (
                         " ".join(words[wid].text for wid in phrase_ids).lower().strip()
                     )
                     surface = re.sub(r"[.,;:!?)\]]+$", "", surface)
 
-                    # Lemma form (for deduplication and canonical node key)
                     lemma = (
                         " ".join(words[wid].lemma for wid in phrase_ids).lower().strip()
                     )
                     lemma = re.sub(r"[.,;:!?)\]]+$", "", lemma)
 
-                    # Filter out stop words and short fragments
-                    if lemma in SL_STOP_LEMMAS:
-                        continue
-                    if len(lemma) < 3:
+                    if lemma in SL_STOP_LEMMAS or len(lemma) < 3:
                         continue
                     if lemma not in seen_lemmas:
                         seen_lemmas.add(lemma)
                         results.append((lemma, surface))
-
         return results
 
     # ------------------------------------------------------------------
-    # Lookup
+    # Query & Editor Integration
     # ------------------------------------------------------------------
-
     def extract_entities(self, text: str, target_lang: str = "sl") -> List[Dict]:
         found_ids = set(self._exact_kp.extract_keywords(text.lower()))
         results = []
@@ -794,22 +981,68 @@ class KnowledgeGraph:
     def _get_translations(self, term_id: str, target_lang: str = "sl") -> List[Dict]:
         res = []
         seen = set()
+
+        for _, mapping_id, edata in self.G.out_edges(term_id, data=True):
+            if edata.get("relation") == "has_mapping":
+                map_node = self.G.nodes.get(mapping_id, {})
+                for _, tgt_id, map_edge in self.G.out_edges(mapping_id, data=True):
+                    if map_edge.get("relation") == "maps_to":
+                        t_data = self.G.nodes.get(tgt_id, {})
+                        if t_data.get("lang") == target_lang:
+                            term_text = t_data.get("display_form") or t_data.get("term")
+
+                            source_texts = []
+                            agents = []
+                            for _, ctx_id, rel_edge in self.G.out_edges(
+                                mapping_id, data=True
+                            ):
+                                if rel_edge.get("relation") == "instantiated_in":
+                                    st = self.G.nodes.get(ctx_id, {})
+                                    source_texts.append(st.get("title", ""))
+                                elif rel_edge.get("relation") == "attributed_to":
+                                    ag = self.G.nodes.get(ctx_id, {})
+                                    agents.append(ag.get("name", ""))
+
+                            res.append(
+                                {
+                                    "term": term_text,
+                                    "lemma": t_data.get("term"),
+                                    "confidence": map_node.get("confidence", 0.5),
+                                    "verified": map_node.get("verified", False),
+                                    "lineage": map_node.get("lineage", "general"),
+                                    "register": map_node.get("register", "academic"),
+                                    "gloss": map_node.get("gloss", ""),
+                                    "sources": source_texts,
+                                    "agents": agents,
+                                    "gender_strategies": t_data.get(
+                                        "gender_strategies", {}
+                                    ),
+                                }
+                            )
+                            seen.add((term_text, map_node.get("lineage", "general")))
+
         for _, tgt_id, edata in self.G.out_edges(term_id, data=True):
             if edata.get("relation") == "translates_to":
                 t_data = self.G.nodes.get(tgt_id, {})
                 if t_data.get("lang") == target_lang:
-                    # Prefer display_form for SL terms if available
                     term_text = t_data.get("display_form") or t_data.get("term")
-                    if term_text not in seen:
+                    if not any(r["term"] == term_text for r in res):
                         res.append(
                             {
                                 "term": term_text,
                                 "lemma": t_data.get("term"),
                                 "confidence": edata.get("confidence", 0.5),
                                 "verified": edata.get("verified", False),
+                                "lineage": "general",
+                                "register": "academic",
+                                "gloss": "",
+                                "sources": [],
+                                "agents": [],
+                                "gender_strategies": t_data.get(
+                                    "gender_strategies", {}
+                                ),
                             }
                         )
-                        seen.add(term_text)
         return sorted(res, key=lambda x: -x["confidence"])
 
     def _get_example_segments(self, term_id: str, limit: int = 2) -> List[Dict]:
@@ -832,7 +1065,6 @@ class KnowledgeGraph:
     # ------------------------------------------------------------------
     # Visualization
     # ------------------------------------------------------------------
-
     def visualize(self, output_path: str = "kg_visualization.html", limit: int = 100):
         if not HAS_PYVIS:
             print(
@@ -863,7 +1095,6 @@ class KnowledgeGraph:
             cdn_resources="in_line",
         )
 
-        # --- ROBUST TEMPLATE FIX ---
         if net.template is None:
             try:
                 template_dir = Path(pyvis.__file__).parent / "templates"
@@ -872,7 +1103,6 @@ class KnowledgeGraph:
             except Exception as e:
                 print(f"[KG] Critical Error loading Pyvis templates: {e}")
                 return
-        # ---------------------------
 
         net.from_nx(sub_g)
 
@@ -891,7 +1121,6 @@ class KnowledgeGraph:
     # ------------------------------------------------------------------
     # Helpers (Full Suite)
     # ------------------------------------------------------------------
-
     def promote_pair(
         self,
         source_text: str,
@@ -910,14 +1139,13 @@ class KnowledgeGraph:
         )
         sid = self.add_term_node(src, source_lang, concept_id=cid, is_phrase=True)
         tid = self.add_term_node(tgt, target_lang, is_phrase=True)
-        self.link_translations(
-            sid,
-            tid,
+        self.link_translations_with_context(
+            src_term_id=sid,
+            tgt_term_id=tid,
             confidence=1.0,
             verified=verified,
-            provenance="manual",
-            context=context,
-            validated_by=validated_by,
+            lineage="manual",
+            gloss=context,
         )
 
     def get_inline_hints(
@@ -928,28 +1156,12 @@ class KnowledgeGraph:
         target_lang: str = "sl",
         max_hints: int = 6,
         min_prefix_len: int = 2,
+        preferred_gender_strategy: str = "underscore_inclusivity",
     ) -> List[Dict]:
-        """Return candidate target terms that match the current word prefix at cursor.
-
-        Args:
-            word_prefix: The prefix of the word currently being typed — i.e.
-                         the text from the start of the current word up to the
-                         cursor position. This is `info["prefix"]` from ZenEditor.getInfo(),
-                         NOT the full partial translation text.
-            source_text: The full source segment text, used to look up KG entities.
-            source_lang: Source language code.
-            target_lang: Target language code.
-            max_hints: Maximum number of hints to return.
-            min_prefix_len: Don't fire for very short prefixes (avoids noise on first char).
-
-        Returns:
-            List of hint dicts with keys: term, confidence, source_term, type, verified.
-        """
         results = []
         seen: set = set()
         prefix = word_prefix.lower().strip()
 
-        # Don't return a flood of suggestions for very short or empty prefixes
         if len(prefix) < min_prefix_len:
             return []
 
@@ -958,19 +1170,20 @@ class KnowledgeGraph:
             src_term = entity.get("term", "")
             for t in entity.get("translations", []):
                 candidate = t["term"]
+
+                strats = t.get("gender_strategies", {})
+                if strats and preferred_gender_strategy in strats:
+                    candidate = strats[preferred_gender_strategy]
+
                 if not candidate or candidate in seen:
                     continue
 
-                # Match on ANY word within the candidate, not just the first.
-                # This allows mid-phrase completion: typing "prak" will match
-                # "posthumanistične prakse", "umetniške prakse", etc.
                 candidate_words = candidate.lower().split()
                 if not any(w.startswith(prefix) for w in candidate_words):
                     continue
 
                 seen.add(candidate)
                 score = t["confidence"]
-                # Boost verified terms slightly so they rank first among prefix matches
                 if t.get("verified"):
                     score = min(1.0, score + 0.1)
 
@@ -980,6 +1193,8 @@ class KnowledgeGraph:
                         "confidence": score,
                         "source_term": src_term,
                         "type": "kg_translation",
+                        "lineage": t.get("lineage", "general"),
+                        "gloss": t.get("gloss", ""),
                         "verified": t.get("verified", False),
                     }
                 )
@@ -1008,6 +1223,16 @@ class KnowledgeGraph:
                 concept_data = self.G.nodes.get(cid, {})
                 data["concept_label"] = concept_data.get("label", "")
                 data["concept_definition"] = concept_data.get("definition", "")
+
+                related_concepts = []
+                for _, neighbor_id, c_edge in self.G.out_edges(cid, data=True):
+                    rel = c_edge.get("relation")
+                    if rel in ("critiques", "extends", "redefines", "reappropriates"):
+                        c_node = self.G.nodes.get(neighbor_id, {})
+                        related_concepts.append(
+                            {"label": c_node.get("label", ""), "relation": rel}
+                        )
+                data["related_concepts"] = related_concepts
                 break
         return data
 
@@ -1033,35 +1258,37 @@ class KnowledgeGraph:
                 tgt_text = seg.get("target", "")
                 found_match = False
                 for t in translations:
-                    # Use token-boundary matching to avoid false positives on
-                    # morphological substrings (e.g. 'telo' inside 'telefonski')
                     if _token_boundary_match(t["term"], tgt_text):
-                        usage[src_term].append((seg["id"], t["term"]))
+                        usage[src_term].append(
+                            (seg["id"], t["term"], t.get("lineage", "general"))
+                        )
                         found_match = True
                         break
                 if not found_match:
-                    usage[src_term].append((seg["id"], "?"))
+                    usage[src_term].append((seg["id"], "?", "unknown"))
 
         warnings = []
         for src_term, occurrences in usage.items():
-            used = {t for _, t in occurrences}
-            if len(used) <= 1:
-                continue
-            translations = self._get_translations(
-                f"term:{source_lang}:{src_term.lower()}", target_lang=target_lang
-            )
-            recommended = translations[0]["term"] if translations else list(used)[0]
-            warnings.append(
-                {
-                    "term": src_term,
-                    "used_translations": list(used),
-                    "recommended": recommended,
-                    "confidence": translations[0]["confidence"]
-                    if translations
-                    else 0.5,
-                    "segment_ids": [sid for sid, _ in occurrences],
-                }
-            )
+            used = {t for _, t, _ in occurrences}
+            lineages = {lin for _, _, lin in occurrences if lin != "unknown"}
+
+            if len(used) > 1 or len(lineages) > 1:
+                translations = self._get_translations(
+                    f"term:{source_lang}:{src_term.lower()}", target_lang=target_lang
+                )
+                recommended = translations[0]["term"] if translations else list(used)[0]
+                warnings.append(
+                    {
+                        "term": src_term,
+                        "used_translations": list(used),
+                        "used_lineages": list(lineages),
+                        "recommended": recommended,
+                        "confidence": translations[0]["confidence"]
+                        if translations
+                        else 0.5,
+                        "segment_ids": [sid for sid, _, _ in occurrences],
+                    }
+                )
         return sorted(warnings, key=lambda x: -x["confidence"])
 
     def search_prefix(self, prefix: str, target_lang: str) -> List[str]:
@@ -1072,7 +1299,6 @@ class KnowledgeGraph:
         for node_id, data in self.G.nodes(data=True):
             if data.get("type") in ("term", "collocation"):
                 if data.get("lang") == target_lang:
-                    # Check both lemma (term) and display form
                     for candidate in filter(
                         None,
                         [
@@ -1131,3 +1357,131 @@ class KnowledgeGraph:
             **{f"node_{k}": v for k, v in by_type.items()},
             **{f"edge_{k}": v for k, v in by_rel.items()},
         }
+
+    # ------------------------------------------------------------------
+    # Curation API
+    # ------------------------------------------------------------------
+    def remove_node(self, node_id: str) -> bool:
+        """Safely remove any node (concept, term, mapping, agent, source) and rebuild search indices."""
+        if not self.G.has_node(node_id):
+            return False
+
+        node_type = self.G.nodes[node_id].get("type")
+        self.G.remove_node(node_id)
+
+        # If we deleted a term, rebuild search indices to prevent dead reference hits
+        if node_type == "term":
+            self._rebuild_indices()
+
+        return True
+
+    def update_concept_metadata(
+        self,
+        concept_id: str,
+        label: str = None,
+        domain: str = None,
+        definition: str = None,
+    ) -> bool:
+        """Update fields on an existing conceptual container."""
+        if not self.G.has_node(concept_id):
+            return False
+
+        node = self.G.nodes[concept_id]
+        if label is not None:
+            node["label"] = label
+        if domain is not None:
+            node["domain"] = domain
+        if definition is not None:
+            node["definition"] = definition
+        return True
+
+    def update_translation_mapping(
+        self,
+        mapping_id: str,
+        lineage: str = None,
+        register: str = None,
+        gloss: str = None,
+        confidence: float = None,
+        year: int = None,
+        verified: bool = None,
+    ) -> bool:
+        """Update qualitative or quantitative parameters on a context mapping."""
+        if not self.G.has_node(mapping_id):
+            return False
+
+        node = self.G.nodes[mapping_id]
+        if lineage is not None:
+            node["lineage"] = lineage
+        if register is not None:
+            node["register"] = register
+        if gloss is not None:
+            node["gloss"] = gloss
+        if confidence is not None:
+            node["confidence"] = confidence
+        if year is not None:
+            node["year"] = year
+        if verified is not None:
+            node["verified"] = verified
+        return True
+
+    def get_all_by_type(self, node_type: str) -> List[Dict]:
+        """Fetch all nodes of a specific structural type (e.g. 'concept', 'agent', 'source_text')."""
+        results = []
+        for n, d in self.G.nodes(data=True):
+            if d.get("type") == node_type:
+                results.append(dict(d))
+        return results
+
+    def get_all_lineages(self) -> List[str]:
+        """List all distinct theoretical lineages currently registered in the graph's mappings."""
+        lineages = set()
+        for n, d in self.G.nodes(data=True):
+            if d.get("type") == "translation_mapping":
+                lin = d.get("lineage")
+                if lin:
+                    lineages.add(lin)
+        return sorted(list(lineages))
+
+    def merge_lineages(self, old_lineages: List[str], new_lineage: str) -> int:
+        """Globally rename/merge multiple messy lineages into a single clean theoretical lineage."""
+        updated_count = 0
+        for node_id, data in self.G.nodes(data=True):
+            if data.get("type") == "translation_mapping":
+                current_lineage = data.get("lineage", "general")
+                if current_lineage in old_lineages:
+                    data["lineage"] = new_lineage
+                    updated_count += 1
+        return updated_count
+
+    def bulk_align_lineages_with_glossary(self, glossary_entries: List[Dict]) -> int:
+        """Scan all chaotic imported mappings, find matches in your clean glossary,
+        and bulk-align their theoretical lineages to the glossary standards.
+        """
+        updated_count = 0
+        glossary_lookup = {}
+        for entry in glossary_entries:
+            src = entry.get("source", "").strip().lower()
+            tgt = entry.get("target", "").strip().lower()
+            if src and tgt:
+                glossary_lookup[(src, tgt)] = entry.get("lineage", "General")
+
+        for node_id, data in self.G.nodes(data=True):
+            if data.get("type") == "translation_mapping":
+                src_term = None
+                tgt_term = None
+
+                for u, v, edata in self.G.in_edges(node_id, data=True):
+                    if edata.get("relation") == "has_mapping":
+                        src_term = self.G.nodes[u].get("term", "").lower()
+                for u, v, edata in self.G.out_edges(node_id, data=True):
+                    if edata.get("relation") == "maps_to":
+                        tgt_term = self.G.nodes[v].get("term", "").lower()
+
+                if src_term and tgt_term:
+                    match_key = (src_term, tgt_term)
+                    if match_key in glossary_lookup:
+                        correct_lineage = glossary_lookup[match_key]
+                        if data.get("lineage") != correct_lineage:
+                            data["lineage"] = correct_lineage
+                            updated_count += 1
+        return updated_count

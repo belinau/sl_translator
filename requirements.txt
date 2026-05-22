@@ -10,5 +10,6 @@ transformers
 torch
 sentencepiece
 sacremoses
+streamlit
 pandas
 python-docx

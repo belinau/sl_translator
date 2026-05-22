@@ -1,13 +1,14 @@
-# seed_kg.py
+# seed_kg_processing_additonal.py
 #
 # Automated, Bidirectional-Aware Seeding Pipeline
-# Reads from data/tm/ and automatically detects language directions before seeding.
+# Reads exclusively from the data/tm/tm_processing/ inbox subfolder.
 #
 
 import os
 import re
 import sys
 from pathlib import Path
+from typing import Tuple
 
 sys.path.append(str(Path(__file__).parent))
 
@@ -87,16 +88,13 @@ def parse_filename_metadata(filename: str) -> dict:
 def seed():
     kg = KnowledgeGraph()
 
-    # Point directly to your existing translation memory directory
-    tm_directory = Path("./data/tm")
+    # Point directly to your designated inbox subfolder
+    tm_directory = Path("./data/tm/tm_processing")
 
-    if not tm_directory.exists():
-        print(
-            f"[Error] The translation memory directory '{tm_directory}' does not exist."
-        )
-        return
+    # Safely ensure the subfolder exists without disturbing other paths
+    tm_directory.mkdir(parents=True, exist_ok=True)
 
-    # Find all translation memory files inside your existing folder
+    # Find all translation memory files inside your processing folder
     tm_files = (
         list(tm_directory.glob("*.json"))
         + list(tm_directory.glob("*.tmx"))
@@ -104,11 +102,14 @@ def seed():
     )
 
     if not tm_files:
-        print(f"No TM files found inside your existing '{tm_directory}' folder.")
+        print(
+            f"No new TM files (.json, .tmx, .db) found inside your '{tm_directory}' inbox folder."
+        )
+        print("Drop new client files there and re-run this script to seed them.")
         return
 
     print(
-        f"Found {len(tm_files)} translation memory archives in '{tm_directory}'. Processing..."
+        f"Found {len(tm_files)} new translation memory archives to process inside '{tm_directory}'..."
     )
 
     for tm_file in tm_files:
