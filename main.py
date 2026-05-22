@@ -204,6 +204,10 @@ async def init_resources():
 @ui.page("/")
 def page_home():
     _apply_colors()
+
+    # Capture the client immediately during page construction
+    home_client = context.client
+
     ui.add_head_html("""<style>
         .proj-card {
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -279,10 +283,10 @@ def page_home():
                 ).classes("w-full").props("color=accent accept=.docx flat bordered")
 
             proj_container = ui.column().classes("w-full gap-4")
-            _render_project_list(proj_container)
+            _render_project_list(proj_container, home_client)
 
 
-def _render_project_list(container: ui.column):
+def _render_project_list(container: ui.column, client):
     container.clear()
     projects = list_projects()
     with container:
@@ -316,7 +320,7 @@ def _render_project_list(container: ui.column):
                         ui.button(
                             icon="delete",
                             on_click=lambda e, pid=p["id"], c=container: (
-                                _delete_and_refresh(pid, c)
+                                _delete_and_refresh(pid, c, client)
                             ),
                         ).props("flat round dense size=sm color=slate-300").classes(
                             "hover:text-red-400 transition-colors"
@@ -346,12 +350,11 @@ def _render_project_list(container: ui.column):
                         ui.icon("arrow_forward", size="14px").classes("text-blue-200")
 
 
-def _delete_and_refresh(project_id: str, container: ui.column):
-    cli = context.client
-    with cli:
+def _delete_and_refresh(project_id: str, container: ui.column, client):
+    with client:
         ui.notify("Deleted", type="warning", timeout=1200)
         delete_project(project_id)
-        _render_project_list(container)
+        _render_project_list(container, client)
 
 
 async def _handle_new_upload(e, lang_pair: str):
@@ -448,7 +451,13 @@ def _search_intelligence(query: str, lang_pair: str) -> Dict:
 def page_translate(project_id: str):
     _apply_colors()
 
-    # Styles for this page
+    # Capture the client immediately during page construction
+    page_client = context.client
+
+    # Dynamic styling using Tailwind CSS Layer overrides. We explicitly target
+    # Quasar inner input elements to match exact layouts, suppress margins, and
+    # configure a mirrored transparent textarea. We align all typographic metrics
+    # (smoothing, ligatures, spacing) to completely eliminate 1px caret offsets.
     ui.add_head_html("""<style>
         .intel-header {
             font-size: 9px;
@@ -473,13 +482,48 @@ def page_translate(project_id: str):
             padding: 0 3px;
             font-weight: 600;
         }
-        .inline-ghost {
-            position: absolute;
-            pointer-events: none;
-            color: #9ca3af;
-            opacity: 0.7;
-            white-space: pre;
-            z-index: 10;
+        /* Override Quasar container wrapper offsets precisely */
+        .prediction-textarea .q-field__control {
+            padding: 0 !important;
+            background: transparent !important;
+            min-height: 0 !important;
+        }
+        .prediction-textarea .q-field__control-container {
+            padding: 0 !important;
+        }
+        .prediction-textarea .q-field__control:before,
+        .prediction-textarea .q-field__control:after {
+            display: none !important;
+        }
+        /* Style Quasar's inner native textarea to be transparent, with visible caret and standardized spacing */
+        .prediction-textarea textarea,
+        .ghost-prediction-overlay {
+            padding: 16px !important;
+            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+            font-size: 16px !important;
+            line-height: 1.625 !important;
+            letter-spacing: normal !important;
+            word-spacing: normal !important;
+            text-rendering: optimizeSpeed !important;
+            font-variant-ligatures: none !important;
+            font-feature-settings: "liga" 0 !important;
+            -webkit-font-smoothing: antialiased !important;
+            -moz-osx-font-smoothing: grayscale !important;
+            box-sizing: border-box !important;
+        }
+        .prediction-textarea textarea {
+            background: transparent !important;
+            color: transparent !important; /* Make native text transparent */
+            caret-color: #3b82f6 !important; /* Keep cursor fully visible */
+            word-wrap: break-word !important;
+            word-break: break-word !important;
+        }
+        /* Style the overlay to match identical spacing and typography, with visible dark text */
+        .ghost-prediction-overlay {
+            color: #1e293b !important; /* slate-800 color for normal text */
+            white-space: pre-wrap !important;
+            word-wrap: break-word !important;
+            word-break: break-word !important;
         }
     </style>""")
 
@@ -670,7 +714,66 @@ def page_translate(project_id: str):
         "active_index": data.get("active_index", 0),
         "segments": data["segments"],
         "is_batch": False,
+        "_active_ti": None,
+        "_active_overlay_element": None,
     }
+
+    # Active segment target candidates cache
+    _active_candidates: List[str] = []
+
+    def _precompute_active_candidates(seg: dict):
+        nonlocal _active_candidates
+        _active_candidates = []
+        if not seg:
+            return
+
+        src, tgt = ws["lang_pair"].split("->")
+
+        # 1. Glossary hits (Slovenian target terms)
+        if glossary:
+            try:
+                for h in glossary.lookup_terms(seg["source"], src, tgt):
+                    term = h.get("target_term")
+                    if term:
+                        _active_candidates.append(term)
+            except Exception as e:
+                print(f"[Cache Glossary Error] {e}")
+
+        # 2. KG entities (Slovenian target translations)
+        if kg:
+            try:
+                # extract_entities uses target_lang parameter
+                for entity in kg.extract_entities(seg["source"], target_lang=tgt):
+                    # Fetch target translations of the matched entity!
+                    for t in entity.get("translations", []):
+                        term = t.get("term")
+                        if term:
+                            _active_candidates.append(term)
+            except Exception as e:
+                print(f"[Cache KG Error] {e}")
+
+        # 3. TM fuzzy matches (Slovenian target segments)
+        if tm:
+            try:
+                for m in tm.lookup_fuzzy(seg["source"], threshold=70.0, limit=3):
+                    term = m.get("target")
+                    if term:
+                        _active_candidates.append(term)
+            except Exception as e:
+                print(f"[Cache TM Error] {e}")
+
+        # Deduplicate preserving order
+        seen = set()
+        deduped = []
+        for c in _active_candidates:
+            if c and c.lower() not in seen:
+                seen.add(c.lower())
+                deduped.append(c)
+        _active_candidates = deduped
+
+    # Initial candidates precomputation
+    if ws["segments"] and 0 <= ws["active_index"] < len(ws["segments"]):
+        _precompute_active_candidates(ws["segments"][ws["active_index"]])
 
     def _progress() -> float:
         if not ws["segments"]:
@@ -684,15 +787,18 @@ def page_translate(project_id: str):
 
     def _set_active(idx: int):
         if 0 <= idx < len(ws["segments"]):
-            cli = context.client
             ws["active_index"] = idx
             _autosave()
-            with cli:
+
+            # Precompute active candidates once!
+            _precompute_active_candidates(ws["segments"][idx])
+
+            with page_client:
                 _flow.refresh()
                 card_id = ws["segments"][idx].get("_card_id")
-                if card_id and cli.has_socket_connection:
+                if card_id and page_client.has_socket_connection:
                     try:
-                        ui.run_javascript(
+                        page_client.run_javascript(
                             f'setTimeout(() => {{ const el = getHtmlElement({card_id}); if(el) el.scrollIntoView({{behavior: "smooth", block: "center"}}); }}, 50);'
                         )
                     except KeyError as e:
@@ -714,11 +820,11 @@ def page_translate(project_id: str):
         next_idx = idx + 1
         if next_idx < len(ws["segments"]):
             _set_active(next_idx)
-            with context.client:
+            with page_client:
                 _bar.refresh()
         else:
             ws["active_index"] = next_idx
-            with context.client:
+            with page_client:
                 ui.notify("Document complete! 🎉", type="positive")
                 _bar.refresh()
                 _flow.refresh()
@@ -935,7 +1041,7 @@ def page_translate(project_id: str):
     # Active segment renderer
     # ------------------------------------------------------------------
     def _render_active(seg: dict):
-        refs = {"ti": None, "suggestion_bar": None}
+        refs = {"ti": None}
 
         card = ui.card().classes(
             "w-full bg-white active-card p-0 rounded-2xl flex flex-col gap-0 my-6 overflow-hidden"
@@ -975,336 +1081,202 @@ def page_translate(project_id: str):
                 ui.label("TARGET").classes("intel-header")
                 qa_container = ui.column().classes("w-full gap-1 mb-2")
 
-                ti = (
-                    ui.textarea(value=seg["target"])
-                    .bind_value(seg, "target")
-                    .classes("w-full")
-                    .props(
-                        "outlined autogrow "
-                        'input-style="font-family: Inter, -apple-system, sans-serif; font-size: 16px; line-height: 1.6;"'
+                # The Beautiful Tailwind-Native Overlay Editor Container
+                # Both children are styled using the exact same Tailwind spacing and metrics
+                # to guarantee pixel-perfect overlays that Vue virtual-DOM never discards.
+                with ui.element("div").classes(
+                    "relative w-full rounded-xl border border-slate-200 bg-white shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
+                ):
+                    overlay_element = ui.html("").classes(
+                        "absolute inset-0 pointer-events-none overflow-hidden z-10 ghost-prediction-overlay"
                     )
-                )
+
+                    # Initialize overlay with the target content
+                    esc = html_lib.escape
+                    overlay_element.set_content(
+                        f"<span>{esc(seg.get('target', ''))}</span>"
+                    )
+
+                    ti = (
+                        ui.textarea(value=seg["target"])
+                        .bind_value(seg, "target")
+                        .classes("w-full h-full z-20 prediction-textarea")
+                        .props("borderless dense autogrow")
+                    )
+
                 refs["ti"] = ti
+                ws["_active_ti_id"] = ti.html_id
+                ws["_active_overlay_element"] = overlay_element
+                ws["_active_ti"] = ti
 
-                # =====================================================================
-                # INLINE SUGGESTION BAR — cursor-aware (refactored for NiceGUI 3.11.1)
-                # =====================================================================
-                suggestion_bar = ui.row().classes(
-                    "w-full gap-2 items-center min-h-[32px] flex-wrap"
+                active_suggestion = ""
+                last_cursor_pos = 0
+
+                def update_prediction_display(before: str, suggestion: str, after: str):
+                    esc = html_lib.escape
+                    overlay_element.set_content(
+                        f"<span>{esc(before)}</span>"
+                        f'<span class="text-slate-400 font-medium" style="color: #94a3b8 !important;">{esc(suggestion)}</span>'
+                        f"<span>{esc(after)}</span>"
+                    )
+
+                # Instant Event Packets using js_handler to fetch cursor positions on keyup/click/input
+                async def _on_cursor_event(e):
+                    nonlocal active_suggestion, last_cursor_pos
+                    args = e.args
+                    text = args.get("value", "")
+                    pos = args.get("start", 0)
+                    last_cursor_pos = pos
+
+                    src, tgt = ws["lang_pair"].split("->")
+                    text_before = text[:pos]
+                    text_after = text[pos:]
+
+                    # Scan backwards to identify word boundaries or prefix states
+                    match = re.search(
+                        r"([\w\u010D\u0161\u017E\u010C\u0160\u017D]+)$", text_before
+                    )
+                    if match:
+                        prefix = match.group(1)
+                        is_mid_word = True
+                    else:
+                        prefix = ""
+                        is_mid_word = False
+
+                    suggestion = ""
+                    candidates = _active_candidates
+
+                    if is_mid_word:
+                        for cand in candidates:
+                            if cand.lower().startswith(prefix.lower()) and len(
+                                cand
+                            ) > len(prefix):
+                                remainder = cand[len(prefix) :]
+                                # Extract trailing completion words securely without removing spacing structures
+                                leading_spaces_match = re.match(r"^(\s+)", remainder)
+                                leading_spaces = (
+                                    leading_spaces_match.group(1)
+                                    if leading_spaces_match
+                                    else ""
+                                )
+                                non_space_part = remainder[len(leading_spaces) :]
+                                words = non_space_part.split()
+                                if words:
+                                    suggestion = leading_spaces + " ".join(words[:2])
+                                else:
+                                    suggestion = remainder
+                                break
+                    else:
+                        words_typed = text_before.strip().split()
+                        for cand in candidates:
+                            cand_words = cand.split()
+                            if len(cand_words) > len(words_typed):
+                                if all(
+                                    cand_words[i].lower() == words_typed[i].lower()
+                                    for i in range(len(words_typed))
+                                ):
+                                    next_words = cand_words[
+                                        len(words_typed) : len(words_typed) + 2
+                                    ]
+                                    suggestion = " ".join(next_words)
+                                    break
+
+                    # Clean up prediction suggestion based on surrounding text context (avoiding double spacing)
+                    if suggestion:
+                        if suggestion.endswith(" ") and text_after.startswith(" "):
+                            suggestion = suggestion.rstrip(" ")
+                        if suggestion.startswith(" ") and text_before.endswith(" "):
+                            suggestion = suggestion.lstrip(" ")
+
+                    if suggestion:
+                        active_suggestion = suggestion
+                        update_prediction_display(text_before, suggestion, text_after)
+                    else:
+                        active_suggestion = ""
+                        update_prediction_display(text, "", "")
+
+                # Bind events with immediate cursor state emitters (including native 'input' event)
+                ti.on(
+                    "keyup",
+                    _on_cursor_event,
+                    js_handler="""(evt) => {
+                    const ta = evt.target;
+                    emit({ value: ta.value, start: ta.selectionStart, end: ta.selectionEnd });
+                }""",
                 )
-                refs["suggestion_bar"] = suggestion_bar
-                _seg_client = context.client
+                ti.on(
+                    "click",
+                    _on_cursor_event,
+                    js_handler="""(evt) => {
+                    const ta = evt.target;
+                    emit({ value: ta.value, start: ta.selectionStart, end: ta.selectionEnd });
+                }""",
+                )
+                ti.on(
+                    "focus",
+                    _on_cursor_event,
+                    js_handler="""(evt) => {
+                    const ta = evt.target;
+                    emit({ value: ta.value, start: ta.selectionStart, end: ta.selectionEnd });
+                }""",
+                )
+                ti.on(
+                    "input",
+                    _on_cursor_event,
+                    js_handler="""(evt) => {
+                    const ta = evt.target;
+                    emit({ value: ta.value, start: ta.selectionStart, end: ta.selectionEnd });
+                }""",
+                )
 
-                # Cursor info cache - updated via JS events
-                _cursor_cache = {"start": 0, "end": 0, "word": "", "value_hash": hash("")}
+                # Python autocomplete callback executed strictly by standard Vue key modifier events
+                async def _on_key_autocomplete(e=None):
+                    nonlocal active_suggestion, last_cursor_pos
+                    if active_suggestion:
+                        cur_text = seg["target"] or ""
+                        before = cur_text[:last_cursor_pos]
+                        after = cur_text[last_cursor_pos:]
+                        new_text = before + active_suggestion + after
 
-                # Debounce task reference
-                _debounce_task = None
+                        seg["target"] = new_text
+                        ti.value = new_text
 
-                # Word boundary regex pattern (matches your existing pattern)
-                _WORD_PATTERN = re.compile(r"[a-zA-Z0-9_čšžČŠŽà-ž]")
+                        new_pos = last_cursor_pos + len(active_suggestion)
+                        last_cursor_pos = new_pos
+                        active_suggestion = ""
 
-                def _extract_word_at_cursor(text: str, position: int) -> tuple[str, int, int]:
-                    """Extract word at cursor position with boundaries.
-                    
-                    Returns: (word, start_index, end_index)
-                    """
-                    if not text or position < 0 or position > len(text):
-                        return "", 0, 0
-                    
-                    start = position
-                    end = position
-                    
-                    # Scan backwards for word start
-                    while start > 0 and _WORD_PATTERN.match(text[start - 1]):
-                        start -= 1
-                    
-                    # Scan forwards for word end
-                    while end < len(text) and _WORD_PATTERN.match(text[end]):
-                        end += 1
-                    
-                    word = text[start:end].strip()
-                    return word, start, end
+                        update_prediction_display(new_text, "", "")
 
-                def _make_chip_handler(suggestion: str, start: int, end: int, textarea_html_id: str, client):
-                    """Create chip click handler with proper closure capture."""
-                    from functools import partial
-                    
-                    async def _insert():
-                        js = f"""
-                            (function() {{
-                                const el = getHtmlElement({textarea_html_id!r});
-                                if (!el) return false;
-                                const ta = el.querySelector('textarea');
-                                if (!ta) return false;
-                                ta.setRangeText({json.dumps(suggestion)}, {start}, {end}, 'end');
-                                ta.dispatchEvent(new Event('input', {{bubbles: true}}));
-                                ta.focus();
-                                return true;
-                            }})()
-                        """
-                        try:
-                            await client.run_javascript(js, timeout=2.0)
-                            return True
-                        except Exception as e:
-                            print(f"[Inline] Chip insert error: {e}")
-                            return False
-                    
-                    background_tasks.create(_insert(), name="chip_insert")
-
-                async def _fetch_cursor_info(client) -> dict:
-                    """Fetch current cursor info from client-side JS."""
-                    # Use ti.html_id (e.g., "c123") instead of ti.id (integer) for getHtmlElement()
-                    js = f"""
-                        (function() {{
-                            const el = getHtmlElement({ti.html_id!r});
-                            if (!el) return {{word: "", start: 0, end: 0}};
-                            const ta = el.querySelector('textarea');
-                            if (!ta) return {{word: "", start: 0, end: 0}};
-                            const v = ta.value;
-                            const p = ta.selectionStart;
-                            if (typeof p !== 'number' || p < 0 || p > v.length) 
-                                return {{word: "", start: 0, end: 0}};
-                            const re = /[a-zA-Z0-9_čšžČŠŽà-ž]/i;
-                            let s = p, e = p;
-                            while (s > 0 && re.test(v.charAt(s-1))) s--;
-                            while (e < v.length && re.test(v.charAt(e))) e++;
-                            const word = v.slice(s, e).trim();
-                            return {{word: word || "", start: s, end: e}};
-                        }})()
-                    """
-                    try:
-                        info = await client.run_javascript(js, timeout=2.0)
-                        if isinstance(info, dict):
-                            return info
-                    except Exception as e:
-                        print(f"[Inline] Fetch cursor error: {e}")
-                    return {"word": "", "start": 0, "end": 0}
-
-                async def _get_replacement_for_word(word: str, src_l: str, tgt_l: str, source_text: str) -> str | None:
-                    """Get best replacement suggestion for a word from KG/glossary."""
-                    if not word or len(word) < 2:
-                        return None
-                    
-                    # Try KG first
-                    if kg:
-                        try:
-                            hints = kg.get_inline_hints(
-                                word_prefix=word[:3],
-                                source_text=source_text,
-                                source_lang=src_l,
-                                target_lang=tgt_l,
-                                max_hints=1,
-                            )
-                            if hints:
-                                term = hints[0].get("term")
-                                if term and term.lower().startswith(word.lower()):
-                                    return term
-                        except Exception as e:
-                            print(f"[Inline] KG lookup error: {e}")
-                    
-                    # Try glossary
-                    if glossary:
-                        try:
-                            hits = glossary.lookup_terms(word, src_l, tgt_l)
-                            if hits:
-                                term = hits[0]["target_term"]
-                                if term and term.lower().startswith(word.lower()):
-                                    return term
-                        except Exception as e:
-                            print(f"[Inline] Glossary lookup error: {e}")
-                    
-                    return None
-
-                async def _build_suggestions():
-                    """Build and display suggestions for current cursor word."""
-                    if suggestion_bar.is_deleted or ti.is_deleted:
-                        return
-
-                    # Fetch fresh cursor info
-                    cursor_info = await _fetch_cursor_info(_seg_client)
-                    current_word = cursor_info.get("word", "")
-                    start_pos = cursor_info.get("start", 0)
-                    end_pos = cursor_info.get("end", 0)
-                    
-                    # Update cache
-                    _cursor_cache.update({
-                        "word": current_word,
-                        "start": start_pos,
-                        "end": end_pos,
-                        "value_hash": hash(ti.value),
-                    })
-
-                    # Skip if word too short
-                    if not current_word or len(current_word) < 2:
-                        with _seg_client:
-                            if not suggestion_bar.is_deleted:
-                                suggestion_bar.clear()
-                        return
-
-                    src_l, tgt_l = ws["lang_pair"].split("->")
-                    loop = asyncio.get_running_loop()
-
-                    # Query sources in parallel
-                    def _query_glossary():
-                        if not glossary:
-                            return []
-                        try:
-                            hits = glossary.lookup_terms(current_word, src_l, tgt_l)
-                            return [
-                                h["target_term"]
-                                for h in hits
-                                if h["target_term"] and h["target_term"].lower().startswith(current_word.lower())
-                            ][:5]
-                        except Exception:
-                            return []
-
-                    def _query_kg():
-                        if not kg:
-                            return []
-                        try:
-                            hints = kg.get_inline_hints(
-                                word_prefix=current_word[:3],
-                                source_text=seg["source"],
-                                source_lang=src_l,
-                                target_lang=tgt_l,
-                                max_hints=5,
-                            )
-                            return [
-                                h.get("term", "")
-                                for h in hints
-                                if h.get("term") and h.get("term", "").lower().startswith(current_word.lower())
-                            ][:5]
-                        except Exception:
-                            return []
-
-                    def _query_tm():
-                        if not tm:
-                            return []
-                        try:
-                            hits = tm.search_prefix(current_word)[:5]
-                            return [
-                                " ".join(t.split()[:2])
-                                for t in hits
-                                if t and t.lower().startswith(current_word.lower())
-                            ]
-                        except Exception:
-                            return []
-
-                    try:
-                        glos_results, kg_results, tm_results = await asyncio.gather(
-                            loop.run_in_executor(None, _query_glossary),
-                            loop.run_in_executor(None, _query_kg),
-                            loop.run_in_executor(None, _query_tm),
-                        )
-                    except Exception as e:
-                        print(f"[Inline] Query error: {e}")
-                        return
-
-                    # Merge and dedup preserving order
-                    all_suggestions = list(dict.fromkeys(glos_results + kg_results + tm_results))[:3]
-
-                    # Update UI
-                    with _seg_client:
-                        if suggestion_bar.is_deleted:
-                            return
-                        suggestion_bar.clear()
-                        
-                        if not all_suggestions:
-                            return
-                        
-                        with suggestion_bar:
-                            ui.label("SUGGEST:").classes(
-                                "text-[9px] font-black text-slate-400 tracking-widest self-center mr-1"
-                            )
-                            
-                            for idx, sugg in enumerate(all_suggestions):
-                                # Determine source type for styling
-                                kind = (
-                                    "glossary" if sugg in glos_results
-                                    else "kg" if sugg in kg_results
-                                    else "tm"
-                                )
-                                color = (
-                                    "bg-emerald-100 text-emerald-800" if kind == "glossary"
-                                    else "bg-blue-100 text-blue-800" if kind == "kg"
-                                    else "bg-slate-100 text-slate-600"
-                                )
-                                
-                                # Add tab indicator for first suggestion
-                                text = sugg + (" ↹" if idx == 0 else "")
-                                
-                                # Create chip with proper closure - use ti.html_id not ti.id
-                                ui.chip(text, on_click=lambda _, s=sugg, st=start_pos, en=end_pos: 
-                                    _make_chip_handler(s, st, en, ti.html_id, _seg_client)
-                                ).props("dense clickable").classes(f"{color} text-[11px] font-bold px-2")
-
-                async def _on_typing(e: events.ValueChangeEventArguments):
-                    """Handle typing with debounced suggestion building."""
-                    nonlocal _debounce_task
-                    
-                    # Cancel pending task
-                    if _debounce_task and not _debounce_task.done():
-                        _debounce_task.cancel()
-                    
-                    # Create new debounced task
-                    async def _debounced():
-                        await asyncio.sleep(0.1)  # 100ms debounce
-                        try:
-                            await _build_suggestions()
-                        except asyncio.CancelledError:
-                            pass
-                        except Exception as e:
-                            print(f"[Inline] Build suggestions error: {e}")
-                    
-                    _debounce_task = background_tasks.create(_debounced(), name="suggestions_debounce")
-
-                async def _on_keypress(e: events.KeyEventArguments):
-                    """Handle keyboard shortcuts for inline prediction."""
-                    # Ctrl/Cmd + Enter: Confirm segment
-                    if e.key.enter and (e.modifiers.ctrl or e.modifiers.meta) and e.action.keydown:
-                        await _confirm_segment()
-                        return
-
-                    # Tab: Accept first suggestion at cursor
-                    if e.key.tab and e.action.keydown:
-                        # Get fresh cursor info
-                        cursor_info = await _fetch_cursor_info(_seg_client)
-                        current_word = cursor_info.get("word", "")
-                        start_pos = cursor_info.get("start", 0)
-                        end_pos = cursor_info.get("end", 0)
-                        
-                        if not current_word or len(current_word) < 2:
-                            return
-                        
-                        src_l, tgt_l = ws["lang_pair"].split("->")
-                        
-                        # Get replacement
-                        replacement = await _get_replacement_for_word(
-                            current_word, src_l, tgt_l, seg["source"]
-                        )
-                        
-                        if replacement:
-                            # Insert at cursor - use ti.html_id not ti.id
-                            js = f"""
-                                (function() {{
-                                    const el = getHtmlElement({ti.html_id!r});
-                                    if (!el) return;
-                                    const ta = el.querySelector('textarea');
-                                    if (!ta) return;
-                                    ta.setRangeText({json.dumps(replacement)}, {start_pos}, {end_pos}, 'end');
-                                    ta.dispatchEvent(new Event('input', {{bubbles: true}}));
-                                    ta.focus();
-                                }})()
-                            """
+                        # Set selection range and keyboard focus using standard NiceGUI's standard [INDEX]
+                        # run_javascript. We retrieve the Vue element and then access Quasar's reference [INDEX]
+                        # .$refs.qRef.getNativeElement() to retrieve the raw browser <textarea> [INDEX]
+                        # We schedule the method execution asynchronously via a page-level timer to let Vue DOM updates settle [INDEX]
+                        if page_client.has_socket_connection:
                             try:
-                                await _seg_client.run_javascript(js, timeout=2.0)
-                                # Clear suggestion bar after tab insertion
-                                with _seg_client:
-                                    if not suggestion_bar.is_deleted:
-                                        suggestion_bar.clear()
-                            except Exception as e:
-                                print(f"[Inline] Tab insert error: {e}")
+                                js_caret = f"""
+                                setTimeout(() => {{
+                                    const el = getElement({ti.id}).$refs.qRef.getNativeElement();
+                                    if (el) {{
+                                        el.focus();
+                                        el.setSelectionRange({new_pos}, {new_pos});
+                                    }}
+                                }}, 50);
+                                """
+                                await page_client.run_javascript(js_caret)
+                            except Exception as ex:
+                                print(f"[Caret Pos Error] {ex}")
+
+                # Register standard Vue event key modifiers directly on the native element [INDEX]
+                # This matches exactly the meta-key modifier registration of enter confirmations below.
+                # Key modifiers prevent character typing synchronously inside the browser thread [INDEX].
+                # We bind to Cmd + e (macOS) and Ctrl + e (Windows/Linux) using exactly the same [INDEX]
+                # native event modifier pattern as Cmd + Enter confirmations, ensuring absolute focus and 0ms latency.
+                ti.on("keydown.ctrl.e.prevent.stop", _on_key_autocomplete)
+                ti.on("keydown.meta.e.prevent.stop", _on_key_autocomplete)
+
+                # Localized key interception preventing event leaking / global tracker lag
+                ti.on("keydown.ctrl.enter", _confirm_segment)
+                ti.on("keydown.meta.enter", _confirm_segment)
 
             # --- Static inline panel (TM / Glossary / Concordance) ---
             static_panel = ui.column().classes(
@@ -1337,7 +1309,7 @@ def page_translate(project_id: str):
                         ).props("flat round dense size=md color=slate-400")
 
                 with ui.row().classes("items-center gap-4"):
-                    ui.label("TAB replaces word • ⌘ ENTER confirms").classes(
+                    ui.label("⌘E replaces word • ⌘ ENTER confirms").classes(
                         "text-[10px] text-slate-400 font-bold uppercase tracking-wider"
                     )
                     ui.button("CONFIRM", on_click=lambda: _confirm_segment()).props(
@@ -1361,12 +1333,6 @@ def page_translate(project_id: str):
                                 )
                             )
 
-                # Register typing handler for suggestions
-                ti.on_value_change(_on_typing)
-                
-                # Register keyboard handler for Tab/Enter shortcuts
-                ui.keyboard(on_key=_on_keypress, ignore=[])
-                
                 # Initial QA render
                 if not qa_container.is_deleted:
                     warnings = _run_qa(seg, ws["lang_pair"])
@@ -1380,11 +1346,13 @@ def page_translate(project_id: str):
                             )
                             icon = "error" if w["type"] == "error" else "warning"
                             with ui.row().classes(
-                                f"w-full {{color}} px-3 py-2 rounded-lg text-xs items-center gap-2 border".format(color=color)
+                                f"w-full {color} px-3 py-2 rounded-lg text-xs items-center gap-2 border".format(
+                                    color=color
+                                )
                             ):
                                 ui.icon(icon, size="16px")
                                 ui.label(w["message"]).classes("font-medium")
-                
+
                 # QA updates on value change
                 ti.on_value_change(lambda e: _qa_render())
 
@@ -1471,9 +1439,8 @@ def page_translate(project_id: str):
         if ws["is_batch"]:
             return
         ws["is_batch"] = True
-        cli = context.client
 
-        with cli:
+        with page_client:
             _bar.refresh()
 
         src, tgt = ws["lang_pair"].split("->")
@@ -1501,13 +1468,13 @@ def page_translate(project_id: str):
                 seg["target"] = text
                 if i % 3 == 0:
                     _autosave()
-                    with cli:
+                    with page_client:
                         _flow.refresh()
                         _bar.refresh()
             except Exception as ex:
                 print(f"[Batch] {ex}")
 
-        with cli:
+        with page_client:
             ws["is_batch"] = False
             _autosave()
             _flow.refresh()
