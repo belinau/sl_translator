@@ -587,6 +587,11 @@ class KnowledgeGraph:
                 node["gloss"] = gloss
             if year:
                 node["year"] = year
+            # Verified is monotonic: once a curator has blessed this
+            # mapping the flag stays True, even if a later auto-seed call
+            # passes verified=False. The confirm pipeline depends on this.
+            if verified:
+                node["verified"] = True
 
         if not self.G.has_edge(src_term_id, mapping_id):
             self.G.add_edge(src_term_id, mapping_id, relation="has_mapping")
@@ -618,6 +623,15 @@ class KnowledgeGraph:
             self.G.add_edge(
                 tgt_term_id, src_term_id, relation="translates_to", **legacy_data
             )
+        elif verified:
+            # Existing legacy edge — still mirror the verified bump so
+            # downstream code that reads translates_to edges sees the
+            # curator's blessing.
+            for u, v in ((src_term_id, tgt_term_id), (tgt_term_id, src_term_id)):
+                if self.G.has_edge(u, v):
+                    d = self.G.edges[u, v]
+                    d["verified"] = True
+                    d["last_updated"] = _get_timestamp()
 
         return mapping_id
 
@@ -1325,22 +1339,268 @@ class KnowledgeGraph:
         domain: str = "",
         context: Optional[str] = None,
         validated_by: Optional[str] = None,
-    ):
-        src = source_text.strip()
-        tgt = target_text.strip()
+    ) -> Dict[str, List[str]]:
+        """Ingest a translator-confirmed segment via the full NLP pipeline.
+
+        Runs Spacy on the source (EN noun chunks + 2-3-grams of content
+        lemmas) and Stanza/Classla on the target (SL dependency phrases),
+        upserts term nodes for each extracted phrase, then promotes
+        translation_mapping edges between co-occurring src/tgt terms.
+
+        Crucially, the **segment itself is never stored as a node**.
+        Segments live in the TM; the KG receives the semantic structure
+        extracted from them.
+
+        Mapping promotion has two regimes:
+          - Existing mapping (any lineage) → mark `verified=True`,
+            confidence bumps via the existing upsert path, gloss is set
+            to the source segment for context.
+          - No prior mapping → create a new one ONLY when the pair is
+            unambiguous within this segment (exactly one EN term + one SL
+            term extracted). Cartesian pairing in larger segments is too
+            noisy without Dice corpus inference; the seeders earn that
+            signal across many TUs, single-segment confirms cannot.
+
+        Concepts: every promoted pair (existing or new) is linked to a
+        concept named after the EN term (the same scheme the seeders use).
+        Concept ids are deterministic so re-confirms hit the existing
+        concept rather than duplicating.
+
+        Returns a delta dict for instrumentation:
+          {
+            "src_terms": [...], "tgt_terms": [...],
+            "verified": [...mapping_ids...],
+            "created": [...mapping_ids...],
+          }
+        """
+        src_text = (source_text or "").strip()
+        tgt_text = (target_text or "").strip()
+        delta: Dict[str, List[str]] = {
+            "src_terms": [],
+            "tgt_terms": [],
+            "verified": [],
+            "created": [],
+        }
+        if not src_text or not tgt_text:
+            return delta
+        if not HAS_SPACY or self.nlp_en is None:
+            print("[KG promote_pair] Spacy (EN) not loaded — skipping.")
+            return delta
+        if self.nlp_sl is None:
+            print("[KG promote_pair] Slovenian pipeline not loaded — skipping.")
+            return delta
+
+        # ── EN extraction (same logic as seed_from_tm step 1) ─────────
+        en_phrases: List[str] = []
+        seen_en: set = set()
+        doc_en = self.nlp_en(src_text)
+        for chunk in doc_en.noun_chunks:
+            start_index = 0
+            for i, token in enumerate(chunk):
+                if token.pos_ not in ("DET", "PRON"):
+                    start_index = i
+                    break
+            else:
+                continue
+            clean_tokens = [t.text for t in chunk[start_index:]]
+            text = " ".join(clean_tokens).lower().strip()
+            text = re.sub(r"[.,;:!?)\]]+$", "", text)
+            if len(text) < 3 or text.isdigit():
+                continue
+            if text in seen_en:
+                continue
+            seen_en.add(text)
+            en_phrases.append(text)
+        # Content lemma 2-3-grams
+        tokens = [
+            t.lemma_.lower()
+            for t in doc_en
+            if not t.is_stop and not t.is_punct and len(t.text) > 2
+        ]
+        for n in (2, 3):
+            for i in range(len(tokens) - n + 1):
+                gram = " ".join(tokens[i : i + n])
+                if gram and gram not in seen_en and len(gram) >= 3:
+                    seen_en.add(gram)
+                    en_phrases.append(gram)
+
+        # ── SL extraction (same logic as seed_from_tm step 2) ─────────
+        protected, mappings = self._protect_gender_tokens(tgt_text)
+        sl_pairs: List[Tuple[str, str]] = []   # (lemma, surface)
+        seen_sl: set = set()
+        try:
+            doc_sl = self.nlp_sl(protected)
+            for lemma, surface in self._get_dependency_phrases(doc_sl):
+                lemma = self._restore_gender_tokens(lemma, mappings)
+                surface = self._restore_gender_tokens(surface, mappings)
+                if lemma in SL_NOISE or len(lemma) < 3 or lemma in seen_sl:
+                    continue
+                seen_sl.add(lemma)
+                sl_pairs.append((lemma, surface))
+        except Exception as e:
+            print(f"[KG promote_pair] SL extraction failed: {e}")
+
+        if not en_phrases or not sl_pairs:
+            # Nothing to wire — the segment had no extractable terminology
+            # on one side. That's fine; the TM still has the segment.
+            return delta
+
+        # ── Term filter + upsert ────────────────────────────────────
+        # A single-segment NLP pass cannot match the corpus-level
+        # min_freq filtering that seed_from_tm earns over thousands of
+        # segments. So we restrict to phrases the KG ALREADY knows
+        # about: an EN candidate becomes a term-promotion target only
+        # if `term:en:{phrase}` already exists. The seeders' vocabulary
+        # is the authority; the confirm path strengthens that
+        # vocabulary rather than expanding it with one-off n-gram noise.
+        #
+        # Exception: a brand-new term IS created when the segment is
+        # unambiguous (exactly one EN phrase + one SL phrase survive
+        # this filter or come through it after fallback). That gives
+        # the translator a way to introduce truly new terminology — a
+        # heading like "Time → Čas" — without bloating from sentences.
+        en_ids: List[str] = []
+        en_known = [
+            p for p in en_phrases
+            if self.G.has_node(f"term:{source_lang}:{p}")
+        ]
+        for phrase in en_known:
+            tid = self.add_term_node(phrase, source_lang, is_phrase=" " in phrase)
+            en_ids.append(tid)
+            if tid not in delta["src_terms"]:
+                delta["src_terms"].append(tid)
+
+        sl_ids: List[str] = []
+        sl_known: List[Tuple[str, str]] = [
+            (lemma, surface) for lemma, surface in sl_pairs
+            if self.G.has_node(f"term:{target_lang}:{lemma}")
+        ]
+        for lemma, surface in sl_known:
+            profile = self._parse_gender_strategies(surface)
+            tid = self.add_term_node(
+                lemma,
+                target_lang,
+                is_phrase=" " in lemma,
+                display_form=surface if surface != lemma else None,
+                is_animate=bool(profile),
+                gender_strategies=profile,
+            )
+            sl_ids.append(tid)
+            if tid not in delta["tgt_terms"]:
+                delta["tgt_terms"].append(tid)
+
+        # Unambiguous new-term path: one EN candidate + one SL candidate
+        # in the segment AND neither is in the KG yet — admit the pair
+        # as fresh vocabulary. Only kicks in when known-term filtering
+        # produced nothing on at least one side.
+        if (not en_known or not sl_known) and len(en_phrases) == 1 and len(sl_pairs) == 1:
+            phrase = en_phrases[0]
+            tid = self.add_term_node(phrase, source_lang, is_phrase=" " in phrase)
+            if tid not in delta["src_terms"]:
+                delta["src_terms"].append(tid)
+                en_ids.append(tid)
+            sl_lemma, sl_surface = sl_pairs[0]
+            profile = self._parse_gender_strategies(sl_surface)
+            tid_sl = self.add_term_node(
+                sl_lemma,
+                target_lang,
+                is_phrase=" " in sl_lemma,
+                display_form=sl_surface if sl_surface != sl_lemma else None,
+                is_animate=bool(profile),
+                gender_strategies=profile,
+            )
+            if tid_sl not in delta["tgt_terms"]:
+                delta["tgt_terms"].append(tid_sl)
+                sl_ids.append(tid_sl)
+
+        # ── Mapping promotion ────────────────────────────────────────
+        # A pair may already have one or more mappings under different
+        # lineages (e.g. "performance" + "2022"). The curator's confirm
+        # blesses all of them. We do NOT create a competing "manual"
+        # mapping when prior lineage-tagged mappings exist — that would
+        # split the provenance trail.
+
+        def _find_mappings_between(src_id: str, tgt_id: str) -> List[str]:
+            out: List[str] = []
+            for _u, mid, d in self.G.out_edges(src_id, data=True):
+                if d.get("relation") != "has_mapping":
+                    continue
+                for _mu, mv, md in self.G.out_edges(mid, data=True):
+                    if md.get("relation") == "maps_to" and mv == tgt_id:
+                        out.append(mid)
+                        break
+            return out
+
+        gloss_value = context if context is not None else src_text[:240]
+        unambiguous = len(en_ids) == 1 and len(sl_ids) == 1
+        for s in en_ids:
+            for t in sl_ids:
+                existing_maps = _find_mappings_between(s, t)
+                if existing_maps:
+                    # Strengthen every existing lineage in place.
+                    for mid in existing_maps:
+                        nd = self.G.nodes[mid]
+                        nd["confidence"] = min(
+                            0.99, float(nd.get("confidence") or 0.5) + 0.05,
+                        )
+                        if verified:
+                            nd["verified"] = True
+                        if gloss_value:
+                            nd["gloss"] = gloss_value
+                        delta["verified"].append(mid)
+                    # Mirror the verified bump on any legacy
+                    # translates_to edges so downstream readers agree.
+                    if verified:
+                        for u, v in ((s, t), (t, s)):
+                            if self.G.has_edge(u, v) and (
+                                self.G.edges[u, v].get("relation") == "translates_to"
+                            ):
+                                self.G.edges[u, v]["verified"] = True
+                                self.G.edges[u, v]["last_updated"] = _get_timestamp()
+                    self._link_concept_for_pair(s, t, domain=domain)
+                elif unambiguous:
+                    # No prior mapping anywhere — single EN term + single
+                    # SL term in this segment is a clean alignment signal,
+                    # so we create a new mapping at high confidence with
+                    # lineage="manual" so the curator can find it later.
+                    map_id = self.link_translations_with_context(
+                        src_term_id=s,
+                        tgt_term_id=t,
+                        confidence=0.85,
+                        lineage="manual",
+                        gloss=gloss_value,
+                        verified=verified,
+                    )
+                    if map_id:
+                        delta["created"].append(map_id)
+                        self._link_concept_for_pair(s, t, domain=domain)
+                # Larger cartesian pairs without prior mappings are
+                # intentionally skipped — single-segment co-occurrence is
+                # not enough signal to invent a new translation pair.
+
+        return delta
+
+    def _link_concept_for_pair(
+        self, src_term_id: str, tgt_term_id: str, *, domain: str = "",
+    ) -> str:
+        """Ensure both terms in a confirmed pair instantiate the same
+        concept node. Concept ids are deterministic (derived from the
+        source term text) so re-confirms reuse the existing concept
+        rather than duplicating it. Never uses sentence text as a label
+        — only the term itself."""
+        src_data = self.G.nodes.get(src_term_id, {})
+        label = src_data.get("term") or ""
+        if not label:
+            return ""
+        # Match the seeders' slug scheme so confirms hit the same nodes.
+        slug = label.replace(" ", "_")
         cid = self.add_concept_node(
-            f"concept:{src.replace(' ', '_')}", label=src, domain=domain
+            f"concept:{slug}", label=label, domain=domain,
         )
-        sid = self.add_term_node(src, source_lang, concept_id=cid, is_phrase=True)
-        tid = self.add_term_node(tgt, target_lang, is_phrase=True)
-        self.link_translations_with_context(
-            src_term_id=sid,
-            tgt_term_id=tid,
-            confidence=1.0,
-            verified=verified,
-            lineage="manual",
-            gloss=context,
-        )
+        for tid in (src_term_id, tgt_term_id):
+            if self.G.has_node(tid) and not self.G.has_edge(tid, cid):
+                self.G.add_edge(tid, cid, relation="instantiates_concept")
+        return cid
 
     def get_inline_hints(
         self,

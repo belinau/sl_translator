@@ -7,6 +7,7 @@
 import asyncio
 import concurrent.futures
 import json
+import re
 import sys
 import uuid
 from datetime import datetime
@@ -129,6 +130,17 @@ def delete_project(project_id: str):
 # Working TM
 # ---------------------------------------------------------------------------
 def save_pair_to_tm(source: str, target: str, lang_pair: str):
+    """Upsert a translator-confirmed segment into the working TMX.
+
+    Semantics (no duplicates ever):
+      - if the same source already exists with the same target → no write
+      - if the same source exists with a different target → rewrite the
+        existing <tu>'s target seg in place
+      - otherwise → append a new <tu>
+
+    Both the on-disk TMX and the in-memory `tm.entries` list stay in
+    sync so fuzzy lookup sees the updated target immediately.
+    """
     src_lang, tgt_lang = parse_lang_pair(lang_pair)
     tm_path = config.TM_DIR / "working.tmx"
     config.TM_DIR.mkdir(parents=True, exist_ok=True)
@@ -157,24 +169,80 @@ def save_pair_to_tm(source: str, target: str, lang_pair: str):
             .replace('"', "&quot;")
         )
 
-    tu = (
-        "\n".join(
-            [
-                "    <tu>",
-                f'      <tuv xml:lang="{src_lang}"><seg>{escape_xml_entities(source)}</seg></tuv>',
-                f'      <tuv xml:lang="{tgt_lang}"><seg>{escape_xml_entities(target)}</seg></tuv>',
-                "    </tu>",
-            ]
-        )
-        + "\n"
-    )
+    src_n = (source or "").strip()
+    tgt_n = (target or "").strip()
+    if not src_n or not tgt_n:
+        return
 
     raw = tm_path.read_text(encoding="utf-8")
-    raw = raw.replace("  </body>", tu + "  </body>")
-    tm_path.write_text(raw, encoding="utf-8")
 
+    # Look for an existing <tu> whose source-seg matches src_n exactly.
+    # Each TU follows the shape produced below (or by parse_tmx_file), so
+    # we can match the source seg via a non-greedy regex pegged to the
+    # source-language tuv.
+    src_escaped = escape_xml_entities(src_n)
+    tgt_escaped = escape_xml_entities(tgt_n)
+    tu_pattern = re.compile(
+        r"(    <tu>\s*"
+        r'      <tuv xml:lang="' + re.escape(src_lang) + r'"><seg>'
+        + re.escape(src_escaped) + r"</seg></tuv>\s*"
+        r'      <tuv xml:lang="' + re.escape(tgt_lang) + r'"><seg>)'
+        r"(.*?)"
+        r"(</seg></tuv>\s*    </tu>\n?)",
+        re.DOTALL,
+    )
+
+    new_raw: str | None = None
+    match_existing = tu_pattern.search(raw)
+    if match_existing is not None:
+        existing_target = match_existing.group(2)
+        if existing_target == tgt_escaped:
+            # Identical pair — nothing to do on disk.
+            pass
+        else:
+            # Rewrite the target seg in place.
+            new_raw = (
+                raw[: match_existing.start()]
+                + match_existing.group(1)
+                + tgt_escaped
+                + match_existing.group(3)
+                + raw[match_existing.end():]
+            )
+    else:
+        # New pair — append before </body>.
+        tu = (
+            "\n".join(
+                [
+                    "    <tu>",
+                    f'      <tuv xml:lang="{src_lang}"><seg>{src_escaped}</seg></tuv>',
+                    f'      <tuv xml:lang="{tgt_lang}"><seg>{tgt_escaped}</seg></tuv>',
+                    "    </tu>",
+                ]
+            )
+            + "\n"
+        )
+        new_raw = raw.replace("  </body>", tu + "  </body>")
+
+    if new_raw is not None and new_raw != raw:
+        tm_path.write_text(new_raw, encoding="utf-8")
+
+    # Mirror the upsert in the in-memory TM so lookup_fuzzy sees the
+    # change without a reload.
     if tm is not None:
-        tm.entries.append({"source": source, "target": target, "origin": "working.tmx"})
+        for entry in tm.entries:
+            if entry.get("source") == src_n and entry.get("origin") == "working.tmx":
+                entry["target"] = tgt_n
+                break
+        else:
+            tm.entries.append(
+                {
+                    "source": src_n,
+                    "target": tgt_n,
+                    "origin": "working.tmx",
+                    "source_lang": src_lang,
+                    "target_lang": tgt_lang,
+                }
+            )
 
 
 async def init_resources():
