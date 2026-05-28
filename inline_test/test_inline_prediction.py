@@ -51,7 +51,7 @@ class TestChipInteraction:
 
         @ui.page("/test_chip")
         def page():
-            ui.chip("Click me", on_click=lambda e: clicked.append(e.sender.text))
+            ui.chip("Click me", on_click=lambda e: clicked.append(getattr(e.sender, "text", "")))
 
         await user.open("/test_chip")
 
@@ -144,7 +144,7 @@ class TestChipClosureBug:
                 with bar:
                     ui.chip(
                         " WORLD",
-                        on_click=lambda _: setattr(ti, "value", ti.value + " WORLD"),
+                        on_click=lambda _: setattr(ti, "value", (ti.value or "") + " WORLD"),
                     )
 
             ui.button("Show", on_click=show_suggestions)
@@ -168,7 +168,7 @@ class TestInsertionAtCursor:
     async def test_setRangeText_inserts_at_position(self, user):
         """setRangeText can insert at specific cursor position via client.run_javascript."""
         js_result = {"success": False, "error": None}
-        ti_id_ref = [None]
+        ti_id_ref: list[int | None] = [None]
 
         @ui.page("/test_rangetext")
         def page():

@@ -1,7 +1,7 @@
 # translate_core/llm.py
 
 import threading
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import config
 
@@ -26,7 +26,11 @@ class MLXGenericTranslator:
             from mlx_lm import load
 
             print(f"\n[SYSTEM] Loading MLX model into memory: {self.model_name}...")
-            self._model, self._tokenizer = load(self.model_name)
+            # mlx-lm >= 0.20 returns a 3-tuple (model, tokenizer, config);
+            # older versions returned a 2-tuple. Unpack defensively.
+            loaded = load(self.model_name)
+            self._model = loaded[0]
+            self._tokenizer = loaded[1]
             print("[SYSTEM] Model loaded successfully!\n")
 
     def translate(
@@ -34,14 +38,17 @@ class MLXGenericTranslator:
         text: str,
         source_lang: str,
         target_lang: str,
-        tm_matches: List[Dict] = None,
-        glossary_hits: List[Dict] = None,
-        concordance_hits: List[Dict] = None,
-        kg_hits: List[Dict] = None,
+        tm_matches: Optional[List[Dict]] = None,
+        glossary_hits: Optional[List[Dict]] = None,
+        concordance_hits: Optional[List[Dict]] = None,
+        kg_hits: Optional[List[Dict]] = None,
     ) -> Tuple[str, str]:
 
         with self._lock:  # Only allow one translation at a time on the GPU
             self._ensure_loaded()
+            assert self._model is not None and self._tokenizer is not None, (
+                "Model failed to load before translate()"
+            )
             from mlx_lm import generate
 
             user_content = []

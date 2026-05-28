@@ -6,8 +6,8 @@
            This can take up to a minute for heavy PDFs...
 
 🎉 [SUCCESS] Book imported and segmented successfully!
-             Project ID: 26011a43
+             Project ID: c85eb883
              Language Direction: EN->SL
-             Total Paragraphs Segments: 2802
-             Segmented metadata saved to: data/projects/26011a43.json
+             Total Paragraphs Segments: 1694
+             Segmented metadata saved to: data/projects/c85eb883.json
              Open localhost:8080 - the project is ready to translate with 1 click!

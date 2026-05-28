@@ -1,0 +1,34 @@
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.14"
+extraPaths = ["."]
+include = ["main.py", "ui", "translate_core", "inline_test"]
+exclude = [".venv", "**/__pycache__", "data", "scratch", ".gitnexus", ".pytest_cache", "kg_inspect.html"]
+
+typeCheckingMode = "basic"
+
+reportMissingImports = "warning"
+reportOptionalMemberAccess = "warning"
+reportAttributeAccessIssue = "warning"
+reportFunctionMemberAccess = "none"
+reportUnusedVariable = "none"
+reportPrivateUsage = "none"
+
+# basedpyright-only strict rules — silenced to keep NiceGUI-style code clean
+reportUnknownArgumentType = "none"
+reportUnknownMemberType = "none"
+reportUnknownParameterType = "none"
+reportUnknownVariableType = "none"
+reportUnknownLambdaType = "none"
+reportMissingParameterType = "none"
+reportMissingTypeStubs = "none"
+reportMissingTypeArgument = "none"
+reportUnusedCallResult = "none"
+reportAny = "none"
+reportExplicitAny = "none"
+reportImplicitOverride = "none"
+reportImplicitStringConcatenation = "none"
+reportUnannotatedClassAttribute = "none"
+reportUninitializedInstanceVariable = "none"
+reportImportCycles = "none"

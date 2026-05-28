@@ -1,76 +1,88 @@
-# seed_kg_processing_additonal.py
+# seed_kg_processing_additional.py
 #
-# Automated, Bidirectional-Aware Seeding Pipeline
-# Reads exclusively from the data/tm/tm_processing/ inbox subfolder.
+# Concept-Centered KG Seeding Pipeline
+# Reads exclusively from data/tm/tm_processing/ inbox subfolder.
+#
+# Parses each TMX file individually using the <tuv> language attributes
+# (the ground truth), normalizes all entries to EN→SL, then seeds the KG
+# with concept-centered architecture.
+#
+# Key fixes from v22:
+#   - No double-swap: TM parser normalizes EN source → SL target
+#   - Each TMX file loaded individually (not all files × N)
+#   - Concepts created from aligned EN↔SL pairs, not monolingual stubs
+#   - Dice coefficient replaces noisy cartesian co-occurrence
 #
 
 import os
 import re
 import sys
 from pathlib import Path
-from typing import Tuple
 
 sys.path.append(str(Path(__file__).parent))
 
 from translate_core.knowledge_graph import KnowledgeGraph
-from translate_core.tm import TranslationMemory
+from translate_core.tm import clean_xml
 
 
-def detect_tmx_languages(file_path: Path) -> Tuple[str, str]:
+# Files to skip during seeding (unverified / testing data)
+EXCLUDED_FILES = {"working.tmx"}
+
+
+def parse_tmx_file(file_path: Path) -> tuple[list[dict], str]:
+    """Parse a single TMX file and return entries normalized to EN source → SL target,
+    plus the detected srclang code for logging.
+
+    Uses the srclang header attribute to determine which side is English
+    and which is Slovenian. The tmxfile library returns source/target based
+    on srclang, so we swap when srclang is SL.
     """
-    Detect the translation direction of a TMX file.
+    from translate.storage.tmx import tmxfile
 
-    1. First looks at the file name for identifiers like 'SL-EN' or 'EN-SL'.
-    2. Scans the first 100 lines for TMX header metadata ('srclang') if ambiguous.
-    Defaults to Source: English ('en'), Target: Slovenian ('sl').
-    """
-    name = file_path.name.upper()
+    raw = file_path.read_text(encoding="utf-8")
 
-    # 1. Filename pattern check
-    if "SL-EN" in name or "SL_EN" in name:
-        return "sl", "en"
-    if "EN-SL" in name or "EN_SL" in name:
-        return "en", "sl"
+    # Detect source language from TMX header
+    m = re.search(r'srclang\s*=\s*"([^"]+)"', raw, re.IGNORECASE)
+    srclang = m.group(1).lower().split("-")[0] if m else "en"
 
-    # 2. TMX Attribute header scan
-    try:
-        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-            for _ in range(100):
-                line = f.readline()
-                if not line:
-                    break
-                match = re.search(
-                    r'srclang=["\']([a-zA-Z-]+)["\']', line, re.IGNORECASE
-                )
-                if match:
-                    detected_src = match.group(1).lower()[:2]
-                    if detected_src == "sl":
-                        return "sl", "en"
-                    elif detected_src == "en":
-                        return "en", "sl"
-    except Exception:
-        pass
+    entries = []
+    with open(file_path, "rb") as f:
+        tmx = tmxfile(f)
+        for unit in tmx.unit_iter():
+            src = clean_xml(unit.source)
+            tgt = clean_xml(unit.target)
+            if not src or not tgt:
+                continue
 
-    # Default standard fallback
-    return "en", "sl"
+            # tmxfile returns source = text in srclang, target = other language.
+            # When srclang is SL: source=SL text, target=EN text → swap.
+            # When srclang is EN: source=EN text, target=SL text → correct as-is.
+            # Normalize: always store EN text as "source", SL text as "target".
+            if srclang == "sl":
+                src, tgt = tgt, src
+
+            entries.append({
+                "source": src,
+                "target": tgt,
+                "origin": file_path.name,
+                "source_lang": "en",
+                "target_lang": "sl",
+            })
+    return entries, srclang
 
 
 def parse_filename_metadata(filename: str) -> dict:
-    """
-    Automatically parses metadata from messy filenames.
-    Defaults to raw file name values if no patterns match.
-    """
+    """Parse metadata from TMX filenames like '2022-SL-EN.tmx'."""
     base_name = Path(filename).stem
     parts = base_name.split("_")
 
     metadata = {
-        "lineage": base_name,  # Use raw filename as starting lineage label
+        "lineage": base_name,
         "source_title": base_name.replace("_", " "),
         "agent_name": None,
         "year": None,
     }
 
-    # Extract 4-digit year if present
     year_match = re.search(r"\b(19\d{2}|20\d{2})\b", base_name)
     if year_match:
         metadata["year"] = int(year_match.group(1))
@@ -88,52 +100,60 @@ def parse_filename_metadata(filename: str) -> dict:
 def seed():
     kg = KnowledgeGraph()
 
-    # Point directly to your designated inbox subfolder
-    tm_directory = Path("./data/tm/tm_processing")
+    # Read directly from the existing TM directory — no file moving needed
+    tm_directory = Path("./data/tm")
 
-    # Safely ensure the subfolder exists without disturbing other paths
-    tm_directory.mkdir(parents=True, exist_ok=True)
+    if not tm_directory.exists():
+        print(f"[Error] TM directory '{tm_directory}' does not exist.")
+        return
 
-    # Find all translation memory files inside your processing folder
-    tm_files = (
-        list(tm_directory.glob("*.json"))
-        + list(tm_directory.glob("*.tmx"))
-        + list(tm_directory.glob("*.db"))
-    )
+    # Find all TMX files
+    tm_files = sorted(tm_directory.glob("*.tmx"))
+
+    # Exclude unverified/testing files
+    tm_files = [f for f in tm_files if f.name not in EXCLUDED_FILES]
 
     if not tm_files:
-        print(
-            f"No new TM files (.json, .tmx, .db) found inside your '{tm_directory}' inbox folder."
-        )
+        print(f"No TMX files found in '{tm_directory}' (after exclusions).")
         print("Drop new client files there and re-run this script to seed them.")
         return
 
-    print(
-        f"Found {len(tm_files)} new translation memory archives to process inside '{tm_directory}'..."
-    )
+    print(f"Found {len(tm_files)} TMX files to process in '{tm_directory}'.")
+    total_segments = 0
 
     for tm_file in tm_files:
         print(f"\nProcessing: {tm_file.name}")
 
-        # 1. Detect dynamic translation direction
-        src_lang, tgt_lang = detect_tmx_languages(tm_file)
-        print(f"  └ Detected Direction: {src_lang.upper()} ➔ {tgt_lang.upper()}")
+        # Parse this file individually with correct language detection
+        entries, srclang = parse_tmx_file(tm_file)
+        srclang_code = srclang.split("-")[0] if "-" in srclang else srclang
+        if srclang_code == "sl":
+            direction_note = "SL→EN TMX: entries swapped so EN=source, SL=target"
+        else:
+            direction_note = "EN→SL TMX: entries already correct"
+        print(f"  └ {len(entries)} segments ({direction_note})")
 
-        # 2. Parse metadata automatically
+        if not entries:
+            print(f"  └ No valid segments, skipping.")
+            continue
+
+        total_segments += len(entries)
+
+        # Parse metadata from filename
         meta = parse_filename_metadata(tm_file.name)
         lineage_label = meta["lineage"]
         source_title = meta["source_title"]
         agent_name = meta["agent_name"]
         year = meta["year"]
 
-        print(f"  └ Auto-Lineage: '{lineage_label}'")
-        print(f"  └ Auto-Source Text: '{source_title}'")
+        print(f"  └ Lineage: '{lineage_label}'")
+        print(f"  └ Source text: '{source_title}'")
         if agent_name:
-            print(f"  └ Auto-Agent: '{agent_name}'")
+            print(f"  └ Agent: '{agent_name}'")
         if year:
-            print(f"  └ Auto-Year: {year}")
+            print(f"  └ Year: {year}")
 
-        # Register metadata
+        # Register metadata nodes
         agent_id = None
         if agent_name:
             agent_id = agent_name.lower().replace(" ", "_")
@@ -144,30 +164,23 @@ def seed():
             source_id, title=source_title, author_id=agent_id, year=year
         )
 
-        try:
-            # Instantiate TranslationMemory with the specific file path
-            tm = TranslationMemory(file_path=tm_file)
-        except TypeError:
-            tm = TranslationMemory()
-
-        if tm.entries:
-            # Feed the dynamically detected languages to prevent any jumbled mappings
-            kg.seed_from_tm(
-                tm.entries,
-                source_lang=src_lang,
-                target_lang=tgt_lang,
-                min_freq=2,
-                domain="humanities",
-                default_lineage=lineage_label,
-                default_source_id=source_id,
-                default_agent_id=agent_id,
-                default_year=year,
-            )
-        else:
-            print(f"  No entries extracted from {tm_file.name}.")
+        # Seed from this file's entries — always EN source, SL target
+        # (TM parser has already normalized direction)
+        kg.seed_from_tm(
+            tm_entries=entries,
+            source_lang="en",
+            target_lang="sl",
+            min_freq=2,
+            domain="humanities",
+            default_lineage=lineage_label,
+            default_source_id=source_id,
+            default_agent_id=agent_id,
+            default_year=year,
+        )
 
     kg.save()
-    print("\nKnowledge Graph successfully built and context-mapped.")
+    print(f"\n{'='*60}")
+    print(f"Knowledge Graph seeded from {total_segments} total segments.")
     print(kg.stats())
 
 

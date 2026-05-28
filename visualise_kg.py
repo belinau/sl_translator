@@ -313,179 +313,139 @@ html = f"""<!DOCTYPE html>
     color: var(--text);
     font-family: var(--font-ui);
     display: flex;
+    flex-direction: column;
     height: 100vh;
     overflow: hidden;
   }}
 
-  /* ---- Sidebar ---- */
-  #sidebar {{
-    width: 310px;
-    min-width: 310px;
+  /* ---- Top Bar ---- */
+  #topbar {{
     background: var(--surface);
-    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
     display: flex;
-    flex-direction: column;
-    overflow: hidden;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 20px;
+    flex-shrink: 0;
     z-index: 10;
   }}
 
-  #sidebar-header {{
-    padding: 20px 20px 14px;
-    border-bottom: 1px solid var(--border);
+  #topbar-title {{
+    display: flex;
+    flex-direction: column;
+    margin-right: 8px;
+    flex-shrink: 0;
   }}
 
-  #sidebar-header h1 {{
+  #topbar-title h1 {{
     font-size: 11px;
     font-weight: 800;
     letter-spacing: .25em;
     text-transform: uppercase;
     color: var(--text-dim);
-    margin-bottom: 4px;
+    line-height: 1.2;
   }}
 
-  #sidebar-header p {{
-    font-size: 10px;
+  #topbar-title p {{
+    font-size: 9px;
     color: var(--text-muted);
     font-family: var(--font-mono);
   }}
 
-  #controls {{
-    padding: 14px 16px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+  .topbar-sep {{
+    width: 1px;
+    height: 28px;
+    background: var(--border);
+    flex-shrink: 0;
   }}
 
-  .control-group label {{
-    display: block;
+  .topbar-group {{
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }}
+
+  .topbar-group label {{
     font-size: 9px;
     font-weight: 700;
-    letter-spacing: .15em;
+    letter-spacing: .12em;
     text-transform: uppercase;
     color: var(--text-muted);
-    margin-bottom: 5px;
+    white-space: nowrap;
   }}
 
-  .control-group input[type=range] {{
-    width: 100%;
-    accent-color: var(--accent-en);
-  }}
-
-  .control-group input[type=text] {{
-    width: 100%;
+  #search-input {{
     background: var(--surface2);
     border: 1px solid var(--border);
     color: var(--text);
-    padding: 6px 10px;
+    padding: 5px 10px;
     font-size: 12px;
     font-family: var(--font-mono);
     border-radius: 6px;
     outline: none;
+    width: 180px;
   }}
-
-  .control-group input[type=text]:focus {{
-    border-color: var(--accent-en);
-  }}
+  #search-input:focus {{ border-color: var(--accent-en); }}
 
   .filter-pills {{
     display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
+    flex-wrap: nowrap;
+    gap: 4px;
   }}
 
-  .pill {{
-    font-size: 10px;
-    font-weight: 700;
-    padding: 3px 10px;
-    border-radius: 999px;
-    border: 1px solid var(--border);
-    cursor: pointer;
-    transition: all .15s;
-    background: var(--surface2);
-    color: var(--text-dim);
-    letter-spacing: .05em;
+  #strength-slider {{
+    width: 80px;
+    accent-color: var(--accent-en);
   }}
 
-  .pill.active {{
-    color: #fff;
-    border-color: transparent;
-  }}
-
-  .pill[data-lang="en"].active {{ background: var(--accent-en); }}
-  .pill[data-lang="sl"].active {{ background: var(--accent-sl); }}
-  .pill[data-lang="all"].active {{ background: #475569; }}
-  .pill[data-type="phrases"].active {{ background: #7c3aed; }}
-
-  #stats {{
-    padding: 14px 16px;
-    border-bottom: 1px solid var(--border);
+  #stat-bar {{
     display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }}
-
-  .stat-row {{
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }}
-
-  .stat-label {{
+    gap: 14px;
     font-size: 10px;
-    color: var(--text-dim);
-    letter-spacing: .05em;
-  }}
-
-  .stat-value {{
-    font-size: 11px;
-    font-weight: 700;
     font-family: var(--font-mono);
-    color: var(--text);
+    color: var(--text-dim);
+    margin-left: auto;
+    flex-shrink: 0;
   }}
 
-  .stat-section-label {{
-    font-size: 9px;
-    font-weight: 800;
-    letter-spacing: .2em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    margin-top: 4px;
-    padding-top: 8px;
-    border-top: 1px solid var(--border);
+  .stat-chip {{
+    display: flex;
+    align-items: center;
+    gap: 4px;
   }}
 
-  #node-detail {{
-    flex: 1;
+  .stat-chip .stat-label {{ color: var(--text-muted); }}
+  .stat-chip .stat-value {{ color: var(--text); font-weight: 700; }}
+
+  /* ---- Detail Panel (collapsible, below topbar) ---- */
+  #detail-bar {{
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    max-height: 120px;
     overflow-y: auto;
-    padding: 14px 16px;
+    padding: 8px 20px;
+    flex-shrink: 0;
   }}
 
-  #node-detail::-webkit-scrollbar {{ width: 4px; }}
-  #node-detail::-webkit-scrollbar-track {{ background: transparent; }}
-  #node-detail::-webkit-scrollbar-thumb {{ background: var(--border); border-radius: 2px; }}
+  #detail-bar:empty {{ display: none; }}
 
-  .detail-empty {{
-    color: var(--text-muted);
-    font-size: 11px;
-    font-style: italic;
-    margin-top: 8px;
-    line-height: 1.6;
-  }}
+  #detail-bar::-webkit-scrollbar {{ width: 4px; }}
+  #detail-bar::-webkit-scrollbar-track {{ background: transparent; }}
+  #detail-bar::-webkit-scrollbar-thumb {{ background: var(--border); border-radius: 2px; }}
 
   .detail-term {{
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 800;
     color: var(--text);
-    margin-bottom: 4px;
-    word-break: break-word;
+    display: inline;
   }}
 
   .detail-meta {{
     font-size: 10px;
     font-family: var(--font-mono);
-    color: var(--text-muted);
-    margin-bottom: 12px;
+    color: var(--text-dim);
+    display: inline;
+    margin-left: 8px;
   }}
 
   .detail-section {{
@@ -494,26 +454,27 @@ html = f"""<!DOCTYPE html>
     letter-spacing: .2em;
     text-transform: uppercase;
     color: var(--text-muted);
-    margin: 12px 0 6px;
-    padding-bottom: 4px;
-    border-bottom: 1px solid var(--border);
+    margin: 6px 0 4px;
   }}
 
   .translation-chip {{
     background: var(--surface2);
     border: 1px solid var(--border);
     border-radius: 6px;
-    padding: 6px 10px;
+    padding: 4px 8px;
     font-size: 11px;
-    margin-bottom: 6px;
+    display: inline-block;
+    margin: 2px 4px 2px 0;
   }}
 
   .conf-bar {{
     height: 3px;
     border-radius: 2px;
     background: var(--border);
-    margin-top: 5px;
-    width: 100%;
+    margin-top: 3px;
+    width: 60px;
+    display: inline-block;
+    vertical-align: middle;
   }}
   .conf-fill {{
     height: 100%;
@@ -607,6 +568,29 @@ html = f"""<!DOCTYPE html>
   }}
 
   /* Buttons */
+  .pill {{
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all .15s;
+    background: var(--surface2);
+    color: var(--text-dim);
+    letter-spacing: .05em;
+  }}
+
+  .pill.active {{
+    color: #fff;
+    border-color: transparent;
+  }}
+
+  .pill[data-lang="en"].active {{ background: var(--accent-en); }}
+  .pill[data-lang="sl"].active {{ background: var(--accent-sl); }}
+  .pill[data-lang="all"].active {{ background: #475569; }}
+  .pill[data-type="phrases"].active {{ background: #7c3aed; }}
+
   .btn {{
     background: var(--surface2);
     border: 1px solid var(--border);
@@ -633,47 +617,47 @@ html = f"""<!DOCTYPE html>
 </head>
 <body>
 
-<div id="sidebar">
-  <div id="sidebar-header">
+<div id="topbar">
+  <div id="topbar-title">
     <h1>KG Inspector</h1>
-    <p>Zen Translator · Knowledge Graph</p>
+    <p>Zen Translator</p>
   </div>
-
-  <div id="controls">
-    <div class="control-group">
-      <label>Search nodes</label>
-      <input type="text" id="search-input" placeholder="filter by term…">
-    </div>
-    <div class="control-group">
-      <label>Language Filter</label>
-      <div class="filter-pills" id="lang-filter">
-        <span class="pill active" data-lang="all">ALL</span>
-      </div>
-    </div>
-    <div class="control-group">
-      <label>Options</label>
-      <div class="filter-pills">
-        <span class="pill active" id="pill-phrases" data-type="phrases">Phrases only</span>
-      </div>
-    </div>
-    <div class="control-group">
-      <label>Link strength <span id="strength-val">-30</span></label>
-      <input type="range" id="strength-slider" min="-200" max="-5" value="-30" step="5">
-    </div>
-    <div id="btn-row">
-      <button class="btn" id="btn-reheat">Reheat ↺</button>
-      <button class="btn" id="btn-reset-zoom">Reset zoom</button>
-      <button class="btn" id="btn-pin-all">Unpin all</button>
+  <div class="topbar-sep"></div>
+  <div class="topbar-group">
+    <label>Search</label>
+    <input type="text" id="search-input" placeholder="filter by term…">
+  </div>
+  <div class="topbar-group">
+    <label>Lang</label>
+    <div class="filter-pills" id="lang-filter">
+      <span class="pill active" data-lang="all">ALL</span>
     </div>
   </div>
-
-  <div id="stats"></div>
-
-  <div id="node-detail">
-    <p class="detail-empty">Click a node to inspect it.<br><br>
-    Drag to reposition. Scroll to zoom.<br>
-    Shift+click to pin/unpin a node.</p>
+  <div class="topbar-group">
+    <label>Phrases</label>
+    <div class="filter-pills">
+      <span class="pill active" id="pill-phrases" data-type="phrases">ON</span>
+    </div>
   </div>
+  <div class="topbar-group">
+    <label>Strength <span id="strength-val">-30</span></label>
+    <input type="range" id="strength-slider" min="-200" max="-5" value="-30" step="5">
+  </div>
+  <div id="btn-row">
+    <button class="btn" id="btn-reheat">Reheat</button>
+    <button class="btn" id="btn-reset-zoom">Fit</button>
+    <button class="btn" id="btn-pin-all">Unpin</button>
+  </div>
+  <div class="topbar-sep"></div>
+  <div id="stat-bar">
+    <div class="stat-chip"><span class="stat-label">Nodes</span> <span class="stat-value" id="stat-live-nodes">–</span></div>
+    <div class="stat-chip"><span class="stat-label">Edges</span> <span class="stat-value" id="stat-live-edges">–</span></div>
+    <div class="stat-chip"><span class="stat-label">Total</span> <span class="stat-value">{len(all_selected)} nodes / {len(selected_edges)} edges</span></div>
+  </div>
+</div>
+
+<div id="detail-bar">
+  <p class="detail-empty">Click a node to inspect it. Drag to reposition. Scroll to zoom. Shift+click to pin.</p>
 </div>
 
 <div id="graph-wrap">
@@ -695,30 +679,10 @@ const AGENT_COLOR = "#f97316";
 const SOURCE_COLOR = "#06b6d4";
 
 // ============================================================
-// SIDEBAR STATS
+// TOP BAR STATS (static, from initial load)
 // ============================================================
-function renderStats() {{
-  const el = document.getElementById('stats');
-  el.innerHTML = `
-    <div class="stat-section-label">Graph Overview</div>
-    ${{statRow('Total KG Nodes', STATS.total_nodes_in_kg.toLocaleString())}}
-    ${{statRow('Total KG Edges', STATS.total_edges_in_kg.toLocaleString())}}
-    ${{statRow('Visible Nodes', STATS.showing_nodes)}}
-    ${{statRow('Visible Edges', STATS.showing_edges)}}
-    <div class="stat-section-label">By Structural Type</div>
-    ${{statRow('Terms (Nodes)', STATS.term_nodes)}}
-    ${{statRow('Mappings (Lineages)', STATS.mapping_nodes)}}
-    ${{statRow('Concepts (Philosophy)', STATS.concept_nodes)}}
-    ${{statRow('Agents (Authors)', STATS.agent_nodes)}}
-    ${{statRow('Sources (Books)', STATS.source_nodes)}}
-  `;
-}}
-
-function statRow(label, value) {{
-  return `<div class="stat-row"><span class="stat-label">${{label}}</span><span class="stat-value">${{value}}</span></div>`;
-}}
-
-renderStats();
+// Stats are rendered inline in the HTML above.
+// Live node/edge counts are updated by buildGraph().
 
 // ============================================================
 // LANG FILTER PILLS
@@ -955,7 +919,7 @@ svg.on('click', function(event) {{
     g.selectAll('.node-g circle').attr('opacity', 1);
     g.selectAll('.links line').attr('stroke-opacity', 0.5);
     g.selectAll('.node-g text').style('display', d => d.size > 6 ? 'block' : 'none');
-    document.getElementById('node-detail').innerHTML =
+    document.getElementById('detail-bar').innerHTML =
       '<p class="detail-empty">Click a node to inspect it.</p>';
   }}
 }});
@@ -969,7 +933,7 @@ function moveTooltip(event) {{
 
 // ---- Node detail panel ----
 function renderDetail(d, fn, fl) {{
-  const el = document.getElementById('node-detail');
+  const el = document.getElementById('detail-bar');
 
   if (d.type === 'term') {{
     const mappings = [];
@@ -1155,16 +1119,11 @@ function renderDetail(d, fn, fl) {{
 // ============================================================
 // FILTERS & CONTROLS
 // ============================================================
-document.getElementById('stats').insertAdjacentHTML('beforeend', `
-  <div class="stat-section-label">Current View</div>
-  <div class="stat-row"><span class="stat-label">Visible Nodes</span><span class="stat-value" id="stat-live-nodes">–</span></div>
-  <div class="stat-row"><span class="stat-label">Visible Edges</span><span class="stat-value" id="stat-live-edges">–</span></div>
-`);
 
 function rebuildGraph() {{
   buildGraph();
   selectedNode = null;
-  document.getElementById('node-detail').innerHTML =
+  document.getElementById('detail-bar').innerHTML =
     '<p class="detail-empty">Click a node to inspect it.</p>';
 }}
 

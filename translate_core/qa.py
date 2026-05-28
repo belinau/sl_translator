@@ -1,13 +1,13 @@
 # translate_core/qa.py
 
 import re
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 class QAEngine:
     def __init__(self):
         pass
 
-    def check_segment(self, source: str, target: str, glossary_hits: List[Dict] = None) -> List[Dict]:
+    def check_segment(self, source: str, target: str, glossary_hits: Optional[List[Dict]] = None) -> List[Dict]:
         """
         Runs multiple QA checks on a segment.
         Returns a list of warnings: {"type": "warning|error", "message": "..."}

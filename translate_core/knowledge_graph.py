@@ -26,6 +26,7 @@ try:
 
     HAS_SPACY = True
 except ImportError:
+    spacy = None  # type: ignore[assignment]
     HAS_SPACY = False
 
 try:
@@ -33,6 +34,7 @@ try:
 
     HAS_CLASSLA = True
 except ImportError:
+    classla = None  # type: ignore[assignment]
     HAS_CLASSLA = False
 
 try:
@@ -40,6 +42,7 @@ try:
 
     HAS_STANZA = True
 except ImportError:
+    stanza = None  # type: ignore[assignment]
     HAS_STANZA = False
 
 # Optional imports
@@ -52,6 +55,11 @@ try:
 
     HAS_PYVIS = True
 except ImportError:
+    Path = None  # type: ignore[assignment,misc]
+    pyvis = None  # type: ignore[assignment]
+    Environment = None  # type: ignore[assignment,misc]
+    FileSystemLoader = None  # type: ignore[assignment,misc]
+    Network = None  # type: ignore[assignment,misc]
     HAS_PYVIS = False
 
 # ---------------------------------------------------------------------------
@@ -207,7 +215,7 @@ class KnowledgeGraph:
         self.nlp_en = None
         self.nlp_sl = None
 
-        if HAS_SPACY:
+        if HAS_SPACY and spacy is not None:
             try:
                 print("[KG] Loading English model (Spacy)...")
                 self.nlp_en = spacy.load("en_core_web_sm", disable=["ner"])
@@ -216,7 +224,7 @@ class KnowledgeGraph:
                     f"[KG Warning] English model missing. Run: python -m spacy download en_core_web_sm. ({e})"
                 )
 
-        if HAS_CLASSLA:
+        if HAS_CLASSLA and classla is not None:
             try:
                 print("[KG] Loading Slovenian model (Classla)...")
                 self.nlp_sl = classla.Pipeline(
@@ -227,7 +235,7 @@ class KnowledgeGraph:
                 )
             except Exception as e:
                 print(f"[KG Warning] Classla failed: {e}")
-        elif HAS_STANZA:
+        elif HAS_STANZA and stanza is not None:
             try:
                 print("[KG] Loading Slovenian model (Stanza fallback)...")
 
@@ -337,8 +345,8 @@ class KnowledgeGraph:
         self,
         text_id: str,
         title: str,
-        author_id: str = None,
-        year: int = None,
+        author_id: Optional[str] = None,
+        year: Optional[int] = None,
         **kwargs,
     ) -> str:
         node_id = f"source:{text_id.lower()}"
@@ -399,11 +407,11 @@ class KnowledgeGraph:
         self,
         term: str,
         lang: str,
-        concept_id: str = None,
+        concept_id: Optional[str] = None,
         is_phrase: bool = False,
-        display_form: str = None,
+        display_form: Optional[str] = None,
         is_animate: bool = False,
-        gender_strategies: Dict[str, str] = None,
+        gender_strategies: Optional[Dict[str, str]] = None,
         **kwargs,
     ) -> str:
         node_id = f"term:{lang}:{term.lower()}"
@@ -415,7 +423,7 @@ class KnowledgeGraph:
                 is_animate = True
 
         if not self.G.has_node(node_id):
-            node_data = dict(
+            node_data: Dict[str, Any] = dict(
                 id=node_id,
                 type="term",
                 term=term,
@@ -480,7 +488,7 @@ class KnowledgeGraph:
         self,
         phrase: str,
         lang: str,
-        component_ids: List[str] = None,
+        component_ids: Optional[List[str]] = None,
         domain: str = "",
         frequency: int = 1,
     ) -> str:
@@ -547,10 +555,10 @@ class KnowledgeGraph:
         confidence: float = 0.8,
         lineage: str = "general",
         register: str = "academic",
-        gloss: str = None,
-        source_text_id: str = None,
-        agent_id: str = None,
-        year: int = None,
+        gloss: Optional[str] = None,
+        source_text_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
+        year: Optional[int] = None,
         verified: bool = False,
     ) -> str:
         if not (self.G.has_node(src_term_id) and self.G.has_node(tgt_term_id)):
@@ -620,8 +628,8 @@ class KnowledgeGraph:
         confidence: float = 0.8,
         verified: bool = False,
         provenance: str = "auto",
-        context: str = None,
-        validated_by: str = None,
+        context: Optional[str] = None,
+        validated_by: Optional[str] = None,
     ):
         self.link_translations_with_context(
             src_term_id=src_term_id,
@@ -642,7 +650,7 @@ class KnowledgeGraph:
             self._exact_kp.add_keyword(variant, term_id)
 
     # ------------------------------------------------------------------
-    # SEEDING: Bidirectional Language-Direction Aware Seeding Logic
+    # SEEDING: Concept-Centered Bilingual Seeding
     # ------------------------------------------------------------------
     def seed_from_tm(
         self,
@@ -653,11 +661,20 @@ class KnowledgeGraph:
         max_phrases: int = 15000,
         domain: str = "",
         default_lineage: str = "general",
-        default_source_id: str = None,
-        default_agent_id: str = None,
-        default_year: int = None,
-        lineage_rules: Dict[str, Dict[str, str]] = None,
+        default_source_id: Optional[str] = None,
+        default_agent_id: Optional[str] = None,
+        default_year: Optional[int] = None,
+        lineage_rules: Optional[Dict[str, Dict[str, str]]] = None,
     ):
+        """Seed the KG from TM entries.
+
+        The TM parser (tm.py / parse_tmx_file) has already normalized all
+        entries so that ``source`` is always English text and ``target`` is
+        always Slovenian text, regardless of the original TMX direction.
+        We MUST NOT re-swap based on source_lang / target_lang — those
+        parameters are kept for API compatibility but the data flow is
+        always EN→SL.
+        """
         if not HAS_SPACY or not self.nlp_en:
             print("[KG ERROR] Spacy (EN) missing.")
             return
@@ -666,23 +683,22 @@ class KnowledgeGraph:
             return
 
         print(
-            f"[KG] Analytical Seeding ({source_lang.upper()} -> {target_lang.upper()}) on {len(tm_entries)} segments..."
+            f"[KG] Concept-Centered Seeding (EN→SL) on {len(tm_entries)} segments..."
         )
+
+        # ── NLP Phase: extract phrases from both languages ────────────
 
         en_counts: Counter = Counter()
         sl_lemma_counts: Counter = Counter()
         sl_surface_counts: Dict[str, Counter] = defaultdict(Counter)
         gender_profiles_found: Dict[str, Dict[str, str]] = defaultdict(dict)
 
-        if source_lang == "en":
-            texts_en = [e.get("source", "") for e in tm_entries]
-            texts_sl = [e.get("target", "") for e in tm_entries]
-        else:
-            texts_en = [e.get("target", "") for e in tm_entries]
-            texts_sl = [e.get("source", "") for e in tm_entries]
+        # Entries are always EN source, SL target (normalized by parser)
+        texts_en = [e.get("source", "") for e in tm_entries]
+        texts_sl = [e.get("target", "") for e in tm_entries]
 
         # 1. English NLP Analysis (SpaCy)
-        print("  [1/2] Parsing English Segments...")
+        print("  [1/3] Parsing English Segments...")
         for doc in self.nlp_en.pipe(texts_en, batch_size=1000):
             for chunk in doc.noun_chunks:
                 start_index = 0
@@ -711,10 +727,10 @@ class KnowledgeGraph:
                     if gram not in en_counts:
                         en_counts[gram] += 1
 
-        # 2. Slovenian NLP Analysis with Optimized Batched Execution
+        # 2. Slovenian NLP Analysis (batched)
         CHUNK_SIZE = 200
         print(
-            f"  [2/2] Parsing Slovenian Segments (Protecting Inflective Marks in batches of {CHUNK_SIZE})..."
+            f"  [2/3] Parsing Slovenian Segments (batches of {CHUNK_SIZE})..."
         )
 
         for chunk_idx in range(0, len(texts_sl), CHUNK_SIZE):
@@ -752,7 +768,8 @@ class KnowledgeGraph:
                         gender_profiles_found[lemma_form].update(profile)
             except Exception as e:
                 print(
-                    f"\n[KG Warning] Batch at index {chunk_idx} failed, falling back to sequential processing: {e}"
+                    f"\n[KG Warning] Batch at index {chunk_idx} failed, "
+                    f"falling back to sequential: {e}"
                 )
                 for raw_text in chunk:
                     protected_text, mappings_single = self._protect_gender_tokens(
@@ -780,11 +797,11 @@ class KnowledgeGraph:
                         pass
 
             print(
-                f"    Processed Slovenian segments: {min(chunk_idx + CHUNK_SIZE, len(texts_sl))}/{len(texts_sl)}...",
+                f"    Processed SL segments: {min(chunk_idx + CHUNK_SIZE, len(texts_sl))}/{len(texts_sl)}...",
                 end="\r",
             )
 
-        print("\n[KG] Organizing mappings and linking contextual nodes...")
+        # ── Filtering: keep only significant phrases ──────────────────
 
         en_significant = [p for p, c in en_counts.items() if c >= min_freq]
         sl_significant = [
@@ -808,26 +825,37 @@ class KnowledgeGraph:
         for p in sl_significant:
             sl_kp.add_keyword(p)
 
-        cooccur: Counter = Counter()
-        src_cooccur_total: Counter = Counter()
+        # ── Co-occurrence with Dice coefficient ────────────────────────
+        #
+        # Instead of cartesian product (every EN × every SL per segment),
+        # we count segment-level co-occurrence and use the Dice coefficient
+        # for confidence scoring. This eliminates the noise that comes from
+        # pairing every phrase with every other phrase in the same segment.
+        #
+        #   Dice(A, B) = 2 × |segments_with_both| / (|segments_with_A| + |segments_with_B|)
+        #
+        # A pair that always appears together scores 1.0. A frequent word
+        # that co-occurs with everything scores near 0.
+
+        print("\n  [3/3] Building concept-centered graph with Dice scoring...")
+
+        pair_count: Counter = Counter()      # (en_id, sl_id) → segment count
+        en_seg_count: Counter = Counter()     # en_id → segment count
+        sl_seg_count: Counter = Counter()     # sl_id → segment count
 
         for i, entry in enumerate(tm_entries):
-            src_text = entry.get("source", "").lower()
-            tgt_text = entry.get("target", "").lower()
-
-            en_text = src_text if source_lang == "en" else tgt_text
-            sl_text = tgt_text if source_lang == "en" else src_text
+            en_text = entry.get("source", "").lower()
+            sl_text = entry.get("target", "").lower()
 
             found_en = en_kp.extract_keywords(en_text)
             found_sl = sl_kp.extract_keywords(sl_text)
 
+            # Create term nodes and collect IDs for this segment
             en_ids = []
             for phrase in found_en:
-                cid = self.add_concept_node(
-                    f"concept:{phrase.replace(' ', '_')}", label=phrase, domain=domain
-                )
-                tid = self.add_term_node(phrase, "en", concept_id=cid, is_phrase=True)
+                tid = self.add_term_node(phrase, "en", is_phrase=True)
                 en_ids.append(tid)
+                en_seg_count[tid] += 1
 
             sl_ids = []
             for lemma in found_sl:
@@ -842,53 +870,83 @@ class KnowledgeGraph:
                     gender_strategies=gender_profiles_found.get(lemma, {}),
                 )
                 sl_ids.append(tid)
+                sl_seg_count[tid] += 1
 
-            if source_lang == "en":
-                for s in en_ids:
-                    for t in sl_ids:
-                        cooccur[(s, t)] += 1
-                        src_cooccur_total[s] += 1
-            else:
-                for s in sl_ids:
-                    for t in en_ids:
-                        cooccur[(s, t)] += 1
-                        src_cooccur_total[s] += 1
+            # Only pair EN terms with SL terms found in the same segment.
+            # Confidence will be computed via Dice coefficient later.
+            for s in en_ids:
+                for t in sl_ids:
+                    pair_count[(s, t)] += 1
 
-        for (s, t), count in cooccur.items():
-            if count >= min_freq:
-                total = max(1, src_cooccur_total[s])
+        # ── Create concept + mapping edges with Dice confidence ────────
 
-                src_term_text = self.G.nodes[s].get("term", "")
-                tgt_term_text = self.G.nodes[t].get("term", "")
+        for (s, t), count in pair_count.items():
+            if count < min_freq:
+                continue
 
-                current_lineage = default_lineage
-                current_source_id = default_source_id
-                current_agent_id = default_agent_id
-                current_year = default_year
+            s_total = en_seg_count.get(s, 0)
+            t_total = sl_seg_count.get(t, 0)
+            if s_total == 0 or t_total == 0:
+                continue
 
-                combined_text_lower = f"{src_term_text} {tgt_term_text}".lower()
-                if lineage_rules:
-                    for keyword, overrides in lineage_rules.items():
-                        if keyword.lower() in combined_text_lower:
-                            if "lineage" in overrides:
-                                current_lineage = overrides["lineage"]
-                            if "source_id" in overrides:
-                                current_source_id = overrides["source_id"]
-                            if "agent_id" in overrides:
-                                current_agent_id = overrides["agent_id"]
-                            if "year" in overrides:
-                                current_year = overrides["year"]
-                            break
+            # Dice coefficient: 0.0–1.0, higher = more exclusive pairing
+            dice = (2.0 * count) / (s_total + t_total)
 
-                self.link_translations_with_context(
-                    src_term_id=s,
-                    tgt_term_id=t,
-                    confidence=min(0.95, count / total),
-                    lineage=current_lineage,
-                    source_text_id=current_source_id,
-                    agent_id=current_agent_id,
-                    year=current_year,
-                )
+            # Skip noise: pairs that co-occur but aren't meaningfully related
+            if dice < 0.05:
+                continue
+
+            src_term_text = self.G.nodes[s].get("term", "")
+            tgt_term_text = self.G.nodes[t].get("term", "")
+
+            current_lineage = default_lineage
+            current_source_id = default_source_id
+            current_agent_id = default_agent_id
+            current_year = default_year
+
+            combined_text_lower = f"{src_term_text} {tgt_term_text}".lower()
+            if lineage_rules:
+                for keyword, overrides in lineage_rules.items():
+                    if keyword.lower() in combined_text_lower:
+                        if "lineage" in overrides:
+                            current_lineage = overrides["lineage"]
+                        if "source_id" in overrides:
+                            current_source_id = overrides["source_id"]
+                        if "agent_id" in overrides:
+                            current_agent_id = overrides["agent_id"]
+                        if "year" in overrides:
+                            try:
+                                current_year = int(overrides["year"])
+                            except (TypeError, ValueError):
+                                current_year = default_year
+                        break
+
+            # ── Create a concept node for this translation pair ────
+            # Both EN and SL terms link to the SAME concept, so
+            # _related_via_concept() can find cross-language siblings.
+            concept_label = src_term_text
+            concept_id = self.add_concept_node(
+                f"concept:{concept_label.replace(' ', '_')}",
+                label=concept_label,
+                domain=domain,
+            )
+            # Link EN term → concept
+            if not self.G.has_edge(s, concept_id):
+                self.G.add_edge(s, concept_id, relation="instantiates_concept")
+            # Link SL term → concept
+            if not self.G.has_edge(t, concept_id):
+                self.G.add_edge(t, concept_id, relation="instantiates_concept")
+
+            # Create translation mapping with Dice-based confidence
+            self.link_translations_with_context(
+                src_term_id=s,
+                tgt_term_id=t,
+                confidence=min(0.95, dice),
+                lineage=current_lineage,
+                source_text_id=current_source_id,
+                agent_id=current_agent_id,
+                year=current_year,
+            )
 
         print(
             f"\n[KG] Seeding complete: Graph contains {self.G.number_of_nodes()} nodes."
@@ -1063,30 +1121,133 @@ class KnowledgeGraph:
         return segments
 
     # ------------------------------------------------------------------
-    # Visualization
+    # Visualization: Concept Relations Graph
     # ------------------------------------------------------------------
-    def visualize(self, output_path: str = "kg_visualization.html", limit: int = 100):
+    def visualize(self, output_path: str = "kg_visualization.html", limit: int = 80, min_confidence: float = 0.15):
+        """Render an interactive concept-to-concept relation graph.
+
+        Each concept is a single node. Two concepts are connected when an EN term
+        under one concept has a high-confidence mapping to an SL term under the
+        other concept. Node size reflects how many bilingual connections the
+        concept has. Color indicates domain.
+        """
         if not HAS_PYVIS:
-            print(
-                "[KG] Visualization requires 'pyvis'. Install with: pip install pyvis"
-            )
+            print("[KG] Visualization requires 'pyvis'. Install with: pip install pyvis")
+            return
+        assert (
+            Network is not None
+            and Path is not None
+            and pyvis is not None
+            and Environment is not None
+            and FileSystemLoader is not None
+        ), "HAS_PYVIS is True but optional symbols are unbound"
+
+        # ── Build concept → terms lookup ──
+        concept_terms: Dict[str, Dict[str, List[str]]] = {}
+        # {concept_id: {"en": [term_id, ...], "sl": [term_id, ...]}}
+        for nid, nd in self.G.nodes(data=True):
+            if nd.get("type") != "concept":
+                continue
+            concept_terms[nid] = {"en": [], "sl": []}
+
+        for term_id, cid, d in self.G.edges(data=True):
+            if d.get("relation") != "instantiates_concept":
+                continue
+            if cid not in concept_terms:
+                continue
+            lang = self.G.nodes[term_id].get("lang", "")
+            if lang in ("en", "sl"):
+                concept_terms[cid][lang].append(term_id)
+
+        # ── Find cross-concept relations via mappings ──
+        # A mapping from an EN term under concept A to an SL term under concept B
+        # creates a relation edge A → B.
+        concept_relations: Dict[tuple, Dict] = {}  # (src_concept, tgt_concept) → metadata
+
+        # Reverse lookup: term → concept
+        term_to_concept: Dict[str, str] = {}
+        for cid, langs in concept_terms.items():
+            for lang in ("en", "sl"):
+                for tid in langs[lang]:
+                    term_to_concept[tid] = cid
+
+        for nid, nd in self.G.nodes(data=True):
+            if nd.get("type") != "translation_mapping":
+                continue
+            if nd.get("confidence", 0) < min_confidence:
+                continue
+
+            # Find source EN term and target SL term
+            src_term = None
+            tgt_term = None
+            for pred in self.G.predecessors(nid):
+                if self.G.edges[pred, nid].get("relation") == "has_mapping":
+                    src_term = pred
+            for succ in self.G.successors(nid):
+                if self.G.edges[nid, succ].get("relation") == "maps_to":
+                    tgt_term = succ
+
+            if not src_term or not tgt_term:
+                continue
+
+            src_concept = term_to_concept.get(src_term)
+            tgt_concept = term_to_concept.get(tgt_term)
+            if not src_concept or not tgt_concept:
+                continue
+
+            key = (src_concept, tgt_concept)
+            if key not in concept_relations or nd["confidence"] > concept_relations[key].get("confidence", 0):
+                concept_relations[key] = {
+                    "confidence": nd.get("confidence", 0),
+                    "lineage": nd.get("lineage", ""),
+                    "verified": nd.get("verified", False),
+                }
+
+        # ── Also add rhizomatic concept→concept edges ──
+        for u, v, d in self.G.edges(data=True):
+            if d.get("relation") in ("extends", "critiques", "redefines", "reappropriates", "related_to"):
+                if u in concept_terms and v in concept_terms:
+                    key = (u, v)
+                    if key not in concept_relations:
+                        concept_relations[key] = {"confidence": 1.0, "lineage": d.get("relation", ""), "verified": True}
+
+        # ── Score concepts by number of high-conf connections ──
+        concept_scores: Dict[str, int] = {}
+        for (ca, cb), meta in concept_relations.items():
+            concept_scores[ca] = concept_scores.get(ca, 0) + 1
+            concept_scores[cb] = concept_scores.get(cb, 0) + 1
+
+        # Also count concepts with terms even if no cross-relation
+        for cid in concept_terms:
+            if cid not in concept_scores:
+                en_count = len(concept_terms[cid]["en"])
+                sl_count = len(concept_terms[cid]["sl"])
+                if en_count > 0 and sl_count > 0:
+                    concept_scores[cid] = en_count + sl_count
+
+        # Take top concepts
+        top_concepts = sorted(concept_scores, key=concept_scores.get, reverse=True)[:limit]
+        top_set = set(top_concepts)
+
+        if not top_concepts:
+            print("[KG] No concepts with qualifying mappings found to visualize.")
             return
 
-        print(f"[KG] Visualizing top {limit} concepts...")
-        nodes = [
-            n
-            for n, d in self.G.nodes(data=True)
-            if d.get("type") == "term" and d.get("is_phrase")
-        ]
-        nodes = sorted(
-            nodes, key=lambda n: self.G.nodes[n].get("frequency", 0), reverse=True
-        )[:limit]
+        print(f"[KG] Visualizing {len(top_concepts)} concepts (confidence >= {min_confidence})...")
 
-        if not nodes:
-            print("[KG] No terms found to visualize.")
-            return
+        # ── Build concept-only graph ──
+        sub_g = nx.DiGraph()
+        for cid in top_concepts:
+            nd = self.G.nodes[cid]
+            sub_g.add_node(cid, **nd)
 
-        sub_g = self.G.subgraph(nodes)
+        edge_count = 0
+        for (ca, cb), meta in concept_relations.items():
+            if ca in top_set and cb in top_set:
+                sub_g.add_edge(ca, cb, **meta)
+                edge_count += 1
+
+        # ── Style ──
         net = Network(
             height="900px",
             width="100%",
@@ -1106,15 +1267,48 @@ class KnowledgeGraph:
 
         net.from_nx(sub_g)
 
+        # Color concepts by domain
+        domain_colors = {
+            "humanities": "#E67E22",
+            "disability studies": "#8E44AD",
+            "feminist philosophy": "#C0392B",
+            "art": "#2980B9",
+            "politics": "#27AE60",
+        }
+        default_color = "#3498DB"
+
         for node in net.nodes:
-            display = node.get("display_form") or node.get("term", "")
-            node["label"] = display
-            node["value"] = node.get("frequency", 1)
-            node["title"] = f"{display} (Freq: {node.get('frequency', 0)})"
+            label = node.get("label", node.get("id", ""))
+            domain = node.get("domain", "")
+            en_count = len(concept_terms.get(node["id"], {}).get("en", []))
+            sl_count = len(concept_terms.get(node["id"], {}).get("sl", []))
+            score = concept_scores.get(node["id"], 0)
+
+            node["label"] = label
+            node["color"] = domain_colors.get(domain, default_color)
+            node["shape"] = "dot"
+            node["size"] = max(12, min(40, 10 + score * 2))
+            node["title"] = (
+                f"{label}\n"
+                f"Domain: {domain or '(none)'}\n"
+                f"EN terms: {en_count} | SL terms: {sl_count}\n"
+                f"Connections: {score}"
+            )
+
+        for edge in net.edges:
+            conf = edge.get("confidence", 0)
+            lineage = edge.get("lineage", "")
+            verified = edge.get("verified", False)
+            # Thicker edges for higher confidence
+            edge["width"] = max(0.5, conf * 3)
+            edge["color"] = {"color": "#34495E", "opacity": max(0.2, conf)}
+            edge["arrows"] = "to"
+            edge["title"] = f"confidence: {conf:.3f}\nlineage: {lineage}\nverified: {verified}"
 
         try:
             net.write_html(output_path)
             print(f"[KG] Visualization saved to {output_path}")
+            print(f"    {len(top_concepts)} concepts, {edge_count} relations")
         except Exception as e:
             print(f"[KG] Error saving visualization: {e}")
 
@@ -1129,8 +1323,8 @@ class KnowledgeGraph:
         target_lang: str = "sl",
         verified: bool = True,
         domain: str = "",
-        context: str = None,
-        validated_by: str = None,
+        context: Optional[str] = None,
+        validated_by: Optional[str] = None,
     ):
         src = source_text.strip()
         tgt = target_text.strip()
@@ -1378,9 +1572,9 @@ class KnowledgeGraph:
     def update_concept_metadata(
         self,
         concept_id: str,
-        label: str = None,
-        domain: str = None,
-        definition: str = None,
+        label: Optional[str] = None,
+        domain: Optional[str] = None,
+        definition: Optional[str] = None,
     ) -> bool:
         """Update fields on an existing conceptual container."""
         if not self.G.has_node(concept_id):
@@ -1398,12 +1592,12 @@ class KnowledgeGraph:
     def update_translation_mapping(
         self,
         mapping_id: str,
-        lineage: str = None,
-        register: str = None,
-        gloss: str = None,
-        confidence: float = None,
-        year: int = None,
-        verified: bool = None,
+        lineage: Optional[str] = None,
+        register: Optional[str] = None,
+        gloss: Optional[str] = None,
+        confidence: Optional[float] = None,
+        year: Optional[int] = None,
+        verified: Optional[bool] = None,
     ) -> bool:
         """Update qualitative or quantitative parameters on a context mapping."""
         if not self.G.has_node(mapping_id):

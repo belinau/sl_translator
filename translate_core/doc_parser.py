@@ -8,14 +8,13 @@
 
 import re
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 from markitdown import MarkItDown
 
 # python-docx imports
 try:
     import docx
-    from docx.enum.style import WD_STYLE_TYPE
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
@@ -23,6 +22,12 @@ try:
 
     HAS_DOCX = True
 except ImportError:
+    docx = None  # type: ignore[assignment]
+    WD_ALIGN_PARAGRAPH = None  # type: ignore[assignment,misc]
+    OxmlElement = None  # type: ignore[assignment,misc]
+    qn = None  # type: ignore[assignment,misc]
+    Inches = None  # type: ignore[assignment,misc]
+    Pt = None  # type: ignore[assignment,misc]
     HAS_DOCX = False
 
 
@@ -146,6 +151,14 @@ class DocumentParser:
             )
             self.from_markdown(md_text, output_path)
             return
+        assert (
+            docx is not None
+            and Inches is not None
+            and Pt is not None
+            and WD_ALIGN_PARAGRAPH is not None
+            and OxmlElement is not None
+            and qn is not None
+        ), "HAS_DOCX is True but optional symbols are unbound"
 
         doc = docx.Document()
 
@@ -157,8 +170,14 @@ class DocumentParser:
             section.left_margin = Inches(1.2)
             section.right_margin = Inches(1.2)
 
-        # Configure Base Book Typography
-        style_normal = doc.styles["Normal"]
+        # Configure Base Book Typography. python-docx returns BaseStyle from the
+        # styles collection; the actual instance is a ParagraphStyle with .font
+        # and .paragraph_format, but the type stub doesn't expose them on the
+        # base. cast() avoids the false-positive type warnings.
+        from typing import cast
+        from docx.styles.style import ParagraphStyle
+
+        style_normal = cast(ParagraphStyle, doc.styles["Normal"])
         font = style_normal.font
         font.name = house_font
         font.size = Pt(11)
@@ -251,6 +270,9 @@ class DocumentParser:
         """
         Injects standard OOXML structures to define and refer to bottom-of-page Word footnotes.
         """
+        assert OxmlElement is not None and qn is not None, (
+            "_add_native_word_footnote requires HAS_DOCX"
+        )
         # Access document-wide OpenXML relationships
         doc = paragraph.part.document
         try:
