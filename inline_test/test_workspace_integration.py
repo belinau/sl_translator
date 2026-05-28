@@ -22,38 +22,64 @@ from typing import Any
 import pytest
 from nicegui import Client, ui
 
+from _kg_helpers import make_kg, seed_concept, seed_mapping, seed_term
 from ui import intel_panel, predictions, segment_editor, segment_navigator, settings as ui_settings
 from ui.state import WorkspaceState
 
 
 # ---------------------------------------------------------------------------
-# Graph-wiring helper — converts old translations=[{...}] stubs to real edges
+# Graph-wiring helper — populates BOTH the graph and the _exact_kp index
+# used by extract_entities. Source terms passed in via `src_node_id` must
+# already be seeded by the caller; this helper only adds target nodes +
+# mapping edges.
 # ---------------------------------------------------------------------------
 
-def _wire_translations(G, src_node_id: str, translations: list[dict],
+def _wire_translations(kg, src_node_id: str, translations: list[dict],
                        tgt_lang: str = "sl") -> None:
-    """Convert an old-style translations=[{...}] list on a node into proper
-    KG graph edges: has_mapping -> mapping node -> maps_to -> target term node.
+    """Materialise translation edges off an existing source term node.
 
-    This lets the test stubs work with _resolve_translations(), which reads
-    from graph structure, not node attributes.
+    For each entry, ensures the target term node exists (and is registered
+    in the flashtext index — though only the source side is searched in
+    practice) and links the source term via a mapping node carrying
+    confidence/verified/lineage/register.
     """
-    for i, tr in enumerate(translations):
+    # Accept either a KnowledgeGraph instance or a bare DiGraph for legacy
+    # call sites; the seed helpers want the wrapper.
+    if hasattr(kg, "G"):
+        G = kg.G
+    else:  # pragma: no cover — legacy callsite
+        G = kg
+
+    for tr in translations:
         sl_term = tr["term"]
         sl_node_id = f"term:{tgt_lang}:{sl_term}"
-        # Add the target term node if it doesn't already exist
         if not G.has_node(sl_node_id):
-            G.add_node(sl_node_id, type="term", term=sl_term,
-                       lang=tgt_lang, frequency=0)
-        # Mapping node carries confidence/verified/lineage/register
-        map_id = f"map:{src_node_id}:{i}"
-        G.add_node(map_id, type="translation_mapping",
-                   confidence=tr.get("confidence", 0),
-                   verified=tr.get("verified", False),
-                   lineage=tr.get("lineage", ""),
-                   register=tr.get("register", ""))
-        G.add_edge(src_node_id, map_id, relation="has_mapping")
-        G.add_edge(map_id, sl_node_id, relation="maps_to")
+            if hasattr(kg, "_exact_kp"):
+                seed_term(kg, tgt_lang, sl_term, frequency=0)
+            else:  # pragma: no cover
+                G.add_node(
+                    sl_node_id, type="term", term=sl_term,
+                    lang=tgt_lang, frequency=0,
+                )
+        if hasattr(kg, "_exact_kp"):
+            seed_mapping(
+                kg, src_node_id, sl_node_id,
+                confidence=tr.get("confidence", 0),
+                verified=tr.get("verified", False),
+                lineage=tr.get("lineage", "general"),
+                register=tr.get("register", "academic"),
+            )
+        else:  # pragma: no cover
+            map_id = f"map:{src_node_id}>>{sl_node_id}:{tr.get('lineage', 'general')}"
+            G.add_node(
+                map_id, type="translation_mapping",
+                confidence=tr.get("confidence", 0),
+                verified=tr.get("verified", False),
+                lineage=tr.get("lineage", ""),
+                register=tr.get("register", ""),
+            )
+            G.add_edge(src_node_id, map_id, relation="has_mapping")
+            G.add_edge(map_id, sl_node_id, relation="maps_to")
 
 
 # ---------------------------------------------------------------------------
@@ -142,92 +168,77 @@ def _deps(tm=None, glossary=None, kg=None, translator=None, qa=None) -> dict:
 # ---------------------------------------------------------------------------
 
 def _build_humanities_kg():
-    """Build a networkx-based KG with real humanities term pairs,
-    linked via concept nodes with instantiates_concept edges."""
-    import networkx as nx
-
-    G = nx.DiGraph()
+    """Build a KG instance with real humanities term pairs, linked via
+    concept nodes with instantiates_concept edges. Uses the production
+    KnowledgeGraph (under conftest's fast __init__) so extract_entities
+    works with the flashtext index populated by seed_term."""
+    kg = make_kg()
 
     # --- Multi-word theoretical phrases ---
-    G.add_node("term:en:imagined futures", type="term", term="imagined futures",
-               lang="en", frequency=42)
-    _wire_translations(G, "term:en:imagined futures", [
+    seed_term(kg, "en", "imagined futures", frequency=42)
+    _wire_translations(kg, "term:en:imagined futures", [
         {"term": "imaginirane prihodnosti", "confidence": 0.92,
          "verified": True, "lineage": "manual"}])
 
-    G.add_node("term:en:compulsory able-bodiedness", type="term",
-               term="compulsory able-bodiedness", lang="en", frequency=15)
-    _wire_translations(G, "term:en:compulsory able-bodiedness", [
+    seed_term(kg, "en", "compulsory able-bodiedness", frequency=15)
+    _wire_translations(kg, "term:en:compulsory able-bodiedness", [
         {"term": "obvezna telesna sposobnost", "confidence": 0.88,
          "verified": True, "lineage": "manual"}])
 
-    G.add_node("term:en:crip theory", type="term", term="crip theory",
-               lang="en", frequency=28)
-    _wire_translations(G, "term:en:crip theory", [
+    seed_term(kg, "en", "crip theory", frequency=28)
+    _wire_translations(kg, "term:en:crip theory", [
         {"term": "krip teorija", "confidence": 0.85,
          "verified": True, "lineage": "manual"}])
 
-    G.add_node("term:en:feminist epistemology", type="term",
-               term="feminist epistemology", lang="en", frequency=12)
-    _wire_translations(G, "term:en:feminist epistemology", [
+    seed_term(kg, "en", "feminist epistemology", frequency=12)
+    _wire_translations(kg, "term:en:feminist epistemology", [
         {"term": "feministična epistemologija", "confidence": 0.90,
          "verified": True, "lineage": "manual"}])
 
-    G.add_node("term:en:queer phenomenology", type="term",
-               term="queer phenomenology", lang="en", frequency=8)
-    _wire_translations(G, "term:en:queer phenomenology", [
+    seed_term(kg, "en", "queer phenomenology", frequency=8)
+    _wire_translations(kg, "term:en:queer phenomenology", [
         {"term": "queer fenomenologija", "confidence": 0.82,
          "verified": False, "lineage": "auto"}])
 
-    # --- Single-word singleton (≥4 chars, has translation) ---
-    G.add_node("term:en:intersectionality", type="term",
-               term="intersectionality", lang="en", frequency=35)
-    _wire_translations(G, "term:en:intersectionality", [
+    # --- Single-word singleton (has translation) ---
+    seed_term(kg, "en", "intersectionality", frequency=35)
+    _wire_translations(kg, "term:en:intersectionality", [
         {"term": "intersekcionalnost", "confidence": 0.95,
          "verified": True, "lineage": "manual"}])
 
-    # --- Noise unigrams (should be filtered by _kg_query) ---
-    G.add_node("term:en:common", type="term", term="common", lang="en",
-               frequency=525)
-    G.add_node("term:en:the", type="term", term="the", lang="en",
-               frequency=9999)
+    # --- Noise unigrams (filtered by the noise list in _kg_query) ---
+    seed_term(kg, "en", "common", frequency=525)
+    seed_term(kg, "en", "the", frequency=9999)
 
-    # --- Concept nodes ---
-    G.add_node("concept:imagined_futures", type="concept",
-               label="imagined futures", domain="humanities")
-    G.add_node("concept:crip_theory", type="concept",
-               label="crip theory", domain="disability studies")
-    G.add_node("concept:feminist_epistemology", type="concept",
-               label="feminist epistemology", domain="feminist philosophy")
+    # --- Concept nodes + instantiates_concept edges (incl. SL siblings) ---
+    seed_concept(
+        kg, "imagined_futures", "imagined futures", domain="humanities",
+        terms=("term:en:imagined futures",),
+    )
+    seed_concept(
+        kg, "crip_theory", "crip theory", domain="disability studies",
+        terms=("term:en:crip theory",),
+    )
+    seed_concept(
+        kg, "feminist_epistemology", "feminist epistemology",
+        domain="feminist philosophy",
+        terms=("term:en:feminist epistemology",),
+    )
 
-    # --- instantiates_concept edges (source terms → concepts) ---
-    G.add_edge("term:en:imagined futures", "concept:imagined_futures",
-               relation="instantiates_concept")
-    G.add_edge("term:en:crip theory", "concept:crip_theory",
-               relation="instantiates_concept")
-    G.add_edge("term:en:feminist epistemology", "concept:feminist_epistemology",
-               relation="instantiates_concept")
+    # SL siblings — same concepts as their EN counterparts.
+    seed_term(kg, "sl", "imaginirane prihodnosti", frequency=18)
+    seed_term(kg, "sl", "imaginarne prihodnosti", frequency=12)
+    seed_term(kg, "sl", "krip teorija", frequency=14)
+    kg.G.add_edge("term:sl:imaginirane prihodnosti",
+                  "concept:imagined_futures",
+                  relation="instantiates_concept")
+    kg.G.add_edge("term:sl:imaginarne prihodnosti",
+                  "concept:imagined_futures",
+                  relation="instantiates_concept")
+    kg.G.add_edge("term:sl:krip teorija",
+                  "concept:crip_theory",
+                  relation="instantiates_concept")
 
-    # --- Slovenian sibling terms (same concepts, target-lang) ---
-    G.add_node("term:sl:imaginirane prihodnosti", type="term",
-               term="imaginirane prihodnosti", lang="sl", frequency=18)
-    G.add_node("term:sl:imaginarne prihodnosti", type="term",
-               term="imaginarne prihodnosti", lang="sl", frequency=12)
-    G.add_node("term:sl:krip teorija", type="term",
-               term="krip teorija", lang="sl", frequency=14)
-
-    G.add_edge("term:sl:imaginirane prihodnosti", "concept:imagined_futures",
-               relation="instantiates_concept")
-    G.add_edge("term:sl:imaginarne prihodnosti", "concept:imagined_futures",
-               relation="instantiates_concept")
-    G.add_edge("term:sl:krip teorija", "concept:crip_theory",
-               relation="instantiates_concept")
-
-    class HumanitiesKG:
-        pass
-
-    kg = HumanitiesKG()
-    kg.G = G
     return kg
 
 
@@ -436,36 +447,31 @@ async def test_intel_panel_repaints_on_segment_switch(user):
 
 
 def _kg_with_graph():
-    """Build a stub KG whose .G holds the multi-word phrase + concept +
-    sibling structure the new strategic query expects."""
-    import networkx as nx
-
-    class GraphKG:
-        def __init__(self):
-            self.G = nx.DiGraph()
-            self.G.add_node(
-                "term:en:imagined futures", type="term", term="imagined futures",
-                lang="en", frequency=42,
-            )
-            _wire_translations(
-                self.G, "term:en:imagined futures",
-                [{"term": "imaginirane prihodnosti", "confidence": 0.92,
-                  "verified": True, "lineage": "manual"}],
-            )
-            self.G.add_node("concept:imagined_futures", type="concept",
-                            label="imagined futures", domain="humanities")
-            self.G.add_edge("term:en:imagined futures", "concept:imagined_futures",
-                            relation="instantiates_concept")
-            self.G.add_node("term:sl:imaginarne prihodnosti", type="term",
-                            term="imaginarne prihodnosti", lang="sl", frequency=12)
-            self.G.add_edge("term:sl:imaginarne prihodnosti", "concept:imagined_futures",
-                            relation="instantiates_concept")
+    """Build a KG containing the multi-word phrase + concept + sibling
+    structure the strategic query expects."""
+    kg = make_kg()
+    seed_term(kg, "en", "imagined futures", frequency=42)
+    _wire_translations(
+        kg, "term:en:imagined futures",
+        [{"term": "imaginirane prihodnosti", "confidence": 0.92,
+          "verified": True, "lineage": "manual"}],
+    )
+    seed_concept(
+        kg, "imagined_futures", "imagined futures", domain="humanities",
+        terms=("term:en:imagined futures",),
+    )
+    seed_term(kg, "sl", "imaginarne prihodnosti", frequency=12)
+    kg.G.add_edge(
+        "term:sl:imaginarne prihodnosti",
+        "concept:imagined_futures",
+        relation="instantiates_concept",
+    )
 
     state = _make_state(segments=[
         {"id": 0, "source": "At first glance these contradictory imagined futures matter.",
          "target": "", "status": "pending"},
     ])
-    return state, GraphKG()
+    return state, kg
 
 
 @pytest.mark.asyncio
@@ -503,45 +509,46 @@ async def test_intel_panel_renders_glossary_section(user):
 
 
 def test_kg_query_prefers_multi_word_phrases_and_filters_noise():
-    """The strategic ngram query must:
-      - prefer 2/3-grams over single-word hits (humanities terminology lives
-        in phrases),
-      - skip generic stopwords ("the", "common"…),
-      - filter translations below the 0.6 confidence floor,
-      - reject any term without qualifying translations (all n-gram sizes),
-      - return at most 5 entities.
+    """The extract_entities-driven query must:
+      - surface multi-word phrases (humanities terminology lives in them),
+      - skip generic stopwords ("the", "common"…) at the source side,
+      - rank verified translations above unverified for the same source term,
+      - reject any term without qualifying translations,
+      - cap output at max_hits (default 8) to keep the panel compact.
+
+    There is NO 0.6 confidence floor in the new query: humanities corpora
+    are Dice-seeded around 0.18-0.29, so dropping low-confidence material
+    silently discards the curator's work. Verified-first sorting still
+    surfaces the curator-blessed translation as best.
     """
-    import networkx as nx
     from ui.intel_panel import _kg_query
 
-    class FakeKG:
-        def __init__(self):
-            self.G = nx.DiGraph()
-            # Real multi-word humanities phrase with translations + a concept.
-            self.G.add_node("term:en:imagined futures", type="term", term="imagined futures",
-                            lang="en", frequency=42)
-            _wire_translations(self.G, "term:en:imagined futures", [
-                {"term": "imaginirane prihodnosti", "confidence": 0.92,
-                 "verified": True, "lineage": "manual"},
-                {"term": "junk-translation", "confidence": 0.3,
-                 "verified": False, "lineage": "auto"},
-            ])
-            # A common single-word hit that SHOULD be skipped.
-            self.G.add_node("term:en:common", type="term", term="common", lang="en",
-                            frequency=525)
-            # A concept the multi-word phrase instantiates, plus a sibling.
-            self.G.add_node("concept:imagined_futures", type="concept",
-                            label="imagined futures", domain="humanities")
-            self.G.add_edge("term:en:imagined futures", "concept:imagined_futures",
-                            relation="instantiates_concept")
-            self.G.add_node("term:sl:imaginarne prihodnosti", type="term",
-                            term="imaginarne prihodnosti", lang="sl", frequency=12)
-            self.G.add_edge("term:sl:imaginarne prihodnosti", "concept:imagined_futures",
-                            relation="instantiates_concept")
+    kg = make_kg()
+    # Real multi-word humanities phrase with translations + a concept.
+    seed_term(kg, "en", "imagined futures", frequency=42)
+    _wire_translations(kg, "term:en:imagined futures", [
+        {"term": "imaginirane prihodnosti", "confidence": 0.92,
+         "verified": True, "lineage": "manual"},
+        {"term": "alternativna upodobitev", "confidence": 0.3,
+         "verified": False, "lineage": "auto"},
+    ])
+    # A common single-word hit that SHOULD be skipped by the noise filter.
+    seed_term(kg, "en", "common", frequency=525)
+    # A concept the multi-word phrase instantiates, plus a sibling.
+    seed_concept(
+        kg, "imagined_futures", "imagined futures", domain="humanities",
+        terms=("term:en:imagined futures",),
+    )
+    seed_term(kg, "sl", "imaginarne prihodnosti", frequency=12)
+    kg.G.add_edge(
+        "term:sl:imaginarne prihodnosti",
+        "concept:imagined_futures",
+        relation="instantiates_concept",
+    )
 
     hits = _kg_query(
         "At first glance these contradictory imagined futures have nothing in common",
-        src_lang="en", tgt_lang="sl", kg=FakeKG(),
+        src_lang="en", tgt_lang="sl", kg=kg,
     )
 
     # The multi-word phrase must surface, the noisy "common" must not.
@@ -549,42 +556,41 @@ def test_kg_query_prefers_multi_word_phrases_and_filters_noise():
     assert "imagined futures" in terms, f"missing bigram hit: {terms}"
     assert "common" not in terms, f"noise unigram should be filtered: {terms}"
 
-    # The bigram should be ranked first (n=2 > n=1 ordering).
+    # The bigram is the only non-noise hit, so it lands first.
     assert hits[0]["src_term"] == "imagined futures"
     assert hits[0]["n"] == 2
 
-    # Low-confidence translation must be filtered out.
-    # _kg_query returns the best translation as top-level keys.
+    # Verified translation ranks above the low-confidence unverified one.
     assert hits[0]["tgt_term"] == "imaginirane prihodnosti"
     assert hits[0]["verified"] is True
+    # The low-confidence rendering survives as an alternative.
+    alt_terms = [t["term"] for t in hits[0].get("alt_translations") or []]
+    assert "alternativna upodobitev" in alt_terms
 
     # Sibling via concept must surface.
     related_terms = [r["term"] for r in hits[0]["related"]]
     assert "imaginarne prihodnosti" in related_terms
 
 
-def test_kg_query_caps_at_five_hits_when_corpus_is_dense():
-    """Even with many qualifying hits, the strategic query must cap output
-    at 5 (not 6) to keep the UI within the editor viewport."""
-    import networkx as nx
+def test_kg_query_caps_at_eight_hits_when_corpus_is_dense():
+    """Even with many qualifying hits the strategic query caps output at
+    max_hits (default 8), with the phrase/unigram quota split keeping
+    neither bucket starved."""
     from ui.intel_panel import _kg_query
 
-    class CrowdedKG:
-        def __init__(self):
-            self.G = nx.DiGraph()
-            for w in ["alpha", "beta", "gamma", "delta", "epsilon",
-                      "zeta", "eta", "theta", "iota", "kappa"]:
-                self.G.add_node(f"term:en:{w}", type="term", term=w, lang="en",
-                                frequency=200)
-                _wire_translations(self.G, f"term:en:{w}", [
-                    {"term": f"{w}-sl", "confidence": 0.9,
-                     "verified": True}])
+    kg = make_kg()
+    for w in ["alpha", "beta", "gamma", "delta", "epsilon",
+              "zeta", "eta", "theta", "iota", "kappa"]:
+        seed_term(kg, "en", w, frequency=200)
+        _wire_translations(kg, f"term:en:{w}", [
+            {"term": f"{w}-sl", "confidence": 0.9,
+             "verified": True}])
 
     hits = _kg_query(
         "alpha beta gamma delta epsilon zeta eta theta iota kappa",
-        src_lang="en", tgt_lang="sl", kg=CrowdedKG(),
+        src_lang="en", tgt_lang="sl", kg=kg,
     )
-    assert len(hits) <= 5, f"expected ≤5, got {len(hits)}"
+    assert len(hits) <= 8, f"expected ≤8, got {len(hits)}"
 
 
 @pytest.mark.asyncio
@@ -803,31 +809,21 @@ def test_kg_query_rejects_hits_without_translations():
     """Terms without qualifying translations must never appear as hits —
     not for 1-grams, 2-grams, or 3-grams. Showing 'source →' with no
     target is worse than showing nothing."""
-    import networkx as nx
     from ui.intel_panel import _kg_query
 
-    G = nx.DiGraph()
+    kg = make_kg()
     # 3-gram with NO translations (e.g. a book title or person name)
-    G.add_node("term:en:lauren berlant", type="term", term="lauren berlant",
-               lang="en", frequency=30)
+    seed_term(kg, "en", "lauren berlant", frequency=30)
     # 2-gram with NO translations
-    G.add_node("term:en:social order", type="term", term="social order",
-               lang="en", frequency=80)
+    seed_term(kg, "en", "social order", frequency=80)
     # 1-gram with NO translations
-    G.add_node("term:en:common", type="term", term="common", lang="en",
-               frequency=999)
+    seed_term(kg, "en", "common", frequency=999)
     # 2-gram WITH translations — this one must survive
-    G.add_node("term:en:imagined futures", type="term", term="imagined futures",
-               lang="en", frequency=42)
-    _wire_translations(G, "term:en:imagined futures", [
+    seed_term(kg, "en", "imagined futures", frequency=42)
+    _wire_translations(kg, "term:en:imagined futures", [
         {"term": "imaginirane prihodnosti", "confidence": 0.92,
          "verified": True, "lineage": "manual"},
     ])
-
-    class FakeKG:
-        pass
-    kg = FakeKG()
-    kg.G = G
 
     hits = _kg_query(
         "Lauren Berlant imagined futures in the social order common",
@@ -1014,24 +1010,16 @@ async def test_glossary_chip_shows_src_to_tgt_directionality(user):
 async def test_intel_panel_alt_translations_shown(user):
     """When a KG hit has multiple filtered translations, the best appears in
     the bilingual header and alternatives are shown below."""
-    import networkx as nx
-
-    class AltTranslationsKG:
-        def __init__(self):
-            self.G = nx.DiGraph()
-            self.G.add_node(
-                "term:en:imagined futures", type="term", term="imagined futures",
-                lang="en", frequency=42,
-            )
-            _wire_translations(self.G, "term:en:imagined futures", [
-                {"term": "imaginirane prihodnosti", "confidence": 0.92,
-                 "verified": True, "lineage": "manual"},
-                {"term": "zamišljene prihodnosti", "confidence": 0.78,
-                 "verified": False, "lineage": "auto"},
-            ])
+    kg = make_kg()
+    seed_term(kg, "en", "imagined futures", frequency=42)
+    _wire_translations(kg, "term:en:imagined futures", [
+        {"term": "imaginirane prihodnosti", "confidence": 0.92,
+         "verified": True, "lineage": "manual"},
+        {"term": "zamišljene prihodnosti", "confidence": 0.78,
+         "verified": False, "lineage": "auto"},
+    ])
 
     state = _build_humanities_state()
-    kg = AltTranslationsKG()
 
     @ui.page("/intel_alt")
     def page():

@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
 
 from nicegui import background_tasks, ui
 
@@ -42,177 +41,16 @@ _NOISE_UNIGRAMS = frozenset({
 })
 
 
-def _tokenize(text: str) -> list[str]:
-    """Lowercase word tokens, stripping punctuation."""
-    return [w.lower() for w in re.findall(r"[\w'\-]+", text)]
+def _clean_translations(translations: list[dict]) -> list[dict]:
+    """Tidy and rank the translation dicts returned by extract_entities.
 
-
-def _ngrams(words: list[str], n: int) -> list[tuple[int, str]]:
-    """Return (start_index, joined_text) for every n-gram in the word list."""
-    return [(i, " ".join(words[i:i + n])) for i in range(len(words) - n + 1)]
-
-
-def _resolve_translations(
-    G, src_node_id: str, tgt_lang: str,
-) -> list[dict]:
-    """Resolve translations for a source term node from the KG graph.
-
-    The real KG stores translations as graph structure, not as a flat list
-    on the node:
-      - ``translates_to`` edges link src -> SL term nodes (no confidence)
-      - ``has_mapping`` edges link src -> ``map:*`` mapping nodes that carry
-        confidence, lineage, verified, register.
-      - Each mapping node has a ``maps_to`` edge pointing to the SL term.
-
-    We merge both sources: the mapping nodes carry confidence so they
-    drive ranking.  Direct ``translates_to`` edges without a mapping are
-    included as low-confidence fallbacks.
+    Drops empty target terms and single-word noise (e.g. 'the', 'common');
+    applies the gender-inclusive preference; sorts verified-first then by
+    confidence descending. NO confidence floor: humanities corpora often
+    sit at 0.18-0.29 from Dice seeding, and a hard cutoff silently
+    discards real curator-authored material.
     """
-    seen_sl_ids: set[str] = set()
-    translations: list[dict] = []
-
-    # 1) Collect from mapping nodes (carry confidence)
-    for _u, map_id, _d in G.out_edges(src_node_id, data=True):
-        if G.nodes[map_id].get("type") != "translation_mapping":
-            continue
-        map_nd = G.nodes[map_id]
-        # Follow maps_to edge to find the target term node
-        tgt_id = None
-        for _mu, mv, _md in G.out_edges(map_id, data=True):
-            if G.edges[map_id, mv].get("relation") == "maps_to" or (
-                isinstance(_md, dict) and _md.get("relation") == "maps_to"
-            ):
-                tgt_id = mv
-                break
-        if tgt_id is None:
-            # maps_to might not have explicit relation — try first out-edge
-            for _mu, mv, _md in G.out_edges(map_id, data=True):
-                if G.nodes[mv].get("type") == "term" and G.nodes[mv].get("lang") == tgt_lang:
-                    tgt_id = mv
-                    break
-        if tgt_id is None or tgt_id in seen_sl_ids:
-            continue
-        if G.nodes[tgt_id].get("lang") != tgt_lang:
-            continue
-        seen_sl_ids.add(tgt_id)
-        tgt_term = G.nodes[tgt_id].get("term", "")
-        if not tgt_term or (tgt_term.lower() in _NOISE_UNIGRAMS and len(tgt_term.split()) == 1):
-            continue
-        translations.append({
-            "term": tgt_term,
-            "confidence": map_nd.get("confidence", 0),
-            "verified": bool(map_nd.get("verified")),
-            "lineage": map_nd.get("lineage", ""),
-            "register": map_nd.get("register", ""),
-        })
-
-    # 2) Collect from direct translates_to edges (no confidence)
-    for _u, sl_id, _d in G.out_edges(src_node_id, data=True):
-        if sl_id in seen_sl_ids:
-            continue
-        sl_nd = G.nodes[sl_id]
-        if sl_nd.get("type") != "term" or sl_nd.get("lang") != tgt_lang:
-            continue
-        seen_sl_ids.add(sl_id)
-        tgt_term = sl_nd.get("term", "")
-        if not tgt_term or (tgt_term.lower() in _NOISE_UNIGRAMS and len(tgt_term.split()) == 1):
-            continue
-        translations.append({
-            "term": tgt_term,
-            "confidence": 0.0,
-            "verified": False,
-            "lineage": "direct",
-            "register": "",
-        })
-
-    # Sort: verified first, then confidence desc
-    translations.sort(key=lambda t: (not t["verified"], -t["confidence"]))
-    return translations[:6]
-
-
-def _kg_query(source: str, src_lang: str, tgt_lang: str, kg) -> list[dict]:
-    """Strategic bilingual KG lookup for translation flow.
-
-    Generates 3-gram, 2-gram, and 1-gram candidates from the source and
-    matches them against the KG term index. Prefers longer phrases
-    (humanities terminology lives in 2- and 3-grams) over single words
-    (mostly noise). Each surviving hit returns the source term + its best
-    target-language translation + sibling concepts (target language first
-    since they're directly actionable for writing the target text).
-
-    Translations are resolved from the KG's graph structure:
-      - ``has_mapping`` edges -> mapping nodes (carry confidence/lineage)
-      - ``translates_to`` edges -> target term nodes
-    """
-    if kg is None or not source.strip():
-        return []
-    G = kg.G
-
-    words = _tokenize(source)
-    if not words:
-        return []
-
-    covered: set[int] = set()
-    hits: list[dict] = []
-
-    for n in (3, 2, 1):
-        for start, phrase in _ngrams(words, n):
-            if n == 1 and phrase in _NOISE_UNIGRAMS:
-                continue
-            if n == 1 and len(phrase) < 4:
-                continue
-            indices = set(range(start, start + n))
-            if n < 3 and indices <= covered:
-                continue
-            # Look the source-side ngram up under the project's source language
-            # first; fall back to en/sl because the corpus has some terms
-            # mis-labelled.
-            src_node_id = None
-            for lang_try in (src_lang, "en", "sl"):
-                cand = f"term:{lang_try}:{phrase}"
-                if G.has_node(cand):
-                    src_node_id = cand
-                    break
-            if src_node_id is None:
-                continue
-            src_node = G.nodes[src_node_id]
-
-            # Resolve translations from the KG graph structure
-            # (has_mapping + translates_to edges), not from node attrs.
-            translations = _resolve_translations(G, src_node_id, tgt_lang)
-            if not translations:
-                continue
-
-            # Best translation = the first one after the verified/confidence sort.
-            best_tr = translations[0]
-
-            # Sibling terms via the concept node, sorted so target-language
-            # siblings appear first (most actionable).
-            related = _related_via_concept(
-                G, src_node_id, preferred_lang=tgt_lang, max_siblings=6,
-            )
-            hits.append({
-                "id": src_node_id,
-                "src_term": src_node.get("term") or phrase,
-                "src_lang": src_node.get("lang") or src_lang,
-                "tgt_term": best_tr["term"],
-                "tgt_lang": tgt_lang,
-                "confidence": best_tr["confidence"],
-                "verified": best_tr["verified"],
-                "alt_translations": translations[1:3],
-                "n": n,
-                "freq": src_node.get("frequency", 0),
-                "related": related,
-            })
-            covered |= indices
-
-    hits.sort(key=lambda h: (-h["n"], -(h.get("freq") or 0)))
-    return hits[:5]
-
-
-def _filter_translations(translations: list[dict]) -> list[dict]:
-    """Keep only verified or high-confidence translations. Drops noise."""
-    out = []
+    out: list[dict] = []
     for tr in translations:
         if not isinstance(tr, dict):
             continue
@@ -221,22 +59,192 @@ def _filter_translations(translations: list[dict]) -> list[dict]:
             continue
         if term.lower() in _NOISE_UNIGRAMS and len(term.split()) == 1:
             continue
-        confidence = tr.get("confidence") or 0
-        verified = bool(tr.get("verified"))
-        if not (verified or confidence >= 0.6):
-            continue
-        # Prefer the gender-inclusive variant when the KG knows one.
         strats = tr.get("gender_strategies") or {}
         if isinstance(strats, dict) and strats.get("underscore_inclusivity"):
             term = strats["underscore_inclusivity"]
         out.append({
             "term": term,
-            "confidence": confidence,
-            "verified": verified,
+            "confidence": float(tr.get("confidence") or 0.0),
+            "verified": bool(tr.get("verified")),
             "lineage": tr.get("lineage") or "",
+            "register": tr.get("register") or "",
         })
     out.sort(key=lambda t: (not t["verified"], -t["confidence"]))
-    return out[:4]
+    return out[:6]
+
+
+def _kg_target_vocab(
+    kg, tgt_lang: str, *, min_freq: int = 1, limit: int | None = None,
+) -> list[str]:
+    """Surface forms of every target-language term in the KG, ranked by
+    frequency desc.
+
+    Why this exists: `_kg_query` only surfaces target terms whose source-side
+    equivalent is present in the current source segment. But a translator
+    routinely uses target vocabulary whose source partner sits in a
+    different segment, or is implicit, or is a related concept they want
+    to introduce. The ghost-text engine matches by prefix against the
+    bundle's candidate list, so we ship every KG-known target surface form
+    as background candidates. With this, typing the first letters of
+    *any* established target term completes via ghost text — not only the
+    source-aligned ones.
+
+    Includes lemma, display_form, and variants per term so prefix matches
+    work regardless of which surface the translator is moving toward.
+    Drops single-word noise (e.g. function words) by the same noise list
+    used elsewhere.
+
+    A `limit` of None means "all"; with a small bilingual corpus (low
+    thousands of SL terms) the JSON bundle stays well under 200KB.
+    """
+    if kg is None or not hasattr(kg, "G"):
+        return []
+    scored: list[tuple[str, int]] = []
+    for _node_id, nd in kg.G.nodes(data=True):
+        if nd.get("type") != "term":
+            continue
+        if nd.get("lang") != tgt_lang:
+            continue
+        freq = nd.get("frequency") or 0
+        if freq < min_freq:
+            continue
+        surfaces: list[str] = []
+        for key in ("display_form", "term"):
+            v = nd.get(key)
+            if isinstance(v, str) and v.strip():
+                surfaces.append(v.strip())
+        for v in nd.get("variants") or []:
+            if isinstance(v, str) and v.strip():
+                surfaces.append(v.strip())
+        for s in surfaces:
+            if s.lower() in _NOISE_UNIGRAMS and len(s.split()) == 1:
+                continue
+            scored.append((s, freq))
+    scored.sort(key=lambda t: -t[1])
+    seen: set[str] = set()
+    out: list[str] = []
+    for surface, _ in scored:
+        key = surface.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(surface)
+        if limit is not None and len(out) >= limit:
+            break
+    return out
+
+
+def _concept_for(G, term_node_id: str) -> dict | None:
+    """Return the concept node attrs (id, label, domain) for a term, or None.
+
+    A term typically instantiates 0 or 1 concept; we return the first.
+    """
+    if not G.has_node(term_node_id):
+        return None
+    for _u, v, d in G.out_edges(term_node_id, data=True):
+        if d.get("relation") != "instantiates_concept":
+            continue
+        nd = G.nodes[v]
+        if nd.get("type") != "concept":
+            continue
+        return {
+            "id": v,
+            "label": nd.get("label") or v,
+            "domain": nd.get("domain") or "",
+        }
+    return None
+
+
+def _kg_query(
+    source: str, src_lang: str, tgt_lang: str, kg, *, max_hits: int = 8,
+) -> list[dict]:
+    """Strategic bilingual KG lookup for translation flow.
+
+    Driven by the KG's own entity index — extract_entities composes
+    flashtext maximal-munch over multi-word phrases, lemmas, display
+    forms, variants, and gender forms, and resolves translations via the
+    has_mapping -> map -> maps_to edge walk (with translates_to fallback).
+    We do not re-tokenise the source here; the KG knows its own surface
+    forms better than any regex would.
+
+    Each hit carries:
+      - src_term/tgt_term/src_lang/tgt_lang (bilingual core)
+      - confidence/verified (curator signal)
+      - alt_translations (other renderings of the same source term)
+      - related (concept-sibling terms, target-lang first)
+      - concept ({id, label, domain} | None) so the panel can group hits
+      - n (word count of src_term) for the phrase/unigram bucket split
+      - freq (corpus frequency, ranking tiebreaker)
+
+    Phrases (n >= 2) and unigrams (n == 1) each get half of max_hits so
+    the unigram bucket — the everyday workhorse of humanities translation —
+    is never starved by a flood of bigram matches, and vice versa.
+    """
+    if kg is None or not source.strip():
+        return []
+    if not hasattr(kg, "extract_entities"):
+        return []
+    try:
+        entities = kg.extract_entities(source, target_lang=tgt_lang) or []
+    except Exception as e:
+        print(f"[intel _kg_query] extract_entities failed: {e}")
+        return []
+    G = kg.G
+    hits: list[dict] = []
+    for ent in entities:
+        term_text = (ent.get("term") or "").strip()
+        if not term_text:
+            continue
+        # Generic single-word noise stays filtered regardless of whether
+        # the curator's data accidentally carries a translation for it.
+        if term_text.lower() in _NOISE_UNIGRAMS and len(term_text.split()) == 1:
+            continue
+        translations = _clean_translations(ent.get("translations") or [])
+        if not translations:
+            continue
+        src_term = ent.get("display_form") or term_text
+        node_lang = ent.get("lang") or src_lang
+        node_id = f"term:{node_lang}:{term_text}"
+        concept = _concept_for(G, node_id)
+        related = _related_via_concept(
+            G, node_id, preferred_lang=tgt_lang, max_siblings=6,
+        )
+        best = translations[0]
+        hits.append({
+            "id": node_id,
+            "src_term": src_term,
+            "src_lang": node_lang,
+            "tgt_term": best["term"],
+            "tgt_lang": tgt_lang,
+            "confidence": best["confidence"],
+            "verified": best["verified"],
+            "alt_translations": translations[1:4],
+            "n": len(src_term.split()),
+            "freq": ent.get("frequency", 0),
+            "related": related,
+            "concept": concept,
+        })
+
+    # Quota split: phrases (n>=2) and unigrams (n==1) each take roughly
+    # half of max_hits; whichever bucket is thin yields its slack to the
+    # other so we always return up to max_hits total when material exists.
+    def _rank(h: dict) -> tuple:
+        return (not h["verified"], -(h["confidence"] or 0), -(h["freq"] or 0))
+
+    phrases = sorted([h for h in hits if h["n"] >= 2], key=_rank)
+    unigrams = sorted([h for h in hits if h["n"] == 1], key=_rank)
+    half = max_hits // 2
+    chosen = phrases[:half]
+    chosen += unigrams[: max_hits - len(chosen)]
+    if len(chosen) < max_hits:
+        chosen += phrases[half : half + (max_hits - len(chosen))]
+    if len(chosen) < max_hits:
+        # Fall back: any remaining unigrams beyond the first slice.
+        already = {id(h) for h in chosen}
+        chosen += [h for h in unigrams if id(h) not in already][
+            : max_hits - len(chosen)
+        ]
+    return chosen[:max_hits]
 
 
 def _related_via_concept(
@@ -346,9 +354,82 @@ def build(state: WorkspaceState, deps: dict) -> dict:
             print(f"[intel insert] {ex}")
 
     # ------------------------------------------------------------------
-    # Knowledge Graph: strategic ngram query (see _kg_query above).
-    # Returns at most 6 entities, preferring 2- and 3-grams over unigrams.
+    # Knowledge Graph: extract_entities-driven query (see _kg_query above).
+    # Hits group by concept they instantiate; orphan unigrams land in a
+    # "TERMS" card at the bottom (equal visual weight — unigrams carry
+    # most of the everyday translation work in humanities corpora).
     # ------------------------------------------------------------------
+    def _render_hit(h: dict):
+        """One bilingual hit + its alt/sibling cluster row."""
+        t_term = h["tgt_term"]
+        hit_row = (
+            ui.row()
+            .classes(
+                "w-full items-center gap-2 cursor-pointer "
+                "hover:bg-primary/5 rounded"
+            )
+            .on("click", lambda _e, t=t_term: _insert(t))
+        )
+        with hit_row:
+            ui.label(h["src_term"]).classes("text-sm opacity-70")
+            ui.label("→").classes("text-xs opacity-30")
+            tgt_style = "color: var(--q-positive)" if h.get("verified") else ""
+            ui.label(t_term).classes("font-bold text-sm").style(tgt_style)
+            if h["verified"]:
+                ui.icon("verified", size="13px").props("color=positive")
+            else:
+                ui.badge(
+                    f"{int((h.get('confidence') or 0) * 100)}%",
+                    color="primary",
+                ).classes("text-[9px] px-1")
+
+        # Concept cluster row — alt translations + concept siblings.
+        # Colours encode direction:
+        #   primary  = alternative renderings of the same source term
+        #   positive = target-lang concept siblings (clickable to insert)
+        #   secondary = source-lang concept siblings (context only, dim)
+        tgt_alts = [tr["term"] for tr in h.get("alt_translations", []) or []]
+        tgt_sibs = [
+            r for r in h.get("related", []) or []
+            if r.get("lang") == h["tgt_lang"]
+        ]
+        src_sibs = [
+            r for r in h.get("related", []) or []
+            if r.get("lang") != h["tgt_lang"]
+        ]
+        if not (tgt_alts or tgt_sibs or src_sibs):
+            return
+        with ui.row().classes(
+            "w-full items-center gap-1.5 flex-wrap"
+        ).style("padding-left: 1.5rem"):
+            ui.icon("circle", size="7px").props("color=grey-5")
+            ui.label("─").classes("text-[10px] opacity-20")
+            for alt_t in tgt_alts[:2]:
+                ui.button(
+                    alt_t,
+                    on_click=lambda _e, t=alt_t: _insert(t),
+                ).props("flat dense rounded color=primary").classes(
+                    "text-[10px] normal-case h-5 px-1.5"
+                )
+            for sib in tgt_sibs[:3]:
+                ui.button(
+                    sib["term"],
+                    on_click=lambda _e, t=sib["term"]: _insert(t),
+                ).props("flat dense rounded color=positive").classes(
+                    "text-[10px] normal-case h-5 px-1.5"
+                ).tooltip(
+                    f"{sib.get('lang', '')} — {sib.get('freq', 0)}× in corpus"
+                )
+            for sib in src_sibs[:2]:
+                ui.button(
+                    sib["term"],
+                    on_click=lambda _e, t=sib["term"]: _insert(t),
+                ).props("flat dense rounded color=secondary").classes(
+                    "text-[10px] normal-case h-5 px-1.5 opacity-60"
+                ).tooltip(
+                    f"{sib.get('lang', '')} — {sib.get('freq', 0)}× in corpus"
+                )
+
     async def _refresh_kg():
         seg = _current_seg()
         if seg is None or kg is None:
@@ -372,95 +453,56 @@ def build(state: WorkspaceState, deps: dict) -> dict:
                     "text-xs italic opacity-60"
                 )
                 return
+            # Group by concept (insertion-order). Orphans go to a "TERMS"
+            # card rendered after all concept groups, with the same visual
+            # weight — unigram terms are the workhorse of humanities
+            # translation and shouldn't be hidden in a dim footer.
+            by_concept: dict[str, list[dict]] = {}
+            order: list[str] = []
+            concept_by_id: dict[str, dict] = {}
+            orphans: list[dict] = []
             for h in hits:
-                with ui.card().props("flat bordered").classes("w-full p-2 rounded-xl"):
-                    # Row 1 — bilingual hit: source LEFT → target RIGHT
-                    # Gaze flow: eye lands on source term (identification)
-                    # then moves right to target term (action).
-                    t_term = h["tgt_term"]
-                    hit_row = (
-                        ui.row()
-                        .classes("w-full items-center gap-2 cursor-pointer hover:bg-primary/5 rounded")
-                        .on("click", lambda _e, t=t_term: _insert(t))
-                    )
-                    with hit_row:
-                        # Source term — LEFT: identification
-                        ui.label(h["src_term"]).classes("text-sm opacity-70")
-                        # Directional bridge
-                        ui.label("→").classes("text-xs opacity-30")
-                        # Target term — RIGHT: action (visually dominant)
-                        tgt_style = "color: var(--q-positive)" if h.get("verified") else ""
-                        ui.label(t_term).classes(
-                            "font-bold text-sm"
-                        ).style(tgt_style)
-                        # Trust signal at far right
-                        if h["verified"]:
-                            ui.icon("verified", size="13px").props("color=positive")
-                        else:
-                            ui.badge(
-                                f"{int(h['confidence'] * 100)}%",
-                                color="primary",
-                            ).classes("text-[9px] px-1")
+                c = h.get("concept")
+                if c and c.get("id"):
+                    cid = c["id"]
+                    if cid not in by_concept:
+                        by_concept[cid] = []
+                        order.append(cid)
+                        concept_by_id[cid] = c
+                    by_concept[cid].append(h)
+                else:
+                    orphans.append(h)
+            groups: list[tuple[dict | None, list[dict]]] = [
+                (concept_by_id[cid], by_concept[cid]) for cid in order
+            ]
+            if orphans:
+                groups.append((None, orphans))
 
-                    # Row 2 — concept cluster: related terms shown as structure
-                    # Visual node (◉) = concept the hit instantiates.
-                    # Indentation + connector show these terms hang off
-                    # the same concept. Color encodes language direction:
-                    #   positive (green) = target-lang (clickable to insert)
-                    #   secondary (grey)  = source-lang (context only)
-                    tgt_alts = [
-                        tr["term"]
-                        for tr in h.get("alt_translations", []) or []
-                    ]
-                    tgt_sibs = [
-                        r for r in h.get("related", []) or []
-                        if r.get("lang") == h["tgt_lang"]
-                    ]
-                    src_sibs = [
-                        r for r in h.get("related", []) or []
-                        if r.get("lang") != h["tgt_lang"]
-                    ]
-                    has_cluster = bool(tgt_alts or tgt_sibs or src_sibs)
-                    if has_cluster:
-                        with ui.row().classes(
-                            "w-full items-center gap-1.5 flex-wrap"
-                        ).style("padding-left: 1.5rem"):
-                            # Concept node — visible structural element
-                            ui.icon("circle", size="7px").props("color=grey-5")
-                            ui.label("─").classes("text-[10px] opacity-20")
-                            # Target-lang alternatives first (most actionable)
-                            for alt_t in tgt_alts[:2]:
-                                ui.button(
-                                    alt_t,
-                                    on_click=lambda _e, t=alt_t: _insert(t),
-                                ).props(
-                                    "flat dense rounded color=primary"
-                                ).classes(
-                                    "text-[10px] normal-case h-5 px-1.5"
-                                )
-                            for sib in tgt_sibs[:3]:
-                                ui.button(
-                                    sib["term"],
-                                    on_click=lambda _e, t=sib["term"]: _insert(t),
-                                ).props(
-                                    "flat dense rounded color=positive"
-                                ).classes(
-                                    "text-[10px] normal-case h-5 px-1.5"
-                                ).tooltip(
-                                    f"{sib.get('lang', '')} — {sib.get('freq', 0)}× in corpus"
-                                )
-                            # Source-lang siblings last (context only, dimmer)
-                            for sib in src_sibs[:2]:
-                                ui.button(
-                                    sib["term"],
-                                    on_click=lambda _e, t=sib["term"]: _insert(t),
-                                ).props(
-                                    "flat dense rounded color=secondary"
-                                ).classes(
-                                    "text-[10px] normal-case h-5 px-1.5 opacity-60"
-                                ).tooltip(
-                                    f"{sib.get('lang', '')} — {sib.get('freq', 0)}× in corpus"
-                                )
+            for concept, group_hits in groups:
+                with ui.card().props("flat bordered").classes(
+                    "w-full p-3 rounded-2xl"
+                ):
+                    with ui.row().classes(
+                        "w-full items-center gap-2 mb-1"
+                    ):
+                        ui.icon("hub", size="13px").props("color=primary")
+                        if concept is None:
+                            ui.label("TERMS").classes(
+                                "text-[10px] font-black tracking-[.3em] opacity-70"
+                            )
+                        else:
+                            ui.label(
+                                str(concept.get("label") or "").upper()
+                            ).classes(
+                                "text-[10px] font-black tracking-[.3em] opacity-80"
+                            )
+                            if concept.get("domain"):
+                                ui.badge(
+                                    concept["domain"], color="grey-5",
+                                ).classes("text-[9px] px-1 ml-1")
+                    with ui.column().classes("w-full gap-2"):
+                        for h in group_hits:
+                            _render_hit(h)
 
     # ------------------------------------------------------------------
     # Translation Memory: fuzzy + concordance

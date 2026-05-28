@@ -205,8 +205,39 @@ async def push_bundle(textarea_id: int, source_text: str, src: str, tgt: str,
                         t = alt.get("term")
                         if t and t.lower() not in {c.lower() for c in candidates}:
                             candidates.append(t)
+                    # Concept-sibling target terms join the candidate pool so
+                    # the ghost predictor completes adjacent established
+                    # renditions, not just the direct source→target mapping.
+                    # This is the "concept hierarchy matters more than fuzzy
+                    # TM" principle made concrete for inline prediction.
+                    for sib in h.get("related") or []:
+                        if sib.get("lang") != tgt:
+                            continue
+                        t = sib.get("term")
+                        if t and t.lower() not in {c.lower() for c in candidates}:
+                            candidates.append(t)
         except Exception as e:
             print(f"[predictions kg] {e}")
+        # Background target-language vocabulary so the ghost predictor can
+        # complete ANY KG-known target term by prefix, not only those whose
+        # source equivalent happens to be in this segment. Source-driven
+        # hits come first (most relevant); the vocab pool fills the long
+        # tail so a translator typing 'intersek' lands on
+        # 'intersekcionalnost' even when 'intersectionality' is nowhere
+        # in the current paragraph.
+        try:
+            if kg and hasattr(kg, 'G'):
+                from .intel_panel import _kg_target_vocab
+                vocab = _kg_target_vocab(kg, tgt)
+                existing = {c.lower() for c in candidates}
+                for surface in vocab:
+                    key = surface.lower()
+                    if key in existing:
+                        continue
+                    candidates.append(surface)
+                    existing.add(key)
+        except Exception as e:
+            print(f"[predictions vocab] {e}")
         try:
             if glossary:
                 for h in glossary.lookup_terms(source_text, src, tgt) or []:
