@@ -130,11 +130,21 @@ def page_translate(project_id: str):
             ).props('size="6px" :show-value="false"').classes("w-full rounded-full")
 
         with ui.row().classes("gap-2 items-center"):
-            ai_switch = ui.switch(
-                "AI auto-draft",
-                value=ui_settings.ai_pretranslate_enabled(),
-                on_change=lambda e: ui_settings.set_ai_pretranslate(bool(e.value)),
-            ).props("dense").classes("text-[11px]")
+            ai_master_on = ui_settings.ai_master_enabled()
+            if ai_master_on:
+                ai_switch = ui.switch(
+                    "AI auto-draft",
+                    value=ui_settings.ai_pretranslate_enabled(),
+                    on_change=lambda e: ui_settings.set_ai_pretranslate(bool(e.value)),
+                ).props("dense").classes("text-[11px]")
+            else:
+                ai_switch = ui.switch(
+                    "AI auto-draft",
+                    value=False,
+                    on_change=lambda e: ui_settings.set_ai_pretranslate(bool(e.value)),
+                ).props("dense disable").classes("text-[11px]").tooltip(
+                    "AI Translation is disabled on the home page"
+                )
             ui_settings.dark_toggle_button(dm)
 
             batch_btn_holder = ui.row().classes("items-center")
@@ -146,6 +156,10 @@ def page_translate(project_id: str):
                         ui.button("Stop", icon="stop", on_click=_stop_batch).props(
                             "outline rounded dense color=negative"
                         )
+                    elif not ai_master_on:
+                        ui.button("Auto-translate", icon="auto_awesome").props(
+                            "outline rounded dense color=grey disable"
+                        ).tooltip("AI Translation is disabled on the home page")
                     else:
                         ui.button("Auto-translate", icon="auto_awesome", on_click=lambda: background_tasks.create(_batch())).props(
                             "outline rounded dense color=accent"
@@ -319,6 +333,9 @@ def page_translate(project_id: str):
     async def _batch():
         if state.is_batch:
             return
+        if not ui_settings.ai_master_enabled():
+            ui.notify("AI Translation is disabled", type="warning")
+            return
         state.is_batch = True
         _render_batch_button()
         src, tgt = parse_lang_pair(state.lang_pair)
@@ -415,7 +432,7 @@ def page_translate(project_id: str):
         elif mod and key == "arrowdown":
             state.set_active(state.active_index + 1)
 
-    ui.keyboard(on_key=_on_key, ignore=["input", "select", "button", "textarea"])
+    ui.keyboard(on_key=_on_key, ignore=["input", "select", "button"])
 
 
 # ---------------------------------------------------------------------------

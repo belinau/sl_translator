@@ -74,4 +74,10 @@ def _disable_ai_pretranslate():
         app.storage.user["ai_pretranslate"] = False
     except Exception:
         pass
+    # Master switch stays ON in tests so the per-session toggle is the
+    # only control. Tests that want AI fully disabled can set both.
+    try:
+        app.storage.general["ai_master_enabled"] = True
+    except Exception:
+        pass
     yield

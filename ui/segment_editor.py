@@ -81,9 +81,15 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
 
         ui.separator()
         with ui.row().classes("w-full px-6 py-3 justify-between items-center"):
-            regen_btn = ui.button(icon="auto_awesome").props(
-                "flat round dense size=md color=primary"
-            ).tooltip("Regenerate AI Draft")
+            ai_master_on = ui_settings.ai_master_enabled()
+            if ai_master_on:
+                regen_btn = ui.button(icon="auto_awesome").props(
+                    "flat round dense size=md color=primary"
+                ).tooltip("Regenerate AI Draft")
+            else:
+                regen_btn = ui.button(icon="auto_awesome").props(
+                    "flat round dense size=md disable color=grey"
+                ).tooltip("AI Translation is disabled on the home page")
             with ui.row().classes("items-center gap-4"):
                 ui.label("⌘↵ confirm").classes(
                     "text-[10px] font-bold uppercase tracking-wider opacity-50"
@@ -163,6 +169,8 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
 
     async def _ai_draft(force: bool = False):
         if not state.segments:
+            return
+        if not ui_settings.ai_master_enabled():
             return
         idx = state.active_index
         seg_now = state.segments[idx]

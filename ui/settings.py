@@ -24,11 +24,26 @@ def dark_toggle_button(dm: ui.dark_mode):
 
 
 def ai_pretranslate_enabled() -> bool:
+    """Per-session toggle: should AI auto-draft run for new segments?
+    Obeyed only when the master switch is also on."""
+    if not ai_master_enabled():
+        return False
     return bool(app.storage.user.get("ai_pretranslate", True))
 
 
 def set_ai_pretranslate(value: bool) -> None:
     app.storage.user["ai_pretranslate"] = bool(value)
+
+
+def ai_master_enabled() -> bool:
+    """Master kill switch for AI/LLM features.
+    Stored in app.storage.general so it persists across browser sessions.
+    When off, the LLM model is never loaded and all AI controls are disabled."""
+    return bool(app.storage.general.get("ai_master_enabled", True))
+
+
+def set_ai_master_enabled(value: bool) -> None:
+    app.storage.general["ai_master_enabled"] = bool(value)
 
 
 # Structural CSS for the dual-layer ghost-text editor. The overlay (a styled

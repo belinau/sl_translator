@@ -277,10 +277,8 @@ async def init_resources():
         traceback.print_exc()
         return
 
-    # Preload the MLX model off the event loop so the first translate call is hot.
-    loop = asyncio.get_running_loop()
-    t = translator
-    loop.run_in_executor(llm_executor, lambda: t._impl._ensure_loaded())
+    # The MLX model is now lazy-loaded on first use. If the user disables
+    # AI via the master toggle, the model never enters memory at all.
 
 
 # Register the startup handler idempotently. NiceGUI's testing plugin re-runs
@@ -355,14 +353,26 @@ def page_home():
                             .classes("w-20")
                         )
 
-                vl_switch = ui.switch(
-                    "Parse with VL (recommended for PDFs)",
-                    value=True,
-                ).classes("text-[11px]").tooltip(
-                    "Use the Vision-Language model for PDF parsing. "
-                    "Handles footnotes, endnotes, columns, and tables of contents correctly. "
-                    "Uncheck to use the fast MarkItDown fallback instead."
-                )
+                with ui.column().classes("w-full gap-3 mt-2"):
+                    vl_switch = ui.switch(
+                        "Parse with VL (recommended for PDFs)",
+                        value=True,
+                    ).classes("text-[11px]").tooltip(
+                        "Use the Vision-Language model for PDF parsing. "
+                        "Handles footnotes, endnotes, columns, and tables of contents correctly. "
+                        "Uncheck to use the fast MarkItDown fallback instead."
+                    )
+
+                    ai_master_switch = ui.switch(
+                        "AI Translation",
+                        value=ui_settings.ai_master_enabled(),
+                        on_change=lambda e: ui_settings.set_ai_master_enabled(bool(e.value)),
+                    ).classes("text-[11px]").tooltip(
+                        "Master switch for AI/LLM translation. "
+                        "When off, the language model is not loaded into memory and all AI "
+                        "translation controls are disabled in the editor. "
+                        "Disable for language pairs where you prefer manual translation only."
+                    )
 
                 async def upload_wrapper(e):
                     await handle_new_upload(
