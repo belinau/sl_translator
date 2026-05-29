@@ -69,8 +69,175 @@ for label, key in [
 # ---------------------------------------------------------------------------
 # Entity tab selection
 # ---------------------------------------------------------------------------
-tab_search, tab_concepts, tab_agents, tab_sources, tab_lineages = st.tabs([
+# ---------------------------------------------------------------------------
+# Helpers used by the Extraction Review tab (defined before the tab block
+# because Streamlit re-runs the script top-to-bottom on each interaction).
+# ---------------------------------------------------------------------------
+def _record_matches_text(r: dict, q: str) -> bool:
+    p = r.get("payload", {})
+    haystack = " ".join(str(v) for v in [
+        p.get("name"), p.get("author"),
+        p.get("title_en"), p.get("title_sl"), p.get("title_orig"),
+    ] if v).lower()
+    return q in haystack
+
+
+def _record_label(r: dict) -> str:
+    p = r.get("payload", {})
+    if r["kind"] == "cited_work":
+        return f"{p.get('author', '?')} — {(p.get('title_en') or p.get('title_sl') or '?')[:60]} ({p.get('year') or '—'})"
+    if r["kind"] == "translated_work":
+        return f"{p.get('author', '?')} — {(p.get('title_en') or '?')[:60]} ({p.get('year') or '—'})"
+    if r["kind"] == "agent_person":
+        return f"{p.get('name', '?')} (×{p.get('mention_count', 1)}, group={p.get('dedup_group')})"
+    if r["kind"] == "institution":
+        return f"{p.get('name', '?')} ({p.get('kind', '?')}, {p.get('city') or '—'})"
+    return str(p)[:80]
+
+
+def _render_record(r: dict) -> None:
+    p = r.get("payload", {})
+    src = r.get("source", {})
+    if r["kind"] == "cited_work":
+        st.markdown(f"**Author:** `{p.get('author')}`")
+        st.markdown(f"**Title (EN):** `{p.get('title_en')}`")
+        st.markdown(f"**Title (SL):** `{p.get('title_sl')}`")
+        if p.get("title_orig"):
+            st.markdown(f"**Title (orig):** `{p.get('title_orig')}`")
+        st.markdown(f"**Year:** `{p.get('year')}`")
+        op = p.get("original_pub") or {}
+        if op:
+            st.markdown(f"**Original pub:** {op.get('city', '')} / {op.get('publisher', '')}")
+        sp = p.get("slovenian_edition") or {}
+        if sp:
+            st.markdown(f"**SL edition:** {sp.get('city', '')} / {sp.get('publisher', '')} (trans. {sp.get('translator', '—')})")
+        st.markdown(f"**Cited in:** `{p.get('container_work_id')}`")
+    elif r["kind"] == "translated_work":
+        st.markdown(f"**Author:** `{p.get('author')}`")
+        st.markdown(f"**Translator:** `{p.get('translator')}`")
+        st.markdown(f"**Title (EN):** `{p.get('title_en')}`")
+        st.markdown(f"**Title (SL):** `{p.get('title_sl')}`")
+        st.markdown(f"**Year:** `{p.get('year')}`")
+        st.markdown(f"**Project type:** `{p.get('project_type')}`")
+    elif r["kind"] == "agent_person":
+        st.markdown(f"**Name:** `{p.get('name')}`")
+        st.markdown(f"**Roles:** `{p.get('all_roles', [p.get('role')])}`")
+        st.markdown(f"**Mention count:** `{p.get('mention_count', 1)}`")
+        st.markdown(f"**Dedup group:** `{p.get('dedup_group')}`")
+        alts = p.get("alt_spellings", [])
+        if alts and len(alts) > 1:
+            st.markdown(f"**Alt spellings:** `{alts}`")
+    elif r["kind"] == "institution":
+        st.markdown(f"**Name:** `{p.get('name')}`")
+        st.markdown(f"**Kind:** `{p.get('kind')}`")
+        st.markdown(f"**City:** `{p.get('city')}`")
+    if src.get("src_excerpt"):
+        st.caption(f"EN segment: `{src['src_excerpt'][:240]}`")
+    if src.get("tgt_excerpt"):
+        st.caption(f"SL segment: `{src['tgt_excerpt'][:240]}`")
+    if r.get("reason_codes"):
+        st.caption(f"Reasons: {r['reason_codes']}")
+
+
+def _review_slugify(text: str) -> str:
+    import re as _re
+    import unicodedata as _u
+    nfkd = _u.normalize("NFKD", text)
+    s = "".join(c for c in nfkd if not _u.combining(c))
+    s = _re.sub(r"[^a-zA-Z0-9]+", "-", s).strip("-").lower()
+    return s[:80] if s else "unknown"
+
+
+def _commit_record(kg, r: dict) -> None:
+    """Write a single review-tier record to the KG."""
+    p = r["payload"]
+    kind = r["kind"]
+    if kind == "agent_person":
+        agent_id = _review_slugify(p["name"])
+        kg.add_agent_node(
+            agent_id,
+            name=p["name"],
+            role=p["role"] if p.get("role") != "multi" else "author",
+            dedup_group=p.get("dedup_group"),
+            alt_spellings=p.get("alt_spellings", []),
+            all_roles=p.get("all_roles", [p.get("role")]),
+            mention_count=p.get("mention_count", 1),
+        )
+    elif kind == "institution":
+        inst_id = _review_slugify(p["name"])
+        kg.add_institution_node(
+            inst_id, name=p["name"], kind=p.get("kind", "publisher"),
+            city=p.get("city"),
+        )
+    elif kind == "translated_work":
+        wid = p["work_id"]
+        year = p.get("year")
+        try:
+            year_int = int(year) if year else None
+        except (TypeError, ValueError):
+            year_int = None
+        kg.add_source_text_node(
+            wid,
+            title=p.get("title_en") or p.get("title_sl") or wid,
+            year=year_int,
+            title_en=p.get("title_en"),
+            title_sl=p.get("title_sl"),
+            project_type=p.get("project_type", "book_translation"),
+        )
+        if p.get("author"):
+            aid = _review_slugify(p["author"])
+            if not kg.G.has_node(f"agent:{aid.lower()}"):
+                kg.add_agent_node(aid, name=p["author"], role="author")
+            sn = f"source:{wid.lower()}"
+            an = f"agent:{aid.lower()}"
+            if kg.G.has_node(sn) and kg.G.has_node(an) and not kg.G.has_edge(sn, an):
+                kg.G.add_edge(sn, an, relation="written_by")
+        if p.get("translator"):
+            tid = _review_slugify(p["translator"])
+            if not kg.G.has_node(f"agent:{tid.lower()}"):
+                kg.add_agent_node(tid, name=p["translator"], role="translator")
+            kg.link_translated_by(wid, tid)
+    elif kind == "cited_work":
+        cid = p["cited_id"]
+        year = p.get("year")
+        try:
+            year_int = int(year) if year else None
+        except (TypeError, ValueError):
+            year_int = None
+        kg.add_source_text_node(
+            cid,
+            title=p.get("title_en") or p.get("title_sl") or p.get("title_orig") or cid,
+            year=year_int,
+            title_en=p.get("title_en"),
+            title_sl=p.get("title_sl"),
+            title_orig=p.get("title_orig"),
+            project_type="cited_work",
+            slovenian_edition=p.get("slovenian_edition"),
+        )
+        if p.get("author"):
+            aid = _review_slugify(p["author"])
+            if not kg.G.has_node(f"agent:{aid.lower()}"):
+                kg.add_agent_node(aid, name=p["author"], role="author")
+            sn = f"source:{cid.lower()}"
+            an = f"agent:{aid.lower()}"
+            if kg.G.has_node(sn) and kg.G.has_node(an) and not kg.G.has_edge(sn, an):
+                kg.G.add_edge(sn, an, relation="written_by")
+        if p.get("container_work_id"):
+            kg.link_cited_in(cid, p["container_work_id"])
+        pub = p.get("original_pub") or {}
+        if pub.get("publisher"):
+            iid = _review_slugify(pub["publisher"])
+            if not kg.G.has_node(f"institution:{iid.lower()}"):
+                kg.add_institution_node(
+                    iid, name=pub["publisher"], kind="publisher",
+                    city=pub.get("city"),
+                )
+            kg.link_published_by(cid, iid)
+
+
+tab_search, tab_concepts, tab_agents, tab_sources, tab_lineages, tab_review = st.tabs([
     "🔍 Terms & Mappings", "💡 Concepts", "👤 Agents", "📖 Sources", "🧹 Lineages",
+    "📥 Extraction Review",
 ])
 
 # ===========================================================================
@@ -309,15 +476,53 @@ with tab_concepts:
 with tab_agents:
     st.subheader("Agents")
     agents = kg.get_all_by_type("agent")
+    AGENT_ROLES = ["author", "translator", "editor", "interviewer", "curator", "organization"]
 
-    if agents:
-        for a in agents:
+    if not agents:
+        st.info("No agents registered yet.")
+    else:
+        st.caption(f"{len(agents)} agents total. Filter below to narrow before browsing.")
+        afc1, afc2 = st.columns([3, 1])
+        with afc1:
+            agent_search = st.text_input(
+                "Search name:", key="agent_search", placeholder="e.g. foucault, ahmed, maska",
+            ).strip().lower()
+        with afc2:
+            role_choices = ["all"] + sorted({a.get("role", "?") for a in agents})
+            agent_role_filter = st.selectbox("Role:", role_choices, key="agent_role_f")
+
+        def _agent_matches(a):
+            if agent_role_filter != "all" and a.get("role") != agent_role_filter:
+                return False
+            if agent_search and agent_search not in (a.get("name", "") or "").lower():
+                return False
+            return True
+
+        agents_filtered = [a for a in agents if _agent_matches(a)]
+        st.caption(f"**{len(agents_filtered)} match filters.**")
+
+        PAGE_SIZE_A = 25
+        total_a_pages = max(1, (len(agents_filtered) + PAGE_SIZE_A - 1) // PAGE_SIZE_A)
+        a_page = st.number_input(
+            f"Page (1 – {total_a_pages})", min_value=1, max_value=total_a_pages,
+            value=1, step=1, key="agent_page",
+        )
+        a_page_start = (int(a_page) - 1) * PAGE_SIZE_A
+
+        for a in agents_filtered[a_page_start: a_page_start + PAGE_SIZE_A]:
             a_id = a["id"]
             with st.expander(f"**{a.get('name', a_id)}** — {a.get('role', '—')}"):
                 with st.form(f"aedit_{a_id}"):
                     ea_name = st.text_input("Name:", value=a.get("name", ""))
-                    ea_role = st.selectbox("Role:", ["author", "translator"],
-                                           index=["author", "translator"].index(a.get("role", "author")))
+                    current_role = a.get("role", "author")
+                    if current_role not in AGENT_ROLES:
+                        AGENT_ROLES_FOR_THIS = AGENT_ROLES + [current_role]
+                    else:
+                        AGENT_ROLES_FOR_THIS = AGENT_ROLES
+                    ea_role = st.selectbox(
+                        "Role:", AGENT_ROLES_FOR_THIS,
+                        index=AGENT_ROLES_FOR_THIS.index(current_role),
+                    )
                     c1, c2 = st.columns(2)
                     with c1:
                         if st.form_submit_button("Save"):
@@ -329,8 +534,6 @@ with tab_agents:
                             kg.remove_node(a_id)
                             st.success("Deleted.")
                             st.rerun()
-    else:
-        st.info("No agents registered yet.")
 
     st.markdown("---")
     with st.expander("➕ New Agent"):
@@ -353,23 +556,99 @@ with tab_sources:
     agent_opts = {a["id"]: a.get("name", a["id"]) for a in agents_for_select}
     sources = kg.get_all_by_type("source_text")
 
-    if sources:
-        for s in sources:
+    if not sources:
+        st.info("No source texts registered yet.")
+    else:
+        # --- Filter / search controls (no rendering of 800+ forms upfront) ---
+        st.caption(f"{len(sources)} sources total. Filter below to narrow before browsing.")
+        fc1, fc2, fc3 = st.columns([2, 2, 1])
+        with fc1:
+            src_search = st.text_input(
+                "Search title/author:", key="src_search",
+                placeholder="e.g. foucault, life of art, maska",
+            ).strip().lower()
+        with fc2:
+            # Build a project_type set from data
+            ptypes = sorted({s.get("project_type", "_unset") or "_unset" for s in sources})
+            src_ptype = st.selectbox(
+                "project_type:", ["all"] + ptypes, key="src_ptype",
+            )
+        with fc3:
+            no_author_only = st.checkbox(
+                "Only no-author", key="src_noauth",
+                help="Show only sources that have no written_by edge",
+            )
+
+        # Pre-index author lookup per source so filtering by text and no-author is fast.
+        # This is a single pass over edges (cheap, ~K thousand edges total).
+        src_author: dict = {}
+        for u, v, d in kg.G.edges(data=True):
+            if d.get("relation") == "written_by":
+                # First written_by edge per source wins
+                src_author.setdefault(u, v)
+
+        def _source_matches(s):
+            if src_ptype != "all" and (s.get("project_type", "_unset") or "_unset") != src_ptype:
+                return False
+            if no_author_only and src_author.get(s["id"]):
+                return False
+            if src_search:
+                title = (s.get("title", "") or "").lower()
+                author_id = src_author.get(s["id"], "")
+                author_name = (kg.G.nodes[author_id].get("name", "") if author_id and kg.G.has_node(author_id) else "").lower()
+                if src_search not in title and src_search not in author_name:
+                    return False
+            return True
+
+        filtered = [s for s in sources if _source_matches(s)]
+        st.caption(f"**{len(filtered)} match filters.**")
+
+        # --- Pagination: only render forms for the current page ---
+        PAGE_SIZE = 15
+        total_pages = max(1, (len(filtered) + PAGE_SIZE - 1) // PAGE_SIZE)
+        page = st.number_input(
+            f"Page (1 – {total_pages})", min_value=1, max_value=total_pages,
+            value=1, step=1, key="src_page",
+        )
+        page_start = (int(page) - 1) * PAGE_SIZE
+        page_rows = filtered[page_start: page_start + PAGE_SIZE]
+
+        for s in page_rows:
             s_id = s["id"]
-            with st.expander(f"**{s.get('title', s_id)}** — {s.get('year', '—')}"):
+            current_author_id = src_author.get(s_id, "_none")
+            # Brief header listing connected agents
+            connected = []
+            for _, tgt, data in kg.G.out_edges(s_id, data=True):
+                rel = data.get("relation")
+                if rel in ("written_by", "translated_by", "edited_by"):
+                    agent_name = kg.G.nodes[tgt].get("name", tgt) if kg.G.has_node(tgt) else tgt
+                    connected.append(f"{rel.replace('_', ' ')}: {agent_name}")
+            connected_str = " | ".join(connected) if connected else "(no agent edges)"
+            header = f"**{s.get('title', s_id)}** — {s.get('year', '—')} — {connected_str}"
+            with st.expander(header):
                 with st.form(f"sedit_{s_id}"):
                     es_title = st.text_input("Title:", value=s.get("title", ""))
-                    es_year = st.number_input("Year:", min_value=1800, max_value=2030,
-                                              value=s.get("year") or 2000)
-                    es_auth = st.selectbox("Author:", options=["_none"] + list(agent_opts.keys()),
-                                           format_func=lambda x: (
-                                               "None" if x == "_none" else agent_opts.get(x, x)))
+                    es_year = st.number_input(
+                        "Year:", min_value=1800, max_value=2030,
+                        value=s.get("year") or 2000,
+                    )
+                    author_options = ["_none"] + list(agent_opts.keys())
+                    try:
+                        author_index = author_options.index(current_author_id)
+                    except ValueError:
+                        author_index = 0
+                    es_auth = st.selectbox(
+                        "Author:", options=author_options,
+                        index=author_index,
+                        format_func=lambda x: ("None" if x == "_none" else agent_opts.get(x, x)),
+                    )
                     c1, c2 = st.columns(2)
                     with c1:
                         if st.form_submit_button("Save"):
                             auth_val = None if es_auth == "_none" else es_auth
-                            kg.update_source_text_node(s_id, title=es_title,
-                                                        year=es_year, author_id=auth_val)
+                            kg.update_source_text_node(
+                                s_id, title=es_title, year=es_year, author_id=auth_val,
+                            )
                             st.success("Updated.")
                             st.rerun()
                     with c2:
@@ -377,8 +656,6 @@ with tab_sources:
                             kg.remove_node(s_id)
                             st.success("Deleted.")
                             st.rerun()
-    else:
-        st.info("No source texts registered yet.")
 
     st.markdown("---")
     with st.expander("➕ New Source Text"):
@@ -428,3 +705,158 @@ with tab_lineages:
                 st.rerun()
     else:
         st.info("No lineages registered yet.")
+
+
+# ===========================================================================
+# TAB: Extraction Review (mid-confidence records from entity extractor)
+# ===========================================================================
+with tab_review:
+    st.subheader("Entity Extraction Review")
+    st.caption(
+        "Review mid-confidence records produced by `run_entity_extraction.py`. "
+        "Accept rows you want in the KG; remaining items stay in `data/extraction_review.json`."
+    )
+
+    import json
+    from collections import Counter
+
+    REVIEW_PATH = Path("data/extraction_review.json")
+    PREVIEW_PATH = Path("data/extraction_pattern_preview.md")
+
+    col_a, col_b, col_c = st.columns(3)
+    with col_a:
+        if PREVIEW_PATH.exists():
+            st.metric("Preview generated", PREVIEW_PATH.stat().st_size // 1024, "KB")
+        else:
+            st.info("No preview yet — run `python run_entity_extraction.py --dry-run --preview-patterns`.")
+    with col_b:
+        if REVIEW_PATH.exists():
+            st.metric("Review queue size", REVIEW_PATH.stat().st_size // 1024, "KB")
+    with col_c:
+        if st.button("🔄 Reload review queue"):
+            st.rerun()
+
+    if not REVIEW_PATH.exists():
+        st.warning("No `data/extraction_review.json` found. Run the extractor first.")
+    else:
+        try:
+            review_records = json.loads(REVIEW_PATH.read_text(encoding="utf-8"))
+        except Exception as e:
+            st.error(f"Could not load review queue: {e}")
+            review_records = []
+
+        if not review_records:
+            st.success("Review queue is empty — nothing pending.")
+        else:
+            # Filter controls
+            kinds_present = Counter(r["kind"] for r in review_records)
+            kind_choices = sorted(kinds_present.keys())
+
+            f_col1, f_col2, f_col3 = st.columns([1, 1, 2])
+            with f_col1:
+                kind_filter = st.selectbox(
+                    "Kind", ["all"] + kind_choices,
+                    format_func=lambda k: f"{k} ({kinds_present.get(k, len(review_records))})" if k != "all" else f"all ({len(review_records)})",
+                )
+            with f_col2:
+                min_conf = st.slider("Min confidence", 0.0, 1.0, 0.55, 0.05)
+            with f_col3:
+                text_filter = st.text_input("Filter by text (author/title/name)").strip().lower()
+
+            filtered = [
+                r for r in review_records
+                if (kind_filter == "all" or r["kind"] == kind_filter)
+                and r.get("confidence", 0) >= min_conf
+                and (not text_filter or _record_matches_text(r, text_filter))
+            ]
+            st.caption(f"**{len(filtered)} of {len(review_records)}** records match filters.")
+
+            # Bulk operations
+            bulk_col_a, bulk_col_b = st.columns(2)
+            with bulk_col_a:
+                with st.expander("🚀 Bulk accept (use with care)", expanded=False):
+                    bulk_kind = st.selectbox(
+                        "Accept all records of kind:",
+                        ["(pick a kind)"] + kind_choices,
+                        key="bulk_kind",
+                    )
+                    bulk_min_conf = st.slider(
+                        "Minimum confidence for bulk accept:", 0.55, 1.0, 0.7, 0.05,
+                        key="bulk_min_conf",
+                    )
+                    if bulk_kind != "(pick a kind)" and st.button(
+                        f"Accept all {bulk_kind} ≥ {bulk_min_conf}", type="primary",
+                    ):
+                        accepted = 0
+                        remaining = []
+                        for r in review_records:
+                            if r["kind"] == bulk_kind and r.get("confidence", 0) >= bulk_min_conf:
+                                _commit_record(kg, r)
+                                accepted += 1
+                            else:
+                                remaining.append(r)
+                        REVIEW_PATH.write_text(json.dumps(remaining, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+                        kg.save()
+                        st.success(f"Committed {accepted} records. KG saved.")
+                        st.rerun()
+
+            with bulk_col_b:
+                with st.expander("🗑️ Bulk reject (remove all matching the current filter)", expanded=False):
+                    st.caption(
+                        f"This will permanently remove **all {len(filtered)} records currently matching the filter** "
+                        "from the review queue. They will NOT be committed to the KG."
+                    )
+                    confirm = st.text_input(
+                        "Type the count to confirm:",
+                        placeholder=str(len(filtered)),
+                        key="bulk_reject_confirm",
+                    )
+                    if st.button("🗑️ Discard filtered records", type="secondary"):
+                        if confirm == str(len(filtered)) and filtered:
+                            filtered_ids = {id(r) for r in filtered}
+                            remaining = [r for r in review_records if id(r) not in filtered_ids]
+                            REVIEW_PATH.write_text(
+                                json.dumps(remaining, ensure_ascii=False, indent=2, default=str),
+                                encoding="utf-8",
+                            )
+                            st.success(f"Discarded {len(filtered)} records.")
+                            st.rerun()
+                        else:
+                            st.error("Confirmation count mismatch — type the exact filtered count to proceed.")
+
+            # Pagination (smaller default page so rendering stays snappy)
+            PAGE_SIZE = 10
+            total_pages = max(1, (len(filtered) + PAGE_SIZE - 1) // PAGE_SIZE)
+            page = st.number_input(
+                f"Page (1 – {total_pages})", min_value=1, max_value=total_pages, value=1, step=1,
+            )
+            page_start = (page - 1) * PAGE_SIZE
+            page_recs = filtered[page_start: page_start + PAGE_SIZE]
+
+            for r in page_recs:
+                rid = r.get("payload", {}).get("cited_id") \
+                    or r.get("payload", {}).get("work_id") \
+                    or r.get("payload", {}).get("dedup_group") \
+                    or r.get("payload", {}).get("name") \
+                    or id(r)
+                label = _record_label(r)
+                with st.expander(f"`{r['kind']}` — {label}  (conf {r.get('confidence', 0):.2f})"):
+                    _render_record(r)
+                    rcol1, rcol2 = st.columns(2)
+                    with rcol1:
+                        if st.button("✅ Accept → KG", key=f"acc_{rid}_{page}"):
+                            _commit_record(kg, r)
+                            kg.save()
+                            # Remove from review file
+                            remaining = [x for x in review_records if x is not r]
+                            REVIEW_PATH.write_text(json.dumps(remaining, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+                            st.success("Committed.")
+                            st.rerun()
+                    with rcol2:
+                        if st.button("🗑️ Reject (remove from queue)", key=f"rej_{rid}_{page}"):
+                            remaining = [x for x in review_records if x is not r]
+                            REVIEW_PATH.write_text(json.dumps(remaining, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+                            st.info("Removed from queue.")
+                            st.rerun()
+
+

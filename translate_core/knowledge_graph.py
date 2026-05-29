@@ -569,6 +569,66 @@ class KnowledgeGraph:
         return domain_id
 
     # ------------------------------------------------------------------
+    # Institution node + bibliographic / translation edges
+    # Added for the entity-extraction rework: lets us model publishers,
+    # galleries, festival venues, and the citation tree (translated work
+    # → cited works) that the TM extractor builds.
+    # ------------------------------------------------------------------
+    def add_institution_node(
+        self, inst_id: str, name: str, kind: str = "publisher", **kwargs
+    ) -> str:
+        node_id = f"institution:{inst_id.lower()}"
+        if not self.G.has_node(node_id):
+            self.G.add_node(
+                node_id,
+                id=node_id,
+                type="institution",
+                name=name,
+                kind=kind,
+                created_at=_get_timestamp(),
+                **kwargs,
+            )
+        return node_id
+
+    def link_translated_by(self, source_text_id: str, agent_id: str) -> bool:
+        src_node = source_text_id if source_text_id.startswith("source:") else f"source:{source_text_id.lower()}"
+        agent_node = agent_id if agent_id.startswith("agent:") else f"agent:{agent_id.lower()}"
+        if not (self.G.has_node(src_node) and self.G.has_node(agent_node)):
+            return False
+        if not self.G.has_edge(src_node, agent_node):
+            self.G.add_edge(src_node, agent_node, relation="translated_by")
+        return True
+
+    def link_cited_in(self, cited_source_id: str, container_source_id: str) -> bool:
+        cited = cited_source_id if cited_source_id.startswith("source:") else f"source:{cited_source_id.lower()}"
+        container = container_source_id if container_source_id.startswith("source:") else f"source:{container_source_id.lower()}"
+        if cited == container:
+            return False
+        if not (self.G.has_node(cited) and self.G.has_node(container)):
+            return False
+        if not self.G.has_edge(cited, container):
+            self.G.add_edge(cited, container, relation="cited_in")
+        return True
+
+    def link_published_by(self, source_text_id: str, institution_id: str) -> bool:
+        src_node = source_text_id if source_text_id.startswith("source:") else f"source:{source_text_id.lower()}"
+        inst_node = institution_id if institution_id.startswith("institution:") else f"institution:{institution_id.lower()}"
+        if not (self.G.has_node(src_node) and self.G.has_node(inst_node)):
+            return False
+        if not self.G.has_edge(src_node, inst_node):
+            self.G.add_edge(src_node, inst_node, relation="published_by")
+        return True
+
+    def link_hosted_by(self, source_text_id: str, institution_id: str) -> bool:
+        src_node = source_text_id if source_text_id.startswith("source:") else f"source:{source_text_id.lower()}"
+        inst_node = institution_id if institution_id.startswith("institution:") else f"institution:{institution_id.lower()}"
+        if not (self.G.has_node(src_node) and self.G.has_node(inst_node)):
+            return False
+        if not self.G.has_edge(src_node, inst_node):
+            self.G.add_edge(src_node, inst_node, relation="hosted_by")
+        return True
+
+    # ------------------------------------------------------------------
     # Context-Aware Translation Mapping Node
     # ------------------------------------------------------------------
     def link_translations_with_context(
