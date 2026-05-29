@@ -105,6 +105,11 @@ def save_project(ws: dict):
         "done": done,
         "segments": segs,
     }
+    # Preserve VL pipeline metadata (outline, segments_meta) if present
+    if "segments_meta" in ws:
+        data["segments_meta"] = ws["segments_meta"]
+    if "outline" in ws:
+        data["outline"] = ws["outline"]
     path = PROJECTS_DIR / f"{ws['project_id']}.json"
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -350,8 +355,21 @@ def page_home():
                             .classes("w-20")
                         )
 
+                vl_switch = ui.switch(
+                    "Parse with VL (recommended for PDFs)",
+                    value=True,
+                ).classes("text-[11px]").tooltip(
+                    "Use the Vision-Language model for PDF parsing. "
+                    "Handles footnotes, endnotes, columns, and tables of contents correctly. "
+                    "Uncheck to use the fast MarkItDown fallback instead."
+                )
+
                 async def upload_wrapper(e):
-                    await handle_new_upload(e, f"{src_lang.value}->{tgt_lang.value}")
+                    await handle_new_upload(
+                        e,
+                        f"{src_lang.value}->{tgt_lang.value}",
+                        use_vl=vl_switch.value,
+                    )
 
                 ui.upload(
                     on_upload=upload_wrapper,
@@ -430,11 +448,16 @@ def delete_and_refresh(project_id: str, container: ui.column, client):
     render_project_list(container, client)
 
 
-async def handle_new_upload(e, lang_pair: str):
+async def handle_new_upload(e, lang_pair: str, use_vl: bool = True):
     name = getattr(e, "name", "document.docx")
     suffix = Path(name).suffix.lower()
     if suffix not in (".docx", ".pdf"):
         return ui.notify("DOCX or PDF files only", type="warning")
+
+    # Auto-disable VL for non-PDF files
+    if use_vl and suffix != ".pdf":
+        use_vl = False
+
     try:
         content = await e.file.read()
     except Exception as ex:
@@ -448,26 +471,61 @@ async def handle_new_upload(e, lang_pair: str):
     if doc_parser is None:
         return ui.notify("Document parser not initialized", type="negative")
 
-    try:
-        # Ingestion Preprocessing: Convert doc to Markdown, normalize endnotes ➔ footnotes,
-        # and adapt numbering sequences automatically
-        md_text = doc_parser.to_markdown(saved_path, preprocess=True)
+    server = None
+    if use_vl:
+        from translate_core.vl_server import VLMServerManager
+        server = VLMServerManager()
+        ui.notify("Starting VL server…", type="info")
+        if not server.start(timeout=180):
+            ui.notify("VL server failed to start. Falling back to standard parsing.", type="warning")
+            server = None
+            use_vl = False
 
-        segments = []
-        # Segment Markdown by paragraph boundaries (double newlines)
-        for block in md_text.split("\n\n"):
-            txt = block.strip()
-            if txt:
-                segments.append(
-                    {
-                        "id": len(segments),
-                        "source": txt,
-                        "target": "",
-                        "status": "pending",
-                    }
-                )
+    try:
+        cache_dir = None
+        if use_vl:
+            cache_dir = Path("data/.vl_cache") / saved_path.stem
+
+        # Progress callback for VL parsing
+        progress_label = {"text": ""}
+        def _upload_progress(phase: str, current: int, total: int, cached: bool = False):
+            pct = int((current + 1) / total * 100)
+            status = " (cached)" if cached else ""
+            msg = f"[{phase}] {current + 1}/{total}{status} ({pct}%)"
+            progress_label["text"] = msg
+            # NiceGUI notifications for long-running VL parse
+            if current == 0:
+                ui.notify(f"Parsing with VL: {phase}…", type="info")
+
+        md_text, segments_meta = doc_parser.to_markdown_with_meta(
+            saved_path,
+            preprocess=True,
+            use_vl=use_vl,
+            vl_cache_dir=cache_dir,
+            progress_callback=_upload_progress if use_vl else None,
+        )
     except Exception as ex:
-        return ui.notify(f"Parsing error: {ex}", type="negative")
+        if use_vl:
+            ui.notify(f"VL parsing error: {ex}", type="negative")
+        else:
+            ui.notify(f"Parsing error: {ex}", type="negative")
+        return
+    finally:
+        if server:
+            server.stop()
+
+    segments = []
+    for block in md_text.split("\n\n"):
+        txt = block.strip()
+        if txt:
+            segments.append(
+                {
+                    "id": len(segments),
+                    "source": txt,
+                    "target": "",
+                    "status": "pending",
+                }
+            )
 
     ws = {
         "project_id": project_id,
@@ -476,6 +534,35 @@ async def handle_new_upload(e, lang_pair: str):
         "active_index": 0,
         "segments": segments,
     }
+
+    # If VL pipeline produced segment metadata, persist it for Phase 2 KG filtering
+    if segments_meta:
+        ws["segments_meta"] = segments_meta
+
+    # If VL pipeline produced an outline, persist it for chapter navigation
+    vl_result = getattr(doc_parser, '_last_vl_result', None)
+    if vl_result is not None:
+        outline_data = {
+            "entries": [
+                {
+                    "level": e.level,
+                    "kind": e.kind,
+                    "number": e.number,
+                    "title": e.title,
+                    "page_number": e.page_number,
+                    "source_page": e.source_page,
+                }
+                for e in vl_result.outline.entries
+            ],
+            "page_to_chapter": vl_result.outline.page_to_chapter,
+            "reconciliation_warnings": vl_result.outline.reconciliation_warnings,
+        }
+        ws["outline"] = outline_data
+        outline_path = PROJECTS_DIR / f"{project_id}_outline.json"
+        outline_path.write_text(
+            json.dumps(outline_data, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+
     save_project(ws)
     ui.notify(f"Created: {len(segments)} paragraphs", type="positive")
     ui.navigate.to(f"/translate/{project_id}")

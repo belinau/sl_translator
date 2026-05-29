@@ -1,116 +1,131 @@
 # import_book.py
 #
-# High-Reliability CLI Importer for heavy academic books (PDF/DOCX)
-# Bypasses browser upload limits, runs pre-processing, and registers the project instantly.
-# Auto-sanitizes trailing hyphen errors from shell redirection.
+# One-command book importer.
+# Put your PDF in data/books/ and run:
+#   python import_book.py data/books/book.pdf
 #
-# Usage:
-#   python import_book.py data/books/feminist-queer-crip-alison-kafer.pdf en->sl
-#
+# VL server auto-starts for PDFs. Re-running picks up cached pages.
 
 import json
+import logging
 import re
 import sys
+import time
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Tuple
 
 sys.path.append(str(Path(__file__).parent))
+
+logging.basicConfig(level=logging.WARNING, format="   ! %(message)s")
 
 from translate_core.doc_parser import DocumentParser
 
 
+def cli_progress(phase: str, current: int, total: int, cached: bool = False):
+    """Print one line per page with phase, page type when available."""
+    pct = int((current + 1) / total * 100)
+    mark = "✓" if cached else "·"
+    print(f"  {mark} [{phase}] {current + 1}/{total} ({pct}%)", flush=True)
+
+
 def sanitize_lang_pair(pair: str) -> str:
-    """
-    Detect if the terminal shell intercepted the '>' character (eating '>sl' / '>en')
-    and heal 'en-' or 'sl-' back into standard form on the fly.
-    """
     if not pair:
         return "en->sl"
-
     cleaned = pair.strip().lower()
-
-    # Check if the shell cut it off at "en-" or "sl-"
     if cleaned == "en-":
-        print("⚠️ [Warning] Your terminal shell intercepted the '>' character.")
-        print(
-            "            We have automatically healed your input parameter 'en-' to 'en->sl'."
-        )
-        print(
-            '            (To avoid this in the future, wrap the language pair in quotes: "en->sl")\n'
-        )
         return "en->sl"
-
     if cleaned == "sl-":
-        print("⚠️ [Warning] Your terminal shell intercepted the '>' character.")
-        print(
-            "            We have automatically healed your input parameter 'sl-' to 'sl->en'."
-        )
-        print(
-            '            (To avoid this in the future, wrap the language pair in quotes: "sl->en")\n'
-        )
         return "sl->en"
-
-    # Normalize standard hyphen variations to "->"
     if "-" in cleaned and "->" not in cleaned:
         cleaned = cleaned.replace("-", "->")
-
     if "->" not in cleaned:
         return "en->sl"
-
     return cleaned
 
 
-def import_book(file_path: str, lang_pair: str = "en->sl"):
+def import_book(file_path: str, lang_pair: str = "en->sl", use_vl: bool = True):
     path = Path(file_path)
     if not path.exists():
-        print(f"[ERROR] Book file not found at: {path.resolve()}")
+        print(f"[ERROR] File not found: {path.resolve()}")
         return
 
-    # Sanitize language pair in case of shell redirections
+    is_pdf = path.suffix.lower() == ".pdf"
+    if use_vl and not is_pdf:
+        use_vl = False
+
     clean_pair = sanitize_lang_pair(lang_pair)
+    print(f"\n📖 {path.name}  ({clean_pair})", flush=True)
 
-    print(f"[Importer] Loading and parsing book: {path.name}")
-    print(f"           This can take up to a minute for heavy PDFs...")
+    # ── Start VL server if needed ─────────────────────────────────────
+    server = None
+    vl_result = None
 
+    if use_vl:
+        from translate_core.vl_server import VLMServerManager
+
+        print("   Starting VL server…", flush=True)
+        server = VLMServerManager()
+        if not server.start(timeout=180):
+            print("   ✗ Failed. Falling back to MarkItDown.", flush=True)
+            server = None
+            use_vl = False
+
+    if use_vl:
+        import fitz
+        with fitz.open(str(path)) as doc:
+            total_pages = len(doc)
+        mins_lo = total_pages * 2.5 // 60 + 1
+        mins_hi = total_pages * 4 // 60 + 1
+        print(f"   Parsing {total_pages} pages (est. {mins_lo}–{mins_hi} min, cached pages skipped)", flush=True)
+        print()
+
+    if not use_vl:
+        print("   Parsing with MarkItDown…")
+
+    # ── Parse ─────────────────────────────────────────────────────────
     parser = DocumentParser()
-
     try:
-        # Run Ingestion Preprocessing: Convert PDF to Markdown, convert endnotes ➔ footnotes,
-        # and adapt hierarchical list configurations
-        md_text = parser.to_markdown(path, preprocess=True)
-    except Exception as ex:
-        print(f"\n[CRITICAL ERROR] Failed to parse document: {ex}")
-        print(
-            "                 Ensure you have installed pdf support: pip install 'markitdown[pdf]'"
+        cache_dir = Path("data/.vl_cache") / path.stem if use_vl else None
+        md_text, segments_meta = parser.to_markdown_with_meta(
+            path,
+            preprocess=True,
+            use_vl=use_vl,
+            vl_cache_dir=cache_dir,
+            progress_callback=cli_progress if use_vl else None,
         )
+    except Exception as ex:
+        print(f"\n[ERROR] Parse failed: {ex}")
+        if use_vl:
+            print("   pip install mlx-vlm")
+        else:
+            print("   pip install 'markitdown[pdf]'")
         return
+    finally:
+        if server:
+            server.stop()
 
-    # Segment the processed Markdown text by paragraph boundaries
+    # ── Segment ────────────────────────────────────────────────────────
+    # Use the smart paragraph splitter (handles PyMuPDF's indent-based
+    # paragraph boundaries, de-hyphenates wrapped words, caps long
+    # paragraphs at ~10 sentences so segments stay editable).
+    from translate_core.vl_parser import split_paragraphs as _split_paragraphs
+
     segments = []
-    for block in md_text.split("\n\n"):
-        txt = block.strip()
-        if txt:
-            segments.append(
-                {"id": len(segments), "source": txt, "target": "", "status": "pending"}
-            )
+    for txt in _split_paragraphs(md_text):
+        segments.append({"id": len(segments), "source": txt, "target": "", "status": "pending"})
 
     if not segments:
-        print("[ERROR] No paragraphs could be extracted from this document.")
+        print("[ERROR] No text extracted from document.")
         return
 
-    # Generate a unique project ID
+    # ── Save ───────────────────────────────────────────────────────────
     project_id = str(uuid.uuid4())[:8]
-
-    # Save the original file with its new project ID inside your existing project directory
     projects_dir = Path("./data/projects")
     projects_dir.mkdir(parents=True, exist_ok=True)
 
-    target_book_path = projects_dir / f"{project_id}{path.suffix}"
-    target_book_path.write_bytes(path.read_bytes())
+    (projects_dir / f"{project_id}{path.suffix}").write_bytes(path.read_bytes())
 
-    # Build the workspace structure
     ws = {
         "id": project_id,
         "filename": path.name,
@@ -121,31 +136,59 @@ def import_book(file_path: str, lang_pair: str = "en->sl"):
         "done": 0,
         "segments": segments,
     }
+    if segments_meta:
+        ws["segments_meta"] = segments_meta
 
-    # Write the segmented JSON to register the project on the home screen
-    target_json_path = projects_dir / f"{project_id}.json"
-    target_json_path.write_text(
-        json.dumps(ws, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    target_json = projects_dir / f"{project_id}.json"
+    target_json.write_text(json.dumps(ws, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    print(f"\n🎉 [SUCCESS] Book imported and segmented successfully!")
-    print(f"             Project ID: {project_id}")
-    print(f"             Language Direction: {clean_pair.upper()}")
-    print(f"             Total Paragraphs Segments: {len(segments)}")
-    print(f"             Segmented metadata saved to: {target_json_path}")
-    print(
-        f"             Open localhost:8080 - the project is ready to translate with 1 click!"
-    )
+    vl_result = getattr(parser, "_last_vl_result", None)
+    if vl_result is not None:
+        from translate_core.vl_parser import BookOutline
+        outline_path = projects_dir / f"{project_id}_outline.json"
+        outline_data = {
+            "entries": [
+                {
+                    "level": e.level,
+                    "kind": e.kind,
+                    "number": e.number,
+                    "title": e.title,
+                    "page_number": e.page_number,
+                    "source_page": e.source_page,
+                }
+                for e in vl_result.outline.entries
+            ],
+            "page_to_chapter": vl_result.outline.page_to_chapter,
+            "reconciliation_warnings": vl_result.outline.reconciliation_warnings,
+        }
+        outline_path.write_text(json.dumps(outline_data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    # ── Summary ────────────────────────────────────────────────────────
+    print(f"\n✅ Done!")
+    print(f"   Project:  {project_id}")
+    print(f"   Language: {clean_pair}")
+    print(f"   Segments: {len(segments)}")
+    if vl_result is not None:
+        print(f"   Pages:    {vl_result.total_pages}")
+        types = {}
+        for cls in vl_result.page_classifications:
+            t = cls.page_type.value
+            types[t] = types.get(t, 0) + 1
+        for t, c in sorted(types.items(), key=lambda x: -x[1]):
+            print(f"     {c:3d} {t}")
+    print(f"   File:     {target_json}")
+    print(f"\n   Open localhost:8080 to translate")
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python import_book.py <path_to_book> [lang_pair]")
-        print(
-            "Example: python import_book.py data/projects/Feminist_Queer_Crip.pdf en->sl"
-        )
-        sys.exit(1)
+    import argparse
 
-    path_arg = sys.argv[1]
-    pair_arg = sys.argv[2] if len(sys.argv) > 2 else "en->sl"
-    import_book(path_arg, pair_arg)
+    ap = argparse.ArgumentParser(
+        description="Import a book. VL auto-starts for PDFs.",
+    )
+    ap.add_argument("path", help="PDF or DOCX file")
+    ap.add_argument("lang_pair", nargs="?", default="en->sl", help="en->sl (default)")
+    ap.add_argument("--no-vl", action="store_true", help="Use MarkItDown instead of VL")
+    args = ap.parse_args()
+
+    import_book(args.path, args.lang_pair, use_vl=not args.no_vl)

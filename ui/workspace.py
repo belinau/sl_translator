@@ -170,17 +170,65 @@ def page_translate(project_id: str):
     state.subscribe("segments", _update_progress)
 
     # ------------------------------------------------------------------
-    # Main layout: editor + intel panel in the central column. Segment
-    # navigator stays in the right drawer (constant-presence, jump-anywhere).
-    # KG / TM / Glossary sit directly below the editor card so every
-    # actionable hit is within a short glance of the cursor — no tab clicks,
-    # no drawer hunting during the translation flow.
+    # Chapter outline sidebar (from VL pipeline, if available)
     # ------------------------------------------------------------------
+    outline_entries = []
+    project_data = load_project(state.project_id)
+    if project_data and "outline" in project_data:
+        outline_entries = project_data["outline"].get("entries", [])
+
     with (
         ui.right_drawer(value=True, fixed=True)
         .props("width=380 bordered") as intel_drawer
     ):
         with ui.column().classes("w-full p-4 gap-2"):
+            # Chapter outline (VL-generated books only)
+            if outline_entries:
+                # Build chapter -> segment_index map from segments_meta.
+                # segments_meta[i] corresponds to segments[i] (same order, same length).
+                # We map each chapter_index to the first segment that belongs to it.
+                chapter_to_seg = {}  # chapter_index -> first segment id
+                if project_data and "segments_meta" in project_data:
+                    for i, sm in enumerate(project_data["segments_meta"]):
+                        ch_idx = sm.get("chapter_index", 0)
+                        if ch_idx not in chapter_to_seg:
+                            chapter_to_seg[ch_idx] = i  # segment id = index in segments list
+
+                toc_chapters = [e for e in outline_entries if e.get("kind") in ("chapter", "part", "front_matter")]
+
+                with ui.expansion("Chapters", icon="menu_book").classes(
+                    "w-full"
+                ).props("dense").classes("mb-2"):
+                    for entry in outline_entries:
+                        indent = entry.get("level", 1)
+                        kind = entry.get("kind", "chapter")
+                        number = entry.get("number", "")
+                        title = entry.get("title", "Untitled")
+                        prefix = f"{number}. " if number else ""
+                        icon_name = {
+                            "part": "bookmark",
+                            "front_matter": "article",
+                            "back_matter": "attachment",
+                        }.get(kind, "description")
+                        # Find the chapter index for this entry to enable click-to-navigate
+                        entry_ch_idx = None
+                        for ci, ch in enumerate(toc_chapters):
+                            if ch is entry:
+                                entry_ch_idx = ci
+                                break
+                        target_seg = chapter_to_seg.get(entry_ch_idx, 0) if entry_ch_idx is not None else 0
+
+                        with ui.row().classes(
+                            f"pl-{indent * 2} items-center gap-1 cursor-pointer hover:bg-blue-50 dark:hover:bg-slate-700 rounded"
+                        ).on(
+                            "click",
+                            handler=lambda idx=target_seg: state.set_active(int(idx)),
+                        ):
+                            ui.icon(icon_name, size="14px").classes("opacity-50")
+                            ui.label(f"{prefix}{title}").classes(
+                                "text-[11px] font-medium truncate"
+                            )
+
             nav_refs = segment_navigator.build(state)
 
     with ui.column().classes("w-full h-screen pt-2 overflow-hidden no-wrap"):
@@ -197,6 +245,10 @@ def page_translate(project_id: str):
     # ------------------------------------------------------------------
     # Confirm + batch + KG/TM promotion
     # ------------------------------------------------------------------
+    # Segment types that should NOT be promoted to the KG (catalog data,
+    # not running prose — NLP extraction would produce noisy noun chunks).
+    _KG_SKIP_TYPES = {"bibliography", "index"}
+
     async def _confirm_segment():
         if not state.segments:
             return
@@ -210,16 +262,50 @@ def page_translate(project_id: str):
             state.set_active(next_idx)
         else:
             ui.notify("Document complete! 🎉", type="positive")
-        background_tasks.create(_promote_pair(seg, state.lang_pair), name="kg_promote")
+        background_tasks.create(_promote_pair(seg, state.lang_pair, idx), name="kg_promote")
 
-    async def _promote_pair(seg: dict, lang_pair: str):
+    async def _promote_pair(seg: dict, lang_pair: str, seg_index: int = -1):
         src, tgt = parse_lang_pair(lang_pair)
         loop = asyncio.get_running_loop()
+
+        # Phase 2 KG filter: skip promote_pair for bibliography/index segments
+        # if segments_meta is available. These types produce noisy noun chunks
+        # that pollute concept extraction.
+        seg_meta = None
+        project_data = load_project(state.project_id)
+        if project_data and "segments_meta" in project_data:
+            meta_list = project_data["segments_meta"]
+            if 0 <= seg_index < len(meta_list):
+                seg_meta = meta_list[seg_index]
+
+        if seg_meta and seg_meta.get("type") in _KG_SKIP_TYPES:
+            # Still save to TM, but skip KG promotion
+            try:
+                await loop.run_in_executor(
+                    None,
+                    lambda: save_pair_to_tm(seg["source"], seg["target"], lang_pair),
+                )
+            except Exception as e:
+                print(f"[promote_pair TM-only] {e}")
+            return
+
+        # Derive domain and context from segments_meta for KG enrichment
+        domain = ""
+        context_text = seg["source"]
+        if seg_meta:
+            domain = seg_meta.get("outline_path", "")
+            # For chapter_title segments, use the title itself as domain
+            if seg_meta.get("type") == "chapter_title" and not domain:
+                domain = seg["source"].strip().lstrip("# ").strip()
+
         try:
             if kg is not None:
                 await loop.run_in_executor(
                     None,
-                    lambda: kg.promote_pair(seg["source"], seg["target"], src, tgt, verified=True),
+                    lambda: kg.promote_pair(
+                        seg["source"], seg["target"], src, tgt,
+                        verified=True, domain=domain, context=context_text,
+                    ),
                 )
             await loop.run_in_executor(
                 None,
@@ -319,7 +405,7 @@ def page_translate(project_id: str):
             key = (e.key.name or "").lower()
         except Exception:
             return
-        mod = e.modifiers.cmd or e.modifiers.ctrl
+        mod = e.modifiers.meta or e.modifiers.ctrl
         if not e.action.keydown:
             return
         if mod and key == "enter":

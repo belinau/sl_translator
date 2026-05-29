@@ -13,3 +13,14 @@ sacremoses
 streamlit
 pandas
 python-docx
+pymupdf
+httpx
+pillow
+mlx-vlm>=0.4.3
+transformers>=5.1.0
+
+# VL pipeline tested with:
+#   mlx-vlm==0.4.3 (0.5.0 has NaiveStreamingDetokenizer bug)
+#   Model: MuXodious/LFM2.5-VL-1.6B-absolute-heresy-mlx-4Bit
+#   Image: 1024px max dim, JPEG quality 85
+#   Sampling: temperature=0.1, top_p=0.95, top_k=64, min_p=0.15, repetition_penalty=1.05
