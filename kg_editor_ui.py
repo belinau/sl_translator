@@ -274,18 +274,23 @@ with workspace_col:
         # Add variant to existing term
         st.markdown("---")
         st.subheader("🏷️ Add Variant to Term")
-        all_terms = [d for d in kg.get_all_by_type("term") if d.get("lang") == "en"]
+        all_terms = kg.get_all_by_type("term")
         if all_terms:
-            term_choices = {d["id"]: f"{d.get('term')} ({d.get('lang')})" for d in all_terms[:500]}
-            with st.form("add_variant_form"):
-                var_term = st.selectbox("Term:", options=list(term_choices.keys()),
-                                        format_func=lambda x: term_choices.get(x, x))
-                var_text = st.text_input("Variant form:", placeholder="e.g. gazes").strip()
-                if st.form_submit_button("Add Variant", use_container_width=True):
-                    if var_term and var_text:
-                        kg.add_variant(var_term, var_text)
-                        st.success(f"Variant '{var_text}' added.")
-                        st.rerun()
+            var_filter = st.text_input("Filter terms:", key="var_filter").strip().lower()
+            filtered_terms = [d for d in all_terms if var_filter in d.get("term", "").lower()] if var_filter else all_terms[:200]
+            term_choices = {d["id"]: f"{d.get('term')} ({d.get('lang')})" for d in filtered_terms}
+            if term_choices:
+                with st.form("add_variant_form"):
+                    var_term = st.selectbox("Term:", options=list(term_choices.keys()),
+                                            format_func=lambda x: term_choices.get(x, x))
+                    var_text = st.text_input("Variant form:", placeholder="e.g. gazes").strip()
+                    if st.form_submit_button("Add Variant", use_container_width=True):
+                        if var_term and var_text:
+                            kg.add_variant(var_term, var_text)
+                            st.success(f"Variant '{var_text}' added.")
+                            st.rerun()
+            elif var_filter:
+                st.info(f"No terms matching '{var_filter}'.")
 
 # ===========================================================================
 # UTILITY COLUMN (Right: Entity Management)
@@ -297,10 +302,15 @@ with utility_col:
     # 1. Concept Management
     # ------------------------------------------------------------------
     with st.expander("💡 Concepts", expanded=True):
-        # List existing
+        # Filterable list of existing concepts
         if concepts:
-            st.markdown("**Existing Concepts:**")
-            for c in concepts[:50]:
+            concept_filter = st.text_input("Filter concepts:", key="concept_filter").strip().lower()
+            visible = [c for c in concepts
+                       if concept_filter in c.get("label", "").lower()
+                       or concept_filter in c.get("domain", "").lower()
+                       or concept_filter in c.get("id", "").lower()] if concept_filter else concepts
+            st.markdown(f"**{len(visible)} of {len(concepts)} concepts**")
+            for c in visible:
                 c_id = c["id"]
                 with st.container():
                     st.markdown(f"- **{c.get('label', c_id)}** — Domain: *{c.get('domain', '—')}*")
@@ -316,7 +326,6 @@ with utility_col:
                             st.success("Concept deleted.")
                             st.rerun()
 
-                    # Inline edit form
                     if st.session_state.get("editing_concept") == c_id:
                         with st.form(f"cedit_form_{c_id}"):
                             e_label = st.text_input("Label:", value=c.get("label", ""))
@@ -331,9 +340,8 @@ with utility_col:
                             if st.form_submit_button("Cancel"):
                                 st.session_state["editing_concept"] = None
                                 st.rerun()
-
-            if len(concepts) > 50:
-                st.caption(f"_Showing 50 of {len(concepts)} concepts_")
+            if not visible and concept_filter:
+                st.info(f"No concepts matching '{concept_filter}'.")
 
         # Rhizomatic linking
         if len(concepts) >= 2:
