@@ -1,6 +1,7 @@
 # translate_core/qa.py
 
 import re
+from collections import Counter
 from typing import List, Dict, Optional
 
 class QAEngine:
@@ -19,7 +20,7 @@ class QAEngine:
         # 1. Number Mismatch
         src_nums = re.findall(r'\d+', source)
         tgt_nums = re.findall(r'\d+', target)
-        if set(src_nums) != set(tgt_nums):
+        if Counter(src_nums) != Counter(tgt_nums):
             missing = set(src_nums) - set(tgt_nums)
             extra = set(tgt_nums) - set(src_nums)
             msg = "Number mismatch."

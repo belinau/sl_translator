@@ -6,8 +6,10 @@
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 import re
+import tempfile
 import unicodedata
 from collections import Counter, defaultdict
 from datetime import datetime
@@ -251,13 +253,15 @@ class KnowledgeGraph:
                 torch.load = _patched_torch_load
                 # -----------------------------
 
-                self.nlp_sl = stanza.Pipeline(
-                    "sl",
-                    processors="tokenize,pos,lemma,depparse",
-                    use_gpu=False,
-                    verbose=False,
-                )
-                torch.load = _original_torch_load
+                try:
+                    self.nlp_sl = stanza.Pipeline(
+                        "sl",
+                        processors="tokenize,pos,lemma,depparse",
+                        use_gpu=False,
+                        verbose=False,
+                    )
+                finally:
+                    torch.load = _original_torch_load
 
             except Exception as e:
                 print(f"[KG Warning] Stanza fallback failed: {e}")
@@ -292,9 +296,28 @@ class KnowledgeGraph:
                 for u, v in self.G.edges
             ],
         }
-        self.db_path.write_text(
-            json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+        payload = json.dumps(data, ensure_ascii=False, indent=2)
+
+        # Create a .bak copy as secondary protection
+        if self.db_path.exists():
+            bak_path = self.db_path.with_suffix(self.db_path.suffix + ".bak")
+            os.replace(str(self.db_path), str(bak_path))
+
+        # Atomic write: write to temp file in same dir, then replace
+        fd, tmp_path = tempfile.mkstemp(
+            dir=str(self.db_path.parent), suffix=".tmp"
         )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(payload)
+            os.replace(tmp_path, str(self.db_path))
+        except BaseException:
+            # Clean up the temp file on any failure
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
 
     def _index_term_node(self, node_id: str, data: Dict):
         term = data.get("term", "")
@@ -972,7 +995,9 @@ class KnowledgeGraph:
 
         def repl(match):
             nonlocal idx
-            placeholder = f"GENDERINCLPROT{idx}"
+            # \x02 (STX) / \x03 (ETX) control-character fences guarantee
+            # the placeholder can never collide with natural text.
+            placeholder = f"\x02GEND{idx}\x03"
             mappings[placeholder] = match.group(0)
             idx += 1
             return placeholder
@@ -983,7 +1008,6 @@ class KnowledgeGraph:
     def _restore_gender_tokens(self, text: str, mappings: Dict[str, str]) -> str:
         restored = text
         for placeholder, original in mappings.items():
-            restored = restored.replace(placeholder.lower(), original)
             restored = restored.replace(placeholder, original)
         return restored
 

@@ -393,6 +393,7 @@ def page_translate(project_id: str):
             doc_parser.compile_to_designed_docx(md, path)
             if path.exists():
                 ui.download(path.read_bytes(), f"translated_{state.filename}")
+                path.unlink(missing_ok=True)
                 return
         except Exception as e:
             print(f"[export target] {e}")
@@ -405,6 +406,7 @@ def page_translate(project_id: str):
             doc_parser.compile_to_designed_docx(md, path)
             if path.exists():
                 ui.download(path.read_bytes(), f"reorganized_source_{state.filename}")
+                path.unlink(missing_ok=True)
                 return
         except Exception as e:
             print(f"[export source] {e}")

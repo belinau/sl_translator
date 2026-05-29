@@ -58,48 +58,45 @@ class VLMServerManager:
             return True
 
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
-        log_fh = open(self.log_path, "ab")
 
-        self._proc = subprocess.Popen(
-            [
-                sys.executable,
-                "-m",
-                "mlx_vlm.server",
-                "--model",
-                self.model,
-                "--port",
-                str(self.port),
-                "--host",
-                self.host,
-            ],
-            stdout=log_fh,
-            stderr=subprocess.STDOUT,
-            start_new_session=True,
-        )
+        with open(self.log_path, "ab") as log_fh:
+            self._proc = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-m",
+                    "mlx_vlm.server",
+                    "--model",
+                    self.model,
+                    "--port",
+                    str(self.port),
+                    "--host",
+                    self.host,
+                ],
+                stdout=log_fh,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
 
-        print(f"   Loading model {self.model.split('/')[-1]}…", flush=True)
+            print(f"   Loading model {self.model.split('/')[-1]}…", flush=True)
 
-        # MLX models take 30-90s to load. Poll every 2s, print dots.
-        deadline = time.time() + timeout
-        dots = 0
-        while time.time() < deadline:
-            if self._proc.poll() is not None:
-                print(f"\n   ✗ Server exited early. See {self.log_path}")
-                log_fh.close()
-                return False
-            if self._already_running():
-                print(f"\n   ✓ Model loaded. Server ready (pid {self._proc.pid}).")
-                log_fh.close()
-                return True
-            dots += 1
-            if dots % 5 == 0:
-                elapsed = int(time.time() - (deadline - timeout))
-                print(f"   … still loading ({elapsed}s)", flush=True)
-            time.sleep(2.0)
+            # MLX models take 30-90s to load. Poll every 2s, print dots.
+            deadline = time.time() + timeout
+            dots = 0
+            while time.time() < deadline:
+                if self._proc.poll() is not None:
+                    print(f"\n   ✗ Server exited early. See {self.log_path}")
+                    return False
+                if self._already_running():
+                    print(f"\n   ✓ Model loaded. Server ready (pid {self._proc.pid}).")
+                    return True
+                dots += 1
+                if dots % 5 == 0:
+                    elapsed = int(time.time() - (deadline - timeout))
+                    print(f"   … still loading ({elapsed}s)", flush=True)
+                time.sleep(2.0)
 
-        print(f"\n   ✗ Server start timed out after {int(timeout)}s. See {self.log_path}")
-        log_fh.close()
-        return False
+            print(f"\n   ✗ Server start timed out after {int(timeout)}s. See {self.log_path}")
+            return False
 
     def stop(self):
         """Stop the mlx_vlm.server subprocess (group kill)."""

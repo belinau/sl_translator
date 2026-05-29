@@ -55,6 +55,12 @@ app_state.llm_executor = llm_executor
 app_state.config = config
 
 
+def validate_project_id(project_id: str) -> None:
+    """Raise ValueError if project_id contains path traversal or unexpected chars."""
+    if not re.fullmatch(r"[a-f0-9\-]{6,36}", project_id):
+        raise ValueError(f"Invalid project_id: {project_id!r}")
+
+
 def parse_lang_pair(pair: str) -> Tuple[str, str]:
     """Return (src, tgt) from 'src->tgt'. Defaults to ('en', 'sl')."""
     if not pair or "->" not in pair:
@@ -85,6 +91,7 @@ def list_projects() -> list:
 
 
 def save_project(ws: dict):
+    validate_project_id(ws["project_id"])
     segs = [
         {
             "id": s["id"],
@@ -115,6 +122,7 @@ def save_project(ws: dict):
 
 
 def load_project(project_id: str):
+    validate_project_id(project_id)
     path = PROJECTS_DIR / f"{project_id}.json"
     if not path.exists():
         return None
@@ -125,6 +133,7 @@ def load_project(project_id: str):
 
 
 def delete_project(project_id: str):
+    validate_project_id(project_id)
     for suffix in [".json", ".docx", ".pdf", ".txt"]:
         p = PROJECTS_DIR / f"{project_id}{suffix}"
         if p.exists():

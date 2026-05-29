@@ -1,6 +1,7 @@
 # translate_core/glossary.py
 
 import csv
+import logging
 import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -9,6 +10,8 @@ from typing import Dict, List
 from flashtext import KeywordProcessor
 
 import config
+
+logger = logging.getLogger(__name__)
 
 
 class Glossary:
@@ -35,6 +38,14 @@ class Glossary:
                 continue
 
             # Decide parsing strategy based on content/extension
+            size = p.stat().st_size
+            if size > 20_000_000:
+                logger.warning(
+                    "Skipping glossary file %s: size %d bytes exceeds 20 MB limit",
+                    p.name,
+                    size,
+                )
+                continue
             content = p.read_text(encoding="utf-8-sig")  # utf-8-sig handles the ﻿ BOM
 
             if "<termEntry" in content:

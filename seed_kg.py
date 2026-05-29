@@ -16,6 +16,7 @@
 
 import os
 import re
+import shutil
 import sys
 from pathlib import Path
 
@@ -166,6 +167,10 @@ def seed():
             default_agent_id=agent_id,
             default_year=year,
         )
+
+    if kg.db_path.exists():
+        shutil.copy2(kg.db_path, kg.db_path.with_suffix('.json.bak'))
+        print(f"Backup saved to {kg.db_path.with_suffix('.json.bak')}")
 
     kg.save()
     print(f"\n{'='*60}")

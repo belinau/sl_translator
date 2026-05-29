@@ -26,9 +26,27 @@ class MLXGenericTranslator:
             from mlx_lm import load
 
             print(f"\n[SYSTEM] Loading MLX model into memory: {self.model_name}...")
-            # mlx-lm >= 0.20 returns a 3-tuple (model, tokenizer, config);
-            # older versions returned a 2-tuple. Unpack defensively.
-            loaded = load(self.model_name)
+            try:
+                # mlx-lm >= 0.20 returns a 3-tuple (model, tokenizer, config);
+                # older versions returned a 2-tuple. Unpack defensively.
+                loaded = load(self.model_name)
+            except Exception as e:
+                print(
+                    f"\n{'=' * 60}\n"
+                    f"FATAL: Failed to load MLX model '{self.model_name}'.\n"
+                    f"\n"
+                    f"This usually means the model has not been downloaded yet.\n"
+                    f"Download it first with:\n"
+                    f"\n"
+                    f"  huggingface-cli download {self.model_name}\n"
+                    f"\n"
+                    f"Or install mlx-lm and run:\n"
+                    f"  python -m mlx_lm.download {self.model_name}\n"
+                    f"\n"
+                    f"Original error: {e}\n"
+                    f"{'=' * 60}"
+                )
+                raise
             self._model = loaded[0]
             self._tokenizer = loaded[1]
             print("[SYSTEM] Model loaded successfully!\n")
