@@ -31,3 +31,10 @@ AGENTS.md
 .playwright-mcp/
 kg_inspect.html
 docs/
+pyproject.toml
+pyrightconfig.json
+.claude/
+.nicegui/
+.pytest_cache/
+pytest.ini
+uv.lock
