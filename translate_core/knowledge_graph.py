@@ -1101,6 +1101,7 @@ class KnowledgeGraph:
 
                             res.append(
                                 {
+                                    "mapping_id": mapping_id,
                                     "term": term_text,
                                     "lemma": t_data.get("term"),
                                     "confidence": map_node.get("confidence", 0.5),
@@ -1125,6 +1126,7 @@ class KnowledgeGraph:
                     if not any(r["term"] == term_text for r in res):
                         res.append(
                             {
+                                "mapping_id": None,  # legacy edge, no explicit mapping node
                                 "term": term_text,
                                 "lemma": t_data.get("term"),
                                 "confidence": edata.get("confidence", 0.5),

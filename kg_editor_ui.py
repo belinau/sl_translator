@@ -3,16 +3,37 @@
 # High-Efficiency, Clean Workspace for Knowledge Graph Curation
 #
 
+import importlib.util
 import sys
 from pathlib import Path
 
 import streamlit as st
 
-# Ensure backend imports are accessible
-sys.path.append(str(Path(__file__).parent))
+# ---------------------------------------------------------------------------
+# Direct module imports — bypass translate_core/__init__.py which pulls in
+# heavy dependencies (doc_parser → markitdown, llm → mlx_lm) that the editor
+# doesn't need and may not be installed in the Streamlit environment.
+# ---------------------------------------------------------------------------
+_BASE = Path(__file__).parent
 
-from translate_core.glossary import Glossary
-from translate_core.knowledge_graph import KnowledgeGraph
+
+def _load_module(name: str, path: str):
+    spec = importlib.util.spec_from_file_location(name, str(_BASE / path))
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+# Config first (no heavy deps)
+_config = _load_module("config", "config.py")
+
+# Then the two modules the editor actually uses
+_kg_mod = _load_module("translate_core.knowledge_graph", "translate_core/knowledge_graph.py")
+_gl_mod = _load_module("translate_core.glossary", "translate_core/glossary.py")
+
+KnowledgeGraph = _kg_mod.KnowledgeGraph
+Glossary = _gl_mod.Glossary
 
 # Page configuration for dense, wide layout
 st.set_page_config(page_title="Knowledge Graph Workspace", layout="wide")
@@ -67,7 +88,7 @@ if not source_options:
 
 concepts = kg.get_all_by_type("concept")
 concept_options = {c["id"]: c["label"] for c in concepts}
-concept_ids = list(concept_options.keys()) if concept_options else [None]
+concept_ids = list(concept_options.keys()) if concepts else [None]
 if not concept_options:
     concept_options = {None: "(No concepts registered yet)"}
 
@@ -94,15 +115,17 @@ with workspace_col:
             for match in matches:
                 term_id = match.get("id")
                 st.markdown(
-                    f"### Term: `{match.get('term')}` (`{match.get('lang').upper()}`)"
+                    f"### Term: `{match.get('term')}` (`{match.get('lang', '?').upper()}`)"
                 )
                 st.caption(
-                    f"Node ID: {term_id} | Animate: {match.get('is_animate', False)}"
+                    f"Node ID: {term_id} | Freq: {match.get('frequency', 0)} | "
+                    f"Animate: {match.get('is_animate', False)}"
                 )
 
                 # Inline delete term button
                 if st.button("🗑️ Delete Term", key=f"del_{term_id}"):
                     kg.remove_node(term_id)
+                    kg._rebuild_indices()
                     st.success("Term deleted.")
                     st.rerun()
 
@@ -112,67 +135,74 @@ with workspace_col:
                     st.info("No contextual translations mapped to this term.")
                 else:
                     for idx, t in enumerate(translations):
-                        tgt_lemma = t.get("lemma", "")
+                        mapping_id = t.get("mapping_id")
                         lineage = t.get("lineage", "general")
-                        mapping_key = f"map:term:en:{match.get('term').lower()}>>term:sl:{tgt_lemma.lower()}:{lineage.lower().replace(' ', '_')}"
 
                         st.markdown(
-                            f"👉 **`{t.get('term')}`** (Lineage: *{lineage}* | Confidence: `{t.get('confidence'):.2f}`)"
+                            f"👉 **`{t.get('term')}`** (Lineage: *{lineage}* | "
+                            f"Confidence: `{t.get('confidence', 0.5):.2f}`"
                         )
                         if t.get("sources") or t.get("agents"):
                             st.caption(
-                                f"└ *Context:* {', '.join(t.get('sources') + t.get('agents'))}"
+                                f"└ *Context:* {', '.join(t.get('sources', []) + t.get('agents', []))}"
                             )
 
-                        # Inline translation editor (Clean vertical stack)
-                        with st.form(f"inline_edit_{mapping_key}_{idx}"):
-                            st.write(
-                                f"Refine mapping: `{match.get('term')}` ➔ `{t.get('term')}`"
-                            )
-
-                            edit_lin = st.text_input(
-                                "Theoretical Lineage:", value=lineage
-                            )
-                            edit_reg = st.selectbox(
-                                "Style Register:",
-                                ["academic", "manifesto", "poetic", "colloquial"],
-                                index=[
-                                    "academic",
-                                    "manifesto",
-                                    "poetic",
-                                    "colloquial",
-                                ].index(t.get("register", "academic")),
-                            )
-                            edit_gloss = st.text_input(
-                                "Note / Gloss:", value=t.get("gloss", "")
-                            )
-                            edit_conf = st.slider(
-                                "Confidence Weight:",
-                                0.0,
-                                1.0,
-                                float(t.get("confidence", 0.5)),
-                                step=0.05,
-                            )
-
-                            if st.form_submit_button(
-                                "Update Mapping", use_container_width=True
-                            ):
-                                kg.update_translation_mapping(
-                                    mapping_key,
-                                    lineage=edit_lin,
-                                    register=edit_reg,
-                                    gloss=edit_gloss,
-                                    confidence=edit_conf,
+                        # Inline translation editor — only for mappings with
+                        # an explicit mapping node. Legacy edge-only mappings
+                        # (mapping_id is None) get a read-only view.
+                        if mapping_id and kg.G.has_node(mapping_id):
+                            with st.form(f"inline_edit_{mapping_id}_{idx}"):
+                                st.write(
+                                    f"Refine mapping: `{match.get('term')}` ➔ `{t.get('term')}`"
                                 )
-                                st.success("Mapping updated.")
-                                st.rerun()
 
-                            if st.form_submit_button(
-                                "🗑️ Delete Mapping Link", use_container_width=True
-                            ):
-                                kg.remove_node(mapping_key)
-                                st.success("Mapping deleted.")
-                                st.rerun()
+                                edit_lin = st.text_input(
+                                    "Theoretical Lineage:", value=lineage
+                                )
+                                edit_reg = st.selectbox(
+                                    "Style Register:",
+                                    ["academic", "manifesto", "poetic", "colloquial"],
+                                    index=[
+                                        "academic",
+                                        "manifesto",
+                                        "poetic",
+                                        "colloquial",
+                                    ].index(t.get("register", "academic")),
+                                )
+                                edit_gloss = st.text_input(
+                                    "Note / Gloss:", value=t.get("gloss", "")
+                                )
+                                edit_conf = st.slider(
+                                    "Confidence Weight:",
+                                    0.0,
+                                    1.0,
+                                    float(t.get("confidence", 0.5)),
+                                    step=0.05,
+                                )
+
+                                if st.form_submit_button(
+                                    "Update Mapping", use_container_width=True
+                                ):
+                                    kg.update_translation_mapping(
+                                        mapping_id,
+                                        lineage=edit_lin,
+                                        register=edit_reg,
+                                        gloss=edit_gloss,
+                                        confidence=edit_conf,
+                                    )
+                                    st.success("Mapping updated.")
+                                    st.rerun()
+
+                                if st.form_submit_button(
+                                    "🗑️ Delete Mapping Link", use_container_width=True
+                                ):
+                                    kg.remove_node(mapping_id)
+                                    st.success("Mapping deleted.")
+                                    st.rerun()
+                        else:
+                            st.caption(
+                                "_Legacy edge (no mapping node) — cannot edit inline._"
+                            )
                         st.markdown("---")
     else:
         # Default view (no query entered): Display clean vertical Quick Link Form
@@ -253,7 +283,7 @@ with utility_col:
             con_a = st.selectbox(
                 "First Concept",
                 options=concept_ids,
-                format_func=lambda x: concept_options[x],
+                format_func=lambda x: concept_options.get(x, str(x)),
             )
             rel = st.selectbox(
                 "Relationship Type",
@@ -262,7 +292,7 @@ with utility_col:
             con_b = st.selectbox(
                 "Second Concept",
                 options=concept_ids,
-                format_func=lambda x: concept_options[x],
+                format_func=lambda x: concept_options.get(x, str(x)),
             )
 
             if st.form_submit_button(
@@ -322,7 +352,7 @@ with utility_col:
             src_auth = st.selectbox(
                 "Select Author Reference:",
                 options=agent_ids,
-                format_func=lambda x: agent_options[x],
+                format_func=lambda x: agent_options.get(x, str(x)),
             )
             if st.form_submit_button("Save Text", use_container_width=True):
                 if src_id and src_title:
