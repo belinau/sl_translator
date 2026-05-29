@@ -1875,6 +1875,81 @@ class KnowledgeGraph:
             node["definition"] = definition
         return True
 
+    def update_term_node(
+        self,
+        term_id: str,
+        display_form: Optional[str] = None,
+        is_animate: Optional[bool] = None,
+        is_phrase: Optional[bool] = None,
+    ) -> bool:
+        """Update mutable fields on an existing term node."""
+        if not self.G.has_node(term_id):
+            return False
+
+        node = self.G.nodes[term_id]
+        if display_form is not None:
+            old_display = node.get("display_form")
+            node["display_form"] = display_form
+            # Maintain variants list: remove old, add new
+            variants = node.get("variants", [])
+            if old_display and old_display in variants:
+                variants.remove(old_display)
+                self._exact_kp.remove_keyword(old_display)
+            if display_form and display_form.lower() != node.get("term", "").lower():
+                if display_form not in variants:
+                    variants.append(display_form)
+                    self._exact_kp.add_keyword(display_form, term_id)
+            node["variants"] = variants
+        if is_animate is not None:
+            node["is_animate"] = is_animate
+        if is_phrase is not None:
+            node["is_phrase"] = is_phrase
+        return True
+
+    def update_agent_node(
+        self,
+        agent_id: str,
+        name: Optional[str] = None,
+        role: Optional[str] = None,
+    ) -> bool:
+        """Update mutable fields on an existing agent node."""
+        if not self.G.has_node(agent_id):
+            return False
+
+        node = self.G.nodes[agent_id]
+        if name is not None:
+            node["name"] = name
+        if role is not None:
+            node["role"] = role
+        return True
+
+    def update_source_text_node(
+        self,
+        source_id: str,
+        title: Optional[str] = None,
+        year: Optional[int] = None,
+        author_id: Optional[str] = None,
+    ) -> bool:
+        """Update mutable fields on an existing source_text node."""
+        if not self.G.has_node(source_id):
+            return False
+
+        node = self.G.nodes[source_id]
+        if title is not None:
+            node["title"] = title
+        if year is not None:
+            node["year"] = year
+        if author_id is not None:
+            # Remove old author edge, add new one
+            auth_node = f"agent:{author_id.lower()}" if not author_id.startswith("agent:") else author_id
+            for _, target, edata in list(self.G.out_edges(source_id, data=True)):
+                if edata.get("relation") == "written_by":
+                    self.G.remove_edge(source_id, target)
+            if self.G.has_node(auth_node):
+                if not self.G.has_edge(source_id, auth_node):
+                    self.G.add_edge(source_id, auth_node, relation="written_by")
+        return True
+
     def update_translation_mapping(
         self,
         mapping_id: str,

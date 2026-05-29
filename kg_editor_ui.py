@@ -1,6 +1,7 @@
 # kg_editor_ui.py
 #
 # High-Efficiency, Clean Workspace for Knowledge Graph Curation
+# Full CRUD for: terms, mappings, concepts, agents, sources, lineages
 #
 
 import importlib.util
@@ -75,30 +76,33 @@ st.sidebar.markdown(f"• Sources: `{stats.get('node_source_text', 0)}`")
 # Data Preparations (Safely handle empty states for widgets)
 # ---------------------------------------------------------------------------
 agents = kg.get_all_by_type("agent")
-agent_options = {a["id"]: a["name"] for a in agents}
-agent_ids = list(agent_options.keys()) if agent_options else [None]
+agent_options = {a["id"]: a.get("name", a["id"]) for a in agents}
+agent_ids = list(agent_options.keys()) if agents else []
 if not agent_options:
-    agent_options = {None: "(No agents registered yet)"}
+    agent_options = {"_none": "(No agents registered yet)"}
+    agent_ids = ["_none"]
 
 sources = kg.get_all_by_type("source_text")
-source_options = {s["id"]: s["title"] for s in sources}
-source_ids = list(source_options.keys()) if source_options else [None]
+source_options = {s["id"]: s.get("title", s["id"]) for s in sources}
+source_ids = list(source_options.keys()) if sources else []
 if not source_options:
-    source_options = {None: "(No source texts registered yet)"}
+    source_options = {"_none": "(No source texts registered yet)"}
+    source_ids = ["_none"]
 
 concepts = kg.get_all_by_type("concept")
-concept_options = {c["id"]: c["label"] for c in concepts}
-concept_ids = list(concept_options.keys()) if concepts else [None]
+concept_options = {c["id"]: c.get("label", c["id"]) for c in concepts}
+concept_ids = list(concept_options.keys()) if concepts else []
 if not concept_options:
-    concept_options = {None: "(No concepts registered yet)"}
+    concept_options = {"_none": "(No concepts registered yet)"}
+    concept_ids = ["_none"]
 
 # ---------------------------------------------------------------------------
-# Main Layout: Two Columns (Equal Spacing, No Squeezed Sub-Columns)
+# Main Layout: Two Columns
 # ---------------------------------------------------------------------------
 workspace_col, utility_col = st.columns([1.0, 1.0], gap="large")
 
 # ===========================================================================
-# WORKSPACE COLUMN (Left: Search, Inline Edits)
+# WORKSPACE COLUMN (Left: Search & Inline Edits)
 # ===========================================================================
 with workspace_col:
     st.subheader("🔍 Search & Active Curation")
@@ -147,9 +151,6 @@ with workspace_col:
                                 f"└ *Context:* {', '.join(t.get('sources', []) + t.get('agents', []))}"
                             )
 
-                        # Inline translation editor — only for mappings with
-                        # an explicit mapping node. Legacy edge-only mappings
-                        # (mapping_id is None) get a read-only view.
                         if mapping_id and kg.G.has_node(mapping_id):
                             with st.form(f"inline_edit_{mapping_id}_{idx}"):
                                 st.write(
@@ -205,7 +206,7 @@ with workspace_col:
                             )
                         st.markdown("---")
     else:
-        # Default view (no query entered): Display clean vertical Quick Link Form
+        # Default view: Quick Link Form
         st.subheader("⚡ Quick-Add Translation Mapping")
         st.write("Link two terms instantly with context metadata.")
 
@@ -226,16 +227,16 @@ with workspace_col:
 
             new_source = st.selectbox(
                 "Associate with Source Text:",
-                options=[None] + source_ids,
+                options=["_none"] + source_ids,
                 format_func=lambda x: (
-                    "No source reference" if x is None else source_options[x]
+                    "No source reference" if x == "_none" else source_options.get(x, x)
                 ),
             )
             new_agent = st.selectbox(
                 "Attribute to Translator/Author:",
-                options=[None] + agent_ids,
+                options=["_none"] + agent_ids,
                 format_func=lambda x: (
-                    "No attribution" if x is None else agent_options[x]
+                    "No attribution" if x == "_none" else agent_options.get(x, x)
                 ),
             )
 
@@ -259,8 +260,8 @@ with workspace_col:
                         confidence=1.0,
                         lineage=new_lin or "general",
                         gloss=new_gloss,
-                        source_text_id=new_source,
-                        agent_id=new_agent,
+                        source_text_id=new_source if new_source != "_none" else None,
+                        agent_id=new_agent if new_agent != "_none" else None,
                         verified=True,
                     )
                     st.success(
@@ -270,140 +271,245 @@ with workspace_col:
                 else:
                     st.error("Both English and Slovenian terms are required.")
 
+        # Add variant to existing term
+        st.markdown("---")
+        st.subheader("🏷️ Add Variant to Term")
+        all_terms = [d for d in kg.get_all_by_type("term") if d.get("lang") == "en"]
+        if all_terms:
+            term_choices = {d["id"]: f"{d.get('term')} ({d.get('lang')})" for d in all_terms[:500]}
+            with st.form("add_variant_form"):
+                var_term = st.selectbox("Term:", options=list(term_choices.keys()),
+                                        format_func=lambda x: term_choices.get(x, x))
+                var_text = st.text_input("Variant form:", placeholder="e.g. gazes").strip()
+                if st.form_submit_button("Add Variant", use_container_width=True):
+                    if var_term and var_text:
+                        kg.add_variant(var_term, var_text)
+                        st.success(f"Variant '{var_text}' added.")
+                        st.rerun()
+
 # ===========================================================================
-# UTILITY COLUMN (Right: Concept Links & Metadata Management)
+# UTILITY COLUMN (Right: Entity Management)
 # ===========================================================================
 with utility_col:
-    st.subheader("🌿 Concept Rhizomes & Entities")
+    st.subheader("🌿 Entities & Metadata")
 
-    # 1. Concept Rhizomatic Linking
-    st.markdown("#### Connect Rhizomatic Concepts")
-    if len(concepts) >= 2:
-        with st.form("rhizome_form"):
-            con_a = st.selectbox(
-                "First Concept",
-                options=concept_ids,
-                format_func=lambda x: concept_options.get(x, str(x)),
-            )
-            rel = st.selectbox(
-                "Relationship Type",
-                ["critiques", "extends", "redefines", "reappropriates", "related_to"],
-            )
-            con_b = st.selectbox(
-                "Second Concept",
-                options=concept_ids,
-                format_func=lambda x: concept_options.get(x, str(x)),
-            )
+    # ------------------------------------------------------------------
+    # 1. Concept Management
+    # ------------------------------------------------------------------
+    with st.expander("💡 Concepts", expanded=True):
+        # List existing
+        if concepts:
+            st.markdown("**Existing Concepts:**")
+            for c in concepts[:50]:
+                c_id = c["id"]
+                with st.container():
+                    st.markdown(f"- **{c.get('label', c_id)}** — Domain: *{c.get('domain', '—')}*")
+                    if c.get("definition"):
+                        st.caption(f"  _{c['definition'][:120]}_")
+                    col_a, col_b = st.columns([1, 1])
+                    with col_a:
+                        if st.button("✏️ Edit", key=f"cedit_{c_id}"):
+                            st.session_state[f"editing_concept"] = c_id
+                    with col_b:
+                        if st.button("🗑️", key=f"cdel_{c_id}"):
+                            kg.remove_node(c_id)
+                            st.success("Concept deleted.")
+                            st.rerun()
 
-            if st.form_submit_button(
-                "Apply Rhizomatic Connection", use_container_width=True
-            ):
-                if con_a != con_b:
-                    kg.link_concepts_rhizomatic(con_a, con_b, rel)
-                    st.success("Rhizome connection mapped successfully.")
+                    # Inline edit form
+                    if st.session_state.get("editing_concept") == c_id:
+                        with st.form(f"cedit_form_{c_id}"):
+                            e_label = st.text_input("Label:", value=c.get("label", ""))
+                            e_domain = st.text_input("Domain:", value=c.get("domain", ""))
+                            e_def = st.text_area("Definition:", value=c.get("definition", ""))
+                            if st.form_submit_button("Save"):
+                                kg.update_concept_metadata(c_id, label=e_label,
+                                                           domain=e_domain, definition=e_def)
+                                st.session_state["editing_concept"] = None
+                                st.success("Updated.")
+                                st.rerun()
+                            if st.form_submit_button("Cancel"):
+                                st.session_state["editing_concept"] = None
+                                st.rerun()
+
+            if len(concepts) > 50:
+                st.caption(f"_Showing 50 of {len(concepts)} concepts_")
+
+        # Rhizomatic linking
+        if len(concepts) >= 2:
+            st.markdown("---")
+            st.markdown("**Connect Rhizomatic Concepts**")
+            with st.form("rhizome_form"):
+                con_a = st.selectbox("First Concept", options=concept_ids,
+                                     format_func=lambda x: concept_options.get(x, x))
+                rel = st.selectbox("Relationship",
+                                   ["critiques", "extends", "redefines",
+                                    "reappropriates", "related_to"])
+                con_b = st.selectbox("Second Concept", options=concept_ids,
+                                     format_func=lambda x: concept_options.get(x, x))
+                if st.form_submit_button("Apply Connection", use_container_width=True):
+                    if con_a != con_b:
+                        kg.link_concepts_rhizomatic(con_a, con_b, rel)
+                        st.success("Rhizome connection mapped.")
+                        st.rerun()
+                    else:
+                        st.error("Cannot connect a concept to itself.")
+
+        # New concept
+        st.markdown("---")
+        st.markdown("**New Concept:**")
+        with st.form("new_concept"):
+            nc_id = st.text_input("Identifier (e.g. cyborg_theory):").strip()
+            nc_lbl = st.text_input("Display Name:").strip()
+            nc_dom = st.text_input("Domain:").strip()
+            nc_def = st.text_area("Definition:").strip()
+            if st.form_submit_button("Register", use_container_width=True):
+                if nc_id and nc_lbl:
+                    kg.add_concept_node(f"concept:{nc_id.lower()}", label=nc_lbl,
+                                        domain=nc_dom, definition=nc_def)
+                    st.success("Concept created.")
                     st.rerun()
-                else:
-                    st.error("Cannot connect a concept to itself.")
-    else:
-        st.info("Register some concept nodes via manual mapping to form relationships.")
 
-    # 2. Add New Concept Definition Box
-    st.markdown("#### Define Standalone Concept Container")
-    with st.form("standalone_concept"):
-        new_c_id = st.text_input("Concept Identifier (ID, e.g. cyborg_theory):").strip()
-        new_c_lbl = st.text_input("Concept Display Name (e.g. Cyborg Theory):").strip()
-        new_c_dom = st.text_input("Domain Category (e.g. Feminist Philosophy):").strip()
-        new_c_def = st.text_area("Scope Definition:").strip()
+    # ------------------------------------------------------------------
+    # 2. Agent Management
+    # ------------------------------------------------------------------
+    with st.expander("👤 Agents"):
+        if agents:
+            st.markdown("**Existing Agents:**")
+            for a in agents:
+                a_id = a["id"]
+                with st.container():
+                    st.markdown(f"- **{a.get('name', a_id)}** — Role: *{a.get('role', '—')}*")
+                    col_a, col_b = st.columns([1, 1])
+                    with col_a:
+                        if st.button("✏️ Edit", key=f"aedit_{a_id}"):
+                            st.session_state[f"editing_agent"] = a_id
+                    with col_b:
+                        if st.button("🗑️", key=f"adel_{a_id}"):
+                            kg.remove_node(a_id)
+                            st.success("Agent deleted.")
+                            st.rerun()
 
-        if st.form_submit_button("Register Concept", use_container_width=True):
-            if new_c_id and new_c_lbl:
-                kg.add_concept_node(
-                    f"concept:{new_c_id.lower()}",
-                    label=new_c_lbl,
-                    domain=new_c_dom,
-                    definition=new_c_def,
-                )
-                st.success("Concept defined.")
-                st.rerun()
+                    if st.session_state.get("editing_agent") == a_id:
+                        with st.form(f"aedit_form_{a_id}"):
+                            ea_name = st.text_input("Name:", value=a.get("name", ""))
+                            ea_role = st.selectbox("Role:", ["author", "translator"],
+                                                   index=["author", "translator"].index(a.get("role", "author")))
+                            if st.form_submit_button("Save"):
+                                kg.update_agent_node(a_id, name=ea_name, role=ea_role)
+                                st.session_state["editing_agent"] = None
+                                st.success("Updated.")
+                                st.rerun()
+                            if st.form_submit_button("Cancel"):
+                                st.session_state["editing_agent"] = None
+                                st.rerun()
 
-    st.markdown("---")
-
-    # 3. Quick Metadata Register (Authors, Books)
-    st.markdown("#### Meta Registers")
-
-    with st.expander("👤 Register Author / Translator"):
-        with st.form("add_agent"):
-            tag_id = st.text_input("Short ID (e.g. haraway):").strip()
-            tag_name = st.text_input("Full Name (e.g. Donna Haraway):").strip()
-            tag_role = st.selectbox("Default Role:", ["author", "translator"])
-            if st.form_submit_button("Save Agent", use_container_width=True):
-                if tag_id and tag_name:
-                    kg.add_agent_node(tag_id, tag_name, role=tag_role)
+        st.markdown("---")
+        st.markdown("**New Agent:**")
+        with st.form("new_agent"):
+            na_id = st.text_input("Short ID (e.g. haraway):").strip()
+            na_name = st.text_input("Full Name:").strip()
+            na_role = st.selectbox("Role:", ["author", "translator"])
+            if st.form_submit_button("Register", use_container_width=True):
+                if na_id and na_name:
+                    kg.add_agent_node(na_id, na_name, role=na_role)
                     st.success("Agent registered.")
                     st.rerun()
 
-    with st.expander("📖 Register Source Text / Book"):
-        with st.form("add_source"):
-            src_id = st.text_input("Short ID (e.g. dialektika):").strip()
-            src_title = st.text_input("Book / Essay Title:").strip()
-            src_year = st.number_input(
-                "Year of Publication:", min_value=1800, max_value=2030, value=2000
-            )
-            src_auth = st.selectbox(
-                "Select Author Reference:",
-                options=agent_ids,
-                format_func=lambda x: agent_options.get(x, str(x)),
-            )
-            if st.form_submit_button("Save Text", use_container_width=True):
-                if src_id and src_title:
-                    kg.add_source_text_node(
-                        src_id, title=src_title, author_id=src_auth, year=src_year
-                    )
-                    st.success("Source Text registered.")
+    # ------------------------------------------------------------------
+    # 3. Source Text Management
+    # ------------------------------------------------------------------
+    with st.expander("📖 Source Texts"):
+        if sources:
+            st.markdown("**Existing Sources:**")
+            for s in sources:
+                s_id = s["id"]
+                with st.container():
+                    st.markdown(f"- **{s.get('title', s_id)}** — Year: *{s.get('year', '—')}*")
+                    col_a, col_b = st.columns([1, 1])
+                    with col_a:
+                        if st.button("✏️ Edit", key=f"sedit_{s_id}"):
+                            st.session_state[f"editing_source"] = s_id
+                    with col_b:
+                        if st.button("🗑️", key=f"sdel_{s_id}"):
+                            kg.remove_node(s_id)
+                            st.success("Source deleted.")
+                            st.rerun()
+
+                    if st.session_state.get("editing_source") == s_id:
+                        with st.form(f"sedit_form_{s_id}"):
+                            es_title = st.text_input("Title:", value=s.get("title", ""))
+                            es_year = st.number_input("Year:", min_value=1800, max_value=2030,
+                                                      value=s.get("year") or 2000)
+                            es_auth = st.selectbox("Author:", options=["_none"] + agent_ids,
+                                                   format_func=lambda x: (
+                                                       "None" if x == "_none" else agent_options.get(x, x)))
+                            if st.form_submit_button("Save"):
+                                auth_val = None if es_auth == "_none" else es_auth
+                                kg.update_source_text_node(s_id, title=es_title,
+                                                           year=es_year, author_id=auth_val)
+                                st.session_state["editing_source"] = None
+                                st.success("Updated.")
+                                st.rerun()
+                            if st.form_submit_button("Cancel"):
+                                st.session_state["editing_source"] = None
+                                st.rerun()
+
+        st.markdown("---")
+        st.markdown("**New Source Text:**")
+        with st.form("new_source"):
+            ns_id = st.text_input("Short ID (e.g. dialektika):").strip()
+            ns_title = st.text_input("Title:").strip()
+            ns_year = st.number_input("Year:", min_value=1800, max_value=2030, value=2000)
+            ns_auth = st.selectbox("Author:", options=["_none"] + agent_ids,
+                                   format_func=lambda x: (
+                                       "None" if x == "_none" else agent_options.get(x, x)))
+            if st.form_submit_button("Register", use_container_width=True):
+                if ns_id and ns_title:
+                    auth_val = None if ns_auth == "_none" else ns_auth
+                    kg.add_source_text_node(ns_id, title=ns_title,
+                                            author_id=auth_val, year=ns_year)
+                    st.success("Source registered.")
                     st.rerun()
 
-    st.markdown("---")
+    # ------------------------------------------------------------------
+    # 4. Lineage Cleanup
+    # ------------------------------------------------------------------
+    with st.expander("🧹 Lineage Cleanup"):
+        st.write("Merge messy imported lineages into clean conceptual ones.")
 
-    # 4. Chaotic Lineage Cleanup Station
-    st.markdown("#### 🧹 Lineage Cleanup Station")
-    st.write(
-        "Merge messy, raw imported client filenames into clean conceptual lineages."
-    )
-
-    all_lineages = kg.get_all_lineages()
-    if all_lineages:
-        with st.form("lineage_cleanup_form"):
-            messy_selections = st.multiselect(
-                "Select messy filenames / lineages to merge:",
-                options=all_lineages,
-                help="Select all project codes or raw filenames that belong to the same lineage",
-            )
-            clean_name = st.text_input(
-                "Merge selected into a single clean lineage name:",
-                placeholder="e.g. Lacanian Psychoanalysis, Art History, Marxist Theory",
-            ).strip()
-
-            if st.form_submit_button("Unified Lineages", use_container_width=True):
-                if messy_selections and clean_name:
-                    changes = kg.merge_lineages(messy_selections, clean_name)
-                    st.success(
-                        f"Unified {changes} translation mappings from {len(messy_selections)} raw lineages into '{clean_name}'."
-                    )
-                    st.rerun()
-                else:
-                    st.error(
-                        "Please select at least one messy lineage and provide a clean target name."
-                    )
-
-        # Bulk Align button
-        if glossary.entries:
-            if st.button(
-                "🪄 Auto-Align Messy Mappings to Manual Glossary",
-                use_container_width=True,
-                help="Scans all chaotic files, matches them against your manual glossary terms, and auto-tags their lineages",
-            ):
-                aligned = kg.bulk_align_lineages_with_glossary(glossary.entries)
-                st.success(
-                    f"Successfully auto-aligned {aligned} translations to your manual glossary classifications."
+        all_lineages = kg.get_all_lineages()
+        if all_lineages:
+            with st.form("lineage_cleanup_form"):
+                messy_selections = st.multiselect(
+                    "Select messy lineages to merge:",
+                    options=all_lineages,
+                    help="Select all raw lineages that belong to the same conceptual category",
                 )
-                st.rerun()
+                clean_name = st.text_input(
+                    "Merge into:",
+                    placeholder="e.g. Lacanian Psychoanalysis",
+                ).strip()
+
+                if st.form_submit_button("Unify Lineages", use_container_width=True):
+                    if messy_selections and clean_name:
+                        changes = kg.merge_lineages(messy_selections, clean_name)
+                        st.success(
+                            f"Unified {changes} mappings from "
+                            f"{len(messy_selections)} lineages into '{clean_name}'."
+                        )
+                        st.rerun()
+                    else:
+                        st.error("Select at least one lineage and provide a target name.")
+
+            if glossary.entries:
+                if st.button(
+                    "🪄 Auto-Align to Glossary",
+                    use_container_width=True,
+                    help="Match chaotic lineages against your manual glossary terms",
+                ):
+                    aligned = kg.bulk_align_lineages_with_glossary(glossary.entries)
+                    st.success(f"Auto-aligned {aligned} translations.")
+                    st.rerun()
+        else:
+            st.info("No lineages registered yet.")
