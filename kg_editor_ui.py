@@ -277,7 +277,7 @@ with workspace_col:
         all_terms = kg.get_all_by_type("term")
         if all_terms:
             var_filter = st.text_input("Filter terms:", key="var_filter").strip().lower()
-            filtered_terms = [d for d in all_terms if var_filter in d.get("term", "").lower()] if var_filter else all_terms[:200]
+            filtered_terms = [d for d in all_terms if var_filter in d.get("term", "").lower()] if var_filter else all_terms
             term_choices = {d["id"]: f"{d.get('term')} ({d.get('lang')})" for d in filtered_terms}
             if term_choices:
                 with st.form("add_variant_form"):
