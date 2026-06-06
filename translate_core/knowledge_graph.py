@@ -266,6 +266,7 @@ class KnowledgeGraph:
             except Exception as e:
                 print(f"[KG Warning] Stanza fallback failed: {e}")
 
+        self._disk_mtime: float | None = None
         self._load()
 
     def _load(self):
@@ -286,6 +287,36 @@ class KnowledgeGraph:
         except Exception as exc:
             print(f"[KG] Warning: could not load graph — starting fresh. ({exc})")
             self.G.clear()
+        try:
+            self._disk_mtime = self.db_path.stat().st_mtime
+        except OSError:
+            self._disk_mtime = None
+
+    def reload_if_changed(self) -> bool:
+        """If data/knowledge.db was modified on disk by another process (e.g. a
+        maintenance script) since we last read/wrote it, discard the in-memory
+        graph and reload the current disk state. Returns True if a reload
+        happened. This makes the editor's saves write ON TOP of external edits
+        instead of clobbering them."""
+        try:
+            if not self.db_path.exists():
+                return False
+            m = self.db_path.stat().st_mtime
+        except OSError:
+            return False
+        if self._disk_mtime is not None and abs(m - self._disk_mtime) < 1e-6:
+            return False
+        # Build into fresh structures, then swap. Keep the old graph so a failed
+        # read (or one producing an empty graph) never blanks the live KG.
+        prev_G, prev_ex, prev_nm = self.G, self._exact_kp, self._norm_kp
+        self.G = nx.DiGraph()
+        self._exact_kp = KeywordProcessor(case_sensitive=False)
+        self._norm_kp = KeywordProcessor(case_sensitive=False)
+        self._load()
+        if self.G.number_of_nodes() == 0 and prev_G.number_of_nodes() > 0:
+            self.G, self._exact_kp, self._norm_kp = prev_G, prev_ex, prev_nm
+            return False
+        return True
 
     def save(self):
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -311,6 +342,10 @@ class KnowledgeGraph:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(payload)
             os.replace(tmp_path, str(self.db_path))
+            try:
+                self._disk_mtime = self.db_path.stat().st_mtime
+            except OSError:
+                self._disk_mtime = None
         except BaseException:
             # Clean up the temp file on any failure
             try:
@@ -619,6 +654,15 @@ class KnowledgeGraph:
             self.G.add_edge(src_node, inst_node, relation="published_by")
         return True
 
+    def link_sl_published_by(self, source_text_id: str, institution_id: str) -> bool:
+        src_node = source_text_id if source_text_id.startswith("source:") else f"source:{source_text_id.lower()}"
+        inst_node = institution_id if institution_id.startswith("institution:") else f"institution:{institution_id.lower()}"
+        if not (self.G.has_node(src_node) and self.G.has_node(inst_node)):
+            return False
+        if not self.G.has_edge(src_node, inst_node):
+            self.G.add_edge(src_node, inst_node, relation="sl_published_by")
+        return True
+
     def link_hosted_by(self, source_text_id: str, institution_id: str) -> bool:
         src_node = source_text_id if source_text_id.startswith("source:") else f"source:{source_text_id.lower()}"
         inst_node = institution_id if institution_id.startswith("institution:") else f"institution:{institution_id.lower()}"
@@ -628,6 +672,66 @@ class KnowledgeGraph:
             self.G.add_edge(src_node, inst_node, relation="hosted_by")
         return True
 
+    def link_written_by(self, source_text_id: str, agent_id: str) -> bool:
+        """author of a written work, or artist/creator of an artwork/performance."""
+        src = source_text_id if source_text_id.startswith("source:") else f"source:{source_text_id.lower()}"
+        ag = agent_id if agent_id.startswith("agent:") else f"agent:{agent_id.lower()}"
+        if not (self.G.has_node(src) and self.G.has_node(ag)):
+            return False
+        if not self.G.has_edge(src, ag):
+            self.G.add_edge(src, ag, relation="written_by")
+        return True
+
+    def link_edited_by(self, source_text_id: str, agent_id: str) -> bool:
+        """editor of an anthology/chapter, or curator of an exhibition."""
+        src = source_text_id if source_text_id.startswith("source:") else f"source:{source_text_id.lower()}"
+        ag = agent_id if agent_id.startswith("agent:") else f"agent:{agent_id.lower()}"
+        if not (self.G.has_node(src) and self.G.has_node(ag)):
+            return False
+        if not self.G.has_edge(src, ag):
+            self.G.add_edge(src, ag, relation="edited_by")
+        return True
+
+    def link_performed_by(self, source_text_id: str, agent_id: str) -> bool:
+        """performer / dancer / cast member appearing in a performance (the
+        performance's creators — choreographer/director — use written_by)."""
+        src = source_text_id if source_text_id.startswith("source:") else f"source:{source_text_id.lower()}"
+        ag = agent_id if agent_id.startswith("agent:") else f"agent:{agent_id.lower()}"
+        if not (self.G.has_node(src) and self.G.has_node(ag)):
+            return False
+        if not self.G.has_edge(src, ag):
+            self.G.add_edge(src, ag, relation="performed_by")
+        return True
+
+    def link_attributed_to(self, mapping_id: str, agent_id: str) -> bool:
+        """Bridge edge (ontology §3.3): a translation_mapping is attributable to
+        the theorist/curator agent who originated or uses the concept."""
+        ag = agent_id if agent_id.startswith("agent:") else f"agent:{agent_id.lower()}"
+        if not (self.G.has_node(mapping_id) and self.G.has_node(ag)):
+            return False
+        if not self.G.has_edge(mapping_id, ag):
+            self.G.add_edge(mapping_id, ag, relation="attributed_to")
+        return True
+    def link_instantiated_in(
+        self, mapping_id: str, source_text_id: str
+    ) -> bool:
+        """Bridge edge (ontology §3.3): a translation_mapping was attested
+        while translating the given source_text (the container work).
+        Idempotent. Does NOT create or modify the mapping node — use this
+        when the mapping already exists and you only need the bridge.
+        """
+        src = (
+            source_text_id
+            if source_text_id.startswith("source:")
+            else f"source:{source_text_id.lower()}"
+        )
+        if not (self.G.has_node(mapping_id) and self.G.has_node(src)):
+            return False
+        if mapping_id == src:  # O-17 self-loop guard (defence-in-depth)
+            return False
+        if not self.G.has_edge(mapping_id, src):
+            self.G.add_edge(mapping_id, src, relation="instantiated_in")
+        return True
     # ------------------------------------------------------------------
     # Context-Aware Translation Mapping Node
     # ------------------------------------------------------------------
@@ -1425,6 +1529,9 @@ class KnowledgeGraph:
         domain: str = "",
         context: Optional[str] = None,
         validated_by: Optional[str] = None,
+        *,
+        source_text_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
     ) -> Dict[str, List[str]]:
         """Ingest a translator-confirmed segment via the full NLP pipeline.
 
@@ -1633,6 +1740,20 @@ class KnowledgeGraph:
                             nd["verified"] = True
                         if gloss_value:
                             nd["gloss"] = gloss_value
+                        # Bridge wiring (ontology §3.3): the curator is
+                        # confirming this mapping *while translating that
+                        # work*, so backfill attributed_to / instantiated_in
+                        # when the caller supplied them.
+                        if agent_id:
+                            self.link_attributed_to(mid, agent_id)
+                        if source_text_id:
+                            src_node = (
+                                source_text_id
+                                if source_text_id.startswith("source:")
+                                else f"source:{source_text_id.lower()}"
+                            )
+                            if self.G.has_node(src_node) and not self.G.has_edge(mid, src_node):
+                                self.G.add_edge(mid, src_node, relation="instantiated_in")
                         delta["verified"].append(mid)
                     # Mirror the verified bump on any legacy
                     # translates_to edges so downstream readers agree.
@@ -1656,6 +1777,8 @@ class KnowledgeGraph:
                         lineage="manual",
                         gloss=gloss_value,
                         verified=verified,
+                        source_text_id=source_text_id,
+                        agent_id=agent_id,
                     )
                     if map_id:
                         delta["created"].append(map_id)
@@ -1678,11 +1801,14 @@ class KnowledgeGraph:
         label = src_data.get("term") or ""
         if not label:
             return ""
-        # Match the seeders' slug scheme so confirms hit the same nodes.
+        # Link ONLY to a concept that already exists. Auto-creating a concept
+        # per extracted term (the old behaviour) is what flooded the graph with
+        # generic-word noise ("tree", "heart"). Real concepts are curated;
+        # confirms attach terms to them but never mint new generic ones.
         slug = label.replace(" ", "_")
-        cid = self.add_concept_node(
-            f"concept:{slug}", label=label, domain=domain,
-        )
+        cid = f"concept:{slug}"
+        if not self.G.has_node(cid):
+            return ""
         for tid in (src_term_id, tgt_term_id):
             if self.G.has_node(tid) and not self.G.has_edge(tid, cid):
                 self.G.add_edge(tid, cid, relation="instantiates_concept")
@@ -1989,8 +2115,24 @@ class KnowledgeGraph:
         title: Optional[str] = None,
         year: Optional[int] = None,
         author_id: Optional[str] = None,
+        *,
+        title_en: Optional[str] = ...,
+        title_sl: Optional[str] = ...,
+        title_orig: Optional[str] = ...,
+        title_translation: Optional[str] = ...,
+        orig_lang: Optional[str] = ...,
+        translation_lang: Optional[str] = ...,
+        slovenian_edition: Optional[dict] = ...,
+        project_type: Optional[str] = None,
     ) -> bool:
-        """Update mutable fields on an existing source_text node."""
+        """Update mutable fields on an existing source_text node.
+
+        Bilingual fields (title_en, title_sl, title_orig, title_translation,
+        orig_lang, translation_lang, slovenian_edition) use a sentinel default
+        so that ``None`` means "don't change" while explicit ``None`` is not
+        a useful value for these fields. Pass a real string or dict to set,
+        or omit to leave unchanged.
+        """
         if not self.G.has_node(source_id):
             return False
 
@@ -1999,6 +2141,23 @@ class KnowledgeGraph:
             node["title"] = title
         if year is not None:
             node["year"] = year
+        if project_type is not None:
+            node["project_type"] = project_type
+        # Ellipsis (...) is used as the default sentinel so that omitted
+        # parameters are distinguishable from ``None`` (which means "clear the
+        # field"). Since ``...`` is a singleton, ``is not ...`` works correctly.
+        for field, value in [
+            ("title_en", title_en),
+            ("title_sl", title_sl),
+            ("title_orig", title_orig),
+            ("title_translation", title_translation),
+            ("orig_lang", orig_lang),
+            ("translation_lang", translation_lang),
+        ]:
+            if value is not ...:
+                node[field] = value
+        if slovenian_edition is not ...:
+            node["slovenian_edition"] = slovenian_edition
         if author_id is not None:
             # Remove old author edge, add new one
             auth_node = f"agent:{author_id.lower()}" if not author_id.startswith("agent:") else author_id

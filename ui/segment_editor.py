@@ -52,7 +52,10 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
             ui.label("SOURCE").classes("text-[9px] font-black tracking-[0.2em] uppercase opacity-50")
             with ui.card().props("flat bordered").classes("rounded-xl p-4"):
                 source_label = ui.label(seg["source"]).classes(
-                    "text-lg font-serif leading-relaxed"
+                    "leading-relaxed"
+                ).style(
+                    'font-family: "Inter", -apple-system, BlinkMacSystemFont, '
+                    '"Segoe UI", Roboto, sans-serif; font-size: 16px; line-height: 1.625;'
                 )
 
         with ui.column().classes("w-full px-6 pb-4 gap-2"):

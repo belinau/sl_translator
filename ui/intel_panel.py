@@ -134,11 +134,43 @@ def _kg_target_vocab(
     return out
 
 
-def _concept_for(G, term_node_id: str) -> dict | None:
-    """Return the concept node attrs (id, label, domain) for a term, or None.
+_GENERIC_LINEAGES = frozenset({
+    "performance", "general", "manual", "curatorial-exhibition", "visual-art", "",
+})
 
-    A term typically instantiates 0 or 1 concept; we return the first.
-    """
+
+def _concept_context(G, concept_id: str) -> tuple[list[str], list[str]]:
+    """Theory lineages + theorist names attached to a concept, via the bridge:
+    concept <-instantiates_concept- term -has_mapping-> mapping
+    -> mapping.lineage (theory) + mapping -attributed_to-> agent."""
+    lineages: list[str] = []
+    theorists: list[str] = []
+    seen_l, seen_t = set(), set()
+    examined = 0
+    for term, _c, ed in G.in_edges(concept_id, data=True):
+        if ed.get("relation") != "instantiates_concept":
+            continue
+        examined += 1
+        if examined > 60:  # cap traversal so the UI refresh stays snappy
+            break
+        for _t, mp, ed2 in G.out_edges(term, data=True):
+            if ed2.get("relation") != "has_mapping":
+                continue
+            lin = (G.nodes[mp].get("lineage") or "").strip()
+            if lin and lin.lower() not in _GENERIC_LINEAGES and lin not in seen_l:
+                seen_l.add(lin); lineages.append(lin)
+            for _m, ag, ed3 in G.out_edges(mp, data=True):
+                if ed3.get("relation") == "attributed_to" and G.has_node(ag):
+                    nm = G.nodes[ag].get("name")
+                    if nm and nm not in seen_t:
+                        seen_t.add(nm); theorists.append(nm)
+        if len(theorists) >= 3 and len(lineages) >= 3:
+            break
+    return lineages[:3], theorists[:3]
+
+
+def _concept_for(G, term_node_id: str) -> dict | None:
+    """Return concept attrs (id, label, domain) + theory lineages/theorists."""
     if not G.has_node(term_node_id):
         return None
     for _u, v, d in G.out_edges(term_node_id, data=True):
@@ -147,10 +179,13 @@ def _concept_for(G, term_node_id: str) -> dict | None:
         nd = G.nodes[v]
         if nd.get("type") != "concept":
             continue
+        lineages, theorists = _concept_context(G, v)
         return {
             "id": v,
             "label": nd.get("label") or v,
             "domain": nd.get("domain") or "",
+            "lineages": lineages,
+            "theorists": theorists,
         }
     return None
 
@@ -302,6 +337,16 @@ def build(state: WorkspaceState, deps: dict) -> dict:
     refs: dict = {}
 
     with ui.column().classes("w-full gap-3 mt-4"):
+        # ----------------------------------------------------- Glossary section
+        with ui.card().props("flat bordered").classes("w-full p-4 rounded-2xl"):
+            with ui.row().classes("w-full items-center gap-2 mb-2"):
+                ui.icon("menu_book", size="16px").props("color=primary")
+                ui.label("GLOSSARY").classes(
+                    "text-[10px] font-black tracking-[.3em] opacity-70"
+                )
+            gl_container = ui.column().classes("w-full gap-2")
+            refs["gl_container"] = gl_container
+
         # ---------------------------------------------------------- KG section
         with ui.card().props("flat bordered").classes("w-full p-4 rounded-2xl"):
             with ui.row().classes("w-full items-center gap-2 mb-2"):
@@ -321,16 +366,6 @@ def build(state: WorkspaceState, deps: dict) -> dict:
                 )
             tm_container = ui.column().classes("w-full gap-2")
             refs["tm_container"] = tm_container
-
-        # ----------------------------------------------------- Glossary section
-        with ui.card().props("flat bordered").classes("w-full p-4 rounded-2xl"):
-            with ui.row().classes("w-full items-center gap-2 mb-2"):
-                ui.icon("menu_book", size="16px").props("color=primary")
-                ui.label("GLOSSARY").classes(
-                    "text-[10px] font-black tracking-[.3em] opacity-70"
-                )
-            gl_container = ui.column().classes("w-full gap-2")
-            refs["gl_container"] = gl_container
 
     # ------------------------------------------------------------------
     # Helpers
@@ -387,7 +422,7 @@ def build(state: WorkspaceState, deps: dict) -> dict:
         # Colours encode direction:
         #   primary  = alternative renderings of the same source term
         #   positive = target-lang concept siblings (clickable to insert)
-        #   secondary = source-lang concept siblings (context only, dim)
+        #   positive = source-lang concept siblings (context only, dim)
         tgt_alts = [tr["term"] for tr in h.get("alt_translations", []) or []]
         tgt_sibs = [
             r for r in h.get("related", []) or []
@@ -403,12 +438,12 @@ def build(state: WorkspaceState, deps: dict) -> dict:
             "w-full items-center gap-1.5 flex-wrap"
         ).style("padding-left: 1.5rem"):
             ui.icon("circle", size="7px").props("color=grey-5")
-            ui.label("─").classes("text-[10px] opacity-20")
+            ui.label("─").classes("text-[10px]")
             for alt_t in tgt_alts[:2]:
                 ui.button(
                     alt_t,
                     on_click=lambda _e, t=alt_t: _insert(t),
-                ).props("flat dense rounded color=primary").classes(
+                ).props("flat dense rounded color=positive").classes(
                     "text-[10px] normal-case h-5 px-1.5"
                 )
             for sib in tgt_sibs[:3]:
@@ -424,8 +459,8 @@ def build(state: WorkspaceState, deps: dict) -> dict:
                 ui.button(
                     sib["term"],
                     on_click=lambda _e, t=sib["term"]: _insert(t),
-                ).props("flat dense rounded color=secondary").classes(
-                    "text-[10px] normal-case h-5 px-1.5 opacity-60"
+                ).props("flat dense rounded color=positive").classes(
+                    "text-[10px] normal-case h-5 px-1.5"
                 ).tooltip(
                     f"{sib.get('lang', '')} — {sib.get('freq', 0)}× in corpus"
                 )
@@ -450,7 +485,7 @@ def build(state: WorkspaceState, deps: dict) -> dict:
         with kg_container:
             if not hits:
                 ui.label("No KG matches for this segment.").classes(
-                    "text-xs italic opacity-60"
+                    "text-xs italic opacity-90"
                 )
                 return
             # Group by concept (insertion-order). Orphans go to a "TERMS"
@@ -488,18 +523,33 @@ def build(state: WorkspaceState, deps: dict) -> dict:
                         ui.icon("hub", size="13px").props("color=primary")
                         if concept is None:
                             ui.label("TERMS").classes(
-                                "text-[10px] font-black tracking-[.3em] opacity-70"
+                                "text-[10px] font-black tracking-[.3em] opacity-90"
                             )
                         else:
                             ui.label(
                                 str(concept.get("label") or "").upper()
                             ).classes(
-                                "text-[10px] font-black tracking-[.3em] opacity-80"
+                                "text-[10px] font-black tracking-[.3em] opacity-90"
                             )
                             if concept.get("domain"):
                                 ui.badge(
                                     concept["domain"], color="grey-5",
                                 ).classes("text-[9px] px-1 ml-1")
+                    if concept and (concept.get("theorists") or concept.get("lineages")):
+                        with ui.row().classes(
+                            "w-full items-center gap-1 flex-wrap mb-1"
+                        ).style("padding-left: 1.25rem"):
+                            for th in concept.get("theorists", []):
+                                ui.badge(th, color="purple-4").props(
+                                    "outline"
+                                ).classes("text-[9px] px-1").tooltip(
+                                    "thinker who uses this concept"
+                                )
+                            for ln in concept.get("lineages", []):
+                                if ln not in concept.get("theorists", []):
+                                    ui.badge(ln, color="grey-5").props(
+                                        "outline"
+                                    ).classes("text-[9px] px-1").tooltip("lineage")
                     with ui.column().classes("w-full gap-2"):
                         for h in group_hits:
                             _render_hit(h)
@@ -532,11 +582,11 @@ def build(state: WorkspaceState, deps: dict) -> dict:
         with tm_container:
             if not fuzzy:
                 ui.label("No near-exact matches (≥95%).").classes(
-                    "text-xs italic opacity-60"
+                    "text-xs italic opacity-90"
                 )
                 return
             ui.label("NEAR-EXACT MATCHES").classes(
-                "text-[9px] font-black tracking-[.2em] opacity-60"
+                "text-[9px] font-black tracking-[.2em] opacity-90"
             )
             for m in fuzzy:
                 score = int(m.get("score") or 0)
@@ -554,10 +604,10 @@ def build(state: WorkspaceState, deps: dict) -> dict:
                         "text-[10px] font-black px-2 py-1 rounded-lg shrink-0"
                     )
                     with ui.column().classes("gap-0.5 flex-1 min-w-0"):
-                        ui.label(_truncate(m.get("source", ""), 80)).classes(
+                        ui.label(m.get("source", "")).classes(
                             "text-[11px] italic leading-snug opacity-60"
                         ).style("white-space:normal;word-break:break-word")
-                        ui.label(_truncate(m.get("target", ""), 80)).classes(
+                        ui.label(m.get("target", "")).classes(
                             "text-[13px] font-bold leading-snug"
                         ).style("white-space:normal;word-break:break-word")
                     ui.icon("content_paste", size="18px").props("color=grey-5")

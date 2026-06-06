@@ -38,3 +38,4 @@ pyrightconfig.json
 .pytest_cache/
 pytest.ini
 uv.lock
+old_tms/

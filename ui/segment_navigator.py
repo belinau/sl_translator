@@ -20,15 +20,18 @@ _COLUMNS = [
 
 
 def _rows(state: WorkspaceState) -> list[dict]:
-    return [
-        {
+    active = state.active_index
+    out = []
+    for s in state.segments:
+        is_active = s["id"] == active
+        out.append({
             "id": s["id"],
-            "n": s["id"] + 1,
-            "preview": (s["target"] or s["source"] or "")[:120],
-            "status": "✓" if s["status"] == "done" else "",
-        }
-        for s in state.segments
-    ]
+            # leading marker makes the active row unmistakable without slots/JS
+            "n": (f"▶ {s['id'] + 1}" if is_active else str(s["id"] + 1)),
+            "preview": ("▸ " if is_active else "") + (s["target"] or s["source"] or "")[:120],
+            "status": "✓" if s["status"] == "done" else ("●" if is_active else ""),
+        })
+    return out
 
 
 def build(state: WorkspaceState) -> dict:
@@ -49,7 +52,7 @@ def build(state: WorkspaceState) -> dict:
                 pagination=0,
             )
             .props("virtual-scroll dense flat bordered hide-header hide-bottom :rows-per-page-options='[0]'")
-            .classes("w-full rounded-xl h-[calc(45vh-20px)] max-h-[520px]")
+            .classes("w-full rounded-xl h-[58vh] max-h-[900px]")
         )
 
     def _on_row_click(e):

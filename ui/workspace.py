@@ -14,7 +14,7 @@ import asyncio
 
 from nicegui import background_tasks, ui
 
-from . import intel_panel, predictions, segment_editor, segment_navigator, settings as ui_settings
+from . import intel_panel, kg_search, predictions, segment_editor, segment_navigator, settings as ui_settings
 from .state import WorkspaceState, request_kg_save
 
 
@@ -118,7 +118,7 @@ def page_translate(project_id: str):
                 ui.label(state.lang_pair).classes("text-[10px] opacity-60")
             ui.button(
                 icon="menu_book",
-                on_click=lambda: _open_glossary(state, glossary, config, parse_lang_pair),
+                on_click=lambda: _open_glossary(state, glossary, config, parse_lang_pair, kg),
             ).props("flat round dense size=sm color=grey-6").tooltip("Add Glossary Term")
 
         with ui.column().classes("w-44 items-center gap-0.5"):
@@ -244,6 +244,7 @@ def page_translate(project_id: str):
                             )
 
             nav_refs = segment_navigator.build(state)
+            search_refs = kg_search.build(state, deps)
 
     with ui.column().classes("w-full h-screen pt-2 overflow-hidden no-wrap"):
         with ui.column().classes("w-full flex-1 overflow-y-auto pb-8"):
@@ -259,15 +260,18 @@ def page_translate(project_id: str):
     # ------------------------------------------------------------------
     # Confirm + batch + KG/TM promotion
     # ------------------------------------------------------------------
-    # Segment types that should NOT be promoted to the KG (catalog data,
-    # not running prose — NLP extraction would produce noisy noun chunks).
+    # Segment types that need implementation of metadata to entities for KG.
     _KG_SKIP_TYPES = {"bibliography", "index"}
+    _CITATION_TYPES = {"footnote", "endnote", "bibliography_entry"}
 
     async def _confirm_segment():
         if not state.segments:
             return
         idx = state.active_index
         seg = state.segments[idx]
+        # The editor textarea binds to state.current["target"]; sync the latest
+        # edited text onto the segment before validating / promoting.
+        seg["target"] = state.current.get("target", seg.get("target", ""))
         if not seg["target"].strip():
             return
         state.mark_done(idx)
@@ -312,28 +316,67 @@ def page_translate(project_id: str):
             if seg_meta.get("type") == "chapter_title" and not domain:
                 domain = seg["source"].strip().lstrip("# ").strip()
 
+        # Project container slug — same slugification as the glossary
+        # dialog (see _kg_add): NFKD-ish collapse of filename or
+        # project_id into a "source:<slug>" id.
+        import re as _re
+        _base = (state.filename or state.project_id or "project").lower()
+        _proj_slug = (_re.sub(r"[^a-z0-9]+", "-", _base).strip("-")[:80]) or "project"
         try:
             if kg is not None:
+                # Pick up any external KG edits (maintenance scripts) before we
+                # promote + save, so the editor's save merges on top instead of
+                # clobbering them.
+                await loop.run_in_executor(None, kg.reload_if_changed)
                 await loop.run_in_executor(
                     None,
                     lambda: kg.promote_pair(
                         seg["source"], seg["target"], src, tgt,
                         verified=True, domain=domain, context=context_text,
+                        source_text_id=_proj_slug,
+                        agent_id="urban-belina",
                     ),
                 )
+
             await loop.run_in_executor(
                 None,
                 lambda: save_pair_to_tm(seg["source"], seg["target"], lang_pair),
             )
             if kg is not None:
                 request_kg_save(kg.save, delay=3.0)
+
+            # Phase 7: Extract citations from footnote/bibliography segments
+            # and ingest into KG via the typed pipeline.
+            if seg_meta and seg_meta.get("type") in _CITATION_TYPES:
+                try:
+                    from translate_core.citation_collector import (
+                        collect_from_editor_segment,
+                        extract_and_ingest,
+                    )
+                    snippet = collect_from_editor_segment(
+                        segment_text=seg["source"],
+                        segments_meta_entry=seg_meta,
+                        project_id=state.project_id,
+                    )
+                    if snippet is not None:
+                        report = await loop.run_in_executor(
+                            None,
+                            lambda: extract_and_ingest(
+                                [snippet], kg, vl_extractor=None,
+                            ),
+                        )
+                        if report.written > 0:
+                            ui.notify(f"Citation extracted: {report.written} record(s)", type="positive")
+                        request_kg_save(kg.save, delay=1.0)
+                except Exception as e:
+                    print(f"[promote_pair citation] {e}")
+
         except Exception as e:
             print(f"[promote_pair] {e}")
 
     async def _batch():
         if state.is_batch:
             return
-        if not ui_settings.ai_master_enabled():
             ui.notify("AI Translation is disabled", type="warning")
             return
         state.is_batch = True
@@ -440,13 +483,25 @@ def page_translate(project_id: str):
 # ---------------------------------------------------------------------------
 # Glossary dialog (module-level for cleanliness; called from top bar)
 # ---------------------------------------------------------------------------
-def _open_glossary(state: WorkspaceState, glossary, config, parse_lang_pair):
+def _open_glossary(state: WorkspaceState, glossary, config, parse_lang_pair, kg=None):
     with ui.dialog() as dialog, ui.card().classes("min-w-[400px]"):
         ui.label("Add to Glossary").classes("text-lg font-bold mb-2")
         src_lang, tgt_lang = parse_lang_pair(state.lang_pair)
         src_input = ui.input(f"Source Term ({src_lang})").classes("w-full")
         tgt_input = ui.input(f"Target Term ({tgt_lang})").classes("w-full")
         note_input = ui.input("Note (optional)").classes("w-full")
+        # Searchable dropdown of existing lineages + type-to-add, so the same
+        # theoretical lineage is reused (no free-text variant proliferation).
+        try:
+            _existing_lineages = kg.get_all_lineages() if kg is not None else []
+        except Exception:
+            _existing_lineages = []
+        lineage_input = ui.select(
+            options=_existing_lineages,
+            label="Theoretical lineage (pick existing or type to add)",
+            with_input=True,
+            new_value_mode="add-unique",
+        ).classes("w-full")
 
         def _save():
             s = (src_input.value or "").strip()
@@ -465,6 +520,39 @@ def _open_glossary(state: WorkspaceState, glossary, config, parse_lang_pair):
                         s, t, src_lang, tgt_lang, "custom.tsv", note_input.value or ""
                     )
                     glossary._build_indices()
+                # Also push the term to the KG, tagged with the current project
+                # (instantiated_in -> project source_text) so the mapping carries
+                # "made while translating this book" provenance. Done off the UI
+                # thread; reload_if_changed keeps it from clobbering external edits.
+                if kg is not None:
+                    import re as _re
+                    note_val = note_input.value or ""
+                    lineage_val = (lineage_input.value or "").strip() or "general"
+                    proj_title = state.filename or "current project"
+                    base = (state.filename or state.project_id or "project").lower()
+                    proj_slug = (_re.sub(r"[^a-z0-9]+", "-", base).strip("-")[:80]) or "project"
+
+                    async def _kg_add():
+                        loop = asyncio.get_running_loop()
+
+                        def _do():
+                            kg.reload_if_changed()
+                            if not kg.G.has_node(f"source:{proj_slug}"):
+                                kg.add_source_text_node(
+                                    proj_slug, title=proj_title,
+                                    project_type="book_translation",
+                                )
+                            sid = kg.add_term_node(s, src_lang, is_phrase=" " in s)
+                            tid = kg.add_term_node(t, tgt_lang, is_phrase=" " in t)
+                            kg.link_translations_with_context(
+                                src_term_id=sid, tgt_term_id=tid, confidence=1.0,
+                                lineage=lineage_val, gloss=note_val, verified=True,
+                                source_text_id=proj_slug,
+                            )
+                            kg.save()
+                        await loop.run_in_executor(None, _do)
+
+                    background_tasks.create(_kg_add(), name="glossary_kg")
                 ui.notify("Term added to glossary", type="positive")
                 dialog.close()
             except Exception as ex:

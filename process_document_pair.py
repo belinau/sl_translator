@@ -1,0 +1,138 @@
+#!/usr/bin/env python
+# process_document_pair.py
+#
+# CLI entry point for the document-pair bilingual pipeline (Phase 4).
+#
+# Usage:
+#   python process_document_pair.py \
+#       --en  data/books/Kafer-EN.pdf \
+#       --sl  data/books/Kafer-SL.docx \
+#       --container source:feminist-queer-crip-kafer-2013 \
+#       [--dry-run]
+#
+# For pre-converted markdown inputs:
+#   python process_document_pair.py \
+#       --en  data/books/Okri-EN.docx.md \
+#       --sl  data/books/Okri-SL.doc.md \
+#       --container source:cesta-sestradanih-okri-2010 \
+#       [--dry-run]
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import config
+from translate_core.knowledge_graph import KnowledgeGraph
+from translate_core.document_pair_pipeline import (
+    parse_side,
+    process_pair,
+    PairResult,
+)
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(
+        description="Process a bilingual EN/SL document pair into KG entities and a TMX.",
+    )
+    ap.add_argument("--en", required=True, metavar="PATH",
+                    help="Path to the EN document or markdown (.pdf, .docx, .doc, .md)")
+    ap.add_argument("--sl", required=True, metavar="PATH",
+                    help="Path to the SL document or markdown (.pdf, .docx, .doc, .md)")
+    ap.add_argument("--container", required=True, metavar="ID",
+                    help="KG source_text node ID of the container work "
+                         "(e.g. source:cesta-sestradanih-okri-2010)")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="Parse and match, but do not write to KG or create TMX")
+    ap.add_argument("--report", metavar="PATH",
+                    help="Write JSON result report to this path")
+    args = ap.parse_args()
+
+    en_path = Path(args.en)
+    sl_path = Path(args.sl)
+    container_id = args.container
+
+    if not en_path.exists():
+        print(f"ERROR: EN file not found: {en_path}", file=sys.stderr)
+        sys.exit(1)
+    if not sl_path.exists():
+        print(f"ERROR: SL file not found: {sl_path}", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"EN: {en_path}")
+    print(f"SL: {sl_path}")
+    print(f"Container: {container_id}")
+    print(f"Dry-run: {args.dry_run}")
+
+    # Load KG
+    kg = KnowledgeGraph(db_path=config.KG_DB_PATH)
+
+    # Verify container exists
+    container_node = f"source:{container_id.removeprefix('source:').lower()}"
+    if not kg.G.has_node(container_node):
+        print(f"WARNING: container node {container_node!r} not found in KG. "
+              "It will be referenced but not verified.", file=sys.stderr)
+
+    # Run the pipeline
+    result: PairResult = process_pair(
+        en_doc_path=en_path,
+        sl_doc_path=sl_path,
+        container_work_id=container_id,
+        kg=kg,
+        dry_run=args.dry_run,
+    )
+
+    # Print summary
+    print()
+    print("=== Document-Pair Pipeline Result ===")
+    print(f"  Bilingual citations (title_en + title_sl):  {result.n_bilingual}")
+    print(f"  EN-only citations (no SL match):            {result.n_en_only}")
+    print(f"  SL-only citations (no EN match):            {result.n_sl_only}")
+    print(f"  Unmatched EN:  {len(result.unmatched_en)}")
+    print(f"  Unmatched SL:  {len(result.unmatched_sl)}")
+    if result.tmx_path:
+        print(f"  Generated TMX: {result.tmx_path}")
+
+    if result.unmatched_en:
+        print("\nUnmatched EN citations (no SL equivalent found):")
+        for rec in result.unmatched_en[:5]:
+            p = rec.get("payload", {})
+            print(f"  - {p.get('title_en', '(no title)')[:80]}")
+        if len(result.unmatched_en) > 5:
+            print(f"  ... and {len(result.unmatched_en) - 5} more")
+
+    # Write report
+    if args.report:
+        report = {
+            "container_work_id": result.container_work_id,
+            "n_bilingual": result.n_bilingual,
+            "n_en_only": result.n_en_only,
+            "n_sl_only": result.n_sl_only,
+            "tmx_path": str(result.tmx_path) if result.tmx_path else None,
+            "unmatched_en_titles": [
+                (rec.get("payload") or {}).get("title_en", "")
+                for rec in result.unmatched_en
+            ],
+            "unmatched_sl_titles": [
+                (rec.get("payload") or {}).get("title_sl", "")
+                or (rec.get("payload") or {}).get("title_en", "")
+                for rec in result.unmatched_sl
+            ],
+        }
+        Path(args.report).write_text(
+            json.dumps(report, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        print(f"\nReport written to {args.report}")
+
+    if not args.dry_run:
+        print("\nKG updated successfully." if result.n_bilingual > 0
+              else "\nNo bilingual citations found to write.")
+
+
+if __name__ == "__main__":
+    main()
