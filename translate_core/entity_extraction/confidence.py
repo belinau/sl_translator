@@ -64,18 +64,31 @@ def score_record(record_kind: str, signals: dict) -> ScoreResult:
         s += delta
         reasons.append(code)
 
-    # Universal: smol's structured-schema classification is the strongest
-    # single signal a record can carry — it means the LLM explicitly
-    # extracted the entity with all required fields filled per the schema,
-    # not a regex match or NER guess. Worth +0.60 regardless of record_kind.
-    # Combined with smol_extracted (+0.15) and verified_from_text (+0.10)
-    # this floors a complete smol record at 0.30+0.60+0.15+0.10 = 1.00 → cap 1.0.
-    if signals.get("smol_verified_classification"):
-        bump("smol_verified_classification", 0.60)
+    # Universal bumps (Phase 3): the +0.60 smol_verified_classification
+    # blanket bump was removed — it caused every smol record to bypass the
+    # review queue (audit §3.4 / ontology §4 invariant 9). The signal flag
+    # itself is still informational and may appear in `signals`, but it
+    # does not contribute to the score.
     if signals.get("smol_extracted"):
         bump("smol_extracted", 0.15)
     if signals.get("verified_from_text"):
         bump("verified_from_text", 0.10)
+
+    # Composite bump (Phase 3): 2-of-3 of {title_bilingual, container_attached,
+    # project_type_typed}. `has_bilingual_title` is accepted as an alias for
+    # `title_bilingual` because cited_work builders historically used that
+    # name for the same notion. Counted at most once across the two aliases.
+    _composite_signals = (
+        bool(signals.get("title_bilingual") or signals.get("has_bilingual_title")),
+        bool(signals.get("container_attached")),
+        bool(signals.get("project_type_typed")),
+    )
+    if sum(_composite_signals) >= 2:
+        bump("composite_2of3", 0.30)
+
+    # Curator endorsement (Phase 3): explicit human approval signal.
+    if signals.get("curator_endorsed"):
+        bump("curator_endorsed", 0.40)
     
     if record_kind == "translated_work":
         if signals.get("seeded"):
@@ -107,9 +120,12 @@ def score_record(record_kind: str, signals: dict) -> ScoreResult:
         
         if signals.get("has_publisher"):
             bump("has_publisher", 0.15)
-        
-        if signals.get("title_bilingual") or signals.get("has_bilingual_title"):
-            bump("has_bilingual_title", 0.10)
+
+        # Phase 3: bilingual-title credit moved into the composite_2of3 gate
+        # (see universal bumps block). The per-kind `has_bilingual_title`
+        # bump that lived here was removed because it double-credited the
+        # bilingual axis already counted by the composite. Tests in
+        # tests/test_confidence.py require composite alone to deliver 0.85.
         if signals.get("has_sl_edition"):
             bump("has_sl_edition", 0.10)
         
@@ -364,8 +380,10 @@ def score_record(record_kind: str, signals: dict) -> ScoreResult:
     if record_kind in _TYPED_KINDS and signals.get("style_detected"):
         bump("style_detected", 0.05)
 
-    # Cap and clamp
-    s = max(0.0, min(1.0, s))
+    # Cap and clamp. Round to absorb the float underflow that otherwise
+    # makes 0.30+0.15+0.10 land at 0.5499999… and miss the 0.55 REVIEW
+    # threshold by 1 ULP (Phase 3 tests rely on exact boundary equality).
+    s = max(0.0, min(1.0, round(s, 6)))
     return ScoreResult(confidence=s, reason_codes=reasons, tier=_to_tier(s))
 
 

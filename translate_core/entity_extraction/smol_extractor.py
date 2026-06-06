@@ -565,6 +565,20 @@ def _build_cited_work(
             "has_sl_edition": bool(slovenian_edition),
             # Smol returned a structured cited_work classification (author + title)
             "smol_verified_classification": bool(title_orig or title_translation),
+            # Phase 3 composite-gate signals (audit §3.4, ontology §4 inv 9):
+            # `title_bilingual` mirrors `has_bilingual_title`; the confidence
+            # scorer already accepts either as the bilingual axis, but we set
+            # both for explicitness. `container_attached` reflects the
+            # cited_in anchor. `project_type_typed` is True only when smol
+            # produced a real subtype (book/journal_article/…), NOT when it
+            # fell back to the generic "cited_work" / "cited_container"
+            # bucket — those fallbacks must NOT earn composite credit.
+            "title_bilingual": bool(title_orig and title_translation),
+            "container_attached": bool(container_work_id),
+            "project_type_typed": (
+                project_type in VALID_CITED_PROJECT_TYPES
+                and project_type not in {"cited_work", "cited_container"}
+            ),
         },
     }
 
@@ -653,6 +667,11 @@ def _build_concept(
             "smol_verified_classification": bool(
                 label_orig and originating_author and source_work_title
             ),
+            # Phase 3 composite-gate signal applicable to concept: only the
+            # container axis is semantically meaningful. `title_bilingual` and
+            # `project_type_typed` do not apply to concepts (concepts have a
+            # bilingual label tracked separately, and no project_type).
+            "container_attached": bool(container_work_id),
         },
     }
 
@@ -735,6 +754,13 @@ def _build_artwork(
             "has_host": bool(host_institution),
             # All required fields enforced at build time — always True if we got here.
             "smol_verified_classification": True,
+            # Phase 3 composite-gate signals: artworks have a typed
+            # project_type by definition (this builder only fires for kind
+            # "artwork"); container_attached reflects the catalogue/source
+            # this artwork was cited in.
+            "title_bilingual": bool(title_orig and title_translation),
+            "container_attached": bool(container_work_id),
+            "project_type_typed": True,
         },
     }
 
@@ -852,6 +878,13 @@ def _build_performance(
             "has_venue": bool(venue),
             # All required fields enforced at build time — always True if we got here.
             "smol_verified_classification": True,
+            # Phase 3 composite-gate signals: performances have a typed
+            # project_type by definition (this builder only fires for kind
+            # "performance"); container_attached reflects the festival /
+            # programme this performance was cited in.
+            "title_bilingual": bool(title_orig and title_translation),
+            "container_attached": bool(container_work_id),
+            "project_type_typed": True,
         },
     }
 
