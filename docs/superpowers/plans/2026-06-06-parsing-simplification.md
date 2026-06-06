@@ -85,9 +85,9 @@ Expected: both files present and the same size.
 - [ ] **Step 0.3: Verify audit counts on the live KG.**
 
 ```bash
-python -c "
+.venv/bin/python3 -c "
 from translate_core.knowledge_graph import KnowledgeGraph
-kg = KnowledgeGraph(load_from_file=True)
+kg = KnowledgeGraph()
 from collections import Counter
 node_types = Counter(d.get('type') for _, d in kg.G.nodes(data=True))
 edge_rels  = Counter(d.get('relation') for _, _, d in kg.G.edges(data=True))
@@ -128,7 +128,12 @@ git commit -m "docs: audit + simplification plan"
 
 ## Phase 1 — TMX chronological ordering (foundational)
 
-**Purpose:** make `translate_core/tm.py` sort segments by TMX `creationdate`, expose `t_index` (chronological) alongside `raw_index` (natural). This is the root fix; everything downstream depends on it. Naive `enumerate()` indexing is the documented cause of container-boundary mis-assignment (audit §4, §10.1).
+**Purpose:** make `translate_core/tm.py` expose TMX `creationdate` and a chronological view of segments alongside the existing natural-load-order entries. This is the root fix; everything downstream depends on it. Naive `enumerate()` indexing is the documented cause of container-boundary mis-assignment (audit §4, §10.1).
+
+**Design constraint — preserve `self.entries` natural order.** The editor surface (`main.py:246-251`) appends to `tm.entries` after curator edits; an `inline_test` fixture also reads `tm.entries[0]` positionally. To avoid any risk to the editor, **do NOT mutate `self.entries` order**. Instead:
+  - Attach `t_index` (int, position in chronological order), `raw_index` (int, position in load order), and `creationdate` (str or `None`) to each entry dict.
+  - Expose a `TranslationMemory.iter_chronological(origin: str | None = None)` method that yields entries sorted ascending by `creationdate` (None-dated entries appended after dated ones, preserving relative natural order).
+  - Downstream consumers (Phase 6 attribution) use `iter_chronological()`; legacy iterators over `self.entries` continue to work unchanged.
 
 **Files:**
 - Create: `translate_core/tm_timecodes.py`
@@ -146,18 +151,20 @@ Agent dispatch prompt skeleton (the coordinator fills `<...>` slots):
 > Working directory: `/Users/bel/CascadeProjects/sl_translator`.
 > Read first: `ontology.md`, `docs/parsing_simplification_audit.md` §4 and §10.1, the current `translate_core/tm.py:1-100`, and the TMX header of `data/tm/2022-SL-EN.tmx` lines 1–30.
 > Task: write `tests/test_tm_timecodes.py` that asserts:
-> (a) given a TMX file with three `<tu>` blocks whose `creationdate` values are out of natural order (later, earlier, middle), a new function `read_tmx_with_timecodes(path)` returns the segments sorted ascending by `creationdate`;
-> (b) each returned segment dict carries keys `source, target, origin, t_index, raw_index, creationdate` and that `t_index` reflects chronological order while `raw_index` reflects file order;
-> (c) when `creationdate` is missing on a `<tu>`, the segment is appended at the END of its origin's sorted list with `creationdate=None` and `t_index` after all dated entries.
+> (a) `read_tmx_with_timecodes(path)` returns a list of segment dicts in **natural load order**, each carrying keys `source, target, origin, raw_index, creationdate, t_index`. `raw_index` matches file order; `t_index` is the position the entry would have if sorted by `creationdate` ascending.
+> (b) Given a TMX with three `<tu>` blocks whose `creationdate` values are out of natural order (e.g. natural=[A,B,C] but dates=[2024, 2022, 2023]), `t_index` correctly assigns B=0, C=1, A=2 while `raw_index` stays at A=0, B=1, C=2 and the **list itself is in load order**.
+> (c) When `creationdate` is missing on a `<tu>`, the segment is kept at its natural position in the returned list with `creationdate=None`, and its `t_index` is assigned after all dated entries (preserving relative natural order among the dateless).
+> (d) `TranslationMemory.iter_chronological()` yields entries sorted by `t_index`. `iter_chronological(origin="foo.tmx")` filters by origin and yields chronological order within that origin.
+> (e) `tm.entries` itself remains in natural load order — i.e. `[e['raw_index'] for e in tm.entries]` is `list(range(len(tm.entries)))`.
 > Provide the test file as a fixture: write a small synthetic TMX into `tests/fixtures/tmx_unordered.tmx` and use it.
-> DO NOT implement `read_tmx_with_timecodes` yet. Verify the test FAILS with `ImportError` or `AttributeError`.
+> DO NOT implement `read_tmx_with_timecodes` or `iter_chronological` yet. Verify the test FAILS with `ImportError` or `AttributeError`.
 > Constraints: no edits to any file under `ui/`, `main.py`, `kg_editor_ui.py`, `import_book.py`, `app_state.py`, `config.py`, `translate_core/llm.py`, `translate_core/glossary.py`, `translate_core/qa.py`, `visualise_kg.py`. No edits to `lookup_fuzzy`/`search_concordance`/`search_prefix`.
 > Report: paste the test code and the failing-test command output.
 
 - [ ] **Step 1.2: Coordinator verifies test fails for the right reason.**
 
 ```bash
-pytest tests/test_tm_timecodes.py -v 2>&1 | tail -30
+.venv/bin/python3 -m pytest tests/test_tm_timecodes.py -v 2>&1 | tail -30
 ```
 Expected: failures cite the missing `read_tmx_with_timecodes` symbol — not a fixture loading error or unrelated noise.
 
@@ -167,37 +174,50 @@ Agent dispatch prompt:
 
 > Subagent type: `python-development:python-pro`.
 > Read first: the failing test, `ontology.md` §4 invariant 7, `docs/parsing_simplification_audit.md` §4, `translate_core/tm.py:1-100`.
-> Implement `translate_core/tm_timecodes.py` with a function `read_tmx_with_timecodes(path: Path) -> list[dict]`. Use `lxml.etree` to parse the TMX XML directly (NOT `translate.storage.tmx.tmxfile`, which discards attributes). Read `creationdate` from each `<tu>` element. Yield dicts with `{source, target, origin, raw_index, creationdate, t_index}`. Sort by `creationdate` ascending; segments without `creationdate` appended after dated ones, preserving their relative natural order. Preserve the existing `clean_xml` normalization and the EN-source/SL-target swap behaviour from `tm.py:39-52`.
-> Then modify `translate_core/tm.py:_load_tmx` to delegate to `read_tmx_with_timecodes` and persist `t_index` and `raw_index` on every entry dict in `self.entries`.
+> Implement `translate_core/tm_timecodes.py` with a function `read_tmx_with_timecodes(path: Path) -> list[dict]`. Use `lxml.etree` to parse the TMX XML directly (NOT `translate.storage.tmx.tmxfile`, which discards attributes). Read `creationdate` from each `<tu>` element. Return dicts in **natural file order** with keys `{source, target, origin, raw_index, creationdate, t_index}`, where `t_index` is the position the entry would have under chronological sort (dateless entries assigned t_indexes after all dated ones, preserving relative natural order). Preserve the existing `clean_xml` normalization and the EN-source/SL-target swap behaviour from `tm.py:39-52`.
+> Then modify `translate_core/tm.py:_load_tmx` to delegate to `read_tmx_with_timecodes` and persist `t_index`, `raw_index`, `creationdate` on every entry dict in `self.entries` (still in natural order — DO NOT sort `self.entries`).
+> Add `TranslationMemory.iter_chronological(origin: str | None = None) -> Iterator[dict]` that yields entries sorted by `t_index`, optionally filtered by origin.
 > DO NOT modify `lookup_fuzzy`, `search_concordance`, `search_prefix`. Run them against a sample input after the change and confirm output is unchanged.
-> Verify: the failing test now passes; the full existing test suite still passes (`pytest tests/ -x -q`).
+> Verify: the failing test now passes; the full existing test suite still passes (`.venv/bin/python3 -m pytest tests/ -x -q`).
 > Report: paste the new module, the modified `_load_tmx`, and both pytest results.
 
 - [ ] **Step 1.4: Coordinator runs real-data verification.**
 
 ```bash
-python -c "
+.venv/bin/python3 -c "
 from translate_core.tm import TranslationMemory
 tm = TranslationMemory()
-# audit §10.1 says natural order != chronological. Prove it.
+# Prove (a) self.entries stayed in natural order and (b) chronological differs.
+assert [e['raw_index'] for e in tm.entries] == list(range(len(tm.entries))), \
+    'self.entries was reordered; the editor surface may break'
 by_origin = {}
 for e in tm.entries:
     by_origin.setdefault(e['origin'], []).append(e)
+diffs = 0
 for origin, lst in by_origin.items():
     dated = [e for e in lst if e.get('creationdate')]
-    if len(dated) < 2:
-        continue
-    naturals_for_dated = [e['raw_index'] for e in dated]
-    print(f'{origin}: n={len(lst)} dated={len(dated)}  natural-vs-chrono different? '
-          f'{naturals_for_dated != sorted(naturals_for_dated)}')
+    if len(dated) < 2: continue
+    chrono_via_t = sorted(dated, key=lambda x: x['t_index'])
+    natural = sorted(dated, key=lambda x: x['raw_index'])
+    if [e['raw_index'] for e in chrono_via_t] != [e['raw_index'] for e in natural]:
+        diffs += 1
+        print(f'{origin}: natural != chronological')
+assert diffs > 0, 'no origin shows natural != chronological; timecode reader likely broken'
+print(f'OK: {diffs} origins where chronological differs from natural')
+
+# Also verify iter_chronological works and is order-correct.
+chrono = list(tm.iter_chronological())
+t_indexes = [e['t_index'] for e in chrono]
+assert t_indexes == sorted(t_indexes), 'iter_chronological did not return t_index-sorted order'
+print(f'iter_chronological yields {len(chrono)} entries in t_index order')
 "
 ```
-Expected: at least one origin reports `True` (natural order differs from chronological). If every origin reports `False`, the timecode read is silently broken or every TMX is already in chronological order; investigate before continuing.
+Expected: assertions pass; at least one origin shows natural != chronological; `iter_chronological` yields a t_index-sorted stream. If `self.entries` was reordered, STOP — the editor surface (`main.py:246-251`) reads `tm.entries` and any positional access elsewhere would break.
 
 - [ ] **Step 1.5: Coordinator confirms editor side did not regress.**
 
 ```bash
-python -c "
+.venv/bin/python3 -c "
 from translate_core.tm import TranslationMemory
 tm = TranslationMemory()
 hits = tm.lookup_fuzzy('art', threshold=70.0, limit=3)
@@ -242,15 +262,15 @@ git commit -m "tm: read TMX with creationdate-sorted t_index alongside raw_index
 > Task: create `translate_core/book_outline.py` containing a verbatim copy of the `BookOutline` dataclass and the `split_paragraphs` function (no other vl_parser internals). Update `import_book.py` lines 112 and 147 to import from the new module instead.
 > Then write `tests/test_book_outline.py` with two smoke tests: (a) `split_paragraphs("a"*4000)` returns multiple chunks each ≤ `max_chars`; (b) `BookOutline()` instantiates with the expected default fields.
 > Verify the existing `vl_parser.py` file remains UNCHANGED (we still need its other definitions of `BookOutline`/`split_paragraphs` working until Phase 7 deletes the file; the imports above just point elsewhere).
-> Confirm `import_book.py` still imports without error: `python -c "import import_book"` returns 0.
+> Confirm `import_book.py` still imports without error: `.venv/bin/python3 -c "import import_book"` returns 0.
 > Report: new module, modified imports in `import_book.py`, pytest output for new tests.
 
 - [ ] **Step 2.2: Coordinator real-data check.**
 
 ```bash
-python -c "import import_book; print('OK')"
-python -c "from translate_core.book_outline import BookOutline, split_paragraphs; print('OK', len(split_paragraphs('x'*3000)))"
-pytest tests/test_book_outline.py -v
+.venv/bin/python3 -c "import import_book; print('OK')"
+.venv/bin/python3 -c "from translate_core.book_outline import BookOutline, split_paragraphs; print('OK', len(split_paragraphs('x'*3000)))"
+.venv/bin/python3 -m pytest tests/test_book_outline.py -v
 ```
 
 - [ ] **Step 2.3: Commit Phase 2.**
@@ -312,7 +332,7 @@ git commit -m "book_outline: extract BookOutline + split_paragraphs from vl_pars
 After the subagent's edit the coordinator runs a scoring sweep over real smol records. Exact code depends on what helper the subagent exposes; the pattern is:
 
 ```bash
-python -c "
+.venv/bin/python3 -c "
 import json
 from pathlib import Path
 from translate_core.entity_extraction.confidence import score_record, DIRECT_WRITE_THRESHOLD
@@ -337,7 +357,7 @@ for blob in data[:200]:
 print(f'direct={direct} review={review}')
 "
 ```
-Expected: `review > 0` (was 0 before the fix). A reasonable split is 30–70% to review depending on smol coverage.
+Expected: `review > 0` (was 0 before the fix). A reasonable split is 30–70% to review depending on smol coverage. **Hard failure if `review / (direct + review) > 0.80`** — that indicates the composite gate is mis-tuned and Phase 5/6 KG writes would starve. Surface to user before proceeding.
 
 - [ ] **Step 3.4: Commit Phase 3.**
 
@@ -391,14 +411,14 @@ git commit -m "confidence: remove blanket +0.60 smol bump; add 2-of-3 composite 
 
 ```bash
 cp data/knowledge.db data/knowledge.db.phase4.bak
-python scripts/ingest_personal_bibliography.py --dry-run 2>&1 | tail -40
+.venv/bin/python3 scripts/ingest_personal_bibliography.py --dry-run 2>&1 | tail -40
 ```
 If `--dry-run` is not supported, the coordinator instead runs the script against a copy of the KG and diffs node counts before/after.
 
 ```bash
-python -c "
+.venv/bin/python3 -c "
 from translate_core.knowledge_graph import KnowledgeGraph
-kg = KnowledgeGraph(load_from_file=True)
+kg = KnowledgeGraph()
 n=0; bilingual=0
 for nid, d in kg.G.nodes(data=True):
     if d.get('type')!='source_text' or d.get('project_type') not in {'book_translation','article_translation','festival_programme','exhibition_catalogue'}:
@@ -470,7 +490,7 @@ cp data/knowledge.db data/knowledge.db.phase5.bak
 # Run the smol-side ingest harness with the new router. The subagent must
 # expose either an `--inspect` flag on run_entity_extraction.py or a function
 # `simulate_routing(records) -> dict` that returns counts without writing.
-python run_entity_extraction.py --inspect 2>&1 | grep -E "router|direct|review|reject" | head -20
+.venv/bin/python3 run_entity_extraction.py --inspect 2>&1 | grep -E "router|direct|review|reject" | head -20
 ```
 The coordinator examines: are any `translated_work` records arriving from non-COBISS provenance routed to review (the seeded-book bug class)? Expected: at least a handful of such routings logged — proves the gate fires.
 
@@ -544,7 +564,7 @@ No commit yet — bundled with Step 6.6.
 - [ ] **Step 6.4: Coordinator dispatches a fix for the SMOL_EXTRACTIONS_PATH bug.**
 
 (This is audit §8 path mismatch.) Subagent same type.
-> Task: change `run_entity_extraction.py:60` from `SMOL_EXTRACTIONS_PATH = Path("data/smol_extractions.json")` to `SMOL_EXTRACTIONS_PATH = Path("data/smol_entities_map/smol_extractions.json")`. Verify by running `python -c "from run_entity_extraction import SMOL_EXTRACTIONS_PATH; print(SMOL_EXTRACTIONS_PATH.exists())"` returns `True`.
+> Task: change `run_entity_extraction.py:60` from `SMOL_EXTRACTIONS_PATH = Path("data/smol_extractions.json")` to `SMOL_EXTRACTIONS_PATH = Path("data/smol_entities_map/smol_extractions.json")`. Verify by running `.venv/bin/python3 -c "from run_entity_extraction import SMOL_EXTRACTIONS_PATH; print(SMOL_EXTRACTIONS_PATH.exists())"` returns `True`.
 > Report.
 
 - [ ] **Step 6.5: Coordinator real-data dry-run.**
@@ -552,7 +572,7 @@ No commit yet — bundled with Step 6.6.
 ```bash
 cp data/knowledge.db data/knowledge.db.phase6.bak
 # Dry-run the new attribution against the real curator file + the real TM:
-python -c "
+.venv/bin/python3 -c "
 from translate_core.tm import TranslationMemory
 from translate_core.container_attribution import attribute_segments_to_containers, load_curator_anchors
 anchors = load_curator_anchors()
@@ -625,17 +645,17 @@ Expected: every hit is in a file we are also deleting OR is the `doc_parser.py:3
 > Subagent type: `python-development:python-pro`.
 > Read first: `docs/parsing_simplification_audit.md` §3 DELETE list + §11. Then the grep output from Step 7.1 the coordinator pastes into the prompt.
 > Task: execute the deletes in the file list above and the two REDUCE edits in `doc_parser.py` and `ui/workspace.py`. For `doc_parser.py`, the diff should keep the PyMuPDF/text path and drop only the VL branch. For `ui/workspace.py`, the existing argument is already `None`; remove just the argument from the call.
-> After each edit, run `python -c "import <touched-module>"` to confirm it still imports.
-> Then run the full test suite: `pytest tests/ -x -q`. Expect green; if anything fails because of a missed reference, surface it — do NOT add a shim to paper over it.
+> After each edit, run `.venv/bin/python3 -c "import <touched-module>"` to confirm it still imports.
+> Then run the full test suite: `.venv/bin/python3 -m pytest tests/ -x -q`. Expect green; if anything fails because of a missed reference, surface it — do NOT add a shim to paper over it.
 > Report: full list of deleted files, the two edits, and pytest output.
 
 - [ ] **Step 7.3: Coordinator real-data check.**
 
 ```bash
-python -c "import import_book; print('OK')"     # editor doc-prep
-python -c "import main; print('OK')"            # NiceGUI entry (will fail if it tries to start the UI; that is OK — we only want import-time errors)
-python -c "from translate_core import doc_parser; print('OK')"
-python -c "from translate_core.entity_extraction import smol_extractor; print('OK')"
+.venv/bin/python3 -c "import import_book; print('OK')"     # editor doc-prep
+.venv/bin/python3 -c "import main; print('OK')"            # NiceGUI entry (will fail if it tries to start the UI; that is OK — we only want import-time errors)
+.venv/bin/python3 -c "from translate_core import doc_parser; print('OK')"
+.venv/bin/python3 -c "from translate_core.entity_extraction import smol_extractor; print('OK')"
 ```
 All return `OK` (or controlled-exit if NiceGUI requires runtime setup).
 
@@ -649,7 +669,7 @@ git commit -m "vl: delete VL-era parser/extractor stack; strip use_vl branch fro
 ### Phase 7 verification gate
 
 - [ ] All target files are gone (`ls translate_core/vl_*.py` returns no matches; same for vl_typed_*, vl_citation_*, bilingual_enrichment*, bilingual_titles).
-- [ ] `pytest tests/ -x -q` is green.
+- [ ] `.venv/bin/python3 -m pytest tests/ -x -q` is green.
 - [ ] `import_book.py` still imports.
 - [ ] Live KG unchanged (`data/knowledge.db` byte-identical to `data/knowledge.db.phase6.bak`).
 
@@ -690,9 +710,9 @@ Expected: only intra-file definitions and the `seed_kg.py` script itself (which 
 - [ ] **Step 8.3: Coordinator real-data check.**
 
 ```bash
-python -c "
+.venv/bin/python3 -c "
 from translate_core.knowledge_graph import KnowledgeGraph
-kg = KnowledgeGraph(load_from_file=True)
+kg = KnowledgeGraph()
 assert not hasattr(kg, 'seed_from_tm'), 'seed_from_tm still present'
 assert not hasattr(kg, 'add_collocation_node')
 assert not hasattr(kg, 'add_segment_node')
@@ -759,7 +779,7 @@ ls -la data/knowledge.db data/knowledge.db.phase9.bak
 - [ ] **Step 9.4: Coordinator runs `--dry-run` and inspects.**
 
 ```bash
-python scripts/drain_noise_concepts.py --dry-run
+.venv/bin/python3 scripts/drain_noise_concepts.py --dry-run
 ```
 Expected: `would_delete` ≈ 8,455 (give or take a few hundred if some have term-attestation ≥ 5). Coordinator records the exact numbers in the phase log.
 
@@ -767,16 +787,16 @@ Expected: `would_delete` ≈ 8,455 (give or take a few hundred if some have term
 
 If `would_delete` >= 95% of concept count, ask user before applying. If user approves:
 ```bash
-python scripts/drain_noise_concepts.py --apply
+.venv/bin/python3 scripts/drain_noise_concepts.py --apply
 ```
 
 - [ ] **Step 9.6: Coordinator real-data verification.**
 
 ```bash
-python -c "
+.venv/bin/python3 -c "
 from translate_core.knowledge_graph import KnowledgeGraph
 from collections import Counter
-kg = KnowledgeGraph(load_from_file=True)
+kg = KnowledgeGraph()
 node_types = Counter(d.get('type') for _, d in kg.G.nodes(data=True))
 print('NODES:', dict(node_types))
 edge_rels = Counter(d.get('relation') for _, _, d in kg.G.edges(data=True))
@@ -821,7 +841,7 @@ git commit -m "kg: drain ~8455 noise concepts lacking definitions/lineage/proven
 - [ ] **Step 10.1: Coordinator inspects the curator files.**
 
 ```bash
-python -c "
+.venv/bin/python3 -c "
 import json
 sch = json.load(open('data/quarantine/_lineage_schools.json'))
 cts = json.load(open('data/quarantine/_concept_theorists.json'))
@@ -861,18 +881,18 @@ cp data/quarantine/_concept_theorists.json data/concept_theorists.json
 
 ```bash
 cp data/knowledge.db data/knowledge.db.phase10.bak
-python scripts/ingest_curator_lineages.py --dry-run
+.venv/bin/python3 scripts/ingest_curator_lineages.py --dry-run
 # Inspect report; if reasonable:
-python scripts/ingest_curator_lineages.py --apply
+.venv/bin/python3 scripts/ingest_curator_lineages.py --apply
 ```
 
 - [ ] **Step 10.6: Coordinator real-data verification.**
 
 ```bash
-python -c "
+.venv/bin/python3 -c "
 from translate_core.knowledge_graph import KnowledgeGraph
 from collections import Counter
-kg = KnowledgeGraph(load_from_file=True)
+kg = KnowledgeGraph()
 concepts = [(n,d) for n,d in kg.G.nodes(data=True) if d.get('type')=='concept']
 with_def = sum(1 for _,d in concepts if (d.get('definition') or '').strip())
 lineage_rels = {'extends','critiques','redefines','reappropriates','related_to'}
@@ -937,8 +957,8 @@ Expected: no live callers from in-scope code. If anything in scope still calls t
 - [ ] **Step 11.3: Coordinator real-data check.**
 
 ```bash
-pytest tests/ -x -q
-python run_entity_extraction.py --help 2>&1 | head -20    # confirms the entry-point still parses
+.venv/bin/python3 -m pytest tests/ -x -q
+.venv/bin/python3 run_entity_extraction.py --help 2>&1 | head -20    # confirms the entry-point still parses
 ```
 
 - [ ] **Step 11.4: Commit Phase 11.**
@@ -951,7 +971,7 @@ git commit -m "ingest: delete legacy book-bibliography / footnote / seeded-book 
 ### Phase 11 verification gate
 
 - [ ] No deleted symbol referenced anywhere.
-- [ ] `pytest tests/ -x -q` green.
+- [ ] `.venv/bin/python3 -m pytest tests/ -x -q` green.
 - [ ] `run_entity_extraction.py --help` still works.
 
 ---
@@ -959,6 +979,12 @@ git commit -m "ingest: delete legacy book-bibliography / footnote / seeded-book 
 ## Phase 12 — End-to-end verification
 
 **Purpose:** run the smol entity ingest end-to-end on a copy of the KG and diff against the post-Phase-10 baseline. Confirm the system produces ontology-clean output and no regressions.
+
+**Caveat on smol payload shape — read this before running:** The current `data/smol_entities_map/smol_extractions.json` was produced by smol jobs that did NOT emit `t_index` (Phase 6 introduces the requirement; the consumer falls back to `seg_idx`). A true end-to-end pass against Phase 6's chronological-anchor improvements requires re-dispatching smol extraction with the new payload shape. Decide before this phase:
+  - **Option A (recommended): in-scope re-run.** The coordinator dispatches the external smol extraction harness (OMP / DeepSeek-flash) with `t_index` enabled, regenerates `data/smol_entities_map/smol_extractions.json`, then runs Phase 12. This is the only path to a real-world verification.
+  - **Option B: ship Phase 12 against stale smol data.** Verification gate is partial. Container-attribution improvements from Phase 6 are technically wired but not exercised end-to-end. Mark in the phase log; schedule the smol re-run as a follow-up.
+
+The coordinator picks A or B and records the choice in `2026-06-06-phase-log.md` before Step 12.1.
 
 ### Tasks
 
@@ -973,20 +999,20 @@ cp data/knowledge.db /tmp/knowledge.db.test_run
 - [ ] **Step 12.2: Run full smol ingest.**
 
 ```bash
-python run_entity_extraction.py --kg-path /tmp/knowledge.db.test_run --no-fallback
+.venv/bin/python3 run_entity_extraction.py --kg-path /tmp/knowledge.db.test_run --no-fallback
 ```
 (If the CLI doesn't expose `--kg-path`, the coordinator either adds the flag in a small subagent dispatch OR temporarily moves the live KG aside and runs against a copy.)
 
 - [ ] **Step 12.3: Diff the test KG against the post-Phase-10 baseline.**
 
 ```bash
-python -c "
+.venv/bin/python3 -c "
 import networkx as nx
 from translate_core.knowledge_graph import KnowledgeGraph
 def load(p):
     import config
     config.KG_PATH = p  # if the loader uses module-level config
-    return KnowledgeGraph(load_from_file=True)
+    return KnowledgeGraph()
 kg_before = load('data/knowledge.db.phase10.bak')
 kg_after  = load('/tmp/knowledge.db.test_run')
 from collections import Counter
@@ -1014,7 +1040,7 @@ Coordinator picks 5 container nodes and verifies each has bilingual title pair +
 - [ ] **Step 12.5: Ontology validator.**
 
 ```bash
-python scripts/validate_kg.py /tmp/knowledge.db.test_run 2>&1 | tail -40
+.venv/bin/python3 scripts/validate_kg.py /tmp/knowledge.db.test_run 2>&1 | tail -40
 ```
 Expected: zero violations.
 
