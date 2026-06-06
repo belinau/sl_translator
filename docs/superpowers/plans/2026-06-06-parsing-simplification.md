@@ -16,7 +16,7 @@
 4. **Verification is real-data, not stub assertions.** Every phase ends with loading `data/knowledge.db` (or a backup snapshot) and counting node/edge totals against expected ranges. Unit-test pass alone is not acceptance.
 5. **Backup before every destructive change.** Each phase that mutates the KG snapshots `data/knowledge.db` to `data/knowledge.db.phase{N}.bak`.
 6. **No fast smoke tests.** No "imports resolved → done" or "tests pass → done". Every phase has a behavioural verification.
-7. **Bilingual fields are canonical per ontology §2.4.2.** Use `title_orig`+`title_translation`+`orig_lang`+`translation_lang` (canonical) OR `title_en`+`title_sl`+`slovenian_edition` (citation-typed records only, per §2.4.2 second paragraph). No flat `publisher_en` / `publisher_sl`.
+7. **Bilingual fields are canonical per ontology §2.4.2.** The CANONICAL encoding is `title_orig` + `title_translation` + `orig_lang` + `translation_lang`. The legacy SL/EN-specific `title_en` + `title_sl` + `slovenian_edition` encoding is a **write-only backwards-compat shim** for code that still reads those fields — NOT an equal alternative. New writes MUST emit the canonical encoding; the legacy fields are populated as a parallel duplicate ONLY when a documented consumer still depends on them, and ONLY with a named deletion target (Phase 11 sunsets the duplicates once consumers migrate). No flat `publisher_en` / `publisher_sl`.
 8. Coordinator: each subagent dispatch MUST include (a) the section of the audit relevant to its task (`docs/parsing_simplification_audit.md`), (b) the ontology, (c) the explicit OUT-OF-SCOPE list, (d) the verification gate it must satisfy before reporting done, (e) the bibliography-bright-line and language-neutrality rules below.
 
 9. **Language neutrality — no hardcoded language pair.** The translator works across multiple language pairs (SL↔EN, HR↔SL, and more pairs may be added). TMs from all directions live in `data/tm/*.tmx` interleaved. Code MUST NOT:
@@ -53,11 +53,13 @@ Phase 2 (extract editor-safe symbols from vl_parser.py)  ── prereq for Phase
    ↓
 Phase 3 (confidence-bump fix)                            ── prereq for Phase 5
    ↓
+Phase 1B (language-neutrality remediation)               ── corrective; prereq for Phase 4+
+   ↓
 Phase 4 (COBISS bilingual title encoding)
    ↓
 Phase 5 (container/cited-work routing chokepoint)
    ↓
-Phase 6 (chronological-anchor container attribution)     ── depends on Phase 1
+Phase 6 (chronological-anchor container attribution)     ── depends on Phase 1 + 1B
    ↓
 Phase 7 (DELETE VL-era files)                            ── depends on Phase 2
    ↓
@@ -67,7 +69,7 @@ Phase 9 (drain noise concepts from live KG)              ── depends on Phase
    ↓
 Phase 10 (wire curator lineage data)                     ── depends on Phase 9
    ↓
-Phase 11 (DELETE ingest_book_* + bilingual_tm_matcher + book_extractor)  ── depends on Phase 5/6
+Phase 11 (DELETE ingest_book_* + bilingual_tm_matcher + book_extractor; SUNSET title_en/title_sl write paths)  ── depends on Phase 5/6
    ↓
 Phase 12 (end-to-end run + KG diff verification)
 ```
@@ -391,6 +393,151 @@ git commit -m "confidence: remove blanket +0.60 smol bump; add 2-of-3 composite 
 
 ---
 
+## Phase 1B — Language-neutrality remediation (corrective)
+
+**Purpose:** the independent language-neutrality audit (`docs/parsing_simplification_lang_neutrality_audit.md`) found that Phase 1 / Phase 3 committed code hardcodes EN/SL in two runtime-critical sites. Phase 1B fixes them WITH a compatibility shim that keeps the editor working unchanged. This phase MUST run before Phase 4 so Phases 4+ inherit truly neutral primitives.
+
+**Findings being remediated (audit §3.1, §3.2, §3.4):**
+
+1. `translate_core/tm_timecodes.py:97-106` pairs `<tuv>` by hardcoded `lang == "en"` / `lang == "sl"`. A non-EN/SL TMX loads as zero entries.
+2. `translate_core/tm_timecodes.py:41-42, 130-131` defaults `srclang` to `"en"` and forces every entry to `source_lang="en", target_lang="sl"`.
+3. `translate_core/entity_extraction/smol_extractor.py:187-199` (`_detect_source_lang`) returns `(LANG_EN, LANG_SL)` on no filename match.
+4. `translate_core/entity_extraction/smol_extractor.py:295-296` builder default args `src_lang=LANG_EN, tgt_lang=LANG_SL`.
+5. `translate_core/entity_extraction/confidence.py:129-130` signal `has_sl_edition` carries SL in the name.
+6. `tests/fixtures/tmx_unordered.tmx` only covers EN/SL. No HR-SL / DE-SL regression net.
+
+**Compatibility shim — required by editor (audit §6):**
+- `tm.entries` MUST remain the current EN→SL-normalised view so `inline_test/test_confirm_pipeline.py:62-68` (literal `source_lang="en", target_lang="sl"`) and `tm.lookup_fuzzy` / `tm.search_prefix` (which search/return only `source` / `target` fields normalised to the EN/SL convention) keep working unchanged for today's corpus.
+- A new internal index `_entries_by_pair: dict[tuple[str, str], list[dict]]` keyed by `(source_lang, target_lang)` carries the raw, non-normalised view. Each entry retains its actual `xml:lang` codes.
+- `tm.entries` is computed as a filtered view of `_entries_by_pair` containing the EN/SL pair (with SL→EN entries swapped to maintain EN→SL orientation). For today's corpus this view is byte-identical to what Phase 1 produced.
+- New consumers (Phase 6 attribution, Phase 4 COBISS direction detection, smol extractor) read `_entries_by_pair` and operate per-pair without the EN/SL assumption.
+
+**Files:**
+- Modify: `translate_core/tm_timecodes.py` (pair `<tuv>` by `srclang`/positional evidence, not by literal language labels; carry actual `xml:lang` codes; default missing `srclang` to `None`).
+- Modify: `translate_core/tm.py` (add `_entries_by_pair` index; `tm.entries` becomes a filtered EN/SL-normalised view of it; `iter_chronological` reads from `_entries_by_pair`).
+- Modify: `translate_core/entity_extraction/smol_extractor.py` (`_detect_source_lang` returns `(None, None)` on no match; builders accept `None` lang values; the three `title_en`/`title_sl` alias write sites at lines 529-530, 727-728, 850-851 are wrapped in a `_LEGACY_SL_EN_DUPLICATE_WRITE` flag with a sunset target of Phase 11; constants `LANG_EN`/`LANG_SL` stay as data values but are NOT used as flow-control defaults).
+- Modify: `translate_core/entity_extraction/confidence.py` (rename `has_sl_edition` → `has_target_lang_edition`; update smol-builder sites that set it).
+- Create: `tests/fixtures/tmx_hr_sl.tmx` (HR→SL fixture).
+- Modify: `tests/test_tm_timecodes.py` (parametrise existing tests over both EN/SL and HR/SL fixtures; add an "unknown pair" case to assert correct routing without default-EN-SL).
+- Test: `tests/test_tm_pair_indexing.py` (new — exercises `_entries_by_pair`).
+- DO NOT MODIFY: `main.py`, `ui/*.py`, `inline_test/test_confirm_pipeline.py` (the compat shim must keep these passing without changes), the OUT OF SCOPE list.
+
+### Agent mix
+- Step 1B.0: `Explore` (survey every reader of `tm.entries`, `e["source_lang"]`, `e["target_lang"]`, `LANG_EN`, `LANG_SL`, `has_sl_edition` to confirm compat-shim sufficiency)
+- Step 1B.1: `feature-dev:code-architect` (design the `_entries_by_pair` index + view derivation + smol detector refactor)
+- Step 1B.2: `python-development:python-pro` for TDD red (HR-SL fixture, parametrised tests, _entries_by_pair contract)
+- Step 1B.3: `python-development:python-pro` for TDD green (the refactor)
+- Step 1B.4: `pythonista-reviewer` for the diff
+- Skills the coordinator invokes before dispatching: `superpowers:test-driven-development`, `python-development:python-testing-patterns`, `python-development:python-design-patterns` (compat-shim is a Façade / Adapter pattern).
+
+### Tasks
+
+- [ ] **Step 1B.0: Coordinator dispatches `Explore` for the impact survey.**
+
+Brief: "Find every reader in the repo of these symbols (exclude `.venv/`, `__pycache__/`):
+  - `tm.entries`, `tm._entries_by_pair` (won't exist yet)
+  - `e['source_lang']`, `e['target_lang']` reads on TM entry dicts
+  - `LANG_EN`, `LANG_SL` constants and any string literal `'en'` / `'sl'` in `translate_core/entity_extraction/smol_extractor.py`
+  - `has_sl_edition` signal reads anywhere in confidence / smol / kg_ingest code
+  - `title_en`, `title_sl` writes (not reads) on `source_text` records anywhere
+  - `inline_test/test_confirm_pipeline.py` — full file, its assertions on TM entry shape
+For each, report file:line and what the consumer expects. Specifically answer: does keeping `tm.entries` as an EN→SL-normalised filtered view keep every current consumer working? What's the inventory of `title_en`/`title_sl` write sites that need a sunset flag?"
+
+- [ ] **Step 1B.1: Coordinator invokes `python-development:python-design-patterns`, then dispatches `feature-dev:code-architect`.**
+
+> Subagent type: `feature-dev:code-architect`.
+> Out of scope + constraints 9 and 10 (verbatim).
+> Read first: `docs/parsing_simplification_lang_neutrality_audit.md` (full file), `translate_core/tm_timecodes.py`, `translate_core/tm.py`, `translate_core/entity_extraction/smol_extractor.py:170-230, 280-320, 460-570, 700-870`, the Step 1B.0 Explore report (paste in).
+> Task: produce a design blueprint (no code) covering:
+>   - The new `_entries_by_pair: dict[tuple[str | None, str | None], list[dict]]` index — exact key shape, how entries are bucketed, what `None` keys mean.
+>   - How `tm.entries` is derived from `_entries_by_pair` so it remains byte-identical for today's EN/SL corpus.
+>   - How `iter_chronological(origin=None)` reads from `_entries_by_pair`.
+>   - The new `read_tmx_with_timecodes` behavior: pair `<tuv>` by header `srclang` evidence (positional within the TU) with a fallback to per-`<tuv>` `xml:lang`; populate actual codes on the returned dicts; never default to `"en"`.
+>   - The smol `_detect_source_lang` refactor: regex-based ISO-code pair detection from filename; return `(None, None)` on no match.
+>   - How smol builders cope with `None` lang values: the `title_en`/`title_sl` write becomes conditional on both langs being EN/SL; otherwise the legacy fields are omitted (canonical fields still written).
+>   - The deletion target for the legacy `title_en`/`title_sl` write paths (Phase 11 sunset) — what consumers must migrate first.
+
+- [ ] **Step 1B.2: Coordinator invokes `superpowers:test-driven-development` + `python-development:python-testing-patterns`, then dispatches `python-development:python-pro` for TDD red.**
+
+> Subagent type: `python-development:python-pro`.
+> Out of scope + constraints 9 and 10 (verbatim).
+> Read first: the architect's blueprint (paste in); the audit's §4 ("Recommended design").
+> Task:
+> (a) Create `tests/fixtures/tmx_hr_sl.tmx` — three TUs with `<tuv xml:lang="HR">` / `<tuv xml:lang="SL">` and creationdates, header `srclang="HR"`. Valid lxml-parseable.
+> (b) Add a parametrised test in `tests/test_tm_timecodes.py` that loads both the EN-SL fixture and the HR-SL fixture and asserts: all 3 entries load from HR-SL with `source_lang="hr"`, `target_lang="sl"`. The current EN-SL test still passes.
+> (c) Create `tests/test_tm_pair_indexing.py` covering:
+>     - `TranslationMemory(tm_dir=tmp_dir_with_both_fixtures)._entries_by_pair` has keys for both `("en", "sl")` and `("hr", "sl")`, each containing the right number of entries.
+>     - `tm.entries` (the EN/SL compat view) contains ONLY the EN/SL entries (with SL→EN swapped to EN→SL) and matches the byte-identical Phase 1 output for an EN-SL-only corpus.
+>     - For each entry in `_entries_by_pair`, `e["source_lang"]` and `e["target_lang"]` reflect the actual `xml:lang` codes (not normalised).
+> (d) Add a test for `smol_extractor._detect_source_lang`: `_detect_source_lang("big-HR-SL.tmx") == ("hr", "sl")`, `_detect_source_lang("foo.tmx") == (None, None)`, `_detect_source_lang("en-sl.tmx") == ("en", "sl")`.
+> (e) Add a test for `smol_extractor._build_cited_work` that confirms: when called with `src_lang="hr"`, `tgt_lang="sl"`, `title_orig="X"`, `title_translation="Y"`, the payload has `title_orig` + `title_translation` + `orig_lang="hr"` + `translation_lang="sl"` and does NOT have `title_en` or `title_sl` keys (the conditional legacy-write should not fire when neither side is EN/SL).
+> (f) Add a test asserting `confidence.score_record(..., signals={"has_target_lang_edition": True, ...})` increments correctly (renamed signal name).
+> (g) Assert that `inline_test/test_confirm_pipeline.py:62-68` still passes against the new shim (you don't touch the inline test; you just confirm it passes after the refactor — list the run command in the report).
+> Verify all tests FAIL against current code (function/file/key doesn't exist yet). Report: test code + failure output.
+
+- [ ] **Step 1B.3: Coordinator dispatches `python-development:python-pro` for TDD green.**
+
+> Subagent type: `python-development:python-pro`.
+> Out of scope + constraints 9 and 10 (verbatim).
+> Read first: the failing tests; the architect's blueprint; the audit's §4–§6.
+> Task: implement per the blueprint.
+>   - `tm_timecodes.py`: pair `<tuv>` by header `srclang` evidence (positional within the TU) + per-`<tuv>` `xml:lang` fallback. Populate `source_lang` and `target_lang` from actual codes. Default missing `srclang` to `None`.
+>   - `tm.py`: introduce `_entries_by_pair`; `tm.entries` becomes a property derived as the EN/SL filtered + SL→EN-swapped view. Preserve `raw_index`, `creationdate`, `t_index` semantics globally across all pairs. `iter_chronological` reads from `_entries_by_pair`.
+>   - `smol_extractor.py`: rewrite `_detect_source_lang` (regex `[a-z]{2}-[a-z]{2}` filename match, return `(None, None)` on miss). Builder default args removed (no more `src_lang=LANG_EN`). The three `title_en`/`title_sl` alias write sites become conditional on `LANG_EN in {orig_lang, translation_lang}` AND `LANG_SL in {orig_lang, translation_lang}`; otherwise the legacy fields are omitted entirely (canonical fields always written). Add a module-level comment naming Phase 11 as the sunset.
+>   - `confidence.py`: rename `has_sl_edition` → `has_target_lang_edition`. Update every smol-builder site that sets it.
+> Verify: all new tests pass; existing tests pass (including the inline_test fixture); full suite green.
+> Report: full per-file diff; test outputs; the exact view-derivation logic used for `tm.entries`.
+
+- [ ] **Step 1B.4: Coordinator dispatches `pythonista-reviewer` for the diff.**
+
+Brief: "Review the Phase 1B diff (`tm_timecodes.py`, `tm.py`, `smol_extractor.py`, `confidence.py`, new tests, new fixture). Confirm: no string literal `'en'` or `'sl'` appears in a flow-control conditional anywhere in the changed code (literals are OK as data values inside maps, e.g. `LANG_EN = 'en'` itself); `tm.entries` is byte-identical for today's EN/SL corpus (run the comparison if possible); `_entries_by_pair` correctly carries actual codes; the legacy `title_en`/`title_sl` write sites are gated and tagged with a sunset; `inline_test/test_confirm_pipeline.py:62-68` literal assertions still pass without modification. Report only high-confidence findings."
+
+- [ ] **Step 1B.5: Coordinator real-data verification.**
+
+```bash
+.venv/bin/python3 -c "
+from translate_core.tm import TranslationMemory
+tm = TranslationMemory()
+# Byte-identical entries view for today's EN/SL corpus
+assert all(e['source_lang'] == 'en' and e['target_lang'] == 'sl' for e in tm.entries), \
+    'tm.entries no longer EN→SL — compat shim broken'
+# _entries_by_pair carries real codes
+pairs = set(tm._entries_by_pair.keys())
+print('pairs:', pairs)
+total = sum(len(v) for v in tm._entries_by_pair.values())
+assert total == len(tm.entries), f'pair index total {total} != entries view {len(tm.entries)}'
+print(f'OK: total_entries={len(tm.entries)} pairs_seen={pairs}')
+"
+
+# Also confirm the inline test still passes
+.venv/bin/python3 -m pytest inline_test/test_confirm_pipeline.py -v 2>&1 | tail -10
+```
+
+- [ ] **Step 1B.6: Commit Phase 1B.**
+
+```bash
+git add translate_core/tm.py \
+        translate_core/tm_timecodes.py \
+        translate_core/entity_extraction/smol_extractor.py \
+        translate_core/entity_extraction/confidence.py \
+        tests/test_tm_timecodes.py \
+        tests/test_tm_pair_indexing.py \
+        tests/fixtures/tmx_hr_sl.tmx
+git commit -m "phase1b: language-neutral TM loader + smol detector; EN/SL compat shim"
+```
+
+### Phase 1B verification gate
+
+- [ ] HR-SL fixture loads with `source_lang="hr"`, `target_lang="sl"`.
+- [ ] `_entries_by_pair` carries actual codes per origin.
+- [ ] `tm.entries` byte-identical to Phase 1 output for today's EN/SL corpus (compat shim preserved).
+- [ ] `inline_test/test_confirm_pipeline.py` passes unmodified.
+- [ ] `editor's lookup_fuzzy / search_prefix` return non-empty hits.
+- [ ] smol's `_detect_source_lang` returns `(None, None)` for non-matching filenames.
+- [ ] Reviewer pass clean: no `'en'` / `'sl'` literals in flow-control conditionals in changed code.
+
+---
+
 ## Phase 4 — COBISS bilingual title encoding (personal bibliography only)
 
 **Scope reminder — the bibliography bright line (constraint 10):** Phase 4 touches ONLY `scripts/ingest_personal_bibliography.py` and the records it emits from the translator's personal COBISS bibliography. It does NOT touch any code that ingests book bibliographies (those are out of scope for this phase and deleted in Phase 11). The COBISS export contains both kinds of records — works the translator translated (containers) AND works the translator authored himself (self-authored source_texts). The bilingual encoding applies uniformly to both, because both come from the same personal-bibliography source.
@@ -426,6 +573,7 @@ Question to answer: "Which code reads `title_en` (as opposed to `title_orig` / `
 > (g) **self-authored record (not a container).** When the classifier flags the entry as Belina-as-author (NOT translator) — `project_type ∈ {book, magazine_article, ...}` — the SAME bilingual encoding (`title_orig`, `title_translation`, `orig_lang`, `translation_lang`) must apply to that record too. This is still the personal-bibliography pipeline; it is NOT a "book-bibliography cited work" (those come from a different pipeline and are out of scope for Phase 4). The `cited_in` edge that book-bibliography cited works carry MUST NOT be wired here; self-authored records use `written_by`.
 > (h) **no `title_en` field on the node.** Phase 4 transitions to the canonical encoding. Assert the resulting node does NOT have a `title_en` key at all (or — if the coordinator's Step 4.0 Explore report shows readers that would break — explicitly assert that `title_en` is populated AS WELL during a transition window, and surface the migration as a follow-up).
 >
+> **HARD REQUIREMENT** (audit checklist §5): the test fixture set MUST include at least one of `(hr, sl)`, `(de, sl)`, `(fr, sl)`. Not "may include — example pairs to mix in"; required. Without a non-SL/EN pair somewhere in the fixtures, the test set does not actually verify language neutrality.
 > Verify all tests FAIL against the current implementation. Report: test code + failure output.
 
 - [ ] **Step 4.2: Coordinator dispatches `python-development:python-pro` for TDD green.**
@@ -442,7 +590,7 @@ Question to answer: "Which code reads `title_en` (as opposed to `title_orig` / `
 > - `title_translation` = the COBISS `title_en` field, only when non-empty (destination-language side)
 > - `orig_lang`, `translation_lang` = from `_detect_direction` (omit keys when value is `None`)
 > - plain `title` = `title_orig` (UI compatibility)
-> - DO NOT write `title_en` going forward, UNLESS the Step 4.0 Explore report identified readers that would break. In that case keep `title_en` as a transitional duplicate and note for follow-up removal.
+> - DO NOT write `title_en` going forward, UNLESS the Step 4.0 Explore report identified readers that would break. In that case keep `title_en` as a transitional duplicate, tag the write site with `# SUNSET: Phase 11`, and add the consumer's file:line to the Phase 11 sunset checklist.
 > When `_detect_direction` returns `(None, None)` AND the entry is bilingual, route to the existing review queue with reason `direction_undetermined`; skip writing the node.
 > Apply the SAME canonical encoding to BOTH the container branch (Belina-as-translator) and the self-authored branch (Belina-as-author). Constraint 10: BOTH come from the same personal-bibliography source.
 > DO NOT introduce a `cited_in` edge anywhere in this script — self-authored records use `written_by`, containers use `translated_by`.
@@ -561,6 +709,7 @@ Brief: "Find every call site that currently writes to the existing review queue 
 > (g) `kind="cited_work"` + valid provenance + `container_work_id` that does NOT resolve to an existing container node → REVIEW with reason `container_not_found`. The cited record is NOT written.
 > (h) `kind="cited_work"` + provenance UNSET or unknown value → REVIEW with reason `provenance_missing_or_unknown`.
 > (i) other kinds (agent_person, institution, concept, artwork, performance) accept ANY of the three valid provenance values. ANY OTHER provenance value routes to review.
+> (j) language-pair undetermined routing (audit checklist §5): `kind="cited_work"` + valid provenance + `orig_lang is None` AND `translation_lang is None` → REVIEW with reason `language_pair_undetermined`. After Phase 1B the smol detector returns `(None, None)` for unrecognised filenames; without this gate those records would slip through.
 > Verify all tests FAIL against current code. Report: test code + failure output.
 
 - [ ] **Step 5.3: Coordinator invokes `python-development:python-error-handling`, then dispatches `python-development:python-pro` for TDD green.**
@@ -590,7 +739,7 @@ cp data/knowledge.db data/knowledge.db.phase5.bak
 # `simulate_routing(records) -> dict` that returns counts without writing.
 .venv/bin/python3 run_entity_extraction.py --inspect 2>&1 | grep -E "router|direct|review|reject" | head -20
 ```
-The coordinator examines: are any `translated_work` records arriving from non-COBISS provenance routed to review (the seeded-book bug class)? Expected: at least a handful — proves the gate fires.
+The coordinator examines: (a) are any `translated_work` records arriving from non-COBISS provenance routed to review (the seeded-book bug class)? Expected: at least a handful — proves the gate fires. (b) Are any records routed with reason `language_pair_undetermined`? After Phase 1B fixes the smol detector, this should fire for any TMX origin whose filename doesn't carry an ISO pair.
 
 - [ ] **Step 5.6: Commit Phase 5.**
 
@@ -672,6 +821,8 @@ No commit yet — bundled with Step 6.7.
 > (b) When two anchors for the same origin disagree (curator file says X for `t_index=400`, n-gram says Y for `t_index=400`), the conflict is queued to a review list returned from the function; the segment is NOT auto-attributed.
 > (c) Segments earlier than any anchor for their origin are returned with `container_id=None` and a separate "unanchored" list, NOT auto-attributed to anything.
 > (d) The function operates on `t_index` only; passing `raw_index` should not silently coerce.
+> (e) (audit checklist §6) Multi-pair corpus: when the TM holds entries from BOTH an `en-sl` origin and an `hr-sl` origin, attribution must work for both. Add a fixture / synthetic test that exercises a multi-pair scenario; the chronological walker must NOT assume all entries share the same `source_lang`.
+> (f) The attribution module surfaces `origin → (source_lang, target_lang)` alongside the container mapping so downstream consumers (Phase 12 spot-checks, future cited_in reasoning) can reason about which side of the bilingual pair a citation came from.
 > Tests must fail against current code (the function does not exist).
 > Report: tests + failure output.
 
@@ -1033,6 +1184,7 @@ cp data/quarantine/_concept_theorists.json data/concept_theorists.json
 > (c) The ingester is idempotent: running twice does not duplicate edges or concepts.
 > (d) The ingester uses `kg.add_concept_node`, `kg.link_concepts_rhizomatic`, `kg.link_attributed_to` exclusively — no raw `G.add_edge`.
 > (e) When the curator file references an `agent:` node that doesn't exist in the KG, the ingester routes the entry to the review log with reason `missing_agent` and does NOT create a stub agent.
+> (f) (audit checklist §10) Concept labels carry the language they are written in: when the curator file specifies a Slovenian label and an English alias (or any other pair), the ingested `concept` node carries `label`, `label_lang`, `label_translation`, `label_translation_lang` populated from the curator file's declared languages — NOT defaulted to EN/SL.
 > Tests fail (script doesn't exist).
 > Report: tests + failures.
 
@@ -1105,6 +1257,17 @@ git commit -m "kg: wire curator lineage_schools + concept_theorists; concept def
 - `translate_core/citation_collector.py`
 - Tests that target these: `tests/test_book_extractor*.py`, `tests/test_seeded_book*.py`, `tests/test_bilingual_tm_matcher*.py`, `tests/test_citation_collector.py`
 
+**SUNSET — legacy `title_en` / `title_sl` write sites (audit checklist §11):**
+
+Phase 1B tagged the three legacy alias write sites in `smol_extractor.py` with `# SUNSET: Phase 11`:
+- `smol_extractor.py:529-530` (`_build_cited_work`)
+- `smol_extractor.py:727-728` (`_build_artwork`)
+- `smol_extractor.py:850-851` (`_build_performance`)
+
+Phase 4 may have added a fourth `# SUNSET: Phase 11` site in `scripts/ingest_personal_bibliography.py` if its Step 4.0 Explore report found readers that would break.
+
+Before deleting these write sites, confirm via grep that no consumer reads `title_en` / `title_sl` on `source_text` nodes any more. If consumers still exist (e.g. `kg_ingest_entities.deferred_artwork`), migrate them to read the canonical `title_orig` / `title_translation` first; only then delete the sunset writes.
+
 ### Agent mix
 - Step 11.0: `Explore` (final callgraph survey for the legacy book-ingest stack)
 - Step 11.1: `python-development:python-pro` for the surgery
@@ -1116,15 +1279,18 @@ git commit -m "kg: wire curator lineage_schools + concept_theorists; concept def
 
 - [ ] **Step 11.0: Coordinator dispatches `Explore` for callgraph survey.**
 
-Brief: "For each of these symbols/files, find every surviving reference: `ingest_book_bibliography`, `ingest_book_footnotes`, `seeded_book_finder`, `bilingual_tm_matcher`, `book_extractor`, `citation_collector`. Report file:line and what would break. Expected: zero callers in in-scope code because Phase 5 and Phase 6 retired the call sites. If anything surfaces, STOP."
+Brief: "(a) For each of these symbols/files, find every surviving reference: `ingest_book_bibliography`, `ingest_book_footnotes`, `seeded_book_finder`, `bilingual_tm_matcher`, `book_extractor`, `citation_collector`. Report file:line and what would break. Expected: zero callers in in-scope code because Phase 5 and Phase 6 retired the call sites. If anything surfaces, STOP. (b) For the SUNSET work: find every CONSUMER (reader) of `title_en` and `title_sl` fields on `source_text` nodes in the KG and in the codebase. Triage each: 'migrated to canonical' / 'NEEDS MIGRATION before sunset' / 'safe to leave (fallback already reads canonical)'."
 
 - [ ] **Step 11.1: Coordinator (after user confirmation) dispatches `python-development:python-pro` for the surgery.**
 
 > Subagent type: `python-development:python-pro`.
 > Out of scope + constraints 9 and 10 (verbatim).
 > Read first: `docs/parsing_simplification_audit.md` §10.5 / §10.6 / §3 DELETE list / §11; the Step 11.0 Explore report (paste in).
-> Task: delete the listed files. Run the test suite. Any test that imports a deleted symbol gets deleted with it; do not invent shims.
-> Report.
+> Task:
+>   - Delete the listed files. Any test that imports a deleted symbol gets deleted with it; do not invent shims.
+>   - SUNSET legacy aliases: for every `# SUNSET: Phase 11` site identified in Step 11.0, IF the Explore report confirmed all consumers have migrated to the canonical fields, delete the legacy `title_en` / `title_sl` write at that site. If any consumer still depends on the legacy field, leave the write in place and surface the unmigrated consumer to the coordinator — do not silently delete.
+>   - Run the test suite.
+> Report: deleted files, sunset deletions performed vs deferred (with reasons), test outputs.
 
 - [ ] **Step 11.2: Coordinator dispatches `pythonista-reviewer` for the final cleanliness check.**
 
@@ -1217,12 +1383,32 @@ Coordinator inspects the deltas: net node growth from smol additions, no negativ
 
 - [ ] **Step 12.4: Coordinator dispatches `feature-dev:code-explorer` for random-sample spot-checks.**
 
-Brief: "Load `/tmp/knowledge.db.test_run`. Pick 5 cited_work source_text nodes at random and report for each: `provenance` value (must be in `{tm_smol, doc_pair, cobiss_personal}`), `project_type` (must be typed, NOT `cited_work` fallback), the existence of a `cited_in` edge to a container node, and whether bilingual title fields (`title_orig`+`title_translation` OR `title_en`+`title_sl`) are populated when the TM has both languages for that record's origin. Pick 5 container source_text nodes (project_type in `{book_translation, article_translation, festival_programme, exhibition_catalogue}`) and report: bilingual title pair populated, `translated_by` edge present pointing to an agent node. Report findings as a tabular summary."
+Brief: "Load `/tmp/knowledge.db.test_run`. Pick 5 cited_work source_text nodes at random and report for each: `provenance` value (must be in `{tm_smol, doc_pair, cobiss_personal}`), `project_type` (must be typed, NOT `cited_work` fallback), the existence of a `cited_in` edge to a container node, and whether the canonical bilingual title fields (`title_orig`+`title_translation`+`orig_lang`+`translation_lang`) are populated when the entry's TM origin has both languages of its declared `(source_lang, target_lang)` pair available. 'Both languages' means the pair declared by the entry's origin — NOT 'EN and SL'. If the corpus by this point contains a non-EN/SL origin (e.g. `hr-sl.tmx`), include at least one cited_work from that origin in the sample. Pick 5 container source_text nodes (project_type in `{book_translation, article_translation, festival_programme, exhibition_catalogue}`) and report: canonical bilingual title pair populated, `translated_by` edge present pointing to an agent node. Report findings as a tabular summary."
 
-- [ ] **Step 12.5: Ontology validator.**
+- [ ] **Step 12.5: Ontology validator + language-neutrality check.**
 
 ```bash
 .venv/bin/python3 scripts/validate_kg.py /tmp/knowledge.db.test_run 2>&1 | tail -40
+```
+Expected: zero violations.
+
+Additional language-neutrality assertion (audit checklist §12):
+```bash
+.venv/bin/python3 -c "
+from translate_core.knowledge_graph import KnowledgeGraph
+kg = KnowledgeGraph(db_path='/tmp/knowledge.db.test_run')
+violations = []
+for nid, d in kg.G.nodes(data=True):
+    if d.get('type') != 'source_text': continue
+    if d.get('title_translation') and not (d.get('orig_lang') and d.get('translation_lang')):
+        violations.append((nid, 'has title_translation but missing orig_lang/translation_lang'))
+    # Legacy title_en/title_sl without canonical is a sunset miss
+    if (d.get('title_en') or d.get('title_sl')) and not d.get('title_orig'):
+        violations.append((nid, 'has legacy title_en/title_sl but no canonical title_orig'))
+print(f'language_neutrality_violations: {len(violations)}')
+for v in violations[:10]: print(' ', v)
+assert not violations, 'language-neutrality violations found'
+"
 ```
 Expected: zero violations.
 
@@ -1265,6 +1451,9 @@ Dispatch the agent type that matches the WORK, not the same generic agent for ev
 | All phases | Pre-flight grep / impact survey | `Explore` |
 | 1, 3, 4 (TDD-heavy) | Write failing tests (TDD red) | `python-development:python-pro` (priming skill: `superpowers:test-driven-development`) |
 | 1, 3, 4 (TDD-heavy) | Implement to pass (TDD green) | `python-development:python-pro` |
+| **1B** (lang-neutrality remediation) | Impact survey | `Explore` |
+| **1B** | Compat-shim design | `feature-dev:code-architect` |
+| **1B** | TDD red + green | `python-development:python-pro` |
 | 5, 6 (require design) | Design step (algorithm / dispatcher) | `feature-dev:code-architect` |
 | 5, 6 (require design) | Implement design | `python-development:python-pro` |
 | 7, 8, 11 (deletions) | Pre-flight callgraph survey | `Explore` |
