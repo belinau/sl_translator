@@ -1677,6 +1677,31 @@ class KnowledgeGraph:
 
         return True
 
+    def remove_concept_node(self, concept_id: str) -> bool:
+        """Remove a concept node and all incident edges.
+
+        Phase 9 drain factory. Returns False (without mutating) when:
+          * `concept_id` is not in the graph, or
+          * the node is present but its `type` is not `"concept"`.
+
+        NetworkX `DiGraph.remove_node(n)` deletes `n` together with every
+        edge that touches it — incoming AND outgoing — so there is no need
+        to enumerate incident `instantiates_concept`, `extends`, etc. edges
+        manually. The guarantee callers rely on (no dangling edges from
+        term nodes after the concept goes away) follows directly from that
+        semantics; the test suite verifies it.
+
+        This factory is the SINGLE legal entry point for concept deletion
+        in the drain script. No raw `kg.G.remove_node(concept_id)` is
+        permitted outside this method.
+        """
+        if not self.G.has_node(concept_id):
+            return False
+        if self.G.nodes[concept_id].get("type") != "concept":
+            return False
+        self.G.remove_node(concept_id)
+        return True
+
     def update_concept_metadata(
         self,
         concept_id: str,
