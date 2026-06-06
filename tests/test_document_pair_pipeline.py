@@ -225,7 +225,7 @@ class TestMatchCitations:
         assert len(matches) == 1
         assert matches[0].sl_record is None
         assert matches[0].match_score == 0.0
-        assert matches[0].title_sl == ""
+        assert matches[0].title_translation == ""
 
     def test_empty_en_returns_empty(self):
         sl = [self._rec("Neka knjiga", "Smith", "sl")]
@@ -248,7 +248,7 @@ class TestMatchCitations:
         # — this confirms the unmatched path works
         for m in matches:
             assert isinstance(m.match_score, float)
-            assert isinstance(m.title_en, str)
+            assert isinstance(m.title_orig, str)
 
 # ======================================================================
 # Tests: O-constraint compliance
@@ -257,7 +257,7 @@ class TestMatchCitations:
 
 class TestOConstraints:
     def test_o5_bilingual_title_in_match(self):
-        """O-5: CitationMatch must carry both title_en and title_sl when matched."""
+        """O-5: CitationMatch must carry both orig+translation titles when matched."""
         en_rec = {
             "kind": "cited_work",
             "payload": {"title_en": "A Cyborg Manifesto", "author": "Haraway"},
@@ -273,11 +273,11 @@ class TestOConstraints:
             en_record=en_rec,
             sl_record=sl_rec,
             match_score=0.8,
-            title_en="A Cyborg Manifesto",
-            title_sl="Kiborgov manifest",
+            title_orig="A Cyborg Manifesto",
+            title_translation="Kiborgov manifest",
         )
-        assert m.title_en
-        assert m.title_sl
+        assert m.title_orig
+        assert m.title_translation
 
     def test_o17_no_self_loop_check(self):
         """O-17: verify the self-loop guard condition."""

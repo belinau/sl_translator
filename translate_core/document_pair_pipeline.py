@@ -74,13 +74,20 @@ class SideParsed:
 
 @dataclass
 class CitationMatch:
-    """A matched EN-SL citation pair (sl_record may be None when unmatched)."""
+    """A matched bilingual citation pair (translation_record may be None
+    when the original side has no matched translation).
+
+    The pipeline contract binds `en_record` (the orig side) and
+    `sl_record` (the translation side) to a fixed EN-orig / SL-translation
+    orientation enforced by `parse_side`'s lang validation. The neutral
+    `title_orig`/`title_translation` fields are populated accordingly at
+    construction time."""
 
     en_record: dict
     sl_record: Optional[dict]
     match_score: float  # 0.0–1.0 token-overlap score
-    title_en: str
-    title_sl: str  # empty string when not matched
+    title_orig: str
+    title_translation: str  # empty string when not matched
 
 
 @dataclass
@@ -405,7 +412,7 @@ def _match_citations(
                 best_score = score
                 best_idx = i
 
-        title_en = _record_title(en, prefer_lang="en")
+        title_orig = _record_title(en, prefer_lang="en")
         if best_idx >= 0 and best_score >= _MATCH_THRESHOLD:
             claimed_sl.add(best_idx)
             sl_match = sl_records[best_idx]
@@ -414,8 +421,8 @@ def _match_citations(
                     en_record=en,
                     sl_record=sl_match,
                     match_score=best_score,
-                    title_en=title_en,
-                    title_sl=_record_title(sl_match, prefer_lang="sl"),
+                    title_orig=title_orig,
+                    title_translation=_record_title(sl_match, prefer_lang="sl"),
                 )
             )
         else:
@@ -424,8 +431,8 @@ def _match_citations(
                     en_record=en,
                     sl_record=None,
                     match_score=best_score,
-                    title_en=title_en,
-                    title_sl="",
+                    title_orig=title_orig,
+                    title_translation="",
                 )
             )
 
@@ -562,19 +569,27 @@ def _ingest_match(
     kg: KnowledgeGraph,
     match: CitationMatch,
     container_work_id: str,
+    *,
+    orig_lang: str,
+    translation_lang: str,
 ) -> Optional[str]:
     """Create the merged source_text node + cited_in edge for one match.
 
     Returns the resulting node id (or None when the match has no usable
     title on either side and nothing is written).
+
+    `orig_lang` / `translation_lang` come from the caller's SideParsed
+    instances (`en_side.lang`, `sl_side.lang`) and are written as
+    evidence-derived values on the resulting source_text node.
     """
-    title_en = (match.title_en or "").strip()
-    title_sl = (match.title_sl or "").strip()
-    if not title_en and not title_sl:
+    title_orig = (match.title_orig or "").strip()
+    title_translation = (match.title_translation or "").strip()
+    if not title_orig and not title_translation:
         return None
 
-    # Display title: prefer EN; fall back to SL for SL-only records.
-    display_title = title_en or title_sl
+    # Display title: prefer the orig side; fall back to translation when
+    # only that side is populated.
+    display_title = title_orig or title_translation
 
     # Pull author and year off whichever record has them.
     en_payload = (match.en_record or {}).get("payload") or {}
@@ -596,9 +611,12 @@ def _ingest_match(
 
     extra: dict = {
         "project_type": en_payload.get("project_type") or "cited_work",
-        "title_en": title_en,
-        "title_sl": title_sl,
+        "title_orig": title_orig,
+        "orig_lang": orig_lang,
+        "title_translation": title_translation,
+        "translation_lang": translation_lang,
         "container_work_id": container_work_id,
+        "provenance": "doc_pair",
     }
 
     source_node_id = kg.add_source_text_node(
@@ -811,7 +829,11 @@ def process_pair(
                 # for the caller to decide whether to push through the
                 # standard typed pipeline.
                 continue
-            _ingest_match(kg, m, container_work_id)
+            _ingest_match(
+                kg, m, container_work_id,
+                orig_lang=en_side.lang,
+                translation_lang=sl_side.lang,
+            )
         # Wire termbase↔bibliography bridges for translation_mappings whose
         # source/target terms participate in the citations we just ingested.
         # Per ontology §3.3, bridges are written exclusively via
