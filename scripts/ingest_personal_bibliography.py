@@ -1,15 +1,15 @@
 # scripts/ingest_personal_bibliography.py
 #
-# Phase 3: Ingest Urban Belina's personal COBISS bibliography into the KG.
+# Ingest the curator's personal COBISS bibliography into the KG.
 #
 # Creates container source_text nodes (book_translation, article_translation,
-# festival_programme, exhibition_catalogue) for translations, and cited
-# source_text nodes (book, magazine_article) for Belina's own works.
+# festival_programme, exhibition_catalogue) for translator-role entries, and
+# cited source_text nodes (book, magazine_article) for author-role entries.
 #
 # Wires:
-#   - translated_by → agent:urban-belina (for containers)
+#   - translated_by → curator agent (for containers)
 #   - written_by → agent:<original_author> (for all works)
-#   - published_by / sl_published_by → institution:<publisher>
+#   - published_by / translation_published_by → institution:<publisher>
 #   - cited_in edges from cited works to their containers
 #
 # Usage:
@@ -161,12 +161,8 @@ def ingest_bibliography(
 
         # Source text ID
         source_id = _make_source_id(entry.title, entry.year, primary_author_slug)
-
-        # Check for duplicate
         source_node_id = f"source:{source_id}"
-        if kg.G.has_node(source_node_id):
-            report["skipped_duplicates"] += 1
-            continue
+        is_existing = kg.G.has_node(source_node_id)
 
         # Bilingual title handling (O-5). The KG source_text has no subtitle
         # field, so fold the SL subtitle back into the primary title — storing
@@ -180,9 +176,19 @@ def ingest_bibliography(
         # bilingual fields based on belina_role. Language codes are DATA VALUES
         # from the COBISS parser convention: entry.title = SL side,
         # entry.title_en = EN side. No text-level language detection.
-        kwargs: dict = {"provenance": "cobiss_personal"}
+        kwargs: dict = {
+            "provenance": "cobiss_personal",
+            "kind": "translated_work" if ptype in CONTAINER_TYPES else "cited_work",
+        }
+        # COBISS parser convention: entry.title is the catalogued side
+        # (SL in the COBISS observed data); entry.title_en is the
+        # `=`-separator second side. Role-based field assignment below.
+        # Direction (which side is orig vs translation) follows the
+        # role label set by classify_entry — author/editor → catalogued
+        # side is the original; translator → catalogued side is the
+        # translation. End-of-plan curator review settles edge cases
+        # where role-derived direction disagrees with the actual work.
         if belina_role == "translator":
-            # Belina translates into SL; SL side is the translation.
             if primary_title:
                 kwargs["title_translation"] = primary_title
                 kwargs["translation_lang"] = "sl"
@@ -190,7 +196,6 @@ def ingest_bibliography(
                 kwargs["title_orig"] = secondary_title
                 kwargs["orig_lang"] = "en"
         else:
-            # author / editor / fallback: SL side is the original.
             if primary_title:
                 kwargs["title_orig"] = primary_title
                 kwargs["orig_lang"] = "sl"
@@ -229,7 +234,20 @@ def ingest_bibliography(
             **kwargs,
         )
 
-        if ptype in CONTAINER_TYPES:
+        # Upsert: backfill kind/provenance/neutral title fields on a node
+        # that already existed from a previous (pre-Phase-5) ingest run.
+        # Existing edges and other curator-set fields are preserved; we only
+        # write fields that are currently missing or empty.
+        node_data = kg.G.nodes[node_id]
+        for k, v in kwargs.items():
+            if not node_data.get(k):
+                node_data[k] = v
+        if not node_data.get("project_type"):
+            node_data["project_type"] = ptype
+
+        if is_existing:
+            report["upserted_existing"] = report.get("upserted_existing", 0) + 1
+        elif ptype in CONTAINER_TYPES:
             report["containers_created"] += 1
         else:
             report["cited_works_created"] += 1
@@ -246,6 +264,7 @@ def ingest_bibliography(
                 valid_roles = ["agent"]
 
             primary_role = valid_roles[0]
+            agent_existed_before = kg.G.has_node(f"agent:{agent_id_slug.lower()}")
             node = kg.add_agent_node(
                 agent_id=agent_id_slug,
                 name=agent_name,
@@ -255,7 +274,8 @@ def ingest_bibliography(
                 all_roles=valid_roles,
                 mention_count=1,
             )
-            report["agents_created"] += 1
+            if not agent_existed_before:
+                report["agents_created"] += 1
 
             # written_by edge
             if kg.link_written_by(node_id, node):
@@ -279,20 +299,24 @@ def ingest_bibliography(
                 if primary_pub:
                     p_kind = classify_institution_kind(primary_pub)
                     p_id = _make_institution_id(primary_pub)
+                    p_existed = kg.G.has_node(f"institution:{p_id.lower()}")
                     p_node = kg.add_institution_node(
                         inst_id=p_id, name=primary_pub, kind=p_kind,
                     )
-                    report["institutions_created"] += 1
+                    if not p_existed:
+                        report["institutions_created"] += 1
                     if kg.link_published_by(node_id, p_node):
                         report["edges_created"] += 1
 
                 if translation_pub:
                     t_kind = classify_institution_kind(translation_pub)
                     t_id = _make_institution_id(translation_pub)
+                    t_existed = kg.G.has_node(f"institution:{t_id.lower()}")
                     t_node = kg.add_institution_node(
                         inst_id=t_id, name=translation_pub, kind=t_kind,
                     )
-                    report["institutions_created"] += 1
+                    if not t_existed:
+                        report["institutions_created"] += 1
                     if kg.link_translation_published_by(node_id, t_node):
                         report["edges_created"] += 1
             else:
@@ -300,12 +324,14 @@ def ingest_bibliography(
                 if pub_name:
                     inst_kind = classify_institution_kind(pub_name)
                     inst_id = _make_institution_id(pub_name)
+                    inst_existed = kg.G.has_node(f"institution:{inst_id.lower()}")
                     inst_node = kg.add_institution_node(
                         inst_id=inst_id,
                         name=pub_name,
                         kind=inst_kind,
                     )
-                    report["institutions_created"] += 1
+                    if not inst_existed:
+                        report["institutions_created"] += 1
                     if kg.link_published_by(node_id, inst_node):
                         report["edges_created"] += 1
 
@@ -360,6 +386,7 @@ if __name__ == "__main__":
     print(f"Institutions created: {report['institutions_created']}")
     print(f"Edges created: {report['edges_created']}")
     print(f"Skipped duplicates: {report['skipped_duplicates']}")
+    print(f"Upserted existing: {report.get('upserted_existing', 0)}")
     print(f"Unclassified: {len(report['unclassified'])}")
     print(f"Errors: {len(report['errors'])}")
 
