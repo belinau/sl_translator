@@ -553,8 +553,8 @@ git commit -m "phase1b: language-neutral TM loader + smol detector; EN/SL compat
 
 - TMX loader (Phase 1B — done): real `xml:lang` codes per `<tu>` entry.
 - Smol detector (Phase 1B — done): ISO pair from filename regex; `(None, None)` on miss.
-- COBISS ingest (this phase): per-entry text-level language detection on `title` and `title_en`, cross-checked with classifier `belina_role`, agent metadata, publisher city. Resolves to definite codes — no review-queue routing.
-- Extra-container ingest (this phase): user-curated JSON for containers not in COBISS, same neutral shape.
+- COBISS ingest (this phase): the existing ingest script ALREADY parses and writes correctly; Phase 4 just renames the kwargs from `title_sl=`/`title_en=` to `title_orig=`/`title_translation=` per the `belina_role` branch, plus finishes the existing bilingual publisher split TODO at lines 269-271. The COBISS parser convention (`entry.title` = SL side, `entry.title_en` = EN side) is trusted as-is; rare EN-target translations go through the extra-container path. NO new dependencies, NO text-level language detection added.
+- Extra-container ingest (this phase): user-curated JSON for containers not in COBISS (including EN-target translations that COBISS doesn't index). Explicit `orig_lang`/`translation_lang` values typed by curator.
 - Curator editor: explicit codes typed by user.
 
 ### Why a single phase
@@ -573,62 +573,84 @@ The five work threads are inseparable: changing the ontology breaks writers and 
 ### Files
 
 - Modify: `ontology.md` (the four locations in the ontology revision table above).
-- Create: `translate_core/entity_extraction/lang_detect.py` (one helper: `detect_language(text: str) -> str | None`. Uses `lingua-py` — accurate for short bibliographic titles, returns ISO 639-1 codes. The function is the ONLY place language-detection lib choice lives; everything else calls this).
-- Create: `scripts/migrate_to_neutral_ontology.py` (one-off; `--dry-run` + `--apply` modes; idempotent; DELETES legacy field names from nodes after copying values, RENAMES legacy edges to neutral names).
-- Modify: `scripts/ingest_personal_bibliography.py` (rewire to write only neutral fields; per-entry language detection via the new helper, cross-checked with classifier role + agent + publisher; bilingual publisher splitting; NO review-queue routing for COBISS entries — existing `cobiss_unclassified_entries.json` for truly-unclassifiable entries stays as a separate concern).
-- Create: `scripts/ingest_extra_containers.py` (NEW — reads `data/extra_containers.json` user-curated list of containers not in COBISS. Same neutral encoding. Same `translated_by` edge wiring. Idempotent on container id).
+- Create: `scripts/migrate_to_neutral_ontology.py` (one-off; `--dry-run` + `--apply` modes; idempotent; uses field-NAME and edge-attribution evidence to resolve direction; STRIPS legacy field names from nodes after copying values; RENAMES `sl_published_by` edges to `translation_published_by`).
+- Modify: `scripts/ingest_personal_bibliography.py` — SMALL CHANGE: rename the kwargs to `kg.add_source_text_node(...)` from `title_sl=`/`title_en=` to `title_orig=`/`title_translation=` per the `belina_role` branch, with lang-code values `"sl"` / `"en"` written as DATA based on the COBISS parser convention (`entry.title` = SL, `entry.title_en` = EN). Finish the bilingual publisher split TODO at lines 269-271: wire `published_by` + `translation_published_by` to the two institutions. No other rewrite. No new dependency.
+- Create: `scripts/ingest_extra_containers.py` (NEW — reads `data/extra_containers.json` user-curated list of containers not in COBISS. Curator types `title_orig`/`title_translation`/`orig_lang`/`translation_lang` explicitly. Same neutral encoding. Same `translated_by` edge wiring. Idempotent on container id).
 - Create: `data/extra_containers.json` (initial empty list; user populates over time).
-- Modify: `translate_core/entity_extraction/smol_extractor.py` (DELETE the three `# SUNSET: Phase 11`-tagged alias write blocks at `:548-555`, `:759-763`, `:884-888`; the builder's `slovenian_edition`→`translation_edition` rename happens at the BUILDER LEVEL: the smol prompt still emits the historical key `slovenian_edition` but the builder maps it to neutral `translation_edition` with a derived `language` value. Smol prompt unchanged to avoid model regression).
+- Modify: `translate_core/entity_extraction/smol_extractor.py` (DELETE the three `# SUNSET: Phase 11`-tagged alias write blocks at `:548-555`, `:759-763`, `:884-888`; the builder's `slovenian_edition`→`translation_edition` rename happens at the BUILDER LEVEL: the smol prompt still emits the historical key `slovenian_edition` but the builder maps it to neutral `translation_edition`. **Phase 4 leaves a NEW `# SUNSET: Phase 11` tag on the prompt-level `slovenian_edition` JSON-schema key reference** — that prompt-level rename requires separate model-regression testing and lands in Phase 11).
 - Modify: `translate_core/knowledge_graph.py` (`add_source_text_node` accepts the new field names; any helper that hardcoded `slovenian_edition` / `sl_published_by` switches to neutral names).
-- Modify: every reader from the Step 4.0a inventory (`docs/phase4_reader_inventory.md`). 75+ reads across 26 files. Read the neutral fields only; no fallbacks.
+- Modify: every reader from the Step 4.0b inventory (`docs/phase4_reader_inventory.md`). 75+ reads across 26 files. Read the neutral fields only; no fallbacks.
 - Modify: `scripts/validate_kg.py` to ENFORCE the neutral shape — `title_en`/`title_sl`/`slovenian_edition` on source_text nodes are violations; `sl_published_by` edges are violations.
-- Test: `tests/test_lang_detect.py` (new — covers the detector helper on short titles in multiple languages).
 - Test: `tests/test_neutral_ontology_migration.py` (new — covers the migration script).
-- Test: `tests/test_ingest_personal_bibliography_neutral.py` (new — covers the COBISS rewire end-to-end with non-SL/EN test fixtures alongside SL/EN).
+- Test: `tests/test_ingest_personal_bibliography_neutral.py` (new — covers the COBISS kwarg-rename + finished publisher split).
 - Test: `tests/test_ingest_extra_containers.py` (new).
 - Test: extend `tests/test_smol_extractor_lang_neutral.py` with assertions that builders NEVER emit `title_en`/`title_sl`/`slovenian_edition` keys.
+- Test: `tests/test_validate_kg_neutral.py` (new — covers the new validator violations).
 
 ### Agent mix
 - Step 4.0a (done): `Explore` — COBISS data shape (`docs/cobiss_actual_shape.md`).
 - Step 4.0b (done): `Explore` — reader inventory (`docs/phase4_reader_inventory.md`).
-- Step 4.0c (next): `Explore` — `lingua-py` integration survey: install path via `uv`, API surface, accuracy on bibliographic-title-length strings, Slovenian/Croatian/Serbian handling. The output decides whether `lingua-py` or `langdetect` is the dependency.
-- Step 4.1: `feature-dev:code-architect` — blueprint (`docs/phase4_blueprint.md`) covering ontology revisions, `lang_detect` helper API, COBISS resolution algorithm, extra-container ingest format, migration script logic (per-node disambiguation using existing `translated_by`/`written_by` edge + langdetect on existing title text — NO review queue routing for migration either; resolve from evidence), reader-update sequence (75 sites grouped by surface and update strategy), validator update, test plan.
+- Step 4.1: `feature-dev:code-architect` — blueprint (`docs/phase4_blueprint.md`) covering ontology revisions, COBISS kwarg-rename diff + finished publisher split, extra-container ingest format, migration script logic (per-node resolution using field NAMES and `translated_by`/`written_by` edges as evidence — NO review queue routing, NO text-level language detection, NO new dependencies), reader-update sequence (75 sites grouped by surface and update strategy), validator update, test plan, and explicit `# SUNSET: Phase 11` placement on the smol prompt-level `slovenian_edition` key.
 - Step 4.2: `python-development:python-pro` — TDD red.
 - Step 4.3: `python-development:python-pro` — TDD green.
-- Step 4.4: `pythonista-reviewer` — diff review focused on constraint 7: no `"en"`/`"sl"`/`"sl_published_by"`/`"title_en"`/`"title_sl"`/`"slovenian_edition"` flow-control or identifier in the new code (these strings may appear only as VALUES returned by `lang_detect.detect_language` or as input data on the migration-input side; the migration explicitly STRIPS the legacy field names after copying).
-- Skills: `superpowers:test-driven-development`, `python-development:python-testing-patterns`, `python-development:python-design-patterns` (migration as one-shot transform; `lang_detect` as boundary adapter).
+- Step 4.4: `pythonista-reviewer` — diff review focused on constraint 7: no `"en"`/`"sl"`/`"sl_published_by"`/`"title_en"`/`"title_sl"`/`"slovenian_edition"` flow-control or identifier in the new code (these strings may appear only as DATA VALUES being written based on the COBISS parser convention / curator input, or as input data on the migration-input side; the migration explicitly STRIPS the legacy field names after copying).
+- Skills: `superpowers:test-driven-development`, `python-development:python-testing-patterns`, `python-development:python-design-patterns` (migration as one-shot transform).
 
-### COBISS handling — authoritative containers, per-entry language detection, no review-queue routing
+### COBISS ingest — minimal kwarg rename + finish the publisher split
 
-COBISS is your curated authoritative list of containers. The user translates INTO Slovenian AND INTO English (and may add more pairs); COBISS entries cover both directions. The `title` field of any entry is in whatever language the published title is — NOT structurally guaranteed to be Slovenian. Language is determined per-entry from EVIDENCE, then written as VALUES into the neutral KG fields. No review-queue routing — COBISS is the anchor; routing it to review defeats its purpose.
+The COBISS ingest script `scripts/ingest_personal_bibliography.py` is ALREADY DONE — it parses, classifies, and writes nodes. Phase 4's change is small:
 
-**Per-entry resolution algorithm:**
+**Trust the COBISS parser convention** (`translate_core/cobiss_parser.py:42-43` comment): `entry.title` carries the SL side; `entry.title_en` carries the EN side after `=`. For Belina's bibliography that's the structural reality of his Slovenian-library-service export; rare EN-target translations that COBISS records differently go through the extra-container path. **No text-level language detection. No new dependency.**
 
-1. **Detect language of `title`** via `lang_detect.detect_language(entry.title)`. Call the result `title_lang`. (Returns ISO 639-1 or `None` on very short / undetectable strings.)
-2. **Detect language of `title_en`** (only if non-empty) → `title_en_lang`. The field NAME `title_en` is a historical artefact of the COBISS dataclass; the field CONTENT is whatever language is on the right of the `=` separator (English in most entries, but not guaranteed).
-3. **Get classifier role**: `_, belina_role = cobiss_classifier.classify_entry(entry)`.
-4. **Cross-check signals** (for confidence, not for review routing):
-   - Agent metadata: original author's name — used as a tiebreaker if `title_lang` detection is ambiguous (short title with mixed script).
-   - Publisher city — Ljubljana, Maribor → SL output likely; London, New York → EN output likely. Tiebreaker only.
-5. **Resolve direction per role + detected languages**:
-   - **`belina_role == "author"`** → his work, the title is in the language he wrote it in:
-     - `title_orig = entry.title`, `orig_lang = title_lang`
-     - If `entry.title_en` present: `title_translation = entry.title_en`, `translation_lang = title_en_lang`
-   - **`belina_role == "translator"`** → title is the translation he produced:
-     - `title_translation = entry.title`, `translation_lang = title_lang`
-     - If `entry.title_en` present AND `title_en_lang != title_lang`: `title_orig = entry.title_en`, `orig_lang = title_en_lang`
-     - If `entry.title_en` empty: COBISS doesn't carry the original-language title for this entry. Leave `title_orig` / `orig_lang` unset. This is a data limitation, NOT an ambiguity needing review — the rest of the record is still authoritative.
-   - **`belina_role == "editor"`** → write both sides with their detected languages: `title_orig = entry.title`, `orig_lang = title_lang`. If `title_en` present: `title_translation = entry.title_en`, `translation_lang = title_en_lang`. No direction is implied; we record what's known.
-   - **Classifier returned `(None, None)`** (unclassifiable entry — bibliography line couldn't be parsed into a project_type): append to existing `data/cobiss_unclassified_entries.json`. Unchanged behaviour. Language detection isn't relevant for entries whose project_type isn't known.
-6. **Bilingual publisher** (`: =` separator in `entry.publisher`):
-   - Split on `: =`.
-   - Detect language of each side.
-   - Wire `published_by` to the institution whose language matches `orig_lang` (the original-publication publisher).
-   - Wire `translation_published_by` to the institution whose language matches `translation_lang`.
-   - If no `: =` separator: single institution, single `published_by` edge.
-7. **Set `provenance="cobiss_personal"`** on the record (per Phase 5 chokepoint).
+**Per-entry kwarg rename** (the only writer change):
 
-All `"sl"`, `"en"`, `"hr"`, `"sr"`, etc. enter the KG as values returned by `lang_detect.detect_language()` — never hardcoded conditionals.
+The current call (around `:174-215`) passes `title_sl=entry.title, title_en=entry.title_en`. Replace by branching on `belina_role`:
+
+```python
+if belina_role == "author":
+    # Belina wrote it in Slovenian; English side (if any) is the translation alias.
+    kwargs["title_orig"] = entry.title
+    kwargs["orig_lang"] = "sl"
+    if entry.title_en:
+        kwargs["title_translation"] = entry.title_en
+        kwargs["translation_lang"] = "en"
+elif belina_role == "translator":
+    # Belina translated INTO Slovenian; SL side is the translation.
+    kwargs["title_translation"] = entry.title
+    kwargs["translation_lang"] = "sl"
+    if entry.title_en:
+        # The English side is the original-language title.
+        kwargs["title_orig"] = entry.title_en
+        kwargs["orig_lang"] = "en"
+    # If entry.title_en is empty, COBISS doesn't carry the original-language
+    # title; title_orig / orig_lang stay unset. The rest of the record is
+    # still authoritative.
+elif belina_role == "editor":
+    # Treat like author: he edited the SL side; if EN side exists it's a
+    # parallel translation.
+    kwargs["title_orig"] = entry.title
+    kwargs["orig_lang"] = "sl"
+    if entry.title_en:
+        kwargs["title_translation"] = entry.title_en
+        kwargs["translation_lang"] = "en"
+# (None, None) classification continues to land in data/cobiss_unclassified_entries.json,
+# unchanged from today.
+```
+
+The `"sl"` and `"en"` literals here are VALUES being written as data based on the COBISS parser convention — the value enters as data, not as flow control on the KG layer (constraint 7 + 9 compliant).
+
+**Finish the bilingual publisher TODO at lines 269-271:**
+
+When `entry.publisher` contains `: =`, split into `(left, right)`:
+- Create two `institution` nodes (one per side).
+- Wire `published_by` to the SL-side institution (left of `: =`).
+- Wire `translation_published_by` to the translation-side institution (right of `: =`).
+
+When no `: =` separator: single institution + single `published_by` edge (unchanged).
+
+**Set `provenance="cobiss_personal"`** on every record the script emits (per Phase 5 chokepoint).
+
+That's the whole COBISS ingest change. Everything else in the script stays.
 
 ### Extra-container ingest
 
@@ -656,54 +678,49 @@ Some containers will be added by the curator OUTSIDE COBISS — works the user t
 
 ### Tasks
 
-- [ ] **Step 4.0c: Coordinator dispatches `Explore` for the `lingua-py` integration survey.**
-
-Brief: "Investigate the `lingua-py` Python library (`https://github.com/pemistahl/lingua-py`): (a) confirm it's installable via `uv pip install lingua-language-detector`; (b) document its API for single-string detection of Slovenian, English, Croatian, Serbian, German, French, Italian; (c) measure expected accuracy on short bibliographic-title-length strings (~5-15 words) by sampling a dozen titles from `data/personal bibliography/bibliography_belina.txt` and running detection against each; (d) compare briefly to `langdetect` (the other common option) on the same samples to inform the choice; (e) report whether either lib has issues with Slovenian diacritics or Cyrillic for Serbian. Output: a short markdown report at `/Users/bel/CascadeProjects/sl_translator/docs/phase4_langdetect_survey.md` with a recommendation."
+_Step 4.0c was removed_ — earlier draft proposed a `lingua-py` survey; after user pushback, Phase 4 no longer adds a language-detection dependency. The migration uses field NAMES (`title_sl` value is in Slovenian by definition of the field that held it; `title_en` value is in English) + edge attribution; the COBISS ingest uses the parser convention + classifier role. No new library.
 
 - [ ] **Step 4.1: Coordinator invokes `python-development:python-design-patterns`, then dispatches `feature-dev:code-architect` for the design.**
 
 > Subagent type: `feature-dev:code-architect`.
-> Out of scope + constraints 9, 10, 7 (verbatim — the new constraint 7: KG has no SL/EN-named fields/edges; values flow as data from boundaries; NO backward-compat fallbacks; NO legacy parallel paths).
-> Read first: `docs/cobiss_actual_shape.md`; `docs/phase4_reader_inventory.md`; `docs/phase4_langdetect_survey.md`; `docs/parsing_simplification_lang_neutrality_audit.md`; `ontology.md`; `scripts/ingest_personal_bibliography.py`; `translate_core/entity_extraction/smol_extractor.py:540-595, 745-770, 870-895`; `translate_core/knowledge_graph.py` (find `add_source_text_node`, `add_institution_node`); `scripts/validate_kg.py`.
+> Out of scope + constraints 9, 10, 7 (verbatim — the new constraint 7: KG has no SL/EN-named fields/edges; values flow as data from boundaries; NO backward-compat fallbacks; NO legacy parallel paths; NO new dependencies).
+> Read first: `docs/cobiss_actual_shape.md`; `docs/phase4_reader_inventory.md`; `docs/parsing_simplification_lang_neutrality_audit.md`; `ontology.md`; `scripts/ingest_personal_bibliography.py`; `translate_core/entity_extraction/smol_extractor.py:540-595, 745-770, 870-895`; `translate_core/knowledge_graph.py` (find `add_source_text_node`, `add_institution_node`); `scripts/validate_kg.py`.
 > Task: produce a written blueprint at `docs/phase4_blueprint.md` covering:
->   1. **Ontology revision diff.** Exact before/after for `ontology.md` §2.4.2 (delete the second-paragraph `title_en`+`title_sl`+`slovenian_edition` encoding entirely; the canonical four-field encoding is the only one); §3.2 (rename `sl_published_by` → `translation_published_by`; do NOT keep `sl_published_by` documented at all); §4 invariant 4 (rewrite to reference canonical fields).
->   2. **`lang_detect` helper.** Module `translate_core/entity_extraction/lang_detect.py` with one public function `detect_language(text: str) -> str | None` returning an ISO 639-1 code (lowercase) or `None`. Specify minimum input length, confidence threshold, fallback behaviour. ONE place where the langdetect lib is imported.
->   3. **COBISS resolution algorithm.** Function-level breakdown of the per-entry algorithm in `scripts/ingest_personal_bibliography.py`. Cover all `belina_role` branches (translator, author, editor, other), the bilingual publisher split (with langdetect on each side), the `provenance="cobiss_personal"` stamping. NO review-queue routing for COBISS entries; classifier-(None, None) entries continue to land in `data/cobiss_unclassified_entries.json` as today.
->   4. **Extra-container ingest.** `scripts/ingest_extra_containers.py` and `data/extra_containers.json` schema. Idempotency on `container_id`. Use of `provenance="curator_extra"`. Same neutral encoding as COBISS output.
->   5. **Smol_extractor cleanup.** Delete the three `# SUNSET: Phase 11` alias write blocks at `:548-555, :759-763, :884-888`. The smol prompt continues to emit `slovenian_edition` as a JSON key (changing the prompt risks model regression); the BUILDER reads that key, applies `detect_language()` to its `publisher` or `translator` text, and writes the canonical `translation_edition: {publisher, city, year, translator, language}` to the payload. The legacy key never appears in the payload.
->   6. **Migration script.** Function-level breakdown of `scripts/migrate_to_neutral_ontology.py`:
+>   1. **Ontology revision diff.** Exact before/after for `ontology.md` §2.4.2 (delete the second-paragraph `title_en`+`title_sl`+`slovenian_edition` encoding entirely; the canonical four-field encoding is the only one); §3.2 (rename `sl_published_by` → `translation_published_by`); §4 invariant 4 (rewrite to reference canonical fields).
+>   2. **COBISS ingest kwarg-rename diff.** The `belina_role` branch shown in the plan's "COBISS ingest" section. Exact pre/post diff against `scripts/ingest_personal_bibliography.py:174-215`. Add the publisher TODO completion at `:269-271` — split on `: =`, wire two edges. NO new dependency. NO text-level language detection.
+>   3. **Extra-container ingest.** `scripts/ingest_extra_containers.py` and `data/extra_containers.json` schema (already shown in plan). Idempotency on `container_id`. `provenance="curator_extra"`. Same `kg.add_source_text_node(...)` factory call as the COBISS path.
+>   4. **Smol_extractor cleanup.** Delete the three `# SUNSET: Phase 11` alias write blocks at `:548-555, :759-763, :884-888`. The smol prompt continues to emit `slovenian_edition` as a JSON key (changing the prompt risks model regression). The BUILDER reads that key and writes a canonical `translation_edition: {publisher, city, year, translator, language}` to the payload where `language` is derived from the EXISTING extraction context (the smol detector's `src_lang`/`tgt_lang` already in scope) — no NEW language detection. Phase 4 places a NEW `# SUNSET: Phase 11` tag on the prompt-level `slovenian_edition` JSON-schema reference; that final rename ships in Phase 11 after model-regression testing.
+>   5. **Migration script.** Function-level breakdown of `scripts/migrate_to_neutral_ontology.py`:
 >     - Edge rename: every `sl_published_by` edge → `translation_published_by`. Audit baseline: 20 edges.
->     - Node field migration: for each source_text node carrying `title_en` and/or `title_sl` and/or `slovenian_edition`, resolve direction USING EVIDENCE FROM THE NODE (no review queue):
->       - Detect language of `title_en` value via `detect_language`. Detect language of `title_sl` value.
->       - If node has `translated_by` edge to `agent:urban-belina`: Belina-as-translator. `title_translation` = `title_sl` (or `title_en` if `title_sl` is empty), `translation_lang` = detected language of that title. If the other field is non-empty: `title_orig` = the other field, `orig_lang` = detected language.
->       - If node has `written_by` edge to `agent:urban-belina` AND no `translated_by`: Belina-as-author. `title_orig` = `title_sl` (or `title_en`), `orig_lang` = detected. Second field → translation.
->       - If neither edge to Belina: the node came from smol/doc_pair extraction. Detected languages decide direction. If both fields detect same language: write `title_orig` with that lang, leave `title_translation` unset.
->       - `slovenian_edition` sub-dict → `translation_edition`. Add `language` field from detect_language on `publisher` or `translator` text inside the sub-dict.
->       - After copying values, DELETE the legacy field names from the node's attributes.
->     - Idempotency: a node already in the neutral shape (`title_orig` set, no `title_en`/`title_sl`/`slovenian_edition`) is skipped.
+>     - Node field migration: for each source_text node carrying `title_en` / `title_sl` / `slovenian_edition`, the resolution uses **field NAMES as evidence**: a value in the `title_sl` field is in Slovenian; a value in the `title_en` field is in English. Direction comes from existing edges:
+>       - Node has `translated_by` edge to a translator agent → `title_translation` = the field that was in the translator's target language (read from the agent's stored working pair if available; otherwise default `title_sl`→`title_translation` with `translation_lang="sl"` since SL is this translator's dominant target). The other field → `title_orig` with its corresponding lang code.
+>       - Node has `written_by` edge (no `translated_by`) → `title_orig` = `title_sl` (with `orig_lang="sl"`) when present; otherwise `title_orig` = `title_en` (with `orig_lang="en"`). Second field → `title_translation`.
+>       - Node has NEITHER edge → smol/doc_pair extraction. If both `title_sl` and `title_en` exist, write `title_orig` = `title_sl`, `orig_lang="sl"`, `title_translation` = `title_en`, `translation_lang="en"`. If only one exists, write `title_orig` = that one with the corresponding lang code.
+>       - `slovenian_edition` sub-dict → `translation_edition` with added `language: "sl"` field (since the slovenian-edition data is structurally Slovenian).
+>       - After copying values, DELETE the legacy attributes from the node.
+>     - Idempotency: a node already in neutral shape (no `title_en`/`title_sl`/`slovenian_edition`) is skipped.
 >     - `--dry-run` reports counts: `edges_renamed`, `nodes_migrated`, `nodes_already_neutral`, `nodes_skipped_no_legacy_fields`.
->   7. **Writer rewire (`ingest_personal_bibliography.py`).** Exact diff: replace the title/title_en write block with the resolution algorithm. Use `kg.add_source_text_node(title_orig=..., title_translation=..., orig_lang=..., translation_lang=..., ...)`. Wire `translation_published_by` for the bilingual publisher case. NO `title_sl` / `title_en` / `slovenian_edition` / `sl_published_by` anywhere in the new writes.
->   8. **`knowledge_graph.py` writer factory.** `add_source_text_node` accepts the new field names (it should already accept arbitrary kwargs; verify). Remove any internal handling that converts SL/EN-named kwargs.
->   9. **Reader migration.** Per `docs/phase4_reader_inventory.md`, group the 75+ readers and propose the order of edits. **No backward-compat fallbacks** (`d.get("title_orig") or d.get("title_en")` is BANNED). The migration runs FIRST in the green-phase implementation order; readers are updated AFTER the migration, so they read fully-migrated nodes.
->  10. **Validator (`scripts/validate_kg.py`).** Add ENFORCEMENT: a source_text node carrying `title_en` / `title_sl` / `slovenian_edition` is a violation; an edge with relation `sl_published_by` is a violation. The validator becomes the regression net.
->  11. **Test plan.** Cover: `lang_detect` accuracy; migration script idempotency + each branch; writer-rewire output; extra-container ingest; smol_extractor builder output; validator catches violations; full readers read neutral fields and render correctly.
->  12. **Implementation order for TDD green.** Strict sequence so readers don't run against partially-migrated data: ontology edit → migration script implementation → migration `--dry-run` against KG copy → migration `--apply` against KG copy verified → writers updated → readers updated → validator updated → full test suite + run validator on the migrated copy.
->  13. **Risks.** Anything you spot.
+>     - NO text-level language detection. NO new dependency.
+>   6. **`knowledge_graph.py` writer factory.** `add_source_text_node` accepts the new field names (it should already accept arbitrary kwargs; verify). Remove any internal handling that converts SL/EN-named kwargs.
+>   7. **Reader migration.** Per `docs/phase4_reader_inventory.md`, group the 75+ readers and propose the order of edits. **No backward-compat fallbacks** (`d.get("title_orig") or d.get("title_en")` is BANNED). The migration runs FIRST in the green-phase implementation order; readers are updated AFTER the migration, so they read fully-migrated nodes.
+>   8. **Validator (`scripts/validate_kg.py`).** Add ENFORCEMENT: a source_text node carrying `title_en` / `title_sl` / `slovenian_edition` is a violation; an edge with relation `sl_published_by` is a violation. The validator becomes the regression net.
+>   9. **Test plan.** Cover: migration script idempotency + each branch (translator-edge, author-edge, neither-edge); writer-rewire output for each `belina_role`; bilingual publisher split (with `: =`); extra-container ingest; smol_extractor builder output; validator catches violations; readers read neutral fields and render correctly.
+>  10. **Implementation order for TDD green.** Strict sequence so readers don't run against partially-migrated data: ontology edit → migration script implementation → migration `--dry-run` against KG copy → migration `--apply` against KG copy verified → writers updated → extra-container ingest added → smol_extractor cleanup → readers updated → validator updated → full test suite + run validator on the migrated copy.
+>  11. **Risks.** Anything you spot.
 
 - [ ] **Step 4.2: Coordinator invokes `superpowers:test-driven-development` + `python-development:python-testing-patterns`, then dispatches `python-development:python-pro` for TDD red.**
 
 > Subagent type: `python-development:python-pro`.
 > Out of scope + constraints 9, 10, 7 (verbatim).
 > Read first: the architect's blueprint at `docs/phase4_blueprint.md`; current state of every file the blueprint says will change.
-> Task: write failing tests per the blueprint's §11 test plan.
+> Task: write failing tests per the blueprint's §9 test plan.
 >
 > Required test files:
->   - `tests/test_lang_detect.py` — covers `detect_language` on a fixture of titles in SL, EN, HR, SR, DE, FR; covers very short strings (return None); covers Cyrillic input for SR if relevant.
->   - `tests/test_neutral_ontology_migration.py` — covers each migration branch (Belina-as-translator, Belina-as-author, no-Belina-edge with both fields same language, idempotency, `slovenian_edition`→`translation_edition`, edge rename).
->   - `tests/test_ingest_personal_bibliography_neutral.py` — uses a small fixture COBISS export with at least one HR-source entry, one SL-author entry, one EN-source entry, plus the bilingual exhibition catalogue case. Asserts that NO node from the ingest carries `title_en`/`title_sl`/`slovenian_edition` attributes after running.
->   - `tests/test_ingest_extra_containers.py` — covers idempotency + provenance + neutral encoding.
+>   - `tests/test_neutral_ontology_migration.py` — covers each migration branch (translator-edge, author-edge, neither-edge with both fields, neither-edge with only one field), idempotency, `slovenian_edition`→`translation_edition`, edge rename. Uses synthetic small KG fixtures via `tmp_path`.
+>   - `tests/test_ingest_personal_bibliography_neutral.py` — uses a small fixture COBISS export covering one Belina-as-author entry, one Belina-as-translator entry, one Belina-as-editor entry, and the bilingual exhibition catalogue case (with `: =` publisher). Asserts kwargs passed to `add_source_text_node` carry only neutral field names + the bilingual publisher split wires `published_by` + `translation_published_by`.
+>   - `tests/test_ingest_extra_containers.py` — covers idempotency + `provenance="curator_extra"` + neutral encoding from the JSON.
 >   - Extend `tests/test_smol_extractor_lang_neutral.py` — assert builders NEVER emit `title_en`/`title_sl`/`slovenian_edition` keys for ANY pair (EN/SL included).
->   - `tests/test_validate_kg_neutral.py` (new or extension) — covers the new validator violations.
+>   - `tests/test_validate_kg_neutral.py` (new) — covers the new validator violations.
 >
 > Verify all new tests FAIL. Note any existing test that asserts the SL/EN-specific shape (those need the green-phase edit too — list them).
 > Report: test code + failure output + list of existing tests needing update.
@@ -713,30 +730,31 @@ Brief: "Investigate the `lingua-py` Python library (`https://github.com/pemistah
 > Subagent type: `python-development:python-pro`.
 > Out of scope + constraints 9, 10, 7 (verbatim).
 > Read first: failing tests; architect's blueprint.
-> Task: implement per the blueprint's §12 strict order. STOP and report at the end of each step (the coordinator runs the gate before continuing):
+> Task: implement per the blueprint's §10 strict order. STOP and report at the end of each step (the coordinator runs the gate before continuing):
 >   1. Edit `ontology.md` per the blueprint §1.
->   2. Implement `lang_detect.py` per §2. Run `tests/test_lang_detect.py`.
->   3. Implement `scripts/migrate_to_neutral_ontology.py` per §6. Run `tests/test_neutral_ontology_migration.py`.
->   4. Coordinator runs migration `--dry-run` against KG copy (Step 4.5 task).
->   5. Coordinator runs migration `--apply` against KG copy with user confirmation (Steps 4.6/4.7).
->   6. Implement writers per §7-§8. Run writer tests.
->   7. Implement extra-container script per §4. Run its tests.
->   8. Update smol_extractor per §5. Run smol tests.
->   9. Update readers per §9. NO backward-compat fallbacks.
->  10. Update validator per §10. Run validator tests.
+>   2. Implement `scripts/migrate_to_neutral_ontology.py` per §5. Run `tests/test_neutral_ontology_migration.py`.
+>   3. Coordinator runs migration `--dry-run` against KG copy (Step 4.5 task).
+>   4. Coordinator runs migration `--apply` against KG copy with user confirmation (Steps 4.6/4.7).
+>   5. COBISS ingest kwarg-rename + publisher TODO per §2. Run `tests/test_ingest_personal_bibliography_neutral.py`.
+>   6. Implement extra-container script per §3. Run its tests.
+>   7. Update smol_extractor per §4 (delete the SUNSET blocks; place the new SUNSET tag on the prompt-level `slovenian_edition` reference). Run smol tests.
+>   8. `knowledge_graph.py` factory update per §6 if needed.
+>   9. Update readers per §7. NO backward-compat fallbacks.
+>  10. Update validator per §8. Run validator tests.
 >  11. Run full test suite. Run validator on the migrated KG copy. Both must pass clean.
 > Report: per-step diff + pytest output. Surface anything unexpected at the step it surfaces; don't bundle.
 
 - [ ] **Step 4.4: Coordinator dispatches `pythonista-reviewer` for diff review.**
 
-Brief: "Review the entire Phase 4 diff (ontology, lang_detect, migration script, COBISS ingest, extra-container ingest, smol_extractor, knowledge_graph, every reader, validator, tests). Hard checks:
-(a) `grep -rn 'title_en\\|title_sl\\|slovenian_edition\\|sl_published_by' /Users/bel/CascadeProjects/sl_translator --include='*.py' | grep -v __pycache__ | grep -v .venv/` returns ONLY: (i) the migration script's INPUT-side scan for nodes carrying legacy fields; (ii) tests asserting violations / migration behaviour; (iii) the validator's forbidden-attribute list. NO writes. NO reader fallbacks. NO 'or d.get(\"title_en\")' patterns.
-(b) `grep -rn '\"en\"\\|\"sl\"' translate_core/ scripts/ --include='*.py' | grep -v __pycache__ | grep -v .venv/` returns ONLY: (i) the lang_detect helper itself (where the lib outputs codes); (ii) tests with expected-value assertions; (iii) the migration script's detected-language values being written. NO conditional branches on these literals.
+Brief: "Review the entire Phase 4 diff (ontology, migration script, COBISS ingest, extra-container ingest, smol_extractor, knowledge_graph, every reader, validator, tests). Hard checks:
+(a) `grep -rn 'title_en\\|title_sl\\|slovenian_edition\\|sl_published_by' /Users/bel/CascadeProjects/sl_translator --include='*.py' | grep -v __pycache__ | grep -v .venv/` returns ONLY: (i) the migration script's INPUT-side scan for nodes carrying legacy attributes; (ii) tests asserting violations / migration behaviour; (iii) the validator's forbidden-attribute list; (iv) the new `# SUNSET: Phase 11` tag at the smol prompt-level `slovenian_edition` reference. NO writes. NO reader fallbacks. NO 'or d.get(\"title_en\")' patterns.
+(b) `grep -rn '\"en\"\\|\"sl\"' translate_core/ scripts/ --include='*.py' | grep -v __pycache__ | grep -v .venv/` returns ONLY: (i) the COBISS ingest's belina_role branches writing those as DATA VALUES into neutral kwargs; (ii) tests with expected-value assertions; (iii) the migration's lang-code values being written based on field-name evidence. NO conditional branches on these literals.
 (c) Ontology revisions match the blueprint's §1 exactly.
 (d) Migration script is idempotent (run twice on same input, no second-round writes).
 (e) No node in the migrated KG carries any of the legacy fields; no edge carries the legacy relation.
 (f) Smol builders never emit the legacy keys for ANY pair.
 (g) Validator catches violations.
+(h) The new `# SUNSET: Phase 11` tag on the smol prompt-level `slovenian_edition` reference is present and clearly documents the deferred work.
 Report only high-confidence findings."
 
 - [ ] **Step 4.5: Coordinator runs migration `--dry-run` against a KG copy.**
@@ -1420,7 +1438,13 @@ git commit -m "kg: wire curator lineage_schools + concept_theorists; concept def
 - `translate_core/citation_collector.py`
 - Tests that target these: `tests/test_book_extractor*.py`, `tests/test_seeded_book*.py`, `tests/test_bilingual_tm_matcher*.py`, `tests/test_citation_collector.py`
 
-**SUNSET work is OUT OF SCOPE for Phase 11.** Phase 4 already deleted every `# SUNSET: Phase 11`-tagged alias write block in `smol_extractor.py`, migrated existing nodes to the neutral shape, renamed `sl_published_by` edges, and updated all readers. Phase 11 is ONLY the book-ingest deletion below.
+**SUNSET work remaining for Phase 11** (Phase 4 handled the bulk: smol_extractor alias-write deletion, KG migration, edge rename, reader updates, validator enforcement. Three items remained deferred because they require Phase 4 to be complete AND additional regression testing):
+
+1. **Smol prompt-level `slovenian_edition` JSON-schema key rename.** Phase 4 changed the BUILDER to write the canonical `translation_edition` to the payload, but the prompt template the smol model receives still mentions `slovenian_edition` as the JSON key. Renaming the prompt key risks model-output regression (the LLM may emit subtly different content under the new key name). Phase 11 ships the prompt-level rename after a separate regression-test pass against a representative TM sample. The `# SUNSET: Phase 11` tag placed at the prompt site in Phase 4 marks the exact location.
+
+2. **`CobissEntry.title_en` dataclass field rename.** The COBISS parser dataclass (`translate_core/cobiss_parser.py:43`) calls its `=`-separator second-side field `title_en`. That field name leaks language into an identifier. Renaming it requires updating `cobiss_classifier.py:88-94, 101-110` (which scans `title + " " + title_en` for keywords) and any other reader of the dataclass attribute. Phase 11 ships the rename after Phase 4 has confirmed nobody else outside the COBISS layer depends on the field name.
+
+3. **Any new `# SUNSET: Phase 11` tags Phase 4 placed for items that legitimately needed book-ingest scripts already gone before they could be cleaned up.** Coordinator runs `grep -rn '# SUNSET: Phase 11' --include='*.py' .` at the start of Phase 11 and triages each surviving tag. If any tag's prerequisite (book-ingest scripts deleted) is now satisfied, the sunset removal lands here.
 
 ### Agent mix
 - Step 11.0: `Explore` (final callgraph survey for the legacy book-ingest stack)
@@ -1435,7 +1459,7 @@ git commit -m "kg: wire curator lineage_schools + concept_theorists; concept def
 
 Brief: "For each of these symbols/files, find every surviving reference: `ingest_book_bibliography`, `ingest_book_footnotes`, `seeded_book_finder`, `bilingual_tm_matcher`, `book_extractor`, `citation_collector`. Report file:line and what would break. Expected: zero callers in in-scope code because Phase 5 and Phase 6 retired the call sites. If anything surfaces, STOP."
 
-- [ ] **Step 11.1: Coordinator (after user confirmation) dispatches `python-development:python-pro` for the surgery.**
+- [ ] **Step 11.1: Coordinator (after user confirmation) dispatches `python-development:python-pro` for the book-ingest deletion.**
 
 > Subagent type: `python-development:python-pro`.
 > Out of scope + constraints 9 and 10 (verbatim).
@@ -1445,29 +1469,49 @@ Brief: "For each of these symbols/files, find every surviving reference: `ingest
 >   - Run the test suite.
 > Report: deleted files, test outputs.
 
-- [ ] **Step 11.2: Coordinator dispatches `pythonista-reviewer` for the final cleanliness check.**
+- [ ] **Step 11.2: Coordinator dispatches `python-development:python-pro` for the smol prompt-level SUNSET work.**
 
-Brief: "Review the Phase 11 deletion diff. Confirm: no dangling imports, no orphaned helpers, no defensive `try: import ... except ImportError` blocks. Run `grep -rn 'ingest_book_bibliography\\|ingest_book_footnotes\\|seeded_book_finder\\|bilingual_tm_matcher\\|book_extractor\\|citation_collector' --include='*.py' .` and report any survivors."
+> Subagent type: `python-development:python-pro`.
+> Out of scope + constraints 9, 10, 7 (verbatim).
+> Read first: the `# SUNSET: Phase 11` tag placed by Phase 4 at the smol prompt-level `slovenian_edition` JSON-schema reference; `translate_core/entity_extraction/smol_extractor.py` prompt template (the JSON schema documentation given to the model).
+> Task: rename the prompt-level `slovenian_edition` key to `translation_edition` in the prompt template. Update the builder to read the new key (the builder may need a fallback for transitional smol outputs that still emit the old key during the model's adjustment — keep that fallback for ONE phase only, marked `# TRANSITION: remove after one verified smol re-run`). Run a regression test: re-extract a small sample of representative TM segments via smol and confirm the output's content (titles, publishers, etc.) is unchanged from before the prompt rename. The keys CHANGE; the values must not.
+> Report: prompt diff, builder diff, regression-test sample showing before/after content unchanged.
 
-- [ ] **Step 11.3: Coordinator real-data check.**
+- [ ] **Step 11.3: Coordinator dispatches `python-development:python-pro` for the `CobissEntry.title_en` field rename.**
+
+> Subagent type: `python-development:python-pro`.
+> Out of scope: editor surfaces. In scope: `translate_core/cobiss_parser.py`, `translate_core/cobiss_classifier.py`, `scripts/ingest_personal_bibliography.py`, any test reading `CobissEntry.title_en`.
+> Task: rename `CobissEntry.title_en` field to a neutral name (suggest `title_second_side` — reflects the `=`-separator structural role, not a language). Update the parser to populate the renamed field. Update `cobiss_classifier.py:88-94, 101-110` (the `title + " " + title_en` keyword scan sites). Update `scripts/ingest_personal_bibliography.py` (the kwarg-building site from Phase 4 that reads `entry.title_en`). Update tests.
+> Verify the COBISS ingest still produces the same KG output (the field rename is name-only; values unchanged).
+> Report: per-file diff, test outputs.
+
+- [ ] **Step 11.4: Coordinator dispatches `pythonista-reviewer` for the final cleanliness check.**
+
+Brief: "Review the entire Phase 11 diff (book-ingest deletion + smol prompt rename + CobissEntry field rename). Confirm: (a) no dangling imports, no orphaned helpers; (b) `grep -rn 'ingest_book_bibliography\\|ingest_book_footnotes\\|seeded_book_finder\\|bilingual_tm_matcher\\|book_extractor\\|citation_collector' --include='*.py' .` returns no survivors; (c) `grep -rn 'slovenian_edition' --include='*.py' .` returns either zero hits OR only the one-phase transitional fallback in the smol builder tagged `# TRANSITION`; (d) `grep -rn '\\.title_en' --include='*.py' .` returns no surviving reads of the renamed field; (e) the smol regression-test sample shows content-equivalent output before/after the prompt rename. Report only high-confidence findings."
+
+- [ ] **Step 11.5: Coordinator real-data check.**
 
 ```bash
 .venv/bin/python3 -m pytest tests/ -x -q
 .venv/bin/python3 run_entity_extraction.py --help 2>&1 | head -20    # confirms the entry-point still parses
+.venv/bin/python3 scripts/validate_kg.py 2>&1 | tail -10   # post-Phase-4 validator should still pass
 ```
 
-- [ ] **Step 11.4: Commit Phase 11.**
+- [ ] **Step 11.6: Commit Phase 11.**
 
 ```bash
 git add -A
-git commit -m "ingest: delete legacy book-bibliography / footnote / seeded-book ingesters and dependents"
+git commit -m "phase11: delete book-ingest stack; smol prompt translation_edition rename; CobissEntry.title_en field rename"
 ```
 
 ### Phase 11 verification gate
 
 - [ ] No deleted symbol referenced anywhere.
+- [ ] `# SUNSET: Phase 11` tags placed in Phase 4 are all addressed (either deleted by the work above or explicitly deferred with a reason recorded in the phase log).
 - [ ] `.venv/bin/python3 -m pytest tests/ -x -q` green.
+- [ ] `validate_kg.py` clean on the live KG.
 - [ ] `run_entity_extraction.py --help` still works.
+- [ ] Smol regression-test sample confirms content unchanged after prompt rename.
 - [ ] Pythonista-reviewer pass clean.
 
 ---
