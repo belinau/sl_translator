@@ -76,9 +76,12 @@ STOP_TOKENS = frozenset({
     # one and two-letter prepositions are filtered by the length check
 })
 
-MIN_TITLE_OVERLAP = 0.7
+MIN_TITLE_OVERLAP = 0.7   # for the full-title pass
+CORE_OVERLAP = 0.8        # for the core-title pass (post `:`/`;`/` = ` stripping)
 MIN_TITLE_TOKENS = 2
 TOKEN_RE = re.compile(r"[a-z0-9]{3,}")
+# Year tokens 19xx/20xx and bare numbers are non-discriminating noise
+NUMERIC_RE = re.compile(r"^[0-9]+$")
 
 
 def _strip(s: str) -> str:
@@ -87,7 +90,31 @@ def _strip(s: str) -> str:
 
 
 def _tokenize(text: str) -> set[str]:
-    return {t for t in TOKEN_RE.findall(_strip(text)) if t not in STOP_TOKENS}
+    return {
+        t for t in TOKEN_RE.findall(_strip(text))
+        if t not in STOP_TOKENS and not NUMERIC_RE.fullmatch(t)
+    }
+
+
+def _extract_core(title: str) -> str:
+    """Strip COBISS metadata cruft after the first ':' / ';' / ' = '.
+
+    COBISS catalogue titles often look like:
+      'Standing waves : Muzej in galerije mesta Ljubljane ... 2024'
+      'Cofestival: 14. mednarodni festival ... 2025'
+      'When gesture becomes event = Wenn die Geste zum Ereignis wird : ...'
+    Translators type only the core ('Standing waves', 'Cofestival',
+    'When gesture becomes event') in the TM. We match against the core
+    for high-recall anchoring.
+    """
+    if not title:
+        return ""
+    s = title
+    for sep in (" = ", ":", ";"):
+        idx = s.find(sep)
+        if idx > 0:
+            s = s[:idx]
+    return s.strip(" ,.-")
 
 
 def _container_id_for_entry(entry, kg: KnowledgeGraph) -> str | None:
@@ -165,48 +192,139 @@ def harvest(tm: TranslationMemory, kg: KnowledgeGraph,
             continue
         stats["containers_with_kg_id"] += 1
 
-        title_blob = " ".join([
+        # Title tokens — core (post `:`/`;`/`=` strip) and full fallback.
+        core_blob = " ".join([
+            _extract_core(entry.title or ""),
+            _extract_core(entry.title_en or ""),
+        ])
+        full_blob = " ".join([
             entry.title or "",
             entry.title_en or "",
             entry.subtitle or "",
         ])
-        title_tokens = _tokenize(title_blob)
-        if len(title_tokens) < MIN_TITLE_TOKENS:
+        core_tokens = _tokenize(core_blob)
+        full_tokens = _tokenize(full_blob)
+
+        if len(core_tokens) < MIN_TITLE_TOKENS and len(full_tokens) < MIN_TITLE_TOKENS:
             stats["containers_too_few_tokens"] += 1
             if len(stats["too_few_tokens_examples"]) < 5:
                 stats["too_few_tokens_examples"].append({
                     "kg_id": kg_id,
                     "title": entry.title,
                     "title_en": entry.title_en,
-                    "tokens": sorted(title_tokens),
+                    "core_tokens": sorted(core_tokens),
+                    "full_tokens": sorted(full_tokens),
                 })
             continue
 
-        # Author surname tokens (whole-word match).
-        surname_tokens: set[str] = set()
+        # Author-role agents only (skip translator/editor agents bundled in
+        # the COBISS record — those don't locate the work).
+        author_surname_tokens: set[str] = set()
+        author_firstname_tokens: set[str] = set()
         for ag in entry.agents:
-            surname_tokens |= _tokenize(ag.last_name)
+            if "author" in (ag.roles or []) or not ag.roles:
+                author_surname_tokens |= _tokenize(ag.last_name)
+                author_firstname_tokens |= _tokenize(ag.first_name)
+
+        title_match_tokens = core_tokens or full_tokens
+        title_threshold = CORE_OVERLAP if core_tokens else MIN_TITLE_OVERLAP
+        title_has_signal = len(title_match_tokens) >= MIN_TITLE_TOKENS
+
+        AUTHOR_RARE_LIMIT = 10  # ≤ this many TM mentions → byline-anchor pattern
 
         found_in_any_origin = False
         for origin, lst in by_origin.items():
-            for (seg_idx, _entry), seg_tokens in zip(lst, seg_tokens_by_origin[origin]):
-                if not seg_tokens:
-                    continue
-                overlap = len(title_tokens & seg_tokens)
-                if overlap == 0:
-                    continue
-                ratio = overlap / len(title_tokens)
-                if ratio < MIN_TITLE_OVERLAP:
-                    continue
-                if surname_tokens and not (surname_tokens & seg_tokens):
-                    if ratio < 1.0:
+            seg_tokens_list = seg_tokens_by_origin[origin]
+            n_segs = len(lst)
+
+            # Find seg_idxs where the AUTHOR's surname is present (whole-token
+            # match through the tokenizer set membership).
+            author_hits = [
+                seg_idx
+                for (seg_idx, _entry), st in zip(lst, seg_tokens_list)
+                if author_surname_tokens & st
+            ] if author_surname_tokens else []
+
+            # Strategy decision for THIS origin:
+            #   - If author is RARE in this origin (≤10 hits): each hit is
+            #     likely a byline. Anchor at each hit regardless of title
+            #     overlap (the title token set is unreliable for short or
+            #     missing titles like "Za slavo").
+            #   - If author is COMMON in this origin (>10 hits): treat them
+            #     as body-text mentions and require title-overlap in window
+            #     to disambiguate.
+            #   - If NO author hits but a long, distinctive title exists,
+            #     fall back to direct title-overlap scanning (catalogue).
+
+            if author_hits and len(author_hits) <= AUTHOR_RARE_LIMIT:
+                # Byline pattern: anchor at each author-mentioning segment.
+                # Firstname-confirmation when there are multiple authors with
+                # the same surname is a soft requirement.
+                for c_idx in author_hits:
+                    lo = max(0, c_idx - 2)
+                    hi = min(n_segs, c_idx + 3)
+                    window_tokens: set[str] = set()
+                    for w_idx in range(lo, hi):
+                        window_tokens |= seg_tokens_list[w_idx]
+                    if (
+                        author_firstname_tokens
+                        and not (author_firstname_tokens & window_tokens)
+                    ):
+                        # Different person with the same surname → skip
                         continue
-                # Record the anchor (merge with any existing list).
-                slot = anchors_by_origin[origin].setdefault(str(seg_idx), [])
-                if kg_id not in slot:
-                    slot.append(kg_id)
-                    stats["total_anchors_written"] += 1
-                found_in_any_origin = True
+                    slot = anchors_by_origin[origin].setdefault(str(c_idx), [])
+                    if kg_id not in slot:
+                        slot.append(kg_id)
+                        stats["total_anchors_written"] += 1
+                    found_in_any_origin = True
+                continue  # no need to also try title-only here
+
+            if author_hits and title_has_signal:
+                # Common-author pattern: title-overlap in window required
+                for c_idx in author_hits:
+                    lo = max(0, c_idx - 2)
+                    hi = min(n_segs, c_idx + 3)
+                    window_tokens = set()
+                    for w_idx in range(lo, hi):
+                        window_tokens |= seg_tokens_list[w_idx]
+                    if not window_tokens:
+                        continue
+                    overlap = len(title_match_tokens & window_tokens)
+                    if not overlap:
+                        continue
+                    ratio = overlap / len(title_match_tokens)
+                    if ratio < title_threshold:
+                        continue
+                    if (
+                        author_firstname_tokens
+                        and not (author_firstname_tokens & window_tokens)
+                        and ratio < 1.0
+                    ):
+                        continue
+                    slot = anchors_by_origin[origin].setdefault(str(c_idx), [])
+                    if kg_id not in slot:
+                        slot.append(kg_id)
+                        stats["total_anchors_written"] += 1
+                    found_in_any_origin = True
+                continue
+
+            # No author hits in this origin: catalogue-style title-only
+            # fallback. Requires high core-title overlap.
+            if title_has_signal:
+                for (seg_idx, _entry), st in zip(lst, seg_tokens_list):
+                    if not st:
+                        continue
+                    overlap = len(title_match_tokens & st)
+                    if not overlap:
+                        continue
+                    ratio = overlap / len(title_match_tokens)
+                    if ratio < title_threshold:
+                        continue
+                    slot = anchors_by_origin[origin].setdefault(str(seg_idx), [])
+                    if kg_id not in slot:
+                        slot.append(kg_id)
+                        stats["total_anchors_written"] += 1
+                    found_in_any_origin = True
 
         if found_in_any_origin:
             stats["containers_anchored"] += 1
@@ -267,7 +385,7 @@ def main(argv=None) -> int:
     if stats["too_few_tokens_examples"]:
         print("\ntitle-too-short examples:")
         for ex in stats["too_few_tokens_examples"]:
-            print(f"  - {ex['kg_id']}  title={ex['title']!r}  tokens={ex['tokens']}")
+            print(f"  - {ex['kg_id']}  title={ex['title']!r}  core={ex.get('core_tokens')} full={ex.get('full_tokens')}")
 
     if not args.apply:
         print("\n(dry-run; pass --apply to merge into segment_title_attribution.json)")
