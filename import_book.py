@@ -109,7 +109,7 @@ def import_book(file_path: str, lang_pair: str = "en->sl", use_vl: bool = True):
     # Use the smart paragraph splitter (handles PyMuPDF's indent-based
     # paragraph boundaries, de-hyphenates wrapped words, caps long
     # paragraphs at ~10 sentences so segments stay editable).
-    from translate_core.vl_parser import split_paragraphs as _split_paragraphs
+    from translate_core.book_outline import split_paragraphs as _split_paragraphs
 
     segments = []
     for txt in _split_paragraphs(md_text):
@@ -144,7 +144,7 @@ def import_book(file_path: str, lang_pair: str = "en->sl", use_vl: bool = True):
 
     vl_result = getattr(parser, "_last_vl_result", None)
     if vl_result is not None:
-        from translate_core.vl_parser import BookOutline
+        from translate_core.book_outline import BookOutline
         outline_path = projects_dir / f"{project_id}_outline.json"
         outline_data = {
             "entries": [
