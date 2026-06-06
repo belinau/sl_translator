@@ -103,7 +103,10 @@ def _route_record(
             return ("review", {"reason": "language_pair_undetermined"})
         if container_index is not None:
             container_work_id = payload.get("container_work_id")
-            if container_work_id and container_work_id not in container_index:
+            # Case-insensitive lookup: KG slugs are lowercased on creation
+            # (see add_source_text_node), but payloads may carry mixed-case
+            # boundary placeholders.
+            if container_work_id and container_work_id.lower() not in container_index:
                 return ("review", {"reason": "container_not_found"})
         return ("direct", record)
 
@@ -710,7 +713,19 @@ def write_to_kg(
     # Pass 3: cited_work nodes + cited_in + written_by + published_by
     if not dry_run:
         from .entity_extraction.name_dedup import dedup_group_key
-        container_index = set(work_id_by_payload.keys())
+        # Container index = current-batch payloads UNION existing KG source_text
+        # nodes. The chokepoint's `container_not_found` check used to only see
+        # the current pass, rejecting valid cited_works whose container was
+        # ingested in a prior run. We now consult the live KG so previously-
+        # ingested containers (COBISS, curator_extra, boundary placeholders)
+        # are recognised.
+        container_index = {k.lower() for k in work_id_by_payload.keys()}
+        for nid, ndata in kg.G.nodes(data=True):
+            if ndata.get("type") == "source_text":
+                # Strip the `source:` prefix and lowercase so the index
+                # matches the payload `container_work_id` (which is bare
+                # and may be mixed-case for boundary placeholders).
+                container_index.add(nid.removeprefix("source:").lower())
         for r in deferred_cited:
             # §5 routing — re-check with container resolution available.
             route, route_meta = _route_record(r, container_index=container_index)
