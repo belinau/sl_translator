@@ -508,42 +508,80 @@ git commit -m "cobiss ingest: canonical title_orig/title_translation; language-n
 
 ## Phase 5 — Container vs. cited-work routing chokepoint
 
-**Purpose:** the audit §5 calls for a single dispatcher inside `kg_ingest_entities.py` that decides `kind ∈ {container, cited}` from `record["source"]["provenance"]` and rejects mismatches (e.g., a `translated_work` record without `provenance="cobiss_personal"`).
+**Scope reminder — constraints 9 + 10:** Phase 5 enforces the bibliography bright line in code. Provenance values are `"cobiss_personal"` (personal-bibliography records — containers AND self-authored), `"tm_smol"` (cited works extracted from TM segments by the smol pipeline), `"doc_pair"` (cited works extracted from translated DOCX/MD pairs). The legacy `"book_bibliography"` provenance from `ingest_book_*.py` is NOT in scope — those scripts are deleted in Phase 11; their value never reaches the router. Containers (`kind="translated_work"`) ONLY accept `provenance="cobiss_personal"`. All other provenance values route a `translated_work` record to review — they are the audit's "seeded-book" bug class (audit §10.4).
+
+**Purpose:** the audit §5 calls for a single dispatcher inside `kg_ingest_entities.py` that decides record routing from `record["source"]["provenance"]` and rejects mismatches.
 
 **Files:**
 - Modify: `translate_core/kg_ingest_entities.py:514-547` (current translated_work routing; tighten the gate) and the `write_to_kg` entry point that fan-outs by record kind.
-- Modify: `scripts/ingest_personal_bibliography.py` to stamp `provenance="cobiss_personal"` on every record it emits.
+- Modify: `scripts/ingest_personal_bibliography.py` to stamp `provenance="cobiss_personal"` on every record it emits (containers AND self-authored).
 - Modify: `translate_core/entity_extraction/smol_extractor.py` to stamp `provenance="tm_smol"` on every record it emits.
-- Modify: `translate_core/document_pair_pipeline.py` to stamp `provenance="doc_pair"`.
+- Modify: `translate_core/document_pair_pipeline.py` to stamp `provenance="doc_pair"` on records it emits.
 - Test: `tests/test_kg_ingest_routing.py` (new)
+
+### Agent mix
+- Step 5.0: `Explore` (callgraph survey)
+- Step 5.1: `feature-dev:code-architect` (dispatcher design — no code, returns blueprint)
+- Step 5.2: `python-development:python-pro` for TDD red
+- Step 5.3: `python-development:python-pro` for TDD green
+- Step 5.4: `feature-dev:code-reviewer` for diff review
+- Skills the coordinator invokes before dispatching: `python-development:python-design-patterns` (SRP, single-chokepoint design), `python-development:python-error-handling` (review-queue routing), `superpowers:test-driven-development`, `python-development:python-testing-patterns`.
 
 ### Tasks
 
-- [ ] **Step 5.1: Coordinator dispatches subagent for TDD red.**
+- [ ] **Step 5.0: Coordinator dispatches `Explore` for callgraph survey.**
+
+Brief: "Find every call site that currently writes to the existing review queue (file path: locate it by searching for `extraction_review` or similar markers). For each, report (a) the exact write API, (b) the record-shape expected, (c) whether the existing routes-to-review pattern is a single function or many. Then find every reader of `record['source']['provenance']` if any (likely zero today, since the audit says we are introducing this field)."
+
+- [ ] **Step 5.1: Coordinator invokes `python-development:python-design-patterns` skill, then dispatches `feature-dev:code-architect` for the dispatcher design.**
+
+> Subagent type: `feature-dev:code-architect`.
+> Out of scope + constraints 9 and 10 (verbatim from this plan).
+> Read first: `ontology.md` §2.4.1 + §3.2, `docs/parsing_simplification_audit.md` §5, `translate_core/kg_ingest_entities.py:1-100, 463-780`, the Step 5.0 Explore report (paste in).
+> Task: produce a design blueprint (no code yet) for `_route_record(record) -> tuple[str, dict]`. Specify:
+>   - The function signature, return tuple semantics, and the exact set of return values for `kind="translated_work"` vs. `kind="cited_work"` vs. other kinds (agent_person, institution, concept, artwork, performance) under each allowed provenance value.
+>   - The review-queue write API (taken from Step 5.0).
+>   - The exact existing code location to replace and what its current behaviour is.
+>   - File/function boundaries — where does `_route_record` live (top of `kg_ingest_entities.py`)? Where is it called from? What does the caller look like after the change?
+>   - Any constants that need to move to a single source of truth (e.g. `CONTAINER_TYPES`, `CITED_TYPES`, valid provenance set).
+> Constraint reminder: containers ONLY accept `provenance="cobiss_personal"`. NO other provenance value is allowed for `kind="translated_work"`.
+
+- [ ] **Step 5.2: Coordinator invokes `superpowers:test-driven-development` + `python-development:python-testing-patterns`, then dispatches `python-development:python-pro` for TDD red.**
 
 > Subagent type: `python-development:python-pro`.
-> Read first: `ontology.md` §2.4.1 + §3.2, `docs/parsing_simplification_audit.md` §5, `translate_core/kg_ingest_entities.py:1-100, 463-780`, `translate_core/entity_extraction/smol_extractor.py:454-569`.
-> Task: write `tests/test_kg_ingest_routing.py` covering:
-> (a) A record with `kind="translated_work"` and `provenance="cobiss_personal"` is accepted and writes a container node with `translated_by` edge.
-> (b) A record with `kind="translated_work"` and `provenance="tm_smol"` is REJECTED to the review queue (NOT silently coerced to `book_translation`).
-> (c) A record with `kind="cited_work"` and `provenance ∈ {tm_smol, doc_pair, book_bibliography}` is accepted and writes a typed `source_text` with `cited_in` to its `container_work_id`.
-> (d) A record with `kind="cited_work"` whose `container_work_id` does NOT resolve to an existing container node routes to review with reason `container_not_found`.
-> Test fails against current code.
-> Report: test code + failures.
+> Out of scope + constraints 9 and 10 (verbatim).
+> Read first: the architect's blueprint (paste in); `ontology.md` §2.4.1 + §3.2; `docs/parsing_simplification_audit.md` §5 and §10.4.
+> Task: write `tests/test_kg_ingest_routing.py` (pytest function-style; tmp_path-scoped KG; no live KG mutation). Cover:
+> (a) `kind="translated_work"` + `provenance="cobiss_personal"` → ACCEPTED; container node written with `translated_by` edge. Use a non-SL/EN example title pair to surface any latent language-pair bug.
+> (b) `kind="translated_work"` + `provenance="tm_smol"` → REVIEW with reason `provenance_mismatch_for_translated_work`. The seeded-book bug class (audit §10.4) MUST surface here.
+> (c) `kind="translated_work"` + `provenance="doc_pair"` → REVIEW (same reason). Doc-pair records are cited works, never containers.
+> (d) `kind="cited_work"` + `provenance="tm_smol"` → ACCEPTED, typed `source_text` written with `cited_in` to its `container_work_id`.
+> (e) `kind="cited_work"` + `provenance="doc_pair"` → ACCEPTED, same.
+> (f) `kind="cited_work"` + `provenance="cobiss_personal"` → ACCEPTED (the self-authored case from Phase 4); `written_by` edge. NO `cited_in` edge.
+> (g) `kind="cited_work"` + valid provenance + `container_work_id` that does NOT resolve to an existing container node → REVIEW with reason `container_not_found`. The cited record is NOT written.
+> (h) `kind="cited_work"` + provenance UNSET or unknown value → REVIEW with reason `provenance_missing_or_unknown`.
+> (i) other kinds (agent_person, institution, concept, artwork, performance) accept ANY of the three valid provenance values. ANY OTHER provenance value routes to review.
+> Verify all tests FAIL against current code. Report: test code + failure output.
 
-- [ ] **Step 5.2: Coordinator dispatches subagent for TDD green.**
+- [ ] **Step 5.3: Coordinator invokes `python-development:python-error-handling`, then dispatches `python-development:python-pro` for TDD green.**
 
 > Subagent type: `python-development:python-pro`.
-> Read first: the failing tests; current routing in `kg_ingest_entities.py`.
-> Task: implement a new private function `_route_record(record) -> tuple[str, dict]` returning `("direct", routed_record)`, `("review", {"reason": ...})`, or `("reject", {...})`. Replace the existing `if kind == "translated_work"` block with delegation to this router. Reject paths must route to the existing review-queue mechanism (cite the actual review-queue write location; if it's `data/extraction_review.json` or similar, append there).
-> Stamp `provenance` at each producer:
-> - `scripts/ingest_personal_bibliography.py` → `"cobiss_personal"`
-> - `translate_core/entity_extraction/smol_extractor.py` → `"tm_smol"`
-> - `translate_core/document_pair_pipeline.py` → `"doc_pair"`
-> Verify new tests pass and existing tests pass.
-> Report: diff per file, tests passing.
+> Out of scope + constraints 9 and 10 (verbatim).
+> Read first: the failing tests; the architect's blueprint.
+> Task: implement `_route_record` per the blueprint. Replace the existing `if kind == "translated_work"` block in `write_to_kg`. Stamp `provenance` at each producer:
+> - `scripts/ingest_personal_bibliography.py` → `"cobiss_personal"` on every record (containers AND self-authored).
+> - `translate_core/entity_extraction/smol_extractor.py` → `"tm_smol"` on every record returned by every `_build_*` function (set in `record["source"]["provenance"]`).
+> - `translate_core/document_pair_pipeline.py` → `"doc_pair"` on every record it produces.
+> Reject paths route via the existing review-queue mechanism (from Step 5.0).
+> Verify: new tests pass; all existing tests pass; the diff does NOT introduce raw `kg.G.add_edge` calls.
+> Report: full per-file diff; pytest output for new tests AND for the full suite.
 
-- [ ] **Step 5.3: Coordinator real-data check (dry-run).**
+- [ ] **Step 5.4: Coordinator dispatches `feature-dev:code-reviewer` for the diff review.**
+
+> Subagent type: `feature-dev:code-reviewer`.
+> Brief: "Review the Phase 5 diff (`translate_core/kg_ingest_entities.py`, smol/cobiss/doc_pair producers, the new test file). Check specifically for: constraint 9 (no hardcoded language pair anywhere); constraint 10 (containers ONLY from cobiss_personal, cited_work from any of the three valid provenances, NO `cited_in` on self-authored COBISS records); no `kg.G.add_edge` direct writes; review-queue write goes to the existing mechanism, not a new file. Report only high-confidence findings."
+
+- [ ] **Step 5.5: Coordinator real-data check (dry-run).**
 
 ```bash
 cp data/knowledge.db data/knowledge.db.phase5.bak
@@ -552,9 +590,9 @@ cp data/knowledge.db data/knowledge.db.phase5.bak
 # `simulate_routing(records) -> dict` that returns counts without writing.
 .venv/bin/python3 run_entity_extraction.py --inspect 2>&1 | grep -E "router|direct|review|reject" | head -20
 ```
-The coordinator examines: are any `translated_work` records arriving from non-COBISS provenance routed to review (the seeded-book bug class)? Expected: at least a handful of such routings logged — proves the gate fires.
+The coordinator examines: are any `translated_work` records arriving from non-COBISS provenance routed to review (the seeded-book bug class)? Expected: at least a handful — proves the gate fires.
 
-- [ ] **Step 5.4: Commit Phase 5.**
+- [ ] **Step 5.6: Commit Phase 5.**
 
 ```bash
 git add translate_core/kg_ingest_entities.py \
@@ -569,7 +607,8 @@ git commit -m "kg_ingest: single-chokepoint routing by provenance; reject mis-ty
 
 - [ ] New routing tests pass.
 - [ ] Real-data dry-run: at least one `translated_work` record from non-COBISS provenance routed to review (proving the gate fires).
-- [ ] Existing `book_translation` count on live KG unchanged (we are gating new writes, not retroactively deleting).
+- [ ] Existing `book_translation` count on live KG unchanged (gate is on new writes, not retroactive).
+- [ ] Reviewer pass clean on constraints 9 + 10.
 
 ---
 
@@ -585,7 +624,21 @@ git commit -m "kg_ingest: single-chokepoint routing by provenance; reject mis-ty
 - Test: `tests/test_container_attribution.py` (new)
 - DO NOT MODIFY: `translate_core/entity_extraction/seeded_book_finder.py` (deleted in Phase 11; in this phase only stop calling it).
 
+### Agent mix
+- Step 6.0: `Explore` (callgraph survey of seeded_book_finder callers + curator-file shape inspection)
+- Step 6.1: coordinator promotes the curator file (file copy + force-add)
+- Step 6.2: `feature-dev:code-architect` for the chronological-anchor algorithm design
+- Step 6.3: `python-development:python-pro` for TDD red
+- Step 6.4: `python-development:python-pro` for TDD green
+- Step 6.5: `python-development:python-pro` for the path-mismatch fix
+- Step 6.6: `feature-dev:code-reviewer` for the diff review
+- Skills the coordinator invokes before dispatching: `python-development:python-design-patterns` (separation of attribution from ingest), `python-development:python-project-structure` (where the new module lives), `superpowers:test-driven-development`, `python-development:python-testing-patterns`.
+
 ### Tasks
+
+- [ ] **Step 6.0: Coordinator dispatches `Explore` for callgraph survey.**
+
+Brief: "(a) Find every reader and writer of `data/quarantine/_segment_title_attribution.json` so we know what depends on its current shape. (b) Find every caller of `seeded_book_finder.find_book_anchors`, `seeded_book_finder.book_claims_to_records`, `BookClaim.contains`, and `claim_for_segment` — these are the naive-index sites Phase 6 retires. (c) Find every consumer of `seg_idx` / `global_idx` from `run_entity_extraction.export_segments` and the smol payload — they will need to consume `t_index` going forward. Report file:line for each."
 
 - [ ] **Step 6.1: Coordinator promotes the curator file.**
 
@@ -594,12 +647,26 @@ cp data/quarantine/_segment_title_attribution.json data/segment_title_attributio
 # data/ is gitignored — force-add this curator INPUT file:
 git add -f data/segment_title_attribution.json
 ```
-No commit yet — bundled with Step 6.6.
+No commit yet — bundled with Step 6.7.
 
-- [ ] **Step 6.2: Coordinator dispatches subagent for TDD red.**
+- [ ] **Step 6.2: Coordinator invokes `python-development:python-design-patterns` + `python-development:python-project-structure` skills, then dispatches `feature-dev:code-architect` for the algorithm design.**
+
+> Subagent type: `feature-dev:code-architect`.
+> Out of scope + constraints 9 and 10 (verbatim).
+> Read first: `docs/parsing_simplification_audit.md` §4 in full; `ontology.md` §2.4.1 + §3.2; the Step 6.0 Explore report (paste in); `translate_core/tm.py` post-Phase-1 (exposes `t_index`); `data/segment_title_attribution.json` top.
+> Task: produce a design blueprint (no code) for `translate_core/container_attribution.py`. Specify:
+>   - The public surface: `attribute_segments_to_containers(anchors, tm_entries) -> tuple[dict, list, list]` — exact shape of each return value; how conflicts and unanchored entries are distinguished.
+>   - Loader helpers: `load_curator_anchors(path)` and `load_ngram_anchors(path)` — input file shapes, output anchor shape.
+>   - Updates to `scripts/build_segment_attribution.py` (existing n-gram code) — what to change to emit `t_index` ranges; what file path to write to.
+>   - Updates to `run_entity_extraction.py` — exactly which lines (148–156 seeded-records branch; 586–677 proximity-propagation block) get replaced with what.
+>   - Updates to `translate_core/entity_extraction/smol_extractor.parse_smol_response` — read `t_index` from the payload with a `seg_idx` fallback, surfacing the fallback as a logged warning.
+>   - Boundary semantics: how the chronological walker handles (a) origins with curator coverage only, (b) origins with n-gram coverage only, (c) origins with both that agree, (d) origins with both that disagree.
+
+- [ ] **Step 6.3: Coordinator invokes `superpowers:test-driven-development` + `python-development:python-testing-patterns`, then dispatches `python-development:python-pro` for TDD red.**
 
 > Subagent type: `python-development:python-pro`.
-> Read first: `docs/parsing_simplification_audit.md` §4 (entire section, including "Recommended approach", "Files that should own this", "Existing naive-index slice sites"). Then `ontology.md` §2.4.1 + §3.2. Then `translate_core/tm.py` (post-Phase 1, exposes `t_index`), `data/segment_title_attribution.json` (top of file for shape), `scripts/build_segment_attribution.py:1-80`.
+> Out of scope + constraints 9 and 10 (verbatim).
+> Read first: the architect's blueprint (paste in).
 > Task: write `tests/test_container_attribution.py` covering:
 > (a) Given a sorted list of `(origin, t_index, container_id)` anchors and a stream of TM entries in `t_index` order, `attribute_segments_to_containers(anchors, tm_entries)` returns a dict `{(origin, t_index): container_id}` where each segment inherits from the most recent anchor whose `t_index <= seg.t_index` and whose `origin` matches. No `MAX_GAP` heuristic.
 > (b) When two anchors for the same origin disagree (curator file says X for `t_index=400`, n-gram says Y for `t_index=400`), the conflict is queued to a review list returned from the function; the segment is NOT auto-attributed.
@@ -608,26 +675,25 @@ No commit yet — bundled with Step 6.6.
 > Tests must fail against current code (the function does not exist).
 > Report: tests + failure output.
 
-- [ ] **Step 6.3: Coordinator dispatches subagent for TDD green.**
+- [ ] **Step 6.4: Coordinator dispatches `python-development:python-pro` for TDD green.**
 
 > Subagent type: `python-development:python-pro`.
-> Read first: the failing tests; current `seeded_book_finder.py` (to understand what we replace); audit §4 "Recommended approach" primary + fallback.
-> Task: implement `translate_core/container_attribution.py` with `attribute_segments_to_containers(anchors, tm_entries)` per the test spec, plus a helper `load_curator_anchors(path="data/segment_title_attribution.json")` and `load_ngram_anchors(path="data/segment_attribution_ngram.json")` that read the canonical and derived attribution files into the (origin, t_index, container_id) shape. Modify `scripts/build_segment_attribution.py` so its output JSON keys segments by `t_index` and writes to `data/segment_attribution_ngram.json` (NOT inside quarantine).
-> Modify `run_entity_extraction.py`:
-> - Remove the seeded-records branch (lines 148–156). The chosen attribution comes from `attribute_segments_to_containers`, NOT from book-claim promotion.
-> - Replace lines 586–677 (the resolve + propagate block) with a single call to the new attribution module. Pass the resulting `attribution` dict into `export_segments`.
-> - In `export_segments` (lines 65–124), emit `t_index` on every exported record (NOT `seg_idx = origin_start + seg_idx`).
-> Smol-side change required to consume the new index: write to `translate_core/entity_extraction/smol_extractor.py` so its `parse_smol_response` reads `t_index` from the smol payload. Document that the SMOL EXTRACTION JOB's output must include `t_index`. If existing `smol_extractions.json` does not have `t_index`, the consumer falls back to `seg_idx` but the coordinator notes this in the phase log as a known follow-up (the smol jobs must be re-run after Phase 12).
-> Verify tests pass; existing tests pass.
+> Out of scope + constraints 9 and 10 (verbatim).
+> Read first: the failing tests; the architect's blueprint; current `seeded_book_finder.py` (to understand what we replace); audit §4 "Recommended approach" primary + fallback.
+> Task: implement per the blueprint.
+>   - `translate_core/container_attribution.py` with `attribute_segments_to_containers(anchors, tm_entries)`, `load_curator_anchors(path="data/segment_title_attribution.json")`, `load_ngram_anchors(path="data/segment_attribution_ngram.json")`.
+>   - Modify `scripts/build_segment_attribution.py` to emit `t_index`-keyed ranges into `data/segment_attribution_ngram.json` (NOT inside quarantine).
+>   - Modify `run_entity_extraction.py`: remove the seeded-records branch (lines 148–156); replace lines 586–677 with a single call to the attribution module; emit `t_index` on every exported record in `export_segments`.
+>   - Modify `smol_extractor.parse_smol_response` to read `t_index` from the smol payload with a `seg_idx` fallback and a logged warning when the fallback fires.
+>   - Apply the SMOL_EXTRACTIONS_PATH fix from audit §8 in the same diff: change `run_entity_extraction.py:60` to `Path("data/smol_entities_map/smol_extractions.json")`.
+> Verify: new tests pass; existing tests pass; `.venv/bin/python3 -c "from run_entity_extraction import SMOL_EXTRACTIONS_PATH; print(SMOL_EXTRACTIONS_PATH.exists())"` returns `True`.
 > Report: full diff.
 
-- [ ] **Step 6.4: Coordinator dispatches a fix for the SMOL_EXTRACTIONS_PATH bug.**
+- [ ] **Step 6.5: Coordinator dispatches `feature-dev:code-reviewer` for the diff review.**
 
-(This is audit §8 path mismatch.) Subagent same type.
-> Task: change `run_entity_extraction.py:60` from `SMOL_EXTRACTIONS_PATH = Path("data/smol_extractions.json")` to `SMOL_EXTRACTIONS_PATH = Path("data/smol_entities_map/smol_extractions.json")`. Verify by running `.venv/bin/python3 -c "from run_entity_extraction import SMOL_EXTRACTIONS_PATH; print(SMOL_EXTRACTIONS_PATH.exists())"` returns `True`.
-> Report.
+Brief: "Review the Phase 6 diff. Confirm: no naive `enumerate(tm.entries)` slicing reintroduced; the chronological walker keys off `t_index` only; conflicts are surfaced (not silently resolved); no `MAX_GAP` heuristic; `data/` paths are correct; SMOL_EXTRACTIONS_PATH fix applied. Report only high-confidence findings."
 
-- [ ] **Step 6.5: Coordinator real-data dry-run.**
+- [ ] **Step 6.6: Coordinator real-data dry-run.**
 
 ```bash
 cp data/knowledge.db data/knowledge.db.phase6.bak
@@ -644,7 +710,7 @@ print('sample attributions:', list(attrib.items())[:3])
 ```
 Expected: a sizeable `attributed` count, small but non-zero `conflicts` (these should be queued — NOT auto-resolved), and an `unanchored` count for origins lacking curator coverage.
 
-- [ ] **Step 6.6: Commit Phase 6.**
+- [ ] **Step 6.7: Commit Phase 6.**
 
 ```bash
 git add translate_core/container_attribution.py \
@@ -662,6 +728,7 @@ git commit -m "attribution: chronological-anchor container walker replaces naive
 - [ ] `SMOL_EXTRACTIONS_PATH.exists()` returns True.
 - [ ] Real-data attribution: attributed count > 1000, conflicts > 0 (proving conflict detection works), unanchored count surfaced.
 - [ ] No call to `seeded_book_finder.find_book_anchors` remains in `run_entity_extraction.py` (`grep -n seeded_book_finder run_entity_extraction.py` returns nothing).
+- [ ] Reviewer pass clean.
 
 ---
 
@@ -687,27 +754,32 @@ git commit -m "attribution: chronological-anchor container walker replaces naive
 - `translate_core/doc_parser.py:316-353` — remove the `if use_vl and source.suffix.lower() == ".pdf"` branch.
 - `ui/workspace.py:365` — confirm the VL-extractor argument was passed as `None`; remove the parameter from the call.
 
+### Agent mix
+- Step 7.0: `Explore` (exhaustive callgraph survey — this is a multi-file deletion, blast radius matters)
+- Step 7.1: `python-development:python-pro` for the surgery
+- Step 7.2: `pythonista-reviewer` for post-deletion cleanliness check
+- Skills the coordinator invokes before dispatching: `python-development:python-anti-patterns` (recognise the smells the dying code may have planted nearby), `python-development:python-code-style` (catch broken imports / dead re-exports).
+- **Coordinator pause**: this is a destructive phase. Before dispatching Step 7.1, the coordinator confirms with the user that the Step 7.0 Explore report shows no hidden callers.
+
 ### Tasks
 
-- [ ] **Step 7.1: Coordinator pre-flight grep.**
+- [ ] **Step 7.0: Coordinator dispatches `Explore` for the exhaustive callgraph survey.**
 
-```bash
-for f in vl_parser vl_extractor vl_prompts vl_server vl_typed_extractor vl_typed_verifier vl_citation_verifier bilingual_enrichment bilingual_enrichment_batch bilingual_titles; do
-  echo "=== $f ==="
-  grep -rn "from translate_core.*$f\|import $f\|$f\." /Users/bel/CascadeProjects/sl_translator \
-    --include="*.py" 2>&1 | grep -v __pycache__ | grep -v "tests/test_vl\|tests/test_typed_vl\|tools/vl_smoke"
-done
-```
-Expected: every hit is in a file we are also deleting OR is the `doc_parser.py:350` lazy import OR the `ui/workspace.py` None-pass site. If anything else surfaces, the coordinator STOPS and re-scopes.
+Brief: "For each of the following symbols, find every reference in the repo (excluding `.venv/`, `__pycache__/`, and files we plan to delete). Symbol list: `vl_parser`, `vl_extractor`, `vl_prompts`, `vl_server`, `vl_typed_extractor`, `vl_typed_verifier`, `vl_citation_verifier`, `bilingual_enrichment`, `bilingual_enrichment_batch`, `bilingual_titles`. For each call site that survives the deletion (not in a doomed file), report file:line and what would break. Specifically check that `translate_core/doc_parser.py:316-353` is the only `use_vl` consumer and `ui/workspace.py:365` passes None to a VL-extractor argument. Surface anything else."
 
-- [ ] **Step 7.2: Coordinator dispatches subagent.**
+- [ ] **Step 7.1: Coordinator (after user confirmation) dispatches `python-development:python-pro` for the surgery.**
 
 > Subagent type: `python-development:python-pro`.
-> Read first: `docs/parsing_simplification_audit.md` §3 DELETE list + §11. Then the grep output from Step 7.1 the coordinator pastes into the prompt.
+> Out of scope: `main.py`, `ui/*.py`, `kg_editor_ui.py`, `import_book.py`, `app_state.py`, `config.py`, `translate_core/llm.py`, `translate_core/glossary.py`, `translate_core/qa.py`, `visualise_kg.py` — EXCEPT `ui/workspace.py:365` is a single in-scope edit (removing a None-pass argument). Be surgical.
+> Read first: `docs/parsing_simplification_audit.md` §3 DELETE list + §11; the Step 7.0 Explore report (paste in verbatim).
 > Task: execute the deletes in the file list above and the two REDUCE edits in `doc_parser.py` and `ui/workspace.py`. For `doc_parser.py`, the diff should keep the PyMuPDF/text path and drop only the VL branch. For `ui/workspace.py`, the existing argument is already `None`; remove just the argument from the call.
 > After each edit, run `.venv/bin/python3 -c "import <touched-module>"` to confirm it still imports.
 > Then run the full test suite: `.venv/bin/python3 -m pytest tests/ -x -q`. Expect green; if anything fails because of a missed reference, surface it — do NOT add a shim to paper over it.
 > Report: full list of deleted files, the two edits, and pytest output.
+
+- [ ] **Step 7.2: Coordinator dispatches `pythonista-reviewer` for post-delete cleanliness check.**
+
+Brief: "Review the Phase 7 deletion diff. Confirm: no dangling imports, no orphaned re-exports, no commented-out code left behind, no defensive `try: import ... except ImportError: pass` blocks shielding deleted modules, no dead `if False:` blocks. Run `grep -rn 'vl_parser\\|vl_extractor\\|vl_prompts\\|vl_server\\|vl_typed_\\|vl_citation_\\|bilingual_enrichment\\|bilingual_titles' --include='*.py' .` and report any surviving references."
 
 - [ ] **Step 7.3: Coordinator real-data check.**
 
@@ -732,6 +804,7 @@ git commit -m "vl: delete VL-era parser/extractor stack; strip use_vl branch fro
 - [ ] `.venv/bin/python3 -m pytest tests/ -x -q` is green.
 - [ ] `import_book.py` still imports.
 - [ ] Live KG unchanged (`data/knowledge.db` byte-identical to `data/knowledge.db.phase6.bak`).
+- [ ] Pythonista-reviewer pass clean.
 
 ---
 
@@ -749,23 +822,31 @@ git commit -m "vl: delete VL-era parser/extractor stack; strip use_vl branch fro
   - `add_segment_node` (`:571-594`)
   - `add_domain_node` (`:596-604`)
 
+### Agent mix
+- Step 8.0: `Explore` (find every caller of the four to-be-deleted factories)
+- Step 8.1: `python-development:python-pro` for the surgery
+- Step 8.2: `feature-dev:code-reviewer` for post-delete review
+- Skills the coordinator invokes before dispatching: `python-development:python-anti-patterns`.
+- **Coordinator pause**: destructive phase. Coordinator confirms with the user after the Step 8.0 Explore report before dispatching Step 8.1.
+
 ### Tasks
 
-- [ ] **Step 8.1: Coordinator pre-flight grep.**
+- [ ] **Step 8.0: Coordinator dispatches `Explore` for callgraph survey.**
 
-```bash
-grep -rn "seed_from_tm\|add_collocation_node\|add_segment_node\|add_domain_node\|from seed_kg\|import seed_kg" \
-  /Users/bel/CascadeProjects/sl_translator --include="*.py" | grep -v __pycache__
-```
-Expected: only intra-file definitions and the `seed_kg.py` script itself (which we are deleting). If any other call site surfaces, the coordinator STOPS and reports.
+Brief: "Find every reference (excluding `.venv/`, `__pycache__/`, and files we plan to delete) to: `seed_from_tm`, `add_collocation_node`, `add_segment_node`, `add_domain_node`, and any `from seed_kg` / `import seed_kg`. Expected: only intra-file definitions in `translate_core/knowledge_graph.py` and the `seed_kg.py` script itself. Any other call site is a blocker — report it explicitly with file:line and what it does. Also scan tests/ for tests that depend on these symbols — they must be deleted in lockstep."
 
-- [ ] **Step 8.2: Coordinator dispatches subagent.**
+- [ ] **Step 8.1: Coordinator (after user confirmation) dispatches `python-development:python-pro` for the surgery.**
 
 > Subagent type: `python-development:python-pro`.
-> Read first: `ontology.md` §6, `docs/parsing_simplification_audit.md` §3 DELETE list + §6 + §10.7-10.8, `translate_core/knowledge_graph.py:545-604` and `:856-1154`, full `seed_kg.py`.
+> Out of scope + constraints 9 and 10 (verbatim).
+> Read first: `ontology.md` §6, `docs/parsing_simplification_audit.md` §3 DELETE list + §6 + §10.7-10.8, `translate_core/knowledge_graph.py:545-604` and `:856-1154`, full `seed_kg.py`, the Step 8.0 Explore report (paste in).
 > Task: delete `seed_kg.py`. In `translate_core/knowledge_graph.py`, delete the four methods listed (and any helper code they ONLY use — verify no other method calls them; if shared helpers exist, leave the helpers alone).
 > Run the full test suite. Any test that exercised the deleted methods must also be deleted (e.g. tests under `tests/` that import `seed_from_tm` or instantiate `add_collocation_node`).
 > Report: files deleted, KG file diff, test outputs.
+
+- [ ] **Step 8.2: Coordinator dispatches `feature-dev:code-reviewer` for review.**
+
+Brief: "Review the Phase 8 deletion diff. Confirm: no orphaned helpers left in `knowledge_graph.py`; no dead imports; no tests reference deleted symbols. Run `grep -rn 'seed_from_tm\\|add_collocation_node\\|add_segment_node\\|add_domain_node' --include='*.py' .` and report any survivors."
 
 - [ ] **Step 8.3: Coordinator real-data check.**
 
@@ -804,6 +885,15 @@ git commit -m "kg: delete seed_kg + seed_from_tm + ontology §6 out-of-scope fac
 - Create: `scripts/drain_noise_concepts.py` (one-off cleanup)
 - Test: `tests/test_drain_noise_concepts.py` (new — exercises the keep/delete predicate on synthetic nodes)
 
+### Agent mix
+- Step 9.1: coordinator backs up the KG
+- Step 9.2: `python-development:python-pro` for TDD red
+- Step 9.3: `python-development:python-pro` for TDD green
+- Step 9.4-5: coordinator runs the dry-run + `--apply` (no agent dispatch — just shell)
+- Step 9.6: `feature-dev:code-reviewer` for the drain script's correctness before `--apply`
+- Skills the coordinator invokes before dispatching: `superpowers:test-driven-development`, `python-development:python-testing-patterns`, `python-development:python-performance-optimization` (touching 8,455 nodes; avoid quadratic walks).
+- **Coordinator pause**: destructive KG mutation. Coordinator confirms with the user after the dry-run shows the would-delete count before any `--apply`.
+
 ### Tasks
 
 - [ ] **Step 9.1: Coordinator backs up the live KG.**
@@ -813,9 +903,10 @@ cp data/knowledge.db data/knowledge.db.phase9.bak
 ls -la data/knowledge.db data/knowledge.db.phase9.bak
 ```
 
-- [ ] **Step 9.2: Coordinator dispatches subagent for TDD red.**
+- [ ] **Step 9.2: Coordinator invokes `superpowers:test-driven-development` + `python-development:python-testing-patterns`, then dispatches `python-development:python-pro` for TDD red.**
 
 > Subagent type: `python-development:python-pro`.
+> Out of scope + constraints 9 and 10 (verbatim).
 > Read first: `ontology.md` §2.2 + §3.4, `docs/parsing_simplification_audit.md` §6 "Recommendation" item 2.
 > Task: write `tests/test_drain_noise_concepts.py` against a function `is_noise_concept(node_id, kg) -> bool`:
 > (a) Returns True when concept has `definition==""` AND has no incoming/outgoing edges with relations in `{extends, critiques, redefines, reappropriates, related_to, attributed_to}` AND has no `originating_author` field.
@@ -826,15 +917,20 @@ ls -la data/knowledge.db data/knowledge.db.phase9.bak
 > Tests must fail (function doesn't exist).
 > Report: tests + failures.
 
-- [ ] **Step 9.3: Coordinator dispatches subagent for TDD green.**
+- [ ] **Step 9.3: Coordinator invokes `python-development:python-performance-optimization`, then dispatches `python-development:python-pro` for TDD green.**
 
 > Subagent type: `python-development:python-pro`.
+> Out of scope + constraints 9 and 10 (verbatim).
 > Read first: failing tests; `translate_core/knowledge_graph.py` (factories + delete helpers).
-> Task: implement `scripts/drain_noise_concepts.py` with two modes: `--dry-run` (prints `would_delete=N keep=M` per category) and `--apply` (calls `kg.G.remove_node` for each — but for symmetry, expose the helper at the factory level, e.g. a new `KnowledgeGraph.remove_concept_node(id)` if missing).
-> Important: when deleting a concept, also delete its incident `instantiates_concept` edges from term nodes; do NOT leave dangling edges.
-> The script must (a) load `data/knowledge.db`, (b) walk concept nodes, (c) classify each via `is_noise_concept`, (d) in `--apply` mode call the factory delete helper, then `kg.save()`.
-> Verify tests pass.
+> Task: implement `scripts/drain_noise_concepts.py` with two modes: `--dry-run` (prints `would_delete=N keep=M` per category) and `--apply` (calls a NEW `KnowledgeGraph.remove_concept_node(id)` factory method that cleans up incident edges; do NOT call `kg.G.remove_node` directly — the ontology rule is no raw graph mutation).
+> Important: when deleting a concept, also delete its incident `instantiates_concept` edges from term nodes; do NOT leave dangling edges. The factory method enforces this.
+> The script must (a) load `data/knowledge.db`, (b) walk concept nodes in a single pass (the live KG has 8,455 concepts — quadratic scans are unacceptable), (c) classify each via `is_noise_concept`, (d) in `--apply` mode call the factory delete helper, then `kg.save()`.
+> Verify tests pass; full suite green.
 > Report.
+
+- [ ] **Step 9.3a: Coordinator dispatches `feature-dev:code-reviewer` for drain-script review.**
+
+Brief: "Review `scripts/drain_noise_concepts.py` and the new `KnowledgeGraph.remove_concept_node` factory. Confirm: only the factory method touches the graph (no raw `kg.G.remove_node`); incident edges are cleaned exhaustively (no dangling edges possible); the `--apply` path is idempotent; `--dry-run` reports the same set the `--apply` would delete. Single-pass walk only — no nested concept-over-edge loops. Report only high-confidence findings."
 
 - [ ] **Step 9.4: Coordinator runs `--dry-run` and inspects.**
 
@@ -896,6 +992,14 @@ git commit -m "kg: drain ~8455 noise concepts lacking definitions/lineage/proven
 - Create: `scripts/ingest_curator_lineages.py`
 - Test: `tests/test_ingest_curator_lineages.py`
 
+### Agent mix
+- Step 10.1: coordinator inspects file shapes (no agent needed — single Python read)
+- Step 10.3: `python-development:python-pro` for TDD red
+- Step 10.4: `python-development:python-pro` for TDD green
+- Step 10.5: `feature-dev:code-reviewer` for the ingester review
+- Step 10.6: coordinator runs the ingester against a KG copy
+- Skills the coordinator invokes before dispatching: `superpowers:test-driven-development`, `python-development:python-testing-patterns`, `python-development:python-error-handling` (missing-agent routing to review).
+
 ### Tasks
 
 - [ ] **Step 10.1: Coordinator inspects the curator files.**
@@ -918,24 +1022,31 @@ cp data/quarantine/_lineage_schools.json data/lineage_schools.json
 cp data/quarantine/_concept_theorists.json data/concept_theorists.json
 ```
 
-- [ ] **Step 10.3: Coordinator dispatches subagent for TDD red.**
+- [ ] **Step 10.3: Coordinator invokes `superpowers:test-driven-development` + `python-development:python-testing-patterns`, then dispatches `python-development:python-pro` for TDD red.**
 
 > Subagent type: `python-development:python-pro`.
+> Out of scope + constraints 9 and 10 (verbatim).
 > Read first: `ontology.md` §2.2 + §3.3 + §3.4, `docs/parsing_simplification_audit.md` §6 "Recommendation" items 3-4. Read the actual file shapes (the coordinator will paste a 10-line sample of each).
 > Task: write `tests/test_ingest_curator_lineages.py` covering:
 > (a) After ingest, every entry from `data/concept_theorists.json` has a corresponding `concept` node with non-empty `definition` (the curator's note, even if short) AND an `attributed_to` edge from the concept to the theorist's `agent` node.
 > (b) Every relation between two concepts in `data/lineage_schools.json` becomes an edge with `relation ∈ {extends, critiques, redefines, reappropriates, related_to}`. Invalid relations are coerced to `related_to` per `link_concepts_rhizomatic` semantics.
 > (c) The ingester is idempotent: running twice does not duplicate edges or concepts.
 > (d) The ingester uses `kg.add_concept_node`, `kg.link_concepts_rhizomatic`, `kg.link_attributed_to` exclusively — no raw `G.add_edge`.
+> (e) When the curator file references an `agent:` node that doesn't exist in the KG, the ingester routes the entry to the review log with reason `missing_agent` and does NOT create a stub agent.
 > Tests fail (script doesn't exist).
 > Report: tests + failures.
 
-- [ ] **Step 10.4: Coordinator dispatches subagent for TDD green.**
+- [ ] **Step 10.4: Coordinator invokes `python-development:python-error-handling`, then dispatches `python-development:python-pro` for TDD green.**
 
 > Subagent type: `python-development:python-pro`.
-> Task: implement `scripts/ingest_curator_lineages.py`. Use ONLY factory methods. The agent must verify the `agent:` node for each theorist exists before linking; if missing, route to a review log with the missing agent ID (do NOT create a stub agent — the COBISS ingest is authoritative for agents).
+> Out of scope + constraints 9 and 10 (verbatim).
+> Task: implement `scripts/ingest_curator_lineages.py`. Use ONLY factory methods. The agent must verify the `agent:` node for each theorist exists before linking; if missing, route to the existing review queue with the missing agent ID (do NOT create a stub agent — the COBISS ingest is authoritative for agents).
 > Verify tests pass.
 > Report.
+
+- [ ] **Step 10.4a: Coordinator dispatches `feature-dev:code-reviewer` for the ingester review.**
+
+Brief: "Review `scripts/ingest_curator_lineages.py` and its tests. Confirm: factory methods only (no raw `G.add_edge`); idempotent; missing-agent routes to existing review queue, not a new file; concept definitions come from the curator notes (not auto-generated); lineage relations are validated against the ontology §3.4 set. Report only high-confidence findings."
 
 - [ ] **Step 10.5: Coordinator runs the ingester against a copy of the KG.**
 
@@ -994,25 +1105,30 @@ git commit -m "kg: wire curator lineage_schools + concept_theorists; concept def
 - `translate_core/citation_collector.py`
 - Tests that target these: `tests/test_book_extractor*.py`, `tests/test_seeded_book*.py`, `tests/test_bilingual_tm_matcher*.py`, `tests/test_citation_collector.py`
 
+### Agent mix
+- Step 11.0: `Explore` (final callgraph survey for the legacy book-ingest stack)
+- Step 11.1: `python-development:python-pro` for the surgery
+- Step 11.2: `pythonista-reviewer` for the final cleanliness check
+- Skills the coordinator invokes before dispatching: `python-development:python-anti-patterns`.
+- **Coordinator pause**: destructive phase. Coordinator confirms with the user after the Step 11.0 Explore report before Step 11.1.
+
 ### Tasks
 
-- [ ] **Step 11.1: Coordinator pre-flight grep.**
+- [ ] **Step 11.0: Coordinator dispatches `Explore` for callgraph survey.**
 
-```bash
-for f in ingest_book_bibliography ingest_book_footnotes seeded_book_finder bilingual_tm_matcher book_extractor citation_collector; do
-  echo "=== $f ==="
-  grep -rn "from .*$f\|import $f\|$f\." /Users/bel/CascadeProjects/sl_translator --include="*.py" \
-    | grep -v __pycache__ | grep -v tests/
-done
-```
-Expected: no live callers from in-scope code. If anything in scope still calls these, STOP.
+Brief: "For each of these symbols/files, find every surviving reference: `ingest_book_bibliography`, `ingest_book_footnotes`, `seeded_book_finder`, `bilingual_tm_matcher`, `book_extractor`, `citation_collector`. Report file:line and what would break. Expected: zero callers in in-scope code because Phase 5 and Phase 6 retired the call sites. If anything surfaces, STOP."
 
-- [ ] **Step 11.2: Coordinator dispatches subagent.**
+- [ ] **Step 11.1: Coordinator (after user confirmation) dispatches `python-development:python-pro` for the surgery.**
 
 > Subagent type: `python-development:python-pro`.
-> Read first: `docs/parsing_simplification_audit.md` §10.5 / §10.6 / §3 DELETE list / §11.
+> Out of scope + constraints 9 and 10 (verbatim).
+> Read first: `docs/parsing_simplification_audit.md` §10.5 / §10.6 / §3 DELETE list / §11; the Step 11.0 Explore report (paste in).
 > Task: delete the listed files. Run the test suite. Any test that imports a deleted symbol gets deleted with it; do not invent shims.
 > Report.
+
+- [ ] **Step 11.2: Coordinator dispatches `pythonista-reviewer` for the final cleanliness check.**
+
+Brief: "Review the Phase 11 deletion diff. Confirm: no dangling imports, no orphaned helpers, no defensive `try: import ... except ImportError` blocks. Run `grep -rn 'ingest_book_bibliography\\|ingest_book_footnotes\\|seeded_book_finder\\|bilingual_tm_matcher\\|book_extractor\\|citation_collector' --include='*.py' .` and report any survivors."
 
 - [ ] **Step 11.3: Coordinator real-data check.**
 
@@ -1033,6 +1149,7 @@ git commit -m "ingest: delete legacy book-bibliography / footnote / seeded-book 
 - [ ] No deleted symbol referenced anywhere.
 - [ ] `.venv/bin/python3 -m pytest tests/ -x -q` green.
 - [ ] `run_entity_extraction.py --help` still works.
+- [ ] Pythonista-reviewer pass clean.
 
 ---
 
@@ -1045,6 +1162,17 @@ git commit -m "ingest: delete legacy book-bibliography / footnote / seeded-book 
   - **Option B: ship Phase 12 against stale smol data.** Verification gate is partial. Container-attribution improvements from Phase 6 are technically wired but not exercised end-to-end. Mark in the phase log; schedule the smol re-run as a follow-up.
 
 The coordinator picks A or B and records the choice in `2026-06-06-phase-log.md` before Step 12.1.
+
+### Agent mix
+- Step 12.1: coordinator snapshots (no agent)
+- Step 12.2: `python-development:python-pro` for the integration-run harness (only needed if `run_entity_extraction.py` doesn't already support `--kg-path`)
+- Step 12.3: coordinator runs the delta script
+- Step 12.4: `feature-dev:code-explorer` for the random-sample spot-checks (it can pick 5 nodes and walk their edges far faster than the coordinator inline)
+- Step 12.5: coordinator runs `validate_kg.py`
+- Step 12.6: coordinator writes the phase log
+- Step 12.7: coordinator invokes `superpowers:finishing-a-development-branch` and presents user with merge/PR options
+- Skills the coordinator invokes before dispatching: `python-development:python-resource-management` (test-run KG copy handling), `superpowers:verification-before-completion` (final sanity gate).
+- **Coordinator pause**: before Step 12.2 the coordinator confirms with the user that Option A vs B has been chosen and recorded.
 
 ### Tasks
 
@@ -1061,7 +1189,7 @@ cp data/knowledge.db /tmp/knowledge.db.test_run
 ```bash
 .venv/bin/python3 run_entity_extraction.py --kg-path /tmp/knowledge.db.test_run --no-fallback
 ```
-(If the CLI doesn't expose `--kg-path`, the coordinator either adds the flag in a small subagent dispatch OR temporarily moves the live KG aside and runs against a copy.)
+(If the CLI doesn't expose `--kg-path`, the coordinator dispatches `python-development:python-pro` for the small flag addition — brief: "Add a `--kg-path` flag to `run_entity_extraction.py` that, when present, makes the script use that file as the KG instead of the default. Default behaviour unchanged. Tests: a single smoke test that calls the script with `--kg-path /tmp/test.db` and confirms the live KG isn't touched." OR temporarily moves the live KG aside and runs against a copy if that's faster.)
 
 - [ ] **Step 12.3: Diff the test KG against the post-Phase-10 baseline.**
 
@@ -1087,15 +1215,9 @@ print('EDGES delta:', {k: ea.get(k,0) - eb.get(k,0) for k in set(eb)|set(ea)})
 ```
 Coordinator inspects the deltas: net node growth from smol additions, no negative changes for curated concepts or lineage edges, no new node types, no new edge relations.
 
-- [ ] **Step 12.4: Manual spot-checks.**
+- [ ] **Step 12.4: Coordinator dispatches `feature-dev:code-explorer` for random-sample spot-checks.**
 
-Coordinator picks 5 cited works at random from the smol output and verifies each:
-- has `provenance="tm_smol"` (or another in-allowlist value),
-- has a typed `project_type` (not `cited_work`),
-- has `cited_in` to an existing container node,
-- carries bilingual title fields when both languages were available in the TM.
-
-Coordinator picks 5 container nodes and verifies each has bilingual title pair + `translated_by` edge.
+Brief: "Load `/tmp/knowledge.db.test_run`. Pick 5 cited_work source_text nodes at random and report for each: `provenance` value (must be in `{tm_smol, doc_pair, cobiss_personal}`), `project_type` (must be typed, NOT `cited_work` fallback), the existence of a `cited_in` edge to a container node, and whether bilingual title fields (`title_orig`+`title_translation` OR `title_en`+`title_sl`) are populated when the TM has both languages for that record's origin. Pick 5 container source_text nodes (project_type in `{book_translation, article_translation, festival_programme, exhibition_catalogue}`) and report: bilingual title pair populated, `translated_by` edge present pointing to an agent node. Report findings as a tabular summary."
 
 - [ ] **Step 12.5: Ontology validator.**
 
@@ -1157,10 +1279,10 @@ Rule of thumb: dispatch `Explore` whenever the coordinator would otherwise run m
 
 ## Appendix: subagent dispatch template
 
-For every dispatch the coordinator uses this skeleton:
+For every dispatch the coordinator uses this skeleton. **Pick the subagent type from the per-phase Agent mix subsection — not always `python-pro`.** Allowed types in this work: `Explore` (read-only search), `feature-dev:code-architect` (design), `python-development:python-pro` (implementation), `feature-dev:code-reviewer` / `pythonista-reviewer` (review), `feature-dev:code-explorer` (deep walks).
 
 ```
-Subagent type: python-development:python-pro
+Subagent type: <pick from the phase's Agent mix subsection>
 Working directory: /Users/bel/CascadeProjects/sl_translator
 
 OUT OF SCOPE — DO NOT modify any of:
@@ -1174,6 +1296,17 @@ Authoritative ontology: /Users/bel/CascadeProjects/sl_translator/ontology.md
   - The only authorised KG writers are KnowledgeGraph factory methods
     in translate_core/knowledge_graph.py. NEVER call kg.G.add_node /
     kg.G.add_edge directly.
+
+Constraint 9 — language neutrality (verbatim from plan):
+  No hardcoded "sl"/"en" string literals as if they were the only
+  languages. No default orig_lang="sl" fallback. Direction comes from
+  evidence in the data; absent evidence → route to review with reason
+  direction_undetermined.
+
+Constraint 10 — bibliography bright line (verbatim from plan):
+  Personal/COBISS bibliography produces containers (translated_by) and
+  self-authored records (written_by). Book bibliography (deleted in
+  Phase 11) produces cited works (cited_in). NEVER conflate.
 
 Audit context for THIS task: <paste the relevant audit section verbatim>
 
