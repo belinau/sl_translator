@@ -159,17 +159,18 @@ case), the bilingual form is encoded as:
 
 - `title_orig` — the original-language title
 - `title_translation` — the title in the translation language
-- `orig_lang`, `translation_lang` — two-letter language codes
-
-For citation-typed records that surfaced in both languages of the TM,
-the equivalent encoding is:
-
-- `title_en` and `title_sl` — both populated
-- `slovenian_edition: {publisher, city, year, translator}` — populated
-  when the SL edition differs from the original
+- `orig_lang`, `translation_lang` — two-letter ISO 639-1 language codes
+- `translation_edition: {publisher, city, year, translator, language}` —
+  populated when the translation edition has distinct publication
+  metadata (publisher, year, or translator differ from the original).
+  The `language` field MUST be an ISO 639-1 code matching
+  `translation_lang`.
 
 DO NOT invent flat ad-hoc fields like `publisher_en` / `publisher_sl` for
-new writes. The bilingual encoding above is canonical.
+new writes. The bilingual encoding above is canonical. The legacy
+names `title_en`, `title_sl`, and `slovenian_edition` are FORBIDDEN in
+new writes; nodes carrying them are hard invariant violations caught
+by `scripts/validate_kg.py`.
 
 ### 2.5 `agent`
 
@@ -243,7 +244,7 @@ entire payload.
 | `(source_text) -[edited_by]-> (agent)` | editor of the work (chapters, anthologies); also curator of an exhibition |
 | `(source_text) -[performed_by]-> (agent)` | performer / dancer / cast member appearing in a `performance` (creators use `written_by`) |
 | `(source_text) -[published_by]-> (institution)` | original / first publisher |
-| `(source_text) -[sl_published_by]-> (institution)` | Slovenian-edition publisher when SL edition differs from original |
+| `(source_text) -[translation_published_by]-> (institution)` | Publisher of the translation edition when it differs from the original-edition publisher |
 | `(source_text) -[hosted_by]-> (institution)` | venue / host institution (exhibitions, talks) |
 | `(source_text) -[cited_in]-> (source_text)` | this cited work appears inside the target container work |
 | `(source_text) -[appears_in]-> (source_text)` | this chapter appears inside the target book (chapter→book relation) |
@@ -294,10 +295,12 @@ Authoritative writer: `KnowledgeGraph.link_concepts_rhizomatic`
    nodes, or sentence-shaped concept nodes from segments.
 4. **Bilingual data extraction is not optional.** A `source_text`
    record representing a citation that exists in both languages of the
-   TM MUST carry both `title_en` and `title_sl` (or
-   `title_orig` + `title_translation`). Unilingual citation records
-   produced when the TM holds the other-language form are a
-   correctness defect, not an acceptable interim state.
+   TM MUST carry `title_orig`, `title_translation`, `orig_lang`, and
+   `translation_lang`. Unilingual citation records produced when the
+   TM holds the other-language form are a correctness defect, not an
+   acceptable interim state. The legacy names `title_en` and `title_sl`
+   are FORBIDDEN; a node carrying them is a hard invariant violation
+   caught by `scripts/validate_kg.py`.
 5. **Real names never appear in VL prompt examples.** The 1.6B VL model
    copies example values verbatim into its output, attributing real
    people / works / publishers to segments that do not mention them.

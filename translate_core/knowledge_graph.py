@@ -654,13 +654,13 @@ class KnowledgeGraph:
             self.G.add_edge(src_node, inst_node, relation="published_by")
         return True
 
-    def link_sl_published_by(self, source_text_id: str, institution_id: str) -> bool:
+    def link_translation_published_by(self, source_text_id: str, institution_id: str) -> bool:
         src_node = source_text_id if source_text_id.startswith("source:") else f"source:{source_text_id.lower()}"
         inst_node = institution_id if institution_id.startswith("institution:") else f"institution:{institution_id.lower()}"
         if not (self.G.has_node(src_node) and self.G.has_node(inst_node)):
             return False
         if not self.G.has_edge(src_node, inst_node):
-            self.G.add_edge(src_node, inst_node, relation="sl_published_by")
+            self.G.add_edge(src_node, inst_node, relation="translation_published_by")
         return True
 
     def link_hosted_by(self, source_text_id: str, institution_id: str) -> bool:

@@ -342,9 +342,9 @@ def dedup_records(records: List[dict]) -> List[dict]:
         elif kind == "cited_work":
             rid = f"cited:{r['payload']['cited_id']}"
         elif kind == "artwork":
-            # Use title_orig/title_translation fallback — title_en may be None
+            # Use title_orig/title_translation
             # for non-EN-original artworks (per ontology §2.4.2 canonical fields).
-            rid = f"art:{r['payload'].get('work_id') or _slugify(r['payload'].get('title_orig') or r['payload'].get('title_translation') or r['payload'].get('title_en') or r['payload'].get('title_sl', ''))}"
+            rid = f"art:{r['payload'].get('work_id') or _slugify(r['payload'].get('title_orig') or r['payload'].get('title_translation') or '')}"
         elif kind == "institution":
             # Use slugified name + kind so institutions of the same name but
             # different kind (e.g. theatre vs venue) stay distinct.
@@ -382,7 +382,6 @@ def dedup_records(records: List[dict]) -> List[dict]:
             ep = existing["payload"]
             has_both = (
                 bool(ep.get("title_orig") and ep.get("title_translation"))
-                or bool(ep.get("title_en") and ep.get("title_sl"))
                 or bool(ep.get("label_orig") and ep.get("label_translation"))
             )
             if has_both:
@@ -403,7 +402,7 @@ def dedup_records(records: List[dict]) -> List[dict]:
 # ── Bilingual payload merge (audit-template violation #9 / ontology §2.4.2) ──
 
 _BILINGUAL_TEXT_FIELDS = (
-    "title_orig", "title_translation", "title_en", "title_sl",
+    "title_orig", "title_translation",
     "label_orig", "label_translation", "label",
     "name_translation",
     "orig_lang", "translation_lang",
@@ -419,7 +418,7 @@ def _merge_bilingual_payload(dst: dict, src: dict) -> None:
     """Fold `src` payload fields into `dst` without overwriting present values.
 
     For scalar fields: the first non-empty value wins. For dict fields
-    (`original_pub`, `slovenian_edition`): merge sub-keys field-by-field. For
+    (`original_pub`, `translation_edition`): merge sub-keys field-by-field. For
     list fields (`creators`, `performers`, `alt_spellings`): union by name.
     This makes two segments that mention the same work merge into one
     bilingual node (ontology §2.4.2 / audit-template #9).
@@ -428,7 +427,7 @@ def _merge_bilingual_payload(dst: dict, src: dict) -> None:
         if not dst.get(fld) and src.get(fld):
             dst[fld] = src[fld]
 
-    for sub_fld in ("original_pub", "slovenian_edition"):
+    for sub_fld in ("original_pub", "translation_edition"):
         src_sub = src.get(sub_fld) or {}
         if not isinstance(src_sub, dict) or not src_sub:
             continue
@@ -516,8 +515,6 @@ def write_to_kg(
             wid = _slugify(p["work_id"])
             year_int = _to_int_year(p.get("year"))
             extra = {
-                "title_en": p.get("title_en"),
-                "title_sl": p.get("title_sl"),
                 "title_orig": p.get("title_orig"),
                 "title_translation": p.get("title_translation"),
                 "orig_lang": p.get("orig_lang"),
@@ -673,33 +670,28 @@ def write_to_kg(
             extras = dict(p.get("extra_fields") or {})
 
             # Bilingual canonical fields (ontology §2.4.2)
-            extras.setdefault("title_orig", p.get("title_orig") or p.get("title_en"))
-            extras.setdefault("title_translation", p.get("title_translation") or p.get("title_sl"))
+            extras.setdefault("title_orig", p.get("title_orig"))
+            extras.setdefault("title_translation", p.get("title_translation"))
             extras.setdefault("orig_lang", p.get("orig_lang"))
             extras.setdefault("translation_lang", p.get("translation_lang"))
-            # Legacy aliases kept for the editor UI
-            extras.setdefault("title_en", p.get("title_en"))
-            extras.setdefault("title_sl", p.get("title_sl"))
             if p.get("citation_style") in STYLE_ALLOWLIST:
                 extras["citation_style"] = p["citation_style"]
             if p.get("pages"):
                 extras["pages"] = p["pages"]
-            extras["original_language"] = _infer_language(
-                p.get("title_orig") or p.get("title_en"),
-            )
+            extras["original_language"] = _infer_language(p.get("title_orig"))
             extras["project_type"] = project_type
-            # Original publisher + Slovenian edition (ontology §2.4.2)
+            # Original publisher + translation edition (ontology §2.4.2)
             if p.get("original_pub"):
                 extras["original_pub"] = p["original_pub"]
-            if p.get("slovenian_edition"):
-                extras["slovenian_edition"] = p["slovenian_edition"]
+            if p.get("translation_edition"):
+                extras["translation_edition"] = p["translation_edition"]
             # Strip None and merge provenance
             extras = {k: v for k, v in extras.items() if v is not None}
             extras.update(_provenance_kwargs(r))
 
             kg.add_source_text_node(
                 cid,
-                title=p.get("title_orig") or p.get("title_translation") or p.get("title_en") or p.get("title_sl") or cid,
+                title=p.get("title_orig") or p.get("title_translation") or cid,
                 year=_to_int_year(p.get("year")),
                 **extras,
             )
@@ -736,20 +728,20 @@ def write_to_kg(
                     )
                 kg.link_published_by(cid, inst_id)
 
-            # SL-edition publisher → sl_published_by
-            sl_pub = p.get("slovenian_edition") or {}
-            if sl_pub.get("publisher"):
-                inst_id = _slugify(sl_pub["publisher"])
+            # Translation-edition publisher → translation_published_by
+            trans_pub = p.get("translation_edition") or {}
+            if trans_pub.get("publisher"):
+                inst_id = _slugify(trans_pub["publisher"])
                 if not kg.G.has_node(f"institution:{inst_id.lower()}"):
                     kg.add_institution_node(
-                        inst_id, name=sl_pub["publisher"], kind="publisher",
-                        city=sl_pub.get("city"),
+                        inst_id, name=trans_pub["publisher"], kind="publisher",
+                        city=trans_pub.get("city"),
                     )
-                kg.link_sl_published_by(cid, inst_id)
+                kg.link_translation_published_by(cid, inst_id)
 
-            # SL-edition translator → translated_by (ontology §3.2).
+            # Translation-edition translator → translated_by (ontology §3.2).
             # `translator` may carry multiple names joined by " in "/" and "/",".
-            translator_raw = sl_pub.get("translator")
+            translator_raw = trans_pub.get("translator")
             if translator_raw:
                 for tname in _split_person_names(translator_raw):
                     tgrp = dedup_group_key(tname)
@@ -794,9 +786,6 @@ def write_to_kg(
                 "title_translation": p.get("title_translation"),
                 "orig_lang": p.get("orig_lang"),
                 "translation_lang": p.get("translation_lang"),
-                # Legacy aliases (kept while editors still read these)
-                "title_en": p.get("title_en"),
-                "title_sl": p.get("title_sl"),
                 "artist": p.get("artist"),
                 "medium": p.get("medium"),
                 "project_type": "artwork",
@@ -805,8 +794,6 @@ def write_to_kg(
             canonical_title = (
                 p.get("title_orig")
                 or p.get("title_translation")
-                or p.get("title_en")
-                or p.get("title_sl")
                 or wid
             )
             kg.add_source_text_node(
@@ -862,8 +849,6 @@ def write_to_kg(
                 "title_translation": p.get("title_translation"),
                 "orig_lang": p.get("orig_lang"),
                 "translation_lang": p.get("translation_lang"),
-                "title_en": p.get("title_en"),
-                "title_sl": p.get("title_sl"),
                 "performance_kind": p.get("performance_kind"),
                 "project_type": "performance",
             }
@@ -871,8 +856,6 @@ def write_to_kg(
             canonical_title = (
                 p.get("title_orig")
                 or p.get("title_translation")
-                or p.get("title_en")
-                or p.get("title_sl")
                 or wid
             )
             kg.add_source_text_node(

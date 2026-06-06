@@ -169,19 +169,34 @@ def ingest_bibliography(
             continue
 
         # Bilingual title handling (O-5). The KG source_text has no subtitle
-        # field, so fold the SL subtitle back into title_sl — storing it
-        # separately truncates the visible title.
-        title_sl = entry.title
+        # field, so fold the SL subtitle back into the primary title — storing
+        # it separately truncates the visible title.
+        primary_title = entry.title  # SL side per COBISS parser convention
         if entry.subtitle and entry.subtitle.lower() not in (entry.title or "").lower():
-            title_sl = f"{entry.title}: {entry.subtitle}"
-        title_en = entry.title_en
+            primary_title = f"{entry.title}: {entry.subtitle}"
+        secondary_title = entry.title_en  # EN side after "=" separator
 
-        # Create source_text node (O-1, O-16)
-        kwargs = {}
-        if title_en:
-            kwargs["title_en"] = title_en
-        if title_sl:
-            kwargs["title_sl"] = title_sl
+        # Create source_text node (O-1, O-16). Assign canonical neutral
+        # bilingual fields based on belina_role. Language codes are DATA VALUES
+        # from the COBISS parser convention: entry.title = SL side,
+        # entry.title_en = EN side. No text-level language detection.
+        kwargs: dict = {"provenance": "cobiss_personal"}
+        if belina_role == "translator":
+            # Belina translates into SL; SL side is the translation.
+            if primary_title:
+                kwargs["title_translation"] = primary_title
+                kwargs["translation_lang"] = "sl"
+            if secondary_title:
+                kwargs["title_orig"] = secondary_title
+                kwargs["orig_lang"] = "en"
+        else:
+            # author / editor / fallback: SL side is the original.
+            if primary_title:
+                kwargs["title_orig"] = primary_title
+                kwargs["orig_lang"] = "sl"
+            if secondary_title:
+                kwargs["title_translation"] = secondary_title
+                kwargs["translation_lang"] = "en"
         if entry.year:
             kwargs["year"] = entry.year
         if entry.extent:
@@ -209,7 +224,7 @@ def ingest_bibliography(
 
         node_id = kg.add_source_text_node(
             text_id=source_id,
-            title=title_sl or title_en or f"Entry #{entry.entry_number}",
+            title=primary_title or secondary_title or f"Entry #{entry.entry_number}",
             project_type=ptype,
             **kwargs,
         )
@@ -251,24 +266,48 @@ def ingest_bibliography(
             if kg.link_translated_by(node_id, belina_id):
                 report["edges_created"] += 1
 
-        # Wire published_by for publisher (O-1, O-14)
+        # Wire published_by for publisher (O-1, O-14). Bilingual publisher
+        # convention in COBISS: "SL Publisher Name: = EN Publisher Name".
+        # Split on ": =" → primary (original) and translation publishers.
         if entry.publisher:
-            pub_name = entry.publisher.strip()
-            if pub_name:
-                inst_kind = classify_institution_kind(pub_name)
-                inst_id = _make_institution_id(pub_name)
-                inst_node = kg.add_institution_node(
-                    inst_id=inst_id,
-                    name=pub_name,
-                    kind=inst_kind,
-                )
-                report["institutions_created"] += 1
-                if kg.link_published_by(node_id, inst_node):
-                    report["edges_created"] += 1
+            raw_pub = entry.publisher.strip()
+            if ": =" in raw_pub:
+                parts = raw_pub.split(": =", maxsplit=1)
+                primary_pub = parts[0].strip()
+                translation_pub = parts[1].strip()
 
-        # Also handle bilingual publisher (SL edition differs from original)
-        # TODO: For now, we wire only the primary publisher.
-        # Phase 4 will handle sl_published_by for bilingual document pairs.
+                if primary_pub:
+                    p_kind = classify_institution_kind(primary_pub)
+                    p_id = _make_institution_id(primary_pub)
+                    p_node = kg.add_institution_node(
+                        inst_id=p_id, name=primary_pub, kind=p_kind,
+                    )
+                    report["institutions_created"] += 1
+                    if kg.link_published_by(node_id, p_node):
+                        report["edges_created"] += 1
+
+                if translation_pub:
+                    t_kind = classify_institution_kind(translation_pub)
+                    t_id = _make_institution_id(translation_pub)
+                    t_node = kg.add_institution_node(
+                        inst_id=t_id, name=translation_pub, kind=t_kind,
+                    )
+                    report["institutions_created"] += 1
+                    if kg.link_translation_published_by(node_id, t_node):
+                        report["edges_created"] += 1
+            else:
+                pub_name = raw_pub
+                if pub_name:
+                    inst_kind = classify_institution_kind(pub_name)
+                    inst_id = _make_institution_id(pub_name)
+                    inst_node = kg.add_institution_node(
+                        inst_id=inst_id,
+                        name=pub_name,
+                        kind=inst_kind,
+                    )
+                    report["institutions_created"] += 1
+                    if kg.link_published_by(node_id, inst_node):
+                        report["edges_created"] += 1
 
     # Save KG (unless dry-run)
     if not dry_run:

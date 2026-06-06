@@ -129,6 +129,11 @@ cited_work:
     "year":<int or null>,
     "project_type":"<one of: {proj_types}>",
     "original_pub":{{"publisher":"...","city":"...","year":<int>}},
+    # SUNSET: Phase 11 — rename prompt key "slovenian_edition" → "translation_edition"
+    # after model-regression testing confirms no recall drop. The builder already
+    # maps this key to translation_edition in the payload (around line 540-552).
+    # The prompt rename requires a separate model evaluation pass; do not rename
+    # before Phase 11 regression suite runs.
     "slovenian_edition":{{"publisher":"...","city":"...","year":<int>,"translator":"..."}},
     "pages":"<page range if cited>"}}
 
@@ -542,25 +547,27 @@ def _build_cited_work(
         "project_type": project_type,
         "pages": (ent.get("pages") or "").strip() or None,
         "original_pub": original_pub,
-        "slovenian_edition": slovenian_edition,
+        # Phase 4: ontology §2.4.2 — translation_edition replaces the
+        # SL/EN-named slovenian_edition sub-dict. The `language` field is
+        # an ISO 639-1 code matching translation_lang. The smol prompt
+        # still emits the model-facing key "slovenian_edition"; that
+        # prompt-level rename is deferred to Phase 11 pending a model-
+        # regression test (see SUNSET tag in the prompt template below).
+        "translation_edition": (
+            {**slovenian_edition, "language": translation_lang}
+            if slovenian_edition and translation_lang
+            else None
+        ),
         "container_work_id": container_work_id or None,
     }
-    # SUNSET: Phase 11 — delete when kg_ingest_entities.deferred_artwork
-    # + all consumers are migrated to title_orig/title_translation.
-    # Legacy title_en/title_sl aliases only make sense when the pair is
-    # actually {en, sl}; set-membership `LANG_EN in {None, "sl"}` is
-    # False so unknown lang values skip safely.
-    if LANG_EN in {orig_lang, translation_lang} and LANG_SL in {orig_lang, translation_lang}:
-        payload["title_en"] = title_orig if orig_lang == LANG_EN else title_translation
-        payload["title_sl"] = title_orig if orig_lang == LANG_SL else title_translation
-    # O-5 enforcement (ontology §2.4.2 + §4 invariant #4): slovenian_edition
+    # O-5 enforcement (ontology §2.4.2 + §4 invariant #4): translation_edition
     # implies the citation exists in BOTH languages. If we don't have both
-    # title_orig AND title_translation, drop slovenian_edition rather than
+    # title_orig AND title_translation, drop translation_edition rather than
     # write a node that violates the bilingual invariant.
-    if payload.get("slovenian_edition") and not (
+    if payload.get("translation_edition") and not (
         payload.get("title_orig") and payload.get("title_translation")
     ):
-        payload["slovenian_edition"] = None
+        payload["translation_edition"] = None
     # Drop None values to keep payloads compact
     payload = {k: v for k, v in payload.items() if v is not None}
     return {
@@ -756,11 +763,6 @@ def _build_artwork(
         # Container (e.g. exhibition catalogue this artwork appears in)
         "container_work_id": container_work_id or None,
     }
-    # SUNSET: Phase 11 — delete when kg_ingest_entities.deferred_artwork
-    # + all consumers are migrated to title_orig/title_translation.
-    if LANG_EN in {orig_lang, translation_lang} and LANG_SL in {orig_lang, translation_lang}:
-        payload["title_en"] = title_orig if orig_lang == LANG_EN else title_translation
-        payload["title_sl"] = title_orig if orig_lang == LANG_SL else title_translation
     payload = {k: v for k, v in payload.items() if v is not None}
 
     return {
@@ -881,11 +883,6 @@ def _build_performance(
         "venue_city": venue_city,
         "container_work_id": container_work_id or None,
     }
-    # SUNSET: Phase 11 — delete when kg_ingest_entities.deferred_artwork
-    # + all consumers are migrated to title_orig/title_translation.
-    if LANG_EN in {orig_lang, translation_lang} and LANG_SL in {orig_lang, translation_lang}:
-        payload["title_en"] = title_orig if orig_lang == LANG_EN else title_translation
-        payload["title_sl"] = title_orig if orig_lang == LANG_SL else title_translation
     payload = {k: v for k, v in payload.items() if v is not None}
 
     return {
