@@ -107,6 +107,23 @@ def read_tmx_with_timecodes(path: Path) -> List[Dict[str, Any]]:
     for tu in root.iter("tu"):
         creationdate = tu.get("creationdate")  # None when absent
 
+        # TMX `<prop>` elements carry the SDL Trados / OmegaT linked-list
+        # checksums that chain consecutive TUs created in the same
+        # translation session. When TU N's `previousMd5Checksum` does NOT
+        # equal TU N-1's `nextMd5Checksum`, that's a deterministic session
+        # boundary — typically a new work or a session resumption. No
+        # statistics required; this is structural metadata stamped by the
+        # CAT tool. Downstream session-detection lives in
+        # `translate_core.tm.iter_sessions`.
+        prev_md5: Optional[str] = None
+        next_md5: Optional[str] = None
+        for prop in tu.findall("prop"):
+            ptype = prop.get("type")
+            if ptype == "previousMd5Checksum":
+                prev_md5 = prop.text
+            elif ptype == "nextMd5Checksum":
+                next_md5 = prop.text
+
         tuvs = tu.findall("tuv")
         if len(tuvs) != 2:
             continue  # skip TU silently; matches today's behaviour
@@ -136,6 +153,8 @@ def read_tmx_with_timecodes(path: Path) -> List[Dict[str, Any]]:
                 "target_lang": tgt_lang,
                 "raw_index": len(entries),
                 "creationdate": creationdate,
+                "prev_md5": prev_md5,
+                "next_md5": next_md5,
                 "t_index": -1,  # filled in below
             }
         )
