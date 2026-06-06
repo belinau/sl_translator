@@ -1,59 +1,37 @@
-"""Phase 1B (TDD red) — language-neutral payload writes in smol builders.
+"""Phase 4 — smol builders must emit only the neutral payload shape.
 
-Targets the blueprint §7 changes to ``_build_cited_work``: the legacy
-``title_en`` / ``title_sl`` aliases must only be written when BOTH ``en``
-AND ``sl`` appear in the pair. For an HR-SL pair the legacy aliases are
-omitted; the canonical ``title_orig`` / ``title_translation`` +
-``orig_lang`` / ``translation_lang`` carry the data.
+Phase 1B kept a transitional `# SUNSET: Phase 11` alias-write block in
+`_build_cited_work`, `_build_artwork`, and `_build_performance` that
+re-emitted `title_en` / `title_sl` whenever EN or SL appeared in the pair.
+Phase 4 (blueprint §4.1) deletes those blocks: legacy aliases are now
+banned in builder output for ANY language pair, including EN/SL.
 
-Current behaviour (audit §3.3, smol_extractor.py:529-530):
+Phase 4 also remaps the `slovenian_edition` sub-dict (still emitted by the
+prompt; rename is Phase 11 SUNSET) to `translation_edition` with a
+`language` field matching `translation_lang` (blueprint §4.2). The legacy
+key `slovenian_edition` must not appear in the payload.
 
-    "title_en": title_orig if orig_lang == LANG_EN else (
-        title_translation if translation_lang == LANG_EN else None
-    ),
-    "title_sl": title_orig if orig_lang == LANG_SL else (
-        title_translation if translation_lang == LANG_SL else None
-    ),
-
-For HR-SL: ``title_en`` falls to ``None`` (orig=hr, trans=sl), then gets
-dropped by the ``payload = {k: v for k, v in payload.items() if v is not None}``
-filter — so the *key* is in fact absent from the final payload today.
-That's a happy accident: today's test would PASS for HR-SL. We need a
-test that discriminates current vs blueprint behaviour clearly.
-
-Discriminator: ``title_sl`` for HR-SL today evaluates to
-``title_translation`` (because ``translation_lang == LANG_SL``), so the
-payload today INCLUDES ``title_sl="Slovenski prijevod"``. After Phase 1B
-the conditional gates the entire alias-write block on both EN AND SL
-being present in the pair, so ``title_sl`` is omitted for HR-SL.
-
-The brief asserts: for HR-SL the legacy aliases must NOT appear in the
-payload. That's the red test.
+These tests INVERT the Phase 1B HR-SL assertions: today's expectation is
+that legacy keys are absent for every pair.
 """
 
 from __future__ import annotations
 
-from translate_core.entity_extraction.smol_extractor import _build_cited_work
+from translate_core.entity_extraction.smol_extractor import (
+    _build_artwork,
+    _build_cited_work,
+    _build_performance,
+)
 
 
 # ---------------------------------------------------------------------------
-# A. HR-SL pair omits legacy title_en / title_sl
+# A. HR-SL pair: legacy aliases absent (regression coverage from Phase 1B)
 # ---------------------------------------------------------------------------
 
 
 def test_build_cited_work_hr_sl_omits_legacy_aliases():
-    """For an HR-source / SL-target citation, ``_build_cited_work`` must NOT
-    write the legacy ``title_en`` / ``title_sl`` aliases — the pair does not
-    include English, so the SL/EN-shaped legacy fields have no canonical
-    referent.
-
-    Canonical ontology fields (per §2.4.2) MUST still be populated:
-        title_orig, title_translation, orig_lang, translation_lang.
-
-    Today's implementation writes ``title_sl="Slovenski prevod"`` because
-    ``translation_lang == "sl"`` matches one half of the legacy condition.
-    That's the discriminator.
-    """
+    """For an HR/SL pair (no English in the pair) the legacy `title_en` /
+    `title_sl` aliases MUST NOT appear in the payload."""
     ent = {
         "title_orig": "Izvorni naslov",
         "title_translation": "Slovenski prevod",
@@ -70,23 +48,161 @@ def test_build_cited_work_hr_sl_omits_legacy_aliases():
         tgt_lang="sl",
     )
 
-    assert record is not None, "_build_cited_work must produce a record"
+    assert record is not None
     payload = record["payload"]
 
-    # Canonical fields populated.
     assert payload["title_orig"] == "Izvorni naslov"
     assert payload["title_translation"] == "Slovenski prevod"
     assert payload["orig_lang"] == "hr"
     assert payload["translation_lang"] == "sl"
+    assert "title_en" not in payload
+    assert "title_sl" not in payload
 
-    # Legacy aliases MUST NOT appear in an HR-SL payload (no English in
-    # the pair → no canonical referent for the SL/EN-shaped legacy fields).
+
+# ---------------------------------------------------------------------------
+# B. EN-SL pair: legacy aliases STILL absent (Phase 4 inversion)
+# ---------------------------------------------------------------------------
+
+
+def test_cited_work_no_legacy_keys_en_sl():
+    """For an EN/SL pair the legacy aliases were emitted under Phase 1B's
+    sunset block. Phase 4 deletes that block — they MUST be absent now too."""
+    ent = {
+        "title_orig": "Capitalist Realism",
+        "title_translation": "Kapitalisticni realizem",
+        "orig_lang": "en",
+        "translation_lang": "sl",
+        "author": "Mark Fisher",
+    }
+    record = _build_cited_work(
+        ent,
+        origin="big-EN-SL.tmx",
+        seg_idx=0,
+        container_work_id="container-id",
+        src_lang="en",
+        tgt_lang="sl",
+    )
+
+    assert record is not None
+    payload = record["payload"]
+
     assert "title_en" not in payload, (
-        f"title_en must be omitted for HR-SL pair (no EN in pair); got "
-        f"payload keys {list(payload)}"
+        f"title_en must be absent post-Phase-4 (SUNSET block deleted); "
+        f"got payload keys {list(payload)}"
     )
     assert "title_sl" not in payload, (
-        f"title_sl must be omitted for HR-SL pair; today's builder writes "
-        f"title_sl=title_translation because translation_lang=='sl' "
-        f"matches half the legacy condition. Got payload keys {list(payload)}"
+        f"title_sl must be absent post-Phase-4 (SUNSET block deleted); "
+        f"got payload keys {list(payload)}"
     )
+
+
+def test_artwork_no_legacy_keys_en_sl():
+    ent = {
+        "title_orig": "The Garden",
+        "title_translation": "Vrt",
+        "orig_lang": "en",
+        "translation_lang": "sl",
+        "artist": "Jane Doe",
+        "medium": "oil on canvas",
+    }
+    record = _build_artwork(
+        ent,
+        origin="big-EN-SL.tmx",
+        seg_idx=0,
+        container_work_id="catalog-id",
+        src_lang="en",
+        tgt_lang="sl",
+    )
+    assert record is not None
+    payload = record["payload"]
+    assert "title_en" not in payload
+    assert "title_sl" not in payload
+
+
+def test_performance_no_legacy_keys_en_sl():
+    ent = {
+        "title_orig": "Hamlet Machine",
+        "title_translation": "Stroj Hamlet",
+        "orig_lang": "en",
+        "translation_lang": "sl",
+        "creators": [{"name": "A Director", "role": "director"}],
+        "performers": [{"name": "A Dancer", "role": "dancer"}],
+        "performance_kind": "dance",
+    }
+    record = _build_performance(
+        ent,
+        origin="big-EN-SL.tmx",
+        seg_idx=0,
+        container_work_id="programme-id",
+        src_lang="en",
+        tgt_lang="sl",
+    )
+    assert record is not None
+    payload = record["payload"]
+    assert "title_en" not in payload
+    assert "title_sl" not in payload
+
+
+# ---------------------------------------------------------------------------
+# C. `slovenian_edition` key absent in payload; `translation_edition` carries data
+# ---------------------------------------------------------------------------
+
+
+def test_cited_work_no_slovenian_edition_key():
+    """The model emits `slovenian_edition` (Phase 11 prompt rename SUNSET);
+    the builder must remap it to `translation_edition` and DROP the legacy key."""
+    ent = {
+        "title_orig": "Capitalist Realism",
+        "title_translation": "Kapitalisticni realizem",
+        "orig_lang": "en",
+        "translation_lang": "sl",
+        "author": "Mark Fisher",
+        "slovenian_edition": {
+            "publisher": "Maska",
+            "city": "Ljubljana",
+            "year": 2010,
+            "translator": "Urban Belina",
+        },
+    }
+    record = _build_cited_work(
+        ent,
+        origin="big-EN-SL.tmx",
+        seg_idx=0,
+        container_work_id="container-id",
+        src_lang="en",
+        tgt_lang="sl",
+    )
+
+    assert record is not None
+    payload = record["payload"]
+    assert "slovenian_edition" not in payload
+    assert "translation_edition" in payload
+    te = payload["translation_edition"]
+    assert te["publisher"] == "Maska"
+    assert te["city"] == "Ljubljana"
+    assert te["year"] == 2010
+    assert te["translator"] == "Urban Belina"
+
+
+def test_translation_edition_has_language_field():
+    """`translation_edition.language` must match `translation_lang`."""
+    ent = {
+        "title_orig": "Capitalist Realism",
+        "title_translation": "Kapitalisticni realizem",
+        "orig_lang": "en",
+        "translation_lang": "sl",
+        "author": "Mark Fisher",
+        "slovenian_edition": {"publisher": "Maska", "translator": "Urban Belina"},
+    }
+    record = _build_cited_work(
+        ent,
+        origin="big-EN-SL.tmx",
+        seg_idx=0,
+        container_work_id="container-id",
+        src_lang="en",
+        tgt_lang="sl",
+    )
+
+    assert record is not None
+    payload = record["payload"]
+    assert payload["translation_edition"]["language"] == payload["translation_lang"]

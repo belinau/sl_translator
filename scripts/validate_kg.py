@@ -80,6 +80,10 @@ def validate(nodes: list[dict], edges: list[dict]) -> dict[str, list[str]]:
             v["dangling_edge"].append(f"{e['source']} -[{e.get('relation')}]-> {e['target']}")
         if e.get("relation") == "cited_in" and e["source"] == e["target"]:
             v["cited_in_self_loop"].append(e["source"])
+        if e.get("relation") in LEGACY_EDGE_RELATIONS:
+            v["legacy_sl_published_by_edge"].append(
+                f"{e['source']} -[{e.get('relation')}]-> {e['target']}"
+            )
 
     stems: dict[str, list[str]] = defaultdict(list)
     for n in nodes:
@@ -111,6 +115,9 @@ def validate(nodes: list[dict], edges: list[dict]) -> dict[str, list[str]]:
             title = (n.get("title") or "").strip()
             if title and (title[:1].islower() or _SENT_SL.search(title) or title.count("?") >= 3):
                 v["fragment_title"].append(f"{nid}: {title[:50]!r}")
+            for bad_field in LEGACY_NODE_FIELDS:
+                if n.get(bad_field) is not None:
+                    v[f"legacy_{bad_field}"].append(nid)
             stems[_stem(nid)].append(nid)
 
     for stem, members in stems.items():
