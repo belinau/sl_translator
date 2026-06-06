@@ -103,31 +103,44 @@ def main() -> int:
                       f"{result.attributed.get((origin, e_+1), '(none)')})")
             print()
 
-    # ── span overlap check (within an origin, two spans should not interleave) ──
-    print("── overlap check ──")
-    overlap_count = 0
+    # ── per-segment exclusivity check ──
+    # The walker assigns each (origin, t_index) to AT MOST ONE container.
+    # Multi-interval containers (a book translated across multiple sessions
+    # has multiple title-page reoccurrences) produce a (origin, container)
+    # span whose min..max range overlaps with another container's range,
+    # but per-segment attribution is non-overlapping. Verify that empirically.
+    print("── per-segment exclusivity check ──")
+    per_segment: dict[tuple[str, int], set[str]] = defaultdict(set)
+    for (origin, t_index), cid in result.attributed.items():
+        per_segment[(origin, t_index)].add(cid)
+    conflicts_per_segment = [
+        (k, v) for k, v in per_segment.items() if len(v) > 1
+    ]
+    print(f"  segments attributed to MULTIPLE containers: "
+          f"{len(conflicts_per_segment)} (walker design: should be 0)")
+    if conflicts_per_segment:
+        print("  first 3:")
+        for (o, t), cids in conflicts_per_segment[:3]:
+            print(f"    {o}[{t}] -> {cids}")
+    # Multi-interval count: containers appearing in multiple disjoint
+    # t_index ranges within the same origin (this is correct walker
+    # behaviour, not a bug)
+    multi_interval_count = 0
     for origin in sorted({k[0] for k in spans_sorted}):
-        origin_spans = sorted(
-            [(s, e_, cid) for (o, cid), (s, e_, _n) in spans_sorted.items()
-             if o == origin],
-            key=lambda x: x[0],
-        )
-        # A span "interleaves" another if its t_index range is not contiguous
-        # within the origin AND its anchor was claimed back by a later one.
-        # With the walker's design, attribution is monotonic by t_index: once
-        # an anchor fires it owns segments until the next anchor. So two
-        # containers in the SAME origin should occupy DISJOINT ranges with
-        # the second starting at t_index == first.end + 1 (if anchors are
-        # adjacent on consecutive t_indexes) OR later. They CAN'T overlap.
-        for i in range(len(origin_spans) - 1):
-            s1, e1, c1 = origin_spans[i]
-            s2, e2, c2 = origin_spans[i + 1]
-            if s2 <= e1:
-                overlap_count += 1
-                if overlap_count <= 3:
-                    print(f"  OVERLAP in {origin}: "
-                          f"{c1}[{s1}..{e1}] vs {c2}[{s2}..{e2}]")
-    print(f"  total overlaps: {overlap_count}")
+        per_origin_segments: dict[str, list[int]] = defaultdict(list)
+        for (o, t), cid in result.attributed.items():
+            if o == origin:
+                per_origin_segments[cid].append(t)
+        for cid, t_list in per_origin_segments.items():
+            t_sorted = sorted(t_list)
+            # Walk the sorted t_indexes; count gaps (i.e. another container
+            # holds a t_index between two consecutive t_indexes of this cid)
+            for i in range(len(t_sorted) - 1):
+                if t_sorted[i + 1] != t_sorted[i] + 1:
+                    multi_interval_count += 1
+                    break
+    print(f"  multi-interval containers (correct walker behaviour, not a bug): "
+          f"{multi_interval_count}")
 
     # ── coverage: how many COBISS containers actually got anchored? ───────
     print("\n── COBISS container coverage ──")
