@@ -265,6 +265,7 @@ that mapping was attested, and the translator who made it.
 |---|---|---|
 | `(translation_mapping) -[instantiated_in]-> (source_text)` | — | this mapping was made while translating that work |
 | `(translation_mapping) -[attributed_to]-> (agent)` | — | this mapping is attributable to that translator/curator |
+| `(concept) -[attributed_to]-> (agent)` | — | this concept is attributable to that theorist/curator |
 
 These are SUPPORTED by `link_translations_with_context` but only when
 the caller passes `source_text_id=` and `agent_id=`. They are the

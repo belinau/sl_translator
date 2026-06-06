@@ -642,14 +642,15 @@ class KnowledgeGraph:
             self.G.add_edge(src, ag, relation="performed_by")
         return True
 
-    def link_attributed_to(self, mapping_id: str, agent_id: str) -> bool:
-        """Bridge edge (ontology §3.3): a translation_mapping is attributable to
-        the theorist/curator agent who originated or uses the concept."""
+    def link_attributed_to(self, source_id: str, agent_id: str) -> bool:
+        """Bridge edge (ontology §3.3): a `translation_mapping` OR `concept`
+        node is attributable to the theorist/curator agent who originated or
+        uses the concept."""
         ag = agent_id if agent_id.startswith("agent:") else f"agent:{agent_id.lower()}"
-        if not (self.G.has_node(mapping_id) and self.G.has_node(ag)):
+        if not (self.G.has_node(source_id) and self.G.has_node(ag)):
             return False
-        if not self.G.has_edge(mapping_id, ag):
-            self.G.add_edge(mapping_id, ag, relation="attributed_to")
+        if not self.G.has_edge(source_id, ag):
+            self.G.add_edge(source_id, ag, relation="attributed_to")
         return True
     def link_instantiated_in(
         self, mapping_id: str, source_text_id: str
