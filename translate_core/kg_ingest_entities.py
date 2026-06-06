@@ -64,6 +64,54 @@ CITED_TYPES = {
 # §4 invariant 6 citation_style allowlist.
 STYLE_ALLOWLIST = {"chicago_en", "chicago_sl", "mla", "sist_iso690"}
 
+# §5 provenance allowlist — single source of truth.
+CONTAINER_PROVENANCE: frozenset[str] = frozenset({"cobiss_personal", "curator_extra"})
+VALID_PROVENANCE: frozenset[str] = CONTAINER_PROVENANCE | frozenset({"tm_smol", "doc_pair"})
+
+
+def _route_record(
+    record: dict,
+    *,
+    container_index: set[str] | None = None,
+) -> tuple[str, dict]:
+    """Phase 5 routing dispatcher (see phase5_blueprint.md §1).
+
+    Returns ``("direct", record)`` if the record should fall through to the
+    per-kind handler, or ``("review", {"reason": "<code>"})`` if the record
+    should be routed to the curator review queue.
+
+    ``container_index`` is the set of slugified container work IDs already
+    written in pass 1. Pass 1 passes ``None`` (skip container resolution);
+    pass 3 (deferred_cited loop) passes ``set(work_id_by_payload.keys())``.
+    """
+    kind = record.get("kind")
+    source = record.get("source") or {}
+    provenance = source.get("provenance")
+    payload = record.get("payload") or {}
+
+    if kind == "translated_work":
+        if provenance in CONTAINER_PROVENANCE:
+            return ("direct", record)
+        if provenance in {"tm_smol", "doc_pair"}:
+            return ("review", {"reason": "provenance_mismatch_for_translated_work"})
+        return ("review", {"reason": "provenance_missing_or_unknown"})
+
+    if kind == "cited_work":
+        if provenance is None or provenance not in VALID_PROVENANCE:
+            return ("review", {"reason": "provenance_missing_or_unknown"})
+        if payload.get("orig_lang") is None and payload.get("translation_lang") is None:
+            return ("review", {"reason": "language_pair_undetermined"})
+        if container_index is not None:
+            container_work_id = payload.get("container_work_id")
+            if container_work_id and container_work_id not in container_index:
+                return ("review", {"reason": "container_not_found"})
+        return ("direct", record)
+
+    # agent_person, institution, concept, artwork, performance
+    if provenance in VALID_PROVENANCE:
+        return ("direct", record)
+    return ("review", {"reason": "provenance_missing_or_unknown"})
+
 
 def _segment_pointer(record: dict) -> Optional[dict]:
     """Extract (origin, segment_idx) pointer from a record's source dict, or None."""
@@ -506,6 +554,15 @@ def write_to_kg(
             stats.bump(kind, tier)
             continue
 
+        # §5 provenance routing (Phase 5). Pass 1 skips container resolution
+        # by passing `container_index=None`; pass 3 supplies the index.
+        route, route_meta = _route_record(r, container_index=None)
+        if route == "review":
+            r["_route_reason"] = route_meta.get("reason")
+            review.append(r)
+            stats.bump(kind, ConfidenceTier.REVIEW)
+            continue
+
         if kind == "translated_work":
             p = r["payload"]
             if not p.get("translator"):
@@ -653,7 +710,20 @@ def write_to_kg(
     # Pass 3: cited_work nodes + cited_in + written_by + published_by
     if not dry_run:
         from .entity_extraction.name_dedup import dedup_group_key
+        container_index = set(work_id_by_payload.keys())
         for r in deferred_cited:
+            # §5 routing — re-check with container resolution available.
+            route, route_meta = _route_record(r, container_index=container_index)
+            if route == "review":
+                r["_route_reason"] = route_meta.get("reason")
+                review.append(r)
+                # tier was already counted in pass 1 as DIRECT_WRITE; rebalance.
+                stats.direct_write -= 1
+                stats.by_kind[r["kind"]]["direct_write"] -= 1
+                stats.review_queued += 1
+                stats.by_kind[r["kind"]]["review"] += 1
+                continue
+
             p = r["payload"]
             cid = _slugify(p["cited_id"])
 

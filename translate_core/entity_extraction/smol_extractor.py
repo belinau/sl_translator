@@ -320,19 +320,26 @@ def build_record(
     """
     kind = ent.get("kind", "")
 
+    record: dict | None
     if kind == "agent_person":
-        return _build_agent_person(ent, origin, seg_idx, src_lang, tgt_lang)
+        record = _build_agent_person(ent, origin, seg_idx, src_lang, tgt_lang)
     elif kind == "institution":
-        return _build_institution(ent, origin, seg_idx, src_lang, tgt_lang)
+        record = _build_institution(ent, origin, seg_idx, src_lang, tgt_lang)
     elif kind == "cited_work":
-        return _build_cited_work(ent, origin, seg_idx, container_work_id, src_lang, tgt_lang)
+        record = _build_cited_work(ent, origin, seg_idx, container_work_id, src_lang, tgt_lang)
     elif kind == "concept":
-        return _build_concept(ent, origin, seg_idx, container_work_id, src_lang, tgt_lang)
+        record = _build_concept(ent, origin, seg_idx, container_work_id, src_lang, tgt_lang)
     elif kind == "artwork":
-        return _build_artwork(ent, origin, seg_idx, container_work_id, src_lang, tgt_lang)
+        record = _build_artwork(ent, origin, seg_idx, container_work_id, src_lang, tgt_lang)
     elif kind == "performance":
-        return _build_performance(ent, origin, seg_idx, container_work_id, src_lang, tgt_lang)
-    return None
+        record = _build_performance(ent, origin, seg_idx, container_work_id, src_lang, tgt_lang)
+    else:
+        return None
+
+    if record is not None:
+        # Phase 5 §4: stamp the producer provenance on the source dict.
+        record.setdefault("source", {})["provenance"] = "tm_smol"
+    return record
 
 
 def _name_canonical(ent: dict) -> str:

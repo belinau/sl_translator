@@ -28,12 +28,15 @@ from translate_core.knowledge_graph import KnowledgeGraph
 INGEST_FILE = str(Path(ingest.__file__).resolve())
 
 
-def _rec(kind: str, payload: dict) -> dict:
+def _rec(kind: str, payload: dict, *, provenance: str | None = None) -> dict:
+    source: dict = {"origin": "tmx-test", "segment_idx": 0}
+    if provenance is not None:
+        source["provenance"] = provenance
     return {
         "kind": kind,
         "tier": "direct_write",
         "payload": payload,
-        "source": {"origin": "tmx-test", "segment_idx": 0},
+        "source": source,
         "signals": {},
         "confidence": 0.95,
         "reason_codes": [],
@@ -81,13 +84,13 @@ def records():
             "author": "Boris Groys",
             "translator": "Jelka Bajt",
             "publisher": "Maska",
-        }),
+        }, provenance="cobiss_personal"),
         # translated_work — no translator → must NOT be written; sent to review.
         _rec("translated_work", {
             "work_id": "no-translator-book",
             "title_orig": "Untranslated",
             "author": "Anon",
-        }),
+        }, provenance="cobiss_personal"),
         # agent_person — off-allowlist role → coerced to "agent".
         _rec("agent_person", {
             "name": "Žan Doe",
@@ -96,31 +99,33 @@ def records():
             "alt_spellings": ["Žan Doe"],
             "all_roles": ["choreographer-or-something"],
             "mention_count": 2,
-        }),
+        }, provenance="tm_smol"),
         # institution — off-allowlist kind → coerced to "other".
         _rec("institution", {
             "name": "Acme Press",
             "kind": "press",
-        }),
+        }, provenance="tm_smol"),
         # cited_work — diacritic cited_id, off-allowlist project_type,
         # off-allowlist citation_style, SL edition (exercises sl_published_by).
         _rec("cited_work", {
             "cited_id": "Foucault Discipliné",
             "title_en": "Discipline and Punish",
             "title_sl": "Nadzor in kazen",
+            "orig_lang": "en",
+            "translation_lang": "sl",
             "project_type": "memoir",  # off-allowlist → cited_work
             "citation_style": "harvard",  # off-allowlist → dropped
             "author": "Michel Foucault",
             "original_pub": {"publisher": "Vintage", "city": "New York"},
             "slovenian_edition": {"publisher": "Krtina", "city": "Ljubljana"},
-        }),
+        }, provenance="tm_smol"),
         # artwork — diacritic work_id, artist with diacritics.
         _rec("artwork", {
             "work_id": "Hommage à Marko",
             "title_en": "Homage to Marko",
             "artist": "Žiga Artist",
             "medium": "oil on canvas",
-        }),
+        }, provenance="tm_smol"),
     ]
 
 

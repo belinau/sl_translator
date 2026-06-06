@@ -314,6 +314,7 @@ def _heuristic_record(
             "segment_idx": snippet.segment_idx,
             "format": snippet.format,
             "footnote_number": snippet.footnote_number,
+            "provenance": "doc_pair",
         },
     }
 
