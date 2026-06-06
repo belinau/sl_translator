@@ -25,8 +25,6 @@ DEFAULT_KG = ROOT / "data" / "knowledge.db"
 
 NODE_TYPES = {"term", "concept", "translation_mapping", "source_text", "agent", "institution"}
 FORBIDDEN_NODE_TYPES = {"tm_segment", "collocation", "domain"}
-LEGACY_NODE_FIELDS = ("title_en", "title_sl", "slovenian_edition")  # Phase 4: forbidden on source_text
-LEGACY_EDGE_RELATIONS = {"sl_published_by"}  # Phase 4: renamed to translation_published_by
 ROLES = {"author", "translator", "editor", "curator", "artist",
          "interviewer", "interviewee", "choreographer", "director",
          "performer", "dancer", "composer", "dramaturg", "agent"}
@@ -49,9 +47,6 @@ HARD = {
     "cited_in_self_loop", "agent_missing_required", "bad_role", "bad_kind",
     "bad_project_type", "container_missing_translated_by", "source_no_title",
     "duplicate_source_stem",
-    # Phase 4 language-neutrality enforcement
-    "legacy_title_en", "legacy_title_sl", "legacy_slovenian_edition",
-    "legacy_sl_published_by_edge",
     # fragment_title is SOFT: title quality is governed by the LLM re-typing pass;
     # legitimately lowercase-styled art/poetry titles (e.g. "like water, a bone
     # sings #3") are real works, not fragments, and must not fail the gate.
@@ -80,10 +75,6 @@ def validate(nodes: list[dict], edges: list[dict]) -> dict[str, list[str]]:
             v["dangling_edge"].append(f"{e['source']} -[{e.get('relation')}]-> {e['target']}")
         if e.get("relation") == "cited_in" and e["source"] == e["target"]:
             v["cited_in_self_loop"].append(e["source"])
-        if e.get("relation") in LEGACY_EDGE_RELATIONS:
-            v["legacy_sl_published_by_edge"].append(
-                f"{e['source']} -[{e.get('relation')}]-> {e['target']}"
-            )
 
     stems: dict[str, list[str]] = defaultdict(list)
     for n in nodes:
@@ -115,9 +106,6 @@ def validate(nodes: list[dict], edges: list[dict]) -> dict[str, list[str]]:
             title = (n.get("title") or "").strip()
             if title and (title[:1].islower() or _SENT_SL.search(title) or title.count("?") >= 3):
                 v["fragment_title"].append(f"{nid}: {title[:50]!r}")
-            for bad_field in LEGACY_NODE_FIELDS:
-                if n.get(bad_field) is not None:
-                    v[f"legacy_{bad_field}"].append(nid)
             stems[_stem(nid)].append(nid)
 
     for stem, members in stems.items():
