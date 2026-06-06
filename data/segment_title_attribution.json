@@ -677,7 +677,8 @@
       "source:suvakovic-misko-nsk"
     ],
     "13353": [
-      "source:kunst-zivljenje-umetnosti"
+      "source:kunst-zivljenje-umetnosti",
+      "source:bobnic-robert-bataille-athey-solarni-anus-2020"
     ],
     "13364": [
       "source:pregl-arjan-na-platnu",
@@ -1557,6 +1558,69 @@
     ],
     "30686": [
       "source:mihevc-matej-emergentnost-kulturne"
+    ],
+    "7756": [
+      "source:zaloznik-jasmina-mednarodni-festival-sodobnega-plesa-cofestival-2018-23-29-2018"
+    ],
+    "21410": [
+      "source:turk-miha-arabski-revolt-2020"
+    ],
+    "25287": [
+      "source:turk-miha-arabski-revolt-2020"
+    ],
+    "29383": [
+      "source:turk-miha-arabski-revolt-2020"
+    ],
+    "20527": [
+      "source:bobnic-robert-bataille-athey-solarni-anus-2020"
+    ],
+    "26914": [
+      "source:bobnic-robert-bataille-athey-solarni-anus-2020"
+    ],
+    "16073": [
+      "source:hrvatin-varja-dramski-novi-val-2020"
+    ],
+    "20286": [
+      "source:hrvatin-varja-dramski-novi-val-2020"
+    ],
+    "25398": [
+      "source:kunst-bojana-prekarnost-samoorganiziranje-in-zivljenje-umetnikov-2020"
+    ],
+    "27653": [
+      "source:zorec-matjaz-tragedija-hamletove-zelje-2020"
+    ],
+    "11563": [
+      "source:reberc-ana-depresivna-dvajseta-2021"
+    ],
+    "14055": [
+      "source:belina-urban-intimno-srecanje-v-soocenju-z-neizbeznostjo-trpljenja-2021"
+    ],
+    "30395": [
+      "source:kraner-kaja-od-neoliberalne-k-visegrajski-kulturni-politiki-2021"
+    ],
+    "18955": [
+      "source:strelkin-ivan-odzvanjanje-koreografij-2021"
+    ],
+    "24681": [
+      "source:strelkin-ivan-odzvanjanje-koreografij-2021"
+    ],
+    "27903": [
+      "source:herlah-alja-plecnik-2021"
+    ],
+    "5562": [
+      "source:vevar-rok-ples-glas-govor-zven-2021"
+    ],
+    "13213": [
+      "source:ruhsam-martina-politicnost-poeticne-prakse-2021"
+    ],
+    "6285": [
+      "source:belina-urban-razteleseni-spektralni-glasovi-2021"
+    ],
+    "14002": [
+      "source:kraner-kaja-materialnost-in-vojna-2022"
+    ],
+    "1920": [
+      "source:gioti-nefeli-kaj-se-je-zgodilo-s-prakso-2024"
     ]
   },
   "2022-SL-EN.tmx": {
@@ -1604,11 +1668,53 @@
     ],
     "6219": [
       "source:ljubljana-se-klanja-sloveniji-8-tubolje"
+    ],
+    "7046": [
+      "source:terzan-kaja-gledalisce-kot-prostor-opolnomocenja-in-izostritve-glasov-2024"
+    ],
+    "6392": [
+      "source:mahnic-dominik-krmiljenje-copica-2024"
+    ],
+    "1654": [
+      "source:sturm-lili-70-let-graficnega-bienala-ljubljana-2025",
+      "source:djokic-stefana-70-let-graficnega-bienala-ljubljana-2025"
+    ],
+    "1966": [
+      "source:sturm-lili-70-let-graficnega-bienala-ljubljana-2025",
+      "source:djokic-stefana-70-let-graficnega-bienala-ljubljana-2025"
+    ],
+    "2326": [
+      "source:sturm-lili-70-let-graficnega-bienala-ljubljana-2025"
+    ],
+    "4822": [
+      "source:sturm-lili-70-let-graficnega-bienala-ljubljana-2025"
     ]
   },
   "MGLC-SL-EN.tmx": {
     "146": [
       "source:zaloznik-jasmina-zavzemanje-prostora-2024"
+    ],
+    "232": [
+      "source:sturm-lili-70-let-graficnega-bienala-ljubljana-2025"
+    ],
+    "386": [
+      "source:sturm-lili-70-let-graficnega-bienala-ljubljana-2025"
+    ],
+    "391": [
+      "source:sturm-lili-70-let-graficnega-bienala-ljubljana-2025",
+      "source:djokic-stefana-70-let-graficnega-bienala-ljubljana-2025"
+    ]
+  },
+  "mglc-EN-SL.tmx": {
+    "421": [
+      "source:sturm-lili-70-let-graficnega-bienala-ljubljana-2025"
+    ],
+    "775": [
+      "source:sturm-lili-70-let-graficnega-bienala-ljubljana-2025",
+      "source:djokic-stefana-70-let-graficnega-bienala-ljubljana-2025"
+    ],
+    "825": [
+      "source:sturm-lili-70-let-graficnega-bienala-ljubljana-2025"
     ]
   }
 }

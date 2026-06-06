@@ -29,7 +29,7 @@ from translate_core.tm import TranslationMemory
 
 GDRIVE = Path("/Users/bel/Library/CloudStorage/GoogleDrive-urban@bel.si/My Drive/prevodi in objave - urban/")
 KG_DB = config.KG_DB_PATH
-STA_PATH = Path("data/quarantine/_segment_title_attribution.json")
+STA_PATH = Path("data/segment_title_attribution.json")
 S2B_PATH = Path("data/quarantine/_segment_to_book.json")
 OUTPUT_PATH = Path("data/segment_attribution_ngram.json")
 
