@@ -684,7 +684,7 @@ _Step 4.0c was removed_ — earlier draft proposed a `lingua-py` survey; after u
 
 > Subagent type: `feature-dev:code-architect`.
 > Out of scope + constraints 9, 10, 7 (verbatim — the new constraint 7: KG has no SL/EN-named fields/edges; values flow as data from boundaries; NO backward-compat fallbacks; NO legacy parallel paths; NO new dependencies).
-> Read first: `docs/cobiss_actual_shape.md`; `docs/phase4_reader_inventory.md`; `docs/parsing_simplification_lang_neutrality_audit.md`; `ontology.md`; `scripts/ingest_personal_bibliography.py`; `translate_core/entity_extraction/smol_extractor.py:540-595, 745-770, 870-895`; `translate_core/knowledge_graph.py` (find `add_source_text_node`, `add_institution_node`); `scripts/validate_kg.py`.
+> Read first: `docs/cobiss_actual_shape.md`; `docs/phase4_reader_inventory.md` (NOTE: this inventory was written before the "no backward-compat fallback" rule landed and recommends `d.get("title_orig") or d.get("title_en")` fallbacks throughout — IGNORE those recommendations. The plan constraint (constraint 7 + Phase 4's `No backward-compat fallbacks` rule) is authoritative: NO fallbacks. The inventory doc's value is the file/site listings per surface; ignore its migration-strategy section); `docs/parsing_simplification_lang_neutrality_audit.md`; `ontology.md`; `scripts/ingest_personal_bibliography.py`; `translate_core/entity_extraction/smol_extractor.py:540-595, 745-770, 870-895`; `translate_core/knowledge_graph.py` (find `add_source_text_node`, `add_institution_node`); `scripts/validate_kg.py`.
 > Task: produce a written blueprint at `docs/phase4_blueprint.md` covering:
 >   1. **Ontology revision diff.** Exact before/after for `ontology.md` §2.4.2 (delete the second-paragraph `title_en`+`title_sl`+`slovenian_edition` encoding entirely; the canonical four-field encoding is the only one); §3.2 (rename `sl_published_by` → `translation_published_by`); §4 invariant 4 (rewrite to reference canonical fields).
 >   2. **COBISS ingest kwarg-rename diff.** The `belina_role` branch shown in the plan's "COBISS ingest" section. Exact pre/post diff against `scripts/ingest_personal_bibliography.py:174-215`. Add the publisher TODO completion at `:269-271` — split on `: =`, wire two edges. NO new dependency. NO text-level language detection.
@@ -824,7 +824,7 @@ git commit -m "phase4: language-neutral ontology; migrate sl_published_by + titl
 - [ ] Ontology revisions land: §2.4.2 has ONLY the canonical four-field encoding; the legacy second-paragraph encoding is REMOVED entirely. §3.2 has `translation_published_by`; `sl_published_by` no longer documented. §4 invariant 4 references canonical fields.
 - [ ] Migration `--apply` ran cleanly; live KG has ZERO `sl_published_by` edges, ZERO nodes with `title_en` / `title_sl` / `slovenian_edition` attributes (the migration strips them after copying values).
 - [ ] `translation_published_by` edges count ≥ 20 (the migrated baseline).
-- [ ] COBISS ingest writes ONLY neutral fields; values come from `lang_detect.detect_language` on per-entry text.
+- [ ] COBISS ingest writes ONLY neutral fields; values come from the `belina_role` branch (SL data from `entry.title`, EN data from `entry.title_en`) per the COBISS parser convention. No text-level language detection.
 - [ ] Extra-container ingest works; reads `data/extra_containers.json` (which may be initially empty); idempotent.
 - [ ] Smol builders never emit `title_en` / `title_sl` / `slovenian_edition` keys for ANY language pair.
 - [ ] Every reader from the Step 4.0b inventory updated to read ONLY the neutral fields. NO `d.get("title_orig") or d.get("title_en")` fallback patterns.
@@ -837,7 +837,7 @@ git commit -m "phase4: language-neutral ontology; migrate sl_published_by + titl
 
 ## Phase 5 — Container vs. cited-work routing chokepoint
 
-**Scope reminder — constraints 9 + 10:** Phase 5 enforces the bibliography bright line in code. Provenance values are `"cobiss_personal"` (personal-bibliography records — containers AND self-authored), `"tm_smol"` (cited works extracted from TM segments by the smol pipeline), `"doc_pair"` (cited works extracted from translated DOCX/MD pairs). The legacy `"book_bibliography"` provenance from `ingest_book_*.py` is NOT in scope — those scripts are deleted in Phase 11; their value never reaches the router. Containers (`kind="translated_work"`) ONLY accept `provenance="cobiss_personal"`. All other provenance values route a `translated_work` record to review — they are the audit's "seeded-book" bug class (audit §10.4).
+**Scope reminder — constraints 9 + 10:** Phase 5 enforces the bibliography bright line in code. Provenance values are `"cobiss_personal"` (personal-bibliography records — containers AND self-authored, from `scripts/ingest_personal_bibliography.py`), `"curator_extra"` (user-curated containers not in COBISS, from `scripts/ingest_extra_containers.py` introduced in Phase 4), `"tm_smol"` (cited works extracted from TM segments by the smol pipeline), `"doc_pair"` (cited works extracted from translated DOCX/MD pairs). The legacy `"book_bibliography"` provenance from `ingest_book_*.py` is NOT in scope — those scripts are deleted in Phase 11; their value never reaches the router. Containers (`kind="translated_work"`) accept `provenance="cobiss_personal"` OR `provenance="curator_extra"` — both are authoritative container sources. All other provenance values (`tm_smol`, `doc_pair`, unset, unknown) route a `translated_work` record to review — they are the audit's "seeded-book" bug class (audit §10.4).
 
 **Purpose:** the audit §5 calls for a single dispatcher inside `kg_ingest_entities.py` that decides record routing from `record["source"]["provenance"]` and rejects mismatches.
 
@@ -873,7 +873,7 @@ Brief: "Find every call site that currently writes to the existing review queue 
 >   - The exact existing code location to replace and what its current behaviour is.
 >   - File/function boundaries — where does `_route_record` live (top of `kg_ingest_entities.py`)? Where is it called from? What does the caller look like after the change?
 >   - Any constants that need to move to a single source of truth (e.g. `CONTAINER_TYPES`, `CITED_TYPES`, valid provenance set).
-> Constraint reminder: containers ONLY accept `provenance="cobiss_personal"`. NO other provenance value is allowed for `kind="translated_work"`.
+> Constraint reminder: containers accept `provenance="cobiss_personal"` OR `provenance="curator_extra"`. NO other provenance value is allowed for `kind="translated_work"`. Both producers (Phase 4's `scripts/ingest_personal_bibliography.py` and `scripts/ingest_extra_containers.py`) are authoritative sources; the routing chokepoint enforces "container-class provenance" not "COBISS provenance".
 
 - [ ] **Step 5.2: Coordinator invokes `superpowers:test-driven-development` + `python-development:python-testing-patterns`, then dispatches `python-development:python-pro` for TDD red.**
 
@@ -882,6 +882,7 @@ Brief: "Find every call site that currently writes to the existing review queue 
 > Read first: the architect's blueprint (paste in); `ontology.md` §2.4.1 + §3.2; `docs/parsing_simplification_audit.md` §5 and §10.4.
 > Task: write `tests/test_kg_ingest_routing.py` (pytest function-style; tmp_path-scoped KG; no live KG mutation). Cover:
 > (a) `kind="translated_work"` + `provenance="cobiss_personal"` → ACCEPTED; container node written with `translated_by` edge. Use a non-SL/EN example title pair to surface any latent language-pair bug.
+> (a') `kind="translated_work"` + `provenance="curator_extra"` → ACCEPTED; container node written with `translated_by` edge. Cover one entry with explicit `orig_lang="de"` + `translation_lang="en"` to confirm non-SL pairs work via the extra-container path.
 > (b) `kind="translated_work"` + `provenance="tm_smol"` → REVIEW with reason `provenance_mismatch_for_translated_work`. The seeded-book bug class (audit §10.4) MUST surface here.
 > (c) `kind="translated_work"` + `provenance="doc_pair"` → REVIEW (same reason). Doc-pair records are cited works, never containers.
 > (d) `kind="cited_work"` + `provenance="tm_smol"` → ACCEPTED, typed `source_text` written with `cited_in` to its `container_work_id`.
@@ -1599,9 +1600,11 @@ for nid, d in kg.G.nodes(data=True):
     if d.get('type') != 'source_text': continue
     if d.get('title_translation') and not (d.get('orig_lang') and d.get('translation_lang')):
         violations.append((nid, 'has title_translation but missing orig_lang/translation_lang'))
-    # Legacy title_en/title_sl without canonical is a sunset miss
-    if (d.get('title_en') or d.get('title_sl')) and not d.get('title_orig'):
-        violations.append((nid, 'has legacy title_en/title_sl but no canonical title_orig'))
+    # After Phase 4 migration, NO node should carry title_en / title_sl /
+    # slovenian_edition. The migration strips them after copying values into
+    # the canonical fields. Any survivor is a migration miss.
+    if d.get('title_en') or d.get('title_sl') or d.get('slovenian_edition'):
+        violations.append((nid, 'legacy field survived Phase 4 migration'))
 print(f'language_neutrality_violations: {len(violations)}')
 for v in violations[:10]: print(' ', v)
 assert not violations, 'language-neutrality violations found'
