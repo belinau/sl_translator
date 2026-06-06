@@ -76,7 +76,7 @@ Phase 9 (drain noise concepts from live KG)              ── depends on Phase
    ↓
 Phase 10 (wire curator lineage data)                     ── depends on Phase 9
    ↓
-Phase 11 (DELETE ingest_book_* + bilingual_tm_matcher + book_extractor; SUNSET title_en/title_sl write paths)  ── depends on Phase 5/6
+Phase 11 (DELETE ingest_book_* + bilingual_tm_matcher + book_extractor)  ── depends on Phase 5/6
    ↓
 Phase 12 (end-to-end run + KG diff verification)
 ```
@@ -371,7 +371,7 @@ for blob in data[:200]:
         signals = {
             'smol_extracted': True,
             'verified_from_text': bool(ent.get('verified_from_text')),
-            'title_bilingual': bool(ent.get('title_en') and ent.get('title_sl')) or bool(ent.get('title_orig') and ent.get('title_translation')),
+            'title_bilingual': bool(ent.get('title_orig') and ent.get('title_translation')),
             'container_attached': bool(blob.get('container_work_id')),
             'project_type_typed': ent.get('project_type') not in (None, '', 'cited_work'),
         }
@@ -545,13 +545,21 @@ git commit -m "phase1b: language-neutral TM loader + smol detector; EN/SL compat
 
 ---
 
-## Phase 4 — Language-neutral ontology cleanup + KG migration + COBISS rewire
+## Phase 4 — Language-neutral KG: ontology cleanup, end-to-end one shape, COBISS authoritative containers
 
-**Scope:** Phase 4 enacts constraint 7. It (a) revises `ontology.md` to remove SL/EN-specific field and edge names, (b) writes a one-off migration that maps existing KG data to the neutral shape with no data loss, (c) rewires every writer to emit only neutral fields/edges, (d) updates readers to consume the neutral shape, (e) reworks the COBISS ingest to use the new shape with the COBISS-layer language knowledge.
+**Mission for this phase:** The KG is recent and was built with SL/EN-named fields/edges by previous sessions — that was a mistake. Phase 4 fixes the mistake **end-to-end in one coherent shape**: the ontology becomes language-neutral, every writer emits only the neutral shape, the existing data is transformed (no data loss, no information dropped) into the neutral shape, every reader reads only the neutral shape, the validator enforces it. **No backward-compat fallbacks. No "legacy" parallel path. No review-queue routing for COBISS** — COBISS is your curated authoritative container source; its purpose is to anchor the container side so TM segments map to the correct work. Routing COBISS entries to review defeats that purpose.
+
+**Language codes flow as VALUES at every boundary; never as field/edge/method names:**
+
+- TMX loader (Phase 1B — done): real `xml:lang` codes per `<tu>` entry.
+- Smol detector (Phase 1B — done): ISO pair from filename regex; `(None, None)` on miss.
+- COBISS ingest (this phase): per-entry text-level language detection on `title` and `title_en`, cross-checked with classifier `belina_role`, agent metadata, publisher city. Resolves to definite codes — no review-queue routing.
+- Extra-container ingest (this phase): user-curated JSON for containers not in COBISS, same neutral shape.
+- Curator editor: explicit codes typed by user.
 
 ### Why a single phase
 
-The four work threads are inseparable: changing the ontology breaks writers and readers; migrating data without changing writers leaves the data in the old shape on the next run; changing writers without migrating breaks compatibility with existing nodes. Phase 4 lands all four in one atomic, reversible commit pair (ontology + migration committed separately so the migration can be re-run; writer/reader changes follow).
+The five work threads are inseparable: changing the ontology breaks writers and readers; migrating data without changing writers leaves the data in the old shape on the next run; changing writers without migrating breaks compatibility with existing nodes; readers need to match the new shape; the validator needs to enforce it. Phase 4 lands all five in one atomic, reversible commit pair (ontology + migration committed first so the migration can be re-run; writer/reader/validator changes follow). After Phase 4 the KG is in ONE shape with ZERO SL/EN-named field/edge names anywhere in code, ontology, or data.
 
 ### Ontology revisions
 
@@ -564,102 +572,172 @@ The four work threads are inseparable: changing the ontology breaks writers and 
 
 ### Files
 
-- Modify: `ontology.md` (the four locations above).
-- Create: `scripts/migrate_to_neutral_ontology.py` (one-off; `--dry-run` + `--apply` modes; idempotent).
-- Modify: `scripts/ingest_personal_bibliography.py` (rewire to neutral fields; bilingual publisher splitting; review-queue routing for genuinely ambiguous cases).
-- Modify: `translate_core/entity_extraction/smol_extractor.py` (DELETE the `# SUNSET: Phase 11`-tagged legacy-alias write blocks at lines 548-555, 759-763, 884-888 — they go away now, not in Phase 11; also rename `slovenian_edition` payload key and signal references to `translation_edition`).
-- Modify: `translate_core/knowledge_graph.py` (`add_source_text_node` and any helper that constructs `slovenian_edition` or `sl_published_by` — switch to neutral names).
-- Modify: any reader of the deprecated names: `kg_editor_ui.py`, `ui/kg_search.py`, `scripts/validate_kg.py`, `kg_ingest_entities.deferred_artwork` (the Phase 1B SUNSET consumer reference).
-- Test: `tests/test_neutral_ontology_migration.py` (new).
-- Test: `tests/test_ingest_personal_bibliography_neutral.py` (new).
-- Test: extend `tests/test_smol_extractor_lang_neutral.py` with the no-longer-conditional builder tests.
+- Modify: `ontology.md` (the four locations in the ontology revision table above).
+- Create: `translate_core/entity_extraction/lang_detect.py` (one helper: `detect_language(text: str) -> str | None`. Uses `lingua-py` — accurate for short bibliographic titles, returns ISO 639-1 codes. The function is the ONLY place language-detection lib choice lives; everything else calls this).
+- Create: `scripts/migrate_to_neutral_ontology.py` (one-off; `--dry-run` + `--apply` modes; idempotent; DELETES legacy field names from nodes after copying values, RENAMES legacy edges to neutral names).
+- Modify: `scripts/ingest_personal_bibliography.py` (rewire to write only neutral fields; per-entry language detection via the new helper, cross-checked with classifier role + agent + publisher; bilingual publisher splitting; NO review-queue routing for COBISS entries — existing `cobiss_unclassified_entries.json` for truly-unclassifiable entries stays as a separate concern).
+- Create: `scripts/ingest_extra_containers.py` (NEW — reads `data/extra_containers.json` user-curated list of containers not in COBISS. Same neutral encoding. Same `translated_by` edge wiring. Idempotent on container id).
+- Create: `data/extra_containers.json` (initial empty list; user populates over time).
+- Modify: `translate_core/entity_extraction/smol_extractor.py` (DELETE the three `# SUNSET: Phase 11`-tagged alias write blocks at `:548-555`, `:759-763`, `:884-888`; the builder's `slovenian_edition`→`translation_edition` rename happens at the BUILDER LEVEL: the smol prompt still emits the historical key `slovenian_edition` but the builder maps it to neutral `translation_edition` with a derived `language` value. Smol prompt unchanged to avoid model regression).
+- Modify: `translate_core/knowledge_graph.py` (`add_source_text_node` accepts the new field names; any helper that hardcoded `slovenian_edition` / `sl_published_by` switches to neutral names).
+- Modify: every reader from the Step 4.0a inventory (`docs/phase4_reader_inventory.md`). 75+ reads across 26 files. Read the neutral fields only; no fallbacks.
+- Modify: `scripts/validate_kg.py` to ENFORCE the neutral shape — `title_en`/`title_sl`/`slovenian_edition` on source_text nodes are violations; `sl_published_by` edges are violations.
+- Test: `tests/test_lang_detect.py` (new — covers the detector helper on short titles in multiple languages).
+- Test: `tests/test_neutral_ontology_migration.py` (new — covers the migration script).
+- Test: `tests/test_ingest_personal_bibliography_neutral.py` (new — covers the COBISS rewire end-to-end with non-SL/EN test fixtures alongside SL/EN).
+- Test: `tests/test_ingest_extra_containers.py` (new).
+- Test: extend `tests/test_smol_extractor_lang_neutral.py` with assertions that builders NEVER emit `title_en`/`title_sl`/`slovenian_edition` keys.
 
 ### Agent mix
-- Step 4.0: `Explore` — already done (`docs/cobiss_actual_shape.md`). Additionally: dispatch `Explore` to enumerate every reader of `title_en` / `title_sl` / `slovenian_edition` / `sl_published_by` across the WHOLE codebase including UI surfaces. Each reader needs the rename.
-- Step 4.1: `feature-dev:code-architect` — design the migration script, the writer-rewire, and the reader-migration sequence. Specifically design how the migration disambiguates `title_en`/`title_sl` → `title_orig`/`title_translation` per record (using COBISS-classifier signals when available, defaulting to SL=original when the source_text was COBISS-ingested, routing to review when ambiguous).
-- Step 4.2: `python-development:python-pro` — TDD red for the migration + writer rewire.
+- Step 4.0a (done): `Explore` — COBISS data shape (`docs/cobiss_actual_shape.md`).
+- Step 4.0b (done): `Explore` — reader inventory (`docs/phase4_reader_inventory.md`).
+- Step 4.0c (next): `Explore` — `lingua-py` integration survey: install path via `uv`, API surface, accuracy on bibliographic-title-length strings, Slovenian/Croatian/Serbian handling. The output decides whether `lingua-py` or `langdetect` is the dependency.
+- Step 4.1: `feature-dev:code-architect` — blueprint (`docs/phase4_blueprint.md`) covering ontology revisions, `lang_detect` helper API, COBISS resolution algorithm, extra-container ingest format, migration script logic (per-node disambiguation using existing `translated_by`/`written_by` edge + langdetect on existing title text — NO review queue routing for migration either; resolve from evidence), reader-update sequence (75 sites grouped by surface and update strategy), validator update, test plan.
+- Step 4.2: `python-development:python-pro` — TDD red.
 - Step 4.3: `python-development:python-pro` — TDD green.
-- Step 4.4: `pythonista-reviewer` — diff review with explicit attention to constraint 7.
-- Skills: `superpowers:test-driven-development`, `python-development:python-testing-patterns`, `python-development:python-design-patterns` (migration as Adapter / one-shot transform).
+- Step 4.4: `pythonista-reviewer` — diff review focused on constraint 7: no `"en"`/`"sl"`/`"sl_published_by"`/`"title_en"`/`"title_sl"`/`"slovenian_edition"` flow-control or identifier in the new code (these strings may appear only as VALUES returned by `lang_detect.detect_language` or as input data on the migration-input side; the migration explicitly STRIPS the legacy field names after copying).
+- Skills: `superpowers:test-driven-development`, `python-development:python-testing-patterns`, `python-development:python-design-patterns` (migration as one-shot transform; `lang_detect` as boundary adapter).
 
-### COBISS source-side language knowledge
+### COBISS handling — authoritative containers, per-entry language detection, no review-queue routing
 
-The COBISS ingest can confidently write language codes because:
+COBISS is your curated authoritative list of containers. The user translates INTO Slovenian AND INTO English (and may add more pairs); COBISS entries cover both directions. The `title` field of any entry is in whatever language the published title is — NOT structurally guaranteed to be Slovenian. Language is determined per-entry from EVIDENCE, then written as VALUES into the neutral KG fields. No review-queue routing — COBISS is the anchor; routing it to review defeats its purpose.
 
-- COBISS bibliography is a Slovenian library service export. The `title` field of any bilingual entry is the Slovenian side (parser comment, verified in `docs/cobiss_actual_shape.md`).
-- `cobiss_classifier.classify_entry` returns `(project_type, belina_role)`. From `belina_role`:
-  - **`belina_role == "author"`** → SL is the ORIGINAL. Write `title_orig = entry.title`, `orig_lang = "sl"`. If `entry.title_en` is non-empty, write `title_translation = entry.title_en`, `translation_lang = "en"` (the COBISS `=` second-side is overwhelmingly EN in actual data; if a curator later sees a non-EN second side, they can correct via the editor).
-  - **`belina_role == "translator"`** → SL is the TRANSLATION (Belina translated INTO Slovenian). Write `title_translation = entry.title`, `translation_lang = "sl"`. If `entry.title_en` is non-empty, treat it as the original-language title and write `title_orig = entry.title_en` with `orig_lang = "en"` (same rationale; curator can correct for HR/SR/etc.). If `title_en` is empty: `title_orig` and `orig_lang` are not written — that data isn't in COBISS for those entries.
-  - **`belina_role == "editor"` / other** → write the SL side as `title_orig` with `orig_lang = "sl"` (he's not the translator, no direction implied). If `title_en` present: route to review for direction (the entry could be either direction).
-  - **Classifier returns `(None, None)`** (unclassifiable) → existing behaviour: append to `data/cobiss_unclassified_entries.json`.
-- Bilingual publisher (`: =` separator in `entry.publisher`): split into SL-side publisher (left) and translation-side publisher (right). Wire `published_by` to the SL-side institution; wire `translation_published_by` to the translation-side institution.
+**Per-entry resolution algorithm:**
 
-This logic uses `"sl"` and `"en"` as VALUES being written to the neutral KG fields — not as flow control on the KG layer. The COBISS ingest is the boundary between a Slovenian-anchored data source and the neutral KG.
+1. **Detect language of `title`** via `lang_detect.detect_language(entry.title)`. Call the result `title_lang`. (Returns ISO 639-1 or `None` on very short / undetectable strings.)
+2. **Detect language of `title_en`** (only if non-empty) → `title_en_lang`. The field NAME `title_en` is a historical artefact of the COBISS dataclass; the field CONTENT is whatever language is on the right of the `=` separator (English in most entries, but not guaranteed).
+3. **Get classifier role**: `_, belina_role = cobiss_classifier.classify_entry(entry)`.
+4. **Cross-check signals** (for confidence, not for review routing):
+   - Agent metadata: original author's name — used as a tiebreaker if `title_lang` detection is ambiguous (short title with mixed script).
+   - Publisher city — Ljubljana, Maribor → SL output likely; London, New York → EN output likely. Tiebreaker only.
+5. **Resolve direction per role + detected languages**:
+   - **`belina_role == "author"`** → his work, the title is in the language he wrote it in:
+     - `title_orig = entry.title`, `orig_lang = title_lang`
+     - If `entry.title_en` present: `title_translation = entry.title_en`, `translation_lang = title_en_lang`
+   - **`belina_role == "translator"`** → title is the translation he produced:
+     - `title_translation = entry.title`, `translation_lang = title_lang`
+     - If `entry.title_en` present AND `title_en_lang != title_lang`: `title_orig = entry.title_en`, `orig_lang = title_en_lang`
+     - If `entry.title_en` empty: COBISS doesn't carry the original-language title for this entry. Leave `title_orig` / `orig_lang` unset. This is a data limitation, NOT an ambiguity needing review — the rest of the record is still authoritative.
+   - **`belina_role == "editor"`** → write both sides with their detected languages: `title_orig = entry.title`, `orig_lang = title_lang`. If `title_en` present: `title_translation = entry.title_en`, `translation_lang = title_en_lang`. No direction is implied; we record what's known.
+   - **Classifier returned `(None, None)`** (unclassifiable entry — bibliography line couldn't be parsed into a project_type): append to existing `data/cobiss_unclassified_entries.json`. Unchanged behaviour. Language detection isn't relevant for entries whose project_type isn't known.
+6. **Bilingual publisher** (`: =` separator in `entry.publisher`):
+   - Split on `: =`.
+   - Detect language of each side.
+   - Wire `published_by` to the institution whose language matches `orig_lang` (the original-publication publisher).
+   - Wire `translation_published_by` to the institution whose language matches `translation_lang`.
+   - If no `: =` separator: single institution, single `published_by` edge.
+7. **Set `provenance="cobiss_personal"`** on the record (per Phase 5 chokepoint).
+
+All `"sl"`, `"en"`, `"hr"`, `"sr"`, etc. enter the KG as values returned by `lang_detect.detect_language()` — never hardcoded conditionals.
+
+### Extra-container ingest
+
+Some containers will be added by the curator OUTSIDE COBISS — works the user translated that COBISS doesn't include (or where the COBISS record is wrong/missing). Format: `data/extra_containers.json`, a JSON list of records that look like the COBISS-produced container records (same neutral encoding, same field names):
+
+```json
+[
+  {
+    "container_id": "source:title-slug",
+    "project_type": "book_translation",
+    "title_orig": "Naslov v izvirniku",
+    "orig_lang": "sl",
+    "title_translation": "Title in translation",
+    "translation_lang": "en",
+    "year": 2024,
+    "publisher": "Publisher name",
+    "publisher_city": "Ljubljana",
+    "translator_agent_id": "agent:urban-belina",
+    "provenance": "curator_extra"
+  }
+]
+```
+
+`scripts/ingest_extra_containers.py` reads this file, calls `kg.add_source_text_node(...)` per entry with the same factory calls the COBISS ingest uses, wires `translated_by` edges. Idempotent on `container_id`. New `provenance` value: `curator_extra`. Phase 5's routing chokepoint accepts `cobiss_personal` OR `curator_extra` as valid provenance for `kind="translated_work"`.
 
 ### Tasks
 
-- [ ] **Step 4.0a: Coordinator dispatches `Explore` for reader enumeration.**
+- [ ] **Step 4.0c: Coordinator dispatches `Explore` for the `lingua-py` integration survey.**
 
-Brief: "Find every reader (NOT writer) in the repo of these node fields and edge relations: `title_en`, `title_sl`, `slovenian_edition`, `sl_published_by`. Exclude `.venv/`, `__pycache__/`, the audit/blueprint/plan/phase-log markdown files, and the existing test files that we wrote to lock the rename. For each reader, report file:line, what it does with the value, and what it would need to read instead under the neutral shape (`title_orig`, `title_translation`, `orig_lang`, `translation_lang`, `translation_edition`, `translation_published_by`). Group findings by surface (editor UI, validator, ingest, smol builders, kg_search, etc.) so the migration sequence can address them in order."
+Brief: "Investigate the `lingua-py` Python library (`https://github.com/pemistahl/lingua-py`): (a) confirm it's installable via `uv pip install lingua-language-detector`; (b) document its API for single-string detection of Slovenian, English, Croatian, Serbian, German, French, Italian; (c) measure expected accuracy on short bibliographic-title-length strings (~5-15 words) by sampling a dozen titles from `data/personal bibliography/bibliography_belina.txt` and running detection against each; (d) compare briefly to `langdetect` (the other common option) on the same samples to inform the choice; (e) report whether either lib has issues with Slovenian diacritics or Cyrillic for Serbian. Output: a short markdown report at `/Users/bel/CascadeProjects/sl_translator/docs/phase4_langdetect_survey.md` with a recommendation."
 
 - [ ] **Step 4.1: Coordinator invokes `python-development:python-design-patterns`, then dispatches `feature-dev:code-architect` for the design.**
 
 > Subagent type: `feature-dev:code-architect`.
-> Out of scope + constraints 9, 10, 7 (verbatim — the new constraint 7).
-> Read first: `docs/cobiss_actual_shape.md`; `docs/parsing_simplification_lang_neutrality_audit.md`; `ontology.md`; `scripts/ingest_personal_bibliography.py`; `translate_core/entity_extraction/smol_extractor.py:540-595, 745-770, 870-895`; `translate_core/knowledge_graph.py` (find `add_source_text_node`, `add_institution_node`, and any helper that constructs `slovenian_edition` or wires `sl_published_by`); the Step 4.0a Explore report (paste in).
+> Out of scope + constraints 9, 10, 7 (verbatim — the new constraint 7: KG has no SL/EN-named fields/edges; values flow as data from boundaries; NO backward-compat fallbacks; NO legacy parallel paths).
+> Read first: `docs/cobiss_actual_shape.md`; `docs/phase4_reader_inventory.md`; `docs/phase4_langdetect_survey.md`; `docs/parsing_simplification_lang_neutrality_audit.md`; `ontology.md`; `scripts/ingest_personal_bibliography.py`; `translate_core/entity_extraction/smol_extractor.py:540-595, 745-770, 870-895`; `translate_core/knowledge_graph.py` (find `add_source_text_node`, `add_institution_node`); `scripts/validate_kg.py`.
 > Task: produce a written blueprint at `docs/phase4_blueprint.md` covering:
->   1. **Ontology revision diff.** The exact text edits to `ontology.md` §2.4.2 + §3.2 + §4 invariant 4. Quote the before / after.
->   2. **Migration script design.** Function-level breakdown of `scripts/migrate_to_neutral_ontology.py`:
->     - Edge rename: every `sl_published_by` → `translation_published_by`. Cite the audit-baseline count (20).
->     - Node field migration: per source_text node carrying `title_en` and/or `title_sl`, decide which of (title_orig, title_translation, orig_lang, translation_lang) to populate. Use these signals:
->       - Node has a `translated_by` edge AND was COBISS-ingested (provenance flag or classifier-role attribute) → SL is translation (Belina-as-translator case).
->       - Node has a `written_by` edge to `agent:urban-belina` AND was COBISS-ingested → SL is original.
->       - Node has neither → check `slovenian_edition` presence (implies SL is the translation side); else route to a `data/migration_review.json` queue for curator decision.
->     - `slovenian_edition` → `translation_edition` (copy fields, add `language` from inferred `translation_lang`).
->     - Idempotency: re-running on already-migrated data is a no-op.
->     - `--dry-run` reports counts per category (`renamed`, `migrated`, `routed_to_review`, `already_neutral`, `unchanged_other`).
->   3. **Writer rewire plan.** Per file, the exact edits:
->     - `smol_extractor.py` (delete the conditional alias blocks; rename `slovenian_edition` payload key → `translation_edition`; emit `language` field).
->     - `ingest_personal_bibliography.py` (replace `title_sl`/`title_en` writes with neutral fields using the COBISS-classifier logic above; add bilingual publisher split → two edges).
->     - `knowledge_graph.py` (ensure `add_source_text_node` accepts the new field names; if it had specific kwarg handling for `slovenian_edition` or `sl_published_by`, switch to the new names).
->   4. **Reader migration plan.** Per file from the Step 4.0a report, the exact edit. For UI surfaces, ensure backward-compat reads (`d.get("title_orig") or d.get("title")`) so the editor doesn't crash on partially-migrated nodes during the migration run.
->   5. **Test plan.** Cover: migration script idempotency; migration script correctness on each disambiguation branch (SL-original, SL-translation, ambiguous); writer-rewire emits only neutral fields; readers consume the neutral fields; COBISS publisher split.
->   6. **Risks.** Anything you spot.
+>   1. **Ontology revision diff.** Exact before/after for `ontology.md` §2.4.2 (delete the second-paragraph `title_en`+`title_sl`+`slovenian_edition` encoding entirely; the canonical four-field encoding is the only one); §3.2 (rename `sl_published_by` → `translation_published_by`; do NOT keep `sl_published_by` documented at all); §4 invariant 4 (rewrite to reference canonical fields).
+>   2. **`lang_detect` helper.** Module `translate_core/entity_extraction/lang_detect.py` with one public function `detect_language(text: str) -> str | None` returning an ISO 639-1 code (lowercase) or `None`. Specify minimum input length, confidence threshold, fallback behaviour. ONE place where the langdetect lib is imported.
+>   3. **COBISS resolution algorithm.** Function-level breakdown of the per-entry algorithm in `scripts/ingest_personal_bibliography.py`. Cover all `belina_role` branches (translator, author, editor, other), the bilingual publisher split (with langdetect on each side), the `provenance="cobiss_personal"` stamping. NO review-queue routing for COBISS entries; classifier-(None, None) entries continue to land in `data/cobiss_unclassified_entries.json` as today.
+>   4. **Extra-container ingest.** `scripts/ingest_extra_containers.py` and `data/extra_containers.json` schema. Idempotency on `container_id`. Use of `provenance="curator_extra"`. Same neutral encoding as COBISS output.
+>   5. **Smol_extractor cleanup.** Delete the three `# SUNSET: Phase 11` alias write blocks at `:548-555, :759-763, :884-888`. The smol prompt continues to emit `slovenian_edition` as a JSON key (changing the prompt risks model regression); the BUILDER reads that key, applies `detect_language()` to its `publisher` or `translator` text, and writes the canonical `translation_edition: {publisher, city, year, translator, language}` to the payload. The legacy key never appears in the payload.
+>   6. **Migration script.** Function-level breakdown of `scripts/migrate_to_neutral_ontology.py`:
+>     - Edge rename: every `sl_published_by` edge → `translation_published_by`. Audit baseline: 20 edges.
+>     - Node field migration: for each source_text node carrying `title_en` and/or `title_sl` and/or `slovenian_edition`, resolve direction USING EVIDENCE FROM THE NODE (no review queue):
+>       - Detect language of `title_en` value via `detect_language`. Detect language of `title_sl` value.
+>       - If node has `translated_by` edge to `agent:urban-belina`: Belina-as-translator. `title_translation` = `title_sl` (or `title_en` if `title_sl` is empty), `translation_lang` = detected language of that title. If the other field is non-empty: `title_orig` = the other field, `orig_lang` = detected language.
+>       - If node has `written_by` edge to `agent:urban-belina` AND no `translated_by`: Belina-as-author. `title_orig` = `title_sl` (or `title_en`), `orig_lang` = detected. Second field → translation.
+>       - If neither edge to Belina: the node came from smol/doc_pair extraction. Detected languages decide direction. If both fields detect same language: write `title_orig` with that lang, leave `title_translation` unset.
+>       - `slovenian_edition` sub-dict → `translation_edition`. Add `language` field from detect_language on `publisher` or `translator` text inside the sub-dict.
+>       - After copying values, DELETE the legacy field names from the node's attributes.
+>     - Idempotency: a node already in the neutral shape (`title_orig` set, no `title_en`/`title_sl`/`slovenian_edition`) is skipped.
+>     - `--dry-run` reports counts: `edges_renamed`, `nodes_migrated`, `nodes_already_neutral`, `nodes_skipped_no_legacy_fields`.
+>   7. **Writer rewire (`ingest_personal_bibliography.py`).** Exact diff: replace the title/title_en write block with the resolution algorithm. Use `kg.add_source_text_node(title_orig=..., title_translation=..., orig_lang=..., translation_lang=..., ...)`. Wire `translation_published_by` for the bilingual publisher case. NO `title_sl` / `title_en` / `slovenian_edition` / `sl_published_by` anywhere in the new writes.
+>   8. **`knowledge_graph.py` writer factory.** `add_source_text_node` accepts the new field names (it should already accept arbitrary kwargs; verify). Remove any internal handling that converts SL/EN-named kwargs.
+>   9. **Reader migration.** Per `docs/phase4_reader_inventory.md`, group the 75+ readers and propose the order of edits. **No backward-compat fallbacks** (`d.get("title_orig") or d.get("title_en")` is BANNED). The migration runs FIRST in the green-phase implementation order; readers are updated AFTER the migration, so they read fully-migrated nodes.
+>  10. **Validator (`scripts/validate_kg.py`).** Add ENFORCEMENT: a source_text node carrying `title_en` / `title_sl` / `slovenian_edition` is a violation; an edge with relation `sl_published_by` is a violation. The validator becomes the regression net.
+>  11. **Test plan.** Cover: `lang_detect` accuracy; migration script idempotency + each branch; writer-rewire output; extra-container ingest; smol_extractor builder output; validator catches violations; full readers read neutral fields and render correctly.
+>  12. **Implementation order for TDD green.** Strict sequence so readers don't run against partially-migrated data: ontology edit → migration script implementation → migration `--dry-run` against KG copy → migration `--apply` against KG copy verified → writers updated → readers updated → validator updated → full test suite + run validator on the migrated copy.
+>  13. **Risks.** Anything you spot.
 
 - [ ] **Step 4.2: Coordinator invokes `superpowers:test-driven-development` + `python-development:python-testing-patterns`, then dispatches `python-development:python-pro` for TDD red.**
 
 > Subagent type: `python-development:python-pro`.
 > Out of scope + constraints 9, 10, 7 (verbatim).
 > Read first: the architect's blueprint at `docs/phase4_blueprint.md`; current state of every file the blueprint says will change.
-> Task: write failing tests per the blueprint's §5 test plan. Use language-pair-agnostic example data wherever direction isn't the test's discriminator. For COBISS-specific tests, do use SL/EN (the COBISS-layer language); for ontology-shape tests, use any pair.
+> Task: write failing tests per the blueprint's §11 test plan.
 >
 > Required test files:
->   - `tests/test_neutral_ontology_migration.py` — covers the migration script's disambiguation branches + idempotency + the edge rename.
->   - `tests/test_ingest_personal_bibliography_neutral.py` — covers the COBISS ingest rewire (writes `title_orig`+`orig_lang` for Belina-as-author, `title_translation`+`translation_lang` for Belina-as-translator, the publisher split, review routing for ambiguous cases).
->   - Extend `tests/test_smol_extractor_lang_neutral.py` — assert smol builders NEVER write `title_en`/`title_sl`/`slovenian_edition` keys.
->   - Extend any test that previously checked for `sl_published_by` to use `translation_published_by`.
+>   - `tests/test_lang_detect.py` — covers `detect_language` on a fixture of titles in SL, EN, HR, SR, DE, FR; covers very short strings (return None); covers Cyrillic input for SR if relevant.
+>   - `tests/test_neutral_ontology_migration.py` — covers each migration branch (Belina-as-translator, Belina-as-author, no-Belina-edge with both fields same language, idempotency, `slovenian_edition`→`translation_edition`, edge rename).
+>   - `tests/test_ingest_personal_bibliography_neutral.py` — uses a small fixture COBISS export with at least one HR-source entry, one SL-author entry, one EN-source entry, plus the bilingual exhibition catalogue case. Asserts that NO node from the ingest carries `title_en`/`title_sl`/`slovenian_edition` attributes after running.
+>   - `tests/test_ingest_extra_containers.py` — covers idempotency + provenance + neutral encoding.
+>   - Extend `tests/test_smol_extractor_lang_neutral.py` — assert builders NEVER emit `title_en`/`title_sl`/`slovenian_edition` keys for ANY pair (EN/SL included).
+>   - `tests/test_validate_kg_neutral.py` (new or extension) — covers the new validator violations.
 >
-> Verify all new tests FAIL. Existing tests in `tests/` must remain green (the rename happens at TDD-green time; until then, existing tests checking for `title_en`/`title_sl` writes will still pass against the unmodified writers — those tests need to be UPDATED in green, not in red).
-> Report: test code + failure output + note any existing test that will need green-phase updating.
+> Verify all new tests FAIL. Note any existing test that asserts the SL/EN-specific shape (those need the green-phase edit too — list them).
+> Report: test code + failure output + list of existing tests needing update.
 
 - [ ] **Step 4.3: Coordinator dispatches `python-development:python-pro` for TDD green.**
 
 > Subagent type: `python-development:python-pro`.
 > Out of scope + constraints 9, 10, 7 (verbatim).
-> Read first: failing tests; architect's blueprint; the Step 4.0a Explore reader-enumeration report.
-> Task: implement per the blueprint, in this order:
+> Read first: failing tests; architect's blueprint.
+> Task: implement per the blueprint's §12 strict order. STOP and report at the end of each step (the coordinator runs the gate before continuing):
 >   1. Edit `ontology.md` per the blueprint §1.
->   2. Implement `scripts/migrate_to_neutral_ontology.py` per the blueprint §2. Make idempotent. `--dry-run` and `--apply` modes.
->   3. Edit writers per the blueprint §3. Delete the SUNSET-tagged alias blocks in `smol_extractor.py`.
->   4. Edit readers per the blueprint §4. Backward-compat reads on UI surfaces so a partial migration doesn't crash the editor.
->   5. Update any existing tests that previously asserted the SL/EN-specific shape. Keep their intent (still assert correct bilingual data is written), but assert against the neutral fields.
->   6. Run the migration's `--dry-run` against a copy of the live KG and record counts.
-> Verify: all new tests pass; existing test suite green; the migration `--dry-run` reports sane numbers (rename count = 20 edges baseline, migrated nodes count > 0, routed_to_review count manageable).
-> Report: per-file diffs; migration dry-run output; full test suite output.
+>   2. Implement `lang_detect.py` per §2. Run `tests/test_lang_detect.py`.
+>   3. Implement `scripts/migrate_to_neutral_ontology.py` per §6. Run `tests/test_neutral_ontology_migration.py`.
+>   4. Coordinator runs migration `--dry-run` against KG copy (Step 4.5 task).
+>   5. Coordinator runs migration `--apply` against KG copy with user confirmation (Steps 4.6/4.7).
+>   6. Implement writers per §7-§8. Run writer tests.
+>   7. Implement extra-container script per §4. Run its tests.
+>   8. Update smol_extractor per §5. Run smol tests.
+>   9. Update readers per §9. NO backward-compat fallbacks.
+>  10. Update validator per §10. Run validator tests.
+>  11. Run full test suite. Run validator on the migrated KG copy. Both must pass clean.
+> Report: per-step diff + pytest output. Surface anything unexpected at the step it surfaces; don't bundle.
 
 - [ ] **Step 4.4: Coordinator dispatches `pythonista-reviewer` for diff review.**
 
-Brief: "Review the Phase 4 diff (ontology.md, migration script, writers, readers, tests). Hard checks: (a) `grep -rn 'title_en\\|title_sl\\|slovenian_edition\\|sl_published_by' --include='*.py' .` returns ONLY occurrences in (i) the migration script's input-side disambiguation, (ii) backward-compat reader fallbacks `d.get('title_orig') or d.get('title_en')`, (iii) tests that lock the migration behaviour. No NEW writes of these names. No flow-control conditionals on `"en"`/`"sl"` outside the COBISS source-side ingest (where they are values, not branches). (b) Ontology revisions match the plan's table. (c) Migration script is idempotent (run twice on same input, no second-round writes). (d) Readers handle partially-migrated nodes gracefully. Report only high-confidence findings."
+Brief: "Review the entire Phase 4 diff (ontology, lang_detect, migration script, COBISS ingest, extra-container ingest, smol_extractor, knowledge_graph, every reader, validator, tests). Hard checks:
+(a) `grep -rn 'title_en\\|title_sl\\|slovenian_edition\\|sl_published_by' /Users/bel/CascadeProjects/sl_translator --include='*.py' | grep -v __pycache__ | grep -v .venv/` returns ONLY: (i) the migration script's INPUT-side scan for nodes carrying legacy fields; (ii) tests asserting violations / migration behaviour; (iii) the validator's forbidden-attribute list. NO writes. NO reader fallbacks. NO 'or d.get(\"title_en\")' patterns.
+(b) `grep -rn '\"en\"\\|\"sl\"' translate_core/ scripts/ --include='*.py' | grep -v __pycache__ | grep -v .venv/` returns ONLY: (i) the lang_detect helper itself (where the lib outputs codes); (ii) tests with expected-value assertions; (iii) the migration script's detected-language values being written. NO conditional branches on these literals.
+(c) Ontology revisions match the blueprint's §1 exactly.
+(d) Migration script is idempotent (run twice on same input, no second-round writes).
+(e) No node in the migrated KG carries any of the legacy fields; no edge carries the legacy relation.
+(f) Smol builders never emit the legacy keys for ANY pair.
+(g) Validator catches violations.
+Report only high-confidence findings."
 
 - [ ] **Step 4.5: Coordinator runs migration `--dry-run` against a KG copy.**
 
@@ -694,7 +772,7 @@ print('EDGES:', dict(edge_rels))
 # Confirm sl_published_by is gone, translation_published_by appears.
 assert edge_rels.get('sl_published_by', 0) == 0, 'sl_published_by edges still present'
 print('translation_published_by:', edge_rels.get('translation_published_by', 0))
-# Confirm no node carries title_en / title_sl / slovenian_edition (except as backward-compat fallbacks during a transition window — see migration policy).
+# Confirm no node carries title_en / title_sl / slovenian_edition — migration strips them after value copy.
 leftover_title_en = sum(1 for _, d in kg.G.nodes(data=True) if d.get('title_en'))
 leftover_title_sl = sum(1 for _, d in kg.G.nodes(data=True) if d.get('title_sl'))
 leftover_sl_edition = sum(1 for _, d in kg.G.nodes(data=True) if d.get('slovenian_edition'))
@@ -725,191 +803,17 @@ git commit -m "phase4: language-neutral ontology; migrate sl_published_by + titl
 
 ### Phase 4 verification gate
 
-- [ ] Ontology revisions land: §2.4.2 has only the canonical encoding; §3.2 has `translation_published_by`; §4 invariant 4 references canonical fields.
-- [ ] Migration `--apply` ran cleanly; live KG has zero `sl_published_by` edges, zero nodes with `title_en` / `title_sl` / `slovenian_edition`.
+- [ ] Ontology revisions land: §2.4.2 has ONLY the canonical four-field encoding; the legacy second-paragraph encoding is REMOVED entirely. §3.2 has `translation_published_by`; `sl_published_by` no longer documented. §4 invariant 4 references canonical fields.
+- [ ] Migration `--apply` ran cleanly; live KG has ZERO `sl_published_by` edges, ZERO nodes with `title_en` / `title_sl` / `slovenian_edition` attributes (the migration strips them after copying values).
 - [ ] `translation_published_by` edges count ≥ 20 (the migrated baseline).
-- [ ] COBISS ingest writes neutral fields with COBISS-layer language values.
-- [ ] Smol builders never emit `title_en` / `title_sl` / `slovenian_edition` keys.
-- [ ] Editor surfaces (`ui/*.py`, `kg_editor_ui.py`) read the neutral fields and still render correctly on the migrated KG.
+- [ ] COBISS ingest writes ONLY neutral fields; values come from `lang_detect.detect_language` on per-entry text.
+- [ ] Extra-container ingest works; reads `data/extra_containers.json` (which may be initially empty); idempotent.
+- [ ] Smol builders never emit `title_en` / `title_sl` / `slovenian_edition` keys for ANY language pair.
+- [ ] Every reader from the Step 4.0b inventory updated to read ONLY the neutral fields. NO `d.get("title_orig") or d.get("title_en")` fallback patterns.
+- [ ] Editor surfaces render correctly on the migrated KG.
+- [ ] `validate_kg.py` enforces the neutral shape; running it against the migrated KG produces zero violations.
 - [ ] `pytest tests/` green.
-- [ ] Pythonista-reviewer pass clean on the constraint-7 checks.
-
-**Phase 4 was REWRITTEN after the Explore findings in `docs/cobiss_actual_shape.md`.** The original framing — language-direction detection from translation markers in raw text — conflated COBISS (bibliographic metadata) with TMX (bilingual content alignment). COBISS does NOT structurally encode translation direction; the `=` separator denotes "two language sides of the published work," not "language A → B." Constraint 7 was tightened in the same commit to permit the legacy `title_en` + `title_sl` encoding for COBISS (the source-honest write).
-
-**What COBISS structurally provides** (verified in `docs/cobiss_actual_shape.md`):
-- `title` = SL side (or sole title if monolingual).
-- `title_en` = second-language side after `=` (English in most observed entries, but NOT guaranteed; sometimes Croatian/Serbian-into-Slovenian translations have the `=` separator too).
-- `year`, `publisher` (possibly bilingual `: =` separator), `publisher_city`.
-- `agents` with roles.
-- `cobiss_classifier.classify_entry(entry)` returns `(project_type, belina_role)` — type and Belina's role on the work.
-
-**What COBISS does NOT provide:**
-- `title_orig` / `orig_lang` / `translation_lang` for translated works (the original-language title is simply not in the COBISS export).
-- Translation direction — whether Belina translated INTO Slovenian or FROM Slovenian.
-
-**Current state of `scripts/ingest_personal_bibliography.py`** (lines 174–215):
-- Already writes `title_sl = entry.title` and `title_en = entry.title_en` correctly (the legacy ontology §2.4.2 encoding).
-- Already wires `translated_by` for containers and `written_by` for self-authored.
-- Does NOT wire `sl_published_by` when the publisher field is bilingual `"SL pub : = EN pub"` (TODO at lines 269–271 acknowledges this gap).
-- Does NOT route any record to a review queue. Unclassifiable entries go to `data/cobiss_unclassified_entries.json` instead.
-
-**Phase 4's actual scope** (much smaller than the original framing):
-
-1. Split the bilingual publisher field on `: =` and wire two edges: `published_by` → SL-side institution, `sl_published_by` → EN-side institution (per ontology §3.2). Where only one side is given, wire only `published_by`.
-2. Route bilingual entries whose direction is genuinely ambiguous (both `title` and `title_en` present AND no clear marker AND classifier didn't determine Belina's role) to `data/extraction_review.json` — the same review queue `kg_ingest_entities.py:1032-1035` uses for entity-extraction REVIEW-tier records. Reason: `direction_undetermined`. The entry is NOT written to the KG; it sits in the queue for curator decision.
-3. Confirm the existing `title_sl` / `title_en` writes remain. Do NOT attempt to populate `title_orig` / `orig_lang` / `translation_lang` from COBISS — those require info COBISS doesn't have.
-4. Add tests that lock the current correct behaviour AND the new behaviour.
-
-**Out of scope for Phase 4** (despite earlier framing):
-- Translation-marker regex detection from raw_text. COBISS doesn't reliably encode this.
-- Populating canonical `title_orig` / `orig_lang` from COBISS for translated works. Deferred to a future curator-input pipeline.
-- Renaming `CobissEntry.title_en` to something neutral. The field name is a legacy artefact; renaming risks breaking `cobiss_classifier.py:88-94, 101-110` which scans `title + " " + title_en`.
-
-**Files:**
-- Modify: `scripts/ingest_personal_bibliography.py` (publisher splitting + review-queue routing for ambiguous cases).
-- Test: `tests/test_ingest_personal_bibliography_publisher_split.py` (new).
-- Test: `tests/test_ingest_personal_bibliography_review_routing.py` (new).
-- DO NOT MODIFY: `translate_core/cobiss_parser.py`, `translate_core/cobiss_classifier.py`.
-
-### Agent mix
-- Step 4.0: `Explore` (already done — `docs/cobiss_actual_shape.md`).
-- Step 4.1: `python-development:python-pro` for TDD red.
-- Step 4.2: `python-development:python-pro` for TDD green.
-- Step 4.3: `pythonista-reviewer` for diff review.
-- Skills the coordinator invokes before dispatching: `superpowers:test-driven-development`, `python-development:python-testing-patterns`.
-
-### Tasks
-
-- [ ] **Step 4.1: Coordinator invokes `superpowers:test-driven-development` + `python-development:python-testing-patterns`, then dispatches `python-development:python-pro` for TDD red.**
-
-> Subagent type: `python-development:python-pro`.
-> Out of scope + constraints 9, 10 verbatim. **Constraint 7 reminder (updated):** for COBISS, the legacy `title_en` + `title_sl` encoding IS the correct write per ontology §2.4.2 second paragraph; do NOT attempt to populate `title_orig` / `orig_lang` / `translation_lang`.
-> Read first: `docs/cobiss_actual_shape.md` in full; `ontology.md` §2.4 + §2.4.1 + §2.4.2 + §3.2 (the `sl_published_by` edge); `scripts/ingest_personal_bibliography.py` in full; `translate_core/kg_ingest_entities.py:1020-1050` for the existing review-queue write API.
-> Task: write two new test files.
->
-> **File 1: `tests/test_ingest_personal_bibliography_publisher_split.py`**
->
-> Cases (use `tmp_path`-scoped fresh `KnowledgeGraph()`; do NOT touch the live KG):
->
-> (a) **Bilingual publisher splitting.** A `CobissEntry` with `publisher="Muzej in galerije mesta Ljubljane, Galerija Jakopič: = Museum and Galleries of Ljubljana, Jakopič Gallery"`, `publisher_city="Ljubljana"`. After ingest:
->   - Two `institution` nodes created (one SL-name, one EN-name).
->   - `source_text -[published_by]-> institution` edge points to the SL-name institution.
->   - `source_text -[sl_published_by]-> institution` edge points to the EN-name institution (per ontology §3.2: SL-edition publisher when SL edition differs from original — here both editions exist).
-> (b) **Monolingual publisher.** A `CobissEntry` with `publisher="Routledge"` (no `: =` separator). After ingest:
->   - One `institution` node.
->   - `published_by` edge wired.
->   - NO `sl_published_by` edge.
-> (c) **Empty publisher.** `publisher=""`. After ingest:
->   - No institution node created.
->   - No `published_by` / `sl_published_by` edges.
->
-> **File 2: `tests/test_ingest_personal_bibliography_review_routing.py`**
->
-> Cases:
->
-> (d) **Bilingual entry with classifier-known role → no review routing.** A `CobissEntry` where `classify_entry` returns `("book_translation", "translator")` AND both `title` and `title_en` are non-empty. After ingest:
->   - Container `source_text` node is written.
->   - `title_sl` = `entry.title`, `title_en` = `entry.title_en`.
->   - `translated_by` edge to `agent:urban-belina`.
->   - NO record in `data/extraction_review.json` for this entry.
-> (e) **Bilingual entry with no role + no direction signal → routed to review.** A `CobissEntry` where `classify_entry` returns `(None, None)` (unclassifiable) AND both `title` and `title_en` non-empty. After ingest:
->   - NO `source_text` node written for this entry.
->   - The record is appended to `data/extraction_review.json` (or whatever path the existing kg_ingest review-queue writer uses — read it from `kg_ingest_entities.py:1032-1035` and reuse).
->   - The review record carries: `{"reason": "direction_undetermined", "kind": "cobiss_entry", "entry_number": ..., "title": ..., "title_en": ..., "raw_text": ...}`.
-> (f) **Monolingual unclassifiable entry → routed to `cobiss_unclassified_entries.json`** (existing behaviour preserved). When `classify_entry` returns `(None, None)` AND `title_en` is empty, the entry continues to land in `data/cobiss_unclassified_entries.json`, NOT in the extraction-review queue.
-> (g) **Self-authored bilingual entry (Belina as author, both languages present) → write with legacy bilingual encoding, NO review routing.** `classify_entry` returns e.g. `("magazine_article", "author")`. After ingest:
->   - Cited `source_text` node (NOT container — this is Belina's own work). Use `add_source_text_node` with `project_type` from classifier.
->   - `title_sl` and `title_en` populated.
->   - `written_by` edge to `agent:urban-belina` (NOT `translated_by`, NOT `cited_in`).
->   - No review routing.
->
-> Verify ALL tests FAIL against the current implementation. The publisher split tests fail because the script doesn't split today. The review-routing tests fail because the script doesn't route to the extraction queue today. Report: test code + failure output.
-
-- [ ] **Step 4.2: Coordinator dispatches `python-development:python-pro` for TDD green.**
-
-> Subagent type: `python-development:python-pro`.
-> Out of scope + constraints 9, 10, updated 7 (verbatim).
-> Read first: the failing tests; current `scripts/ingest_personal_bibliography.py`; `translate_core/kg_ingest_entities.py:1020-1050` for the review-queue write path.
-> Task — three targeted edits:
->
-> 1. **Publisher splitter.** Add a helper `_split_bilingual_publisher(raw: str) -> tuple[str | None, str | None]` that recognises the `: =` separator and returns `(sl_publisher, en_publisher)`. Returns `(raw, None)` when no separator is present (unilingual case). Returns `(None, None)` when `raw` is empty. Use this helper at the record-construction site to wire two institutions and the corresponding `published_by` / `sl_published_by` edges per ontology §3.2.
->
-> 2. **Review routing for ambiguous bilingual entries.** When the classifier returns `(None, None)` AND `title_en` is non-empty (i.e. the entry has two language sides but no role info), append the entry to the existing extraction review queue (same writer / path as `kg_ingest_entities.py:1032-1035`). Reason: `direction_undetermined`. Do NOT write the source_text node for this entry. Existing behaviour for `(None, None)` + `title_en` empty (truly unclassifiable) is preserved — those still go to `cobiss_unclassified_entries.json`.
->
-> 3. **Preserve `title_sl` / `title_en` writes.** No change to the current legacy bilingual encoding for clean cases. Do NOT attempt to write `title_orig` / `orig_lang` / `translation_lang` — COBISS doesn't carry that info honestly. Constraint 7 (updated) permits the legacy encoding for COBISS.
->
-> Verify new tests pass; existing tests pass; dry-run the script against a KG COPY and confirm the live KG container count (`book_translation=93` per audit baseline) is unchanged on the live KG (the script is idempotent; running it against a copy mutates only the copy).
-> Report: full diff, test outputs, sample of records routed to review (count + first 3).
-
-- [ ] **Step 4.3: Coordinator dispatches `pythonista-reviewer` for diff review.**
-
-Brief: "Review the Phase 4 diff (`scripts/ingest_personal_bibliography.py`, the two new test files). Confirm: (a) `title_sl` / `title_en` writes preserved (legacy encoding is correct for COBISS); (b) `_split_bilingual_publisher` correctly handles the `: =` separator including whitespace variants; (c) review-queue routing uses the existing extraction_review.json writer, not a new file; (d) `sl_published_by` edge only fires when both sides of the publisher are present; (e) no `title_orig` / `orig_lang` / `translation_lang` writes (those require info COBISS doesn't have); (f) idempotency preserved. Report only high-confidence findings."
-
-- [ ] **Step 4.4: Coordinator real-data dry-run.**
-
-```bash
-cp data/knowledge.db /tmp/knowledge.db.phase4.dryrun
-# Run against the copy. If the script uses module-level config, point config at the copy first:
-KG_DB_PATH=/tmp/knowledge.db.phase4.dryrun .venv/bin/python3 scripts/ingest_personal_bibliography.py 2>&1 | tail -30
-```
-
-```bash
-.venv/bin/python3 -c "
-from translate_core.knowledge_graph import KnowledgeGraph
-from collections import Counter
-kg = KnowledgeGraph(db_path='/tmp/knowledge.db.phase4.dryrun')
-n_pub = n_sl_pub = 0
-for u, v, d in kg.G.edges(data=True):
-    if d.get('relation') == 'published_by': n_pub += 1
-    if d.get('relation') == 'sl_published_by': n_sl_pub += 1
-print(f'published_by edges: {n_pub}')
-print(f'sl_published_by edges: {n_sl_pub}')
-# Sample 5 random sl_published_by edges and inspect:
-import random
-sl_edges = [(u, v) for u, v, d in kg.G.edges(data=True) if d.get('relation') == 'sl_published_by']
-for u, v in random.sample(sl_edges, min(5, len(sl_edges))):
-    src = kg.G.nodes[u]; tgt = kg.G.nodes[v]
-    print(f'  {src.get(\"title\") or src.get(\"title_sl\")} → {tgt.get(\"name\")}')
-"
-```
-Expected: `sl_published_by` count rises from the audit baseline (20) by at least the number of COBISS entries with bilingual publishers. The sample inspection shows SL/EN institution name pairs.
-
-Also inspect the review queue:
-```bash
-.venv/bin/python3 -c "
-import json
-from pathlib import Path
-p = Path('data/extraction_review.json')
-if not p.exists():
-    print('extraction_review.json does not exist yet')
-else:
-    data = json.loads(p.read_text())
-    cobiss_records = [r for r in data if r.get('kind') == 'cobiss_entry']
-    print(f'cobiss-routed review records: {len(cobiss_records)}')
-    for r in cobiss_records[:3]:
-        print(f'  reason={r.get(\"reason\")} title={r.get(\"title\")}')
-"
-```
-
-- [ ] **Step 4.5: Commit Phase 4.**
-
-```bash
-git add scripts/ingest_personal_bibliography.py \
-        tests/test_ingest_personal_bibliography_publisher_split.py \
-        tests/test_ingest_personal_bibliography_review_routing.py
-git commit -m "cobiss ingest: split bilingual publisher; route direction-ambiguous to review"
-```
-
-### Phase 4 verification gate
-
-- [ ] New tests pass (publisher split + review routing + existing-behaviour preservation).
-- [ ] Existing `book_translation` count on live KG unchanged (no destructive mutation; dry-run was against a copy).
-- [ ] `sl_published_by` edge count on the dry-run KG rises from the audit baseline (20) substantially.
-- [ ] Review queue at `data/extraction_review.json` contains COBISS-routed records with `reason="direction_undetermined"`.
-- [ ] `cobiss_unclassified_entries.json` continues to receive truly unclassifiable entries (regression-locked).
-- [ ] No `title_orig` / `orig_lang` / `translation_lang` writes anywhere in the diff (grep).
-- [ ] `title_sl` / `title_en` writes preserved (legacy encoding correct for COBISS).
-- [ ] Reviewer pass clean.
+- [ ] Pythonista-reviewer pass clean on the constraint-7 checks (no SL/EN-named identifiers in code; no flow-control conditionals on `"en"`/`"sl"` literals; values only from boundaries).
 
 ---
 
@@ -1516,16 +1420,7 @@ git commit -m "kg: wire curator lineage_schools + concept_theorists; concept def
 - `translate_core/citation_collector.py`
 - Tests that target these: `tests/test_book_extractor*.py`, `tests/test_seeded_book*.py`, `tests/test_bilingual_tm_matcher*.py`, `tests/test_citation_collector.py`
 
-**SUNSET — legacy `title_en` / `title_sl` write sites (audit checklist §11):**
-
-Phase 1B tagged the three legacy alias write sites in `smol_extractor.py` with `# SUNSET: Phase 11`:
-- `smol_extractor.py:529-530` (`_build_cited_work`)
-- `smol_extractor.py:727-728` (`_build_artwork`)
-- `smol_extractor.py:850-851` (`_build_performance`)
-
-Phase 4 may have added a fourth `# SUNSET: Phase 11` site in `scripts/ingest_personal_bibliography.py` if its Step 4.0 Explore report found readers that would break.
-
-Before deleting these write sites, confirm via grep that no consumer reads `title_en` / `title_sl` on `source_text` nodes any more. If consumers still exist (e.g. `kg_ingest_entities.deferred_artwork`), migrate them to read the canonical `title_orig` / `title_translation` first; only then delete the sunset writes.
+**SUNSET work is OUT OF SCOPE for Phase 11.** Phase 4 already deleted every `# SUNSET: Phase 11`-tagged alias write block in `smol_extractor.py`, migrated existing nodes to the neutral shape, renamed `sl_published_by` edges, and updated all readers. Phase 11 is ONLY the book-ingest deletion below.
 
 ### Agent mix
 - Step 11.0: `Explore` (final callgraph survey for the legacy book-ingest stack)
@@ -1538,7 +1433,7 @@ Before deleting these write sites, confirm via grep that no consumer reads `titl
 
 - [ ] **Step 11.0: Coordinator dispatches `Explore` for callgraph survey.**
 
-Brief: "(a) For each of these symbols/files, find every surviving reference: `ingest_book_bibliography`, `ingest_book_footnotes`, `seeded_book_finder`, `bilingual_tm_matcher`, `book_extractor`, `citation_collector`. Report file:line and what would break. Expected: zero callers in in-scope code because Phase 5 and Phase 6 retired the call sites. If anything surfaces, STOP. (b) For the SUNSET work: find every CONSUMER (reader) of `title_en` and `title_sl` fields on `source_text` nodes in the KG and in the codebase. Triage each: 'migrated to canonical' / 'NEEDS MIGRATION before sunset' / 'safe to leave (fallback already reads canonical)'."
+Brief: "For each of these symbols/files, find every surviving reference: `ingest_book_bibliography`, `ingest_book_footnotes`, `seeded_book_finder`, `bilingual_tm_matcher`, `book_extractor`, `citation_collector`. Report file:line and what would break. Expected: zero callers in in-scope code because Phase 5 and Phase 6 retired the call sites. If anything surfaces, STOP."
 
 - [ ] **Step 11.1: Coordinator (after user confirmation) dispatches `python-development:python-pro` for the surgery.**
 
@@ -1547,9 +1442,8 @@ Brief: "(a) For each of these symbols/files, find every surviving reference: `in
 > Read first: `docs/parsing_simplification_audit.md` §10.5 / §10.6 / §3 DELETE list / §11; the Step 11.0 Explore report (paste in).
 > Task:
 >   - Delete the listed files. Any test that imports a deleted symbol gets deleted with it; do not invent shims.
->   - SUNSET legacy aliases: for every `# SUNSET: Phase 11` site identified in Step 11.0, IF the Explore report confirmed all consumers have migrated to the canonical fields, delete the legacy `title_en` / `title_sl` write at that site. If any consumer still depends on the legacy field, leave the write in place and surface the unmigrated consumer to the coordinator — do not silently delete.
 >   - Run the test suite.
-> Report: deleted files, sunset deletions performed vs deferred (with reasons), test outputs.
+> Report: deleted files, test outputs.
 
 - [ ] **Step 11.2: Coordinator dispatches `pythonista-reviewer` for the final cleanliness check.**
 
