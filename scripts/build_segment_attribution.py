@@ -31,7 +31,7 @@ GDRIVE = Path("/Users/bel/Library/CloudStorage/GoogleDrive-urban@bel.si/My Drive
 KG_DB = config.KG_DB_PATH
 STA_PATH = Path("data/quarantine/_segment_title_attribution.json")
 S2B_PATH = Path("data/quarantine/_segment_to_book.json")
-OUTPUT_PATH = Path("data/quarantine/_segment_attribution_final.json")
+OUTPUT_PATH = Path("data/segment_attribution_ngram.json")
 
 NGRAM_SIZE = 4
 MIN_WORDS = 3

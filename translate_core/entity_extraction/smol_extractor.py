@@ -43,8 +43,26 @@ ingestion can wire them up via factory methods only (ontology O-1).
 from __future__ import annotations
 
 import json
+import logging
 import re
 import unicodedata
+
+logger = logging.getLogger(__name__)
+
+# Tracks origins for which we've already warned about a missing t_index in
+# ingest_smol_extractions. One warning per origin per process is enough to
+# surface a stale smol export without spamming the log.
+_t_index_fallback_warned: set[str] = set()
+
+
+def _warn_once_t_index_fallback(origin: str) -> None:
+    if origin not in _t_index_fallback_warned:
+        logger.warning(
+            "ingest_smol_extractions: origin=%r has no t_index; "
+            "falling back to seg_idx. Re-run smol export after Phase 6.",
+            origin,
+        )
+        _t_index_fallback_warned.add(origin)
 
 # ── Ontology constraints ──────────────────────────────────────────────────────
 
@@ -941,13 +959,21 @@ def ingest_smol_extractions(
     records: list[dict] = []
     for item in extractions:
         origin = item.get("origin", "")
-        seg_idx = item.get("seg_idx", -1)
+        # Phase 6: prefer t_index (TM chronological rank); fall back to seg_idx
+        # only when the export pre-dates Phase 6. Warn once per origin so a
+        # stale export surfaces without spamming the log.
+        t_index = item.get("t_index")
+        if t_index is None:
+            _warn_once_t_index_fallback(origin)
+            effective_idx = item.get("seg_idx", -1)
+        else:
+            effective_idx = t_index
         container = item.get("container_work_id", "")
         entities = item.get("entities", [])
         src_lang, tgt_lang = _detect_source_lang(origin)
         for ent in entities:
             rec = build_record(
-                ent, origin, seg_idx, container,
+                ent, origin, effective_idx, container,
                 src_lang=src_lang, tgt_lang=tgt_lang,
             )
             if rec:

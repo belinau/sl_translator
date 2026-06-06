@@ -40,11 +40,10 @@ from translate_core.entity_extraction.origin_walker import (
     build_origin_contexts,
     OriginContext,
 )
-from translate_core.entity_extraction.seeded_book_finder import (
-    SeedManifest,
-    find_book_anchors,
-    book_claims_to_records,
-    claim_for_segment,
+from translate_core.container_attribution import (
+    load_curator_anchors,
+    load_ngram_anchors,
+    attribute_segments_to_containers,
 )
 from translate_core.entity_extraction.bilingual_enrichment import enrich_titles_sl
 from translate_core.kg_ingest_entities import (
@@ -58,44 +57,35 @@ from translate_core.kg_ingest_entities import (
 # ── Paths ─────────────────────────────────────────────────────────────────────
 
 SEGMENTS_EXPORT_PATH = Path("data/smold_segments_for_extraction.json")
-SMOL_EXTRACTIONS_PATH = Path("data/smol_extractions.json")
+SMOL_EXTRACTIONS_PATH = Path("data/smol_entities_map/smol_extractions.json")
 
 
 # ── Phase A: Export segments for OMP agent dispatch ───────────────────────────
 
 def export_segments(
     contexts: List[OriginContext],
-    attribution_by_origin: dict[str, dict[int, str]],
-    book_claims: list,
-    origin_offsets: dict[str, int],
+    attrib_result,
+    entries_by_t_index: dict[tuple[str, int], int],
 ) -> None:
     """Write non-noise segments to JSON for OMP smol agent extraction.
 
     Each segment gets a prompt pre-formatted for the smol model, plus
-    metadata (origin, seg_idx, container_work_id from attribution/seed).
+    metadata (origin, seg_idx, t_index, container_work_id from attribution).
     """
     export: list[dict] = []
 
     for ctx in contexts:
-        origin_start = origin_offsets.get(ctx.origin, 0)
-        attr_map = attribution_by_origin.get(ctx.origin, {})
-
         for lbl in ctx.labels:
             if lbl.klass.value == "noise":
                 continue
 
-            seg_idx = lbl.idx
-            global_idx = origin_start + seg_idx
+            seg_idx = int(lbl.idx)
+            t_index = entries_by_t_index.get((ctx.origin, seg_idx))
             container_work_id = ""
-
-            # Try attribution first, then seed manifest
-            attr_cid = attr_map.get(int(seg_idx))
-            if attr_cid:
-                container_work_id = attr_cid.removeprefix("source:")
-            else:
-                claim = claim_for_segment(book_claims, global_idx, ctx.origin)
-                if claim:
-                    container_work_id = claim.work_id
+            if t_index is not None:
+                container_work_id = attrib_result.attributed.get(
+                    (ctx.origin, t_index), ""
+                )
 
             prompt = format_extract_prompt(
                 src=lbl.src,
@@ -105,8 +95,8 @@ def export_segments(
 
             export.append({
                 "origin": ctx.origin,
-                "seg_idx": int(seg_idx),
-                "global_idx": global_idx,
+                "seg_idx": seg_idx,
+                "t_index": t_index,
                 "container_work_id": container_work_id,
                 "klass": lbl.klass.value,
                 "src": lbl.src[:800],
@@ -129,9 +119,8 @@ def export_segments(
 def ingest_extractions(
     args,
     contexts: List[OriginContext],
-    attribution_by_origin: dict[str, dict[int, str]],
-    book_claims: list,
-    origin_offsets: dict[str, int],
+    attrib_result,
+    entries_by_t_index: dict[tuple[str, int], int],
     entries_by_origin: dict[str, list[dict]],
 ) -> None:
     """Read smol agent results, merge with book_extractor fallback, score, ingest."""
@@ -145,17 +134,6 @@ def ingest_extractions(
 
     all_records: List[dict] = []
 
-    # Seeded book records — authoritative translated_works
-    seeded_records = book_claims_to_records(book_claims)
-    all_records.extend(seeded_records)
-
-    # Author/translator/publisher per seeded book are created automatically by
-    # write_to_kg pass 2 (translated_work ingest) using pending_* fields
-    # populated by book_claims_to_records. No need to inject standalone
-    # agent_person/institution records here — they were duplicating into the
-    # review queue (book_extractor signals don't carry smol_verified_classification
-    # so they scored 0.65 → REVIEW). Cleaner to let pass 2 do it.
-
     # Build index: (origin, seg_idx) → extraction result
     smol_by_key: dict[tuple[str, int], dict] = {}
     for item in raw_extractions:
@@ -164,9 +142,6 @@ def ingest_extractions(
 
     # Process each origin context
     for ctx in contexts:
-        origin_start = origin_offsets.get(ctx.origin, 0)
-        attr_map = attribution_by_origin.get(ctx.origin, {})
-
         # Try smol extractions first, fall back to book_extractor per segment
         ctx_records: List[dict] = []
         smol_hit_count = 0
@@ -176,7 +151,8 @@ def ingest_extractions(
             if lbl.klass.value == "noise":
                 continue
 
-            key = (ctx.origin, int(lbl.idx))
+            local_idx = int(lbl.idx)
+            key = (ctx.origin, local_idx)
             smol_result = smol_by_key.get(key)
 
             if smol_result and smol_result.get("entities"):
@@ -185,16 +161,11 @@ def ingest_extractions(
                 # Determine container_work_id
                 container = smol_result.get("container_work_id", "")
                 if not container:
-                    local_idx = int(lbl.idx)
-                    attr_cid = attr_map.get(local_idx)
-                    if attr_cid:
-                        container = attr_cid.removeprefix("source:")
-                    else:
-                        claim = claim_for_segment(
-                            book_claims, origin_start + local_idx, ctx.origin,
+                    t_index = entries_by_t_index.get((ctx.origin, local_idx))
+                    if t_index is not None:
+                        container = attrib_result.attributed.get(
+                            (ctx.origin, t_index), ""
                         )
-                        if claim:
-                            container = claim.work_id
 
                 # Phase 1B: build_record now requires explicit src_lang/tgt_lang
                 # (no EN/SL defaults). Derive from the origin filename via the
@@ -202,7 +173,7 @@ def ingest_extractions(
                 src_lang, tgt_lang = _detect_source_lang(ctx.origin)
                 for ent in entities:
                     rec = build_record(
-                        ent, ctx.origin, int(lbl.idx), container,
+                        ent, ctx.origin, local_idx, container,
                         src_lang=src_lang, tgt_lang=tgt_lang,
                     )
                     if rec:
@@ -246,16 +217,13 @@ def ingest_extractions(
                     added += 1
             if added:
                 print(f"      {ctx.origin}: supplemented with {added} book_extractor records")
-        # Retarget cited_in. Three valid sources of a container_work_id, in
+        # Retarget cited_in. Two valid sources of a container_work_id, in
         # priority order:
-        #   (1) attribution map  — curator-verified segment→container map
-        #   (2) seed_manifest    — anchor patterns matched in the TM
-        #   (3) smol payload     — the smol model itself surfaced a container
-        # Each yields a `retargeted_via` provenance tag; (3) covers the
-        # case where the per-segment cascade at line ~195 already pointed at
-        # a valid container before build_record ran.
+        #   (1) attribution      — curator + ngram anchors propagated through
+        #                          the TM by translate_core.container_attribution
+        #   (2) smol payload     — the smol model itself surfaced a container
+        # Each yields a `retargeted_via` provenance tag.
         retargeted_attr = 0
-        retargeted_claim = 0
         retargeted_smol = 0
         # Retarget container_work_id for ALL types that carry one:
         # cited_work, artwork, performance, concept. Each kind uses
@@ -267,21 +235,17 @@ def ingest_extractions(
             if local_idx < 0:
                 continue
             origin = r["source"].get("origin", "")
-            attr_cid = attr_map.get(int(local_idx))
+            t_index = entries_by_t_index.get((origin, int(local_idx)))
+            attr_cid = (
+                attrib_result.attributed.get((origin, t_index))
+                if t_index is not None
+                else None
+            )
             if attr_cid:
-                r["payload"]["container_work_id"] = attr_cid.removeprefix("source:")
-                r["source"]["retargeted_to"] = attr_cid
+                r["payload"]["container_work_id"] = attr_cid
+                r["source"]["retargeted_to"] = f"source:{attr_cid}"
                 r["source"]["retargeted_via"] = "attribution"
                 retargeted_attr += 1
-                continue
-            global_idx = origin_start + local_idx
-            claim = claim_for_segment(book_claims, global_idx, origin)
-            if claim:
-                r["payload"]["container_work_id"] = claim.work_id
-                r["source"]["global_idx"] = global_idx
-                r["source"]["retargeted_to"] = claim.work_id
-                r["source"]["retargeted_via"] = "seed_manifest"
-                retargeted_claim += 1
                 continue
             # The smol payload already carried a container_work_id from the
             # per-segment cascade. Acknowledge it as retargeted so the orphan
@@ -315,7 +279,7 @@ def ingest_extractions(
 
         print(f"      {ctx.origin}: {len(ctx_records)} raw records "
               f"(retargeted: {retargeted_attr} attribution, "
-              f"{retargeted_claim} seeds, {retargeted_smol} smol_payload; "
+              f"{retargeted_smol} smol_payload; "
               f"dropped {dropped_shapeless} shapeless cited_work; "
               f"dominant={ctx.dominant})")
         all_records.extend(kept_recs)
@@ -524,185 +488,37 @@ def main():
     for c in contexts:
         print(f"      origin={c.origin:24s} segments={len(c.labels):6d} dominant={c.dominant}")
 
-    # ── Load attribution ──
-    print(f"[3a/5] Loading curator-validated segment→container attribution …")
-    ATTRIBUTION_PATH = Path("data/quarantine/_segment_title_attribution.json")
-    attribution_by_origin: dict[str, dict[int, str]] = {}
-    if ATTRIBUTION_PATH.exists():
-        raw_attr = json.loads(ATTRIBUTION_PATH.read_text(encoding="utf-8"))
-        for tmx_name, segs in raw_attr.items():
-            local_map: dict[int, str] = {}
-            for sidx_str, val in segs.items():
-                try:
-                    sidx = int(sidx_str)
-                except (TypeError, ValueError):
-                    continue
-                if isinstance(val, list):
-                    cid = next((v for v in val if isinstance(v, str) and v.startswith("source:")), None)
-                elif isinstance(val, str) and val.startswith("source:"):
-                    cid = val
-                else:
-                    cid = None
-                if cid:
-                    local_map[sidx] = cid
-            attribution_by_origin[tmx_name] = local_map
-        total_attr = sum(len(v) for v in attribution_by_origin.values())
-        print(f"       {total_attr} attributed segments across {len(attribution_by_origin)} TMX files")
-        for tmx_name, m in attribution_by_origin.items():
-            print(f"       - {tmx_name}: {len(m)} segments")
-    else:
-        print(f"       (no attribution file at {ATTRIBUTION_PATH}; skipping retargeting)")
+    # ── Load attribution (curator + ngram → t_index anchors) ──
+    print("[3a/5] Loading container attribution (curator + ngram) …")
+    anchors = load_curator_anchors(tm_entries=entries)
+    anchors += load_ngram_anchors(tm_entries=entries)
+    attrib_result = attribute_segments_to_containers(anchors, entries)
+    print(f"      attributed={len(attrib_result.attributed)} "
+          f"conflicts={len(attrib_result.conflicts)} "
+          f"unanchored={len(attrib_result.unanchored)}")
+    if attrib_result.conflicts:
+        print(f"      WARNING: {len(attrib_result.conflicts)} attribution conflicts queued for review")
 
-    # ── Load the segment_to_book map (book-key shorthand → container) ──
-    # `_segment_to_book.json` carries the per-segment book attribution using
-    # short keys ('skrb_kunst', 'zavzemanje') that map to the canonical
-    # COBISS container slugs. This adds another ~3,440 segments to the
-    # attribution. Curator file wins on conflicts; smol payload runs last.
-    SEGMENT_TO_BOOK_PATH = Path("data/quarantine/_segment_to_book.json")
-    BOOK_KEY_TO_CONTAINER = {
-        "skrb_kunst": "source:kunst-zivljenje-umetnosti",
-        "zavzemanje": "source:zaloznik-jasmina-zavzemanje-prostora-2024",
+    # ── Build (origin, seg_idx) → t_index lookup for record retargeting ──
+    # `entries` is `tm.entries`, already raw_index-sorted per-origin by
+    # _build_compat_entries. Enumeration within each origin yields the seg_idx
+    # contract used by export records, the curator file, and OMP smol callers.
+    from collections import defaultdict as _dd
+    _by_origin_seq: dict[str, list[dict]] = _dd(list)
+    for _e in entries:
+        _origin = _e.get("origin", "")
+        if _origin:
+            _by_origin_seq[_origin].append(_e)
+    entries_by_t_index: dict[tuple[str, int], int] = {
+        (origin, seg_idx): _e["t_index"]
+        for origin, lst in _by_origin_seq.items()
+        for seg_idx, _e in enumerate(lst)
+        if "t_index" in _e
     }
-    if SEGMENT_TO_BOOK_PATH.exists():
-        s2b = json.loads(SEGMENT_TO_BOOK_PATH.read_text(encoding="utf-8"))
-        added_count = 0
-        for tmx_name, segs in s2b.items():
-            local_map = attribution_by_origin.setdefault(tmx_name, {})
-            for sidx_str, val in segs.items():
-                try:
-                    sidx = int(sidx_str)
-                except (TypeError, ValueError):
-                    continue
-                if sidx in local_map:
-                    continue  # curator wins
-                # val is typically a list of book-keys; take first known mapping
-                book_keys = val if isinstance(val, list) else [val]
-                for bk in book_keys:
-                    cid = BOOK_KEY_TO_CONTAINER.get(bk)
-                    if cid:
-                        local_map[sidx] = cid
-                        added_count += 1
-                        break
-        new_total = sum(len(v) for v in attribution_by_origin.values())
-        print(f"[3a.1/5] _segment_to_book.json: +{added_count} new attributions → "
-              f"{new_total} total")
-
-    # ── Load ngram attribution (n-gram match results from build_segment_attribution) ──
-    # `_segment_attribution_ngram.json` carries bare slugs without year suffix
-    # (e.g. 'pregl-arjan-na-platnu'). Resolve them to canonical COBISS
-    # containers via prefix match against existing KG container IDs.
-    NGRAM_PATH = Path("data/quarantine/_segment_attribution_ngram.json")
-    NGRAM_MIN_CONFIDENCE = 0.5
-    if NGRAM_PATH.exists():
-        ng = json.loads(NGRAM_PATH.read_text(encoding="utf-8"))
-        # Build prefix lookup from existing KG container IDs
-        from translate_core.knowledge_graph import KnowledgeGraph
-        _kg = KnowledgeGraph()
-        prefix_to_container: dict[str, str] = {}
-        for nid, ndata in _kg.G.nodes(data=True):
-            if not nid.startswith("source:"):
-                continue
-            if ndata.get("project_type") not in {
-                "book_translation", "article_translation",
-                "festival_programme", "exhibition_catalogue",
-            }:
-                continue
-            slug = nid[len("source:"):]
-            # Try slug stripped of trailing -year
-            for stem_len in range(len(slug), 8, -1):
-                stem = slug[:stem_len].rstrip("-0123456789")
-                if stem and stem not in prefix_to_container:
-                    prefix_to_container[stem] = nid
-                    break
-
-        ngram_added = 0
-        ngram_skipped_low_conf = 0
-        ngram_unresolved = 0
-        for tmx_name, segs in ng.items():
-            local_map = attribution_by_origin.setdefault(tmx_name, {})
-            for sidx_str, val in segs.items():
-                try:
-                    sidx = int(sidx_str)
-                except (TypeError, ValueError):
-                    continue
-                if sidx in local_map:
-                    continue  # curator and segment_to_book wins
-                if not isinstance(val, list) or not val:
-                    continue
-                top = val[0]
-                if not isinstance(top, list) or len(top) < 2:
-                    continue
-                slug, conf = top[0], top[1]
-                if conf < NGRAM_MIN_CONFIDENCE:
-                    ngram_skipped_low_conf += 1
-                    continue
-                # Resolve to KG container by prefix
-                resolved = None
-                if f"source:{slug}" in {nid for nid in _kg.G.nodes()}:
-                    resolved = f"source:{slug}"
-                else:
-                    # Try as prefix of any container slug
-                    for stem, cid in prefix_to_container.items():
-                        if slug.startswith(stem) or stem.startswith(slug):
-                            resolved = cid
-                            break
-                if resolved:
-                    local_map[sidx] = resolved
-                    ngram_added += 1
-                else:
-                    ngram_unresolved += 1
-        new_total = sum(len(v) for v in attribution_by_origin.values())
-        print(f"[3a.2/5] _segment_attribution_ngram.json (conf≥{NGRAM_MIN_CONFIDENCE}): "
-              f"+{ngram_added} new attributions ({ngram_skipped_low_conf} low-conf skipped, "
-              f"{ngram_unresolved} unresolved) → {new_total} total")
-
-    # ── Proximity propagation: fill gaps between attributed segments ──
-    # If segments S₁ and S₂ in the same TMX are both attributed to container
-    # X (where S₁ < S₂ and the gap |S₂-S₁| ≤ MAX_GAP), interpolate the
-    # intervening segments as also belonging to X. Conservative: only fills
-    # gaps where BOTH bookends agree on the container.
-    MAX_GAP = 100  # propagate across small gaps; bigger gaps are book boundaries
-    propagated_count = 0
-    for tmx_name, local_map in list(attribution_by_origin.items()):
-        if not local_map:
-            continue
-        sorted_keys = sorted(local_map.keys())
-        for i in range(len(sorted_keys) - 1):
-            s1, s2 = sorted_keys[i], sorted_keys[i + 1]
-            if s2 - s1 <= 1:
-                continue  # adjacent — no gap
-            if s2 - s1 > MAX_GAP:
-                continue  # too far — likely a book boundary
-            c1, c2 = local_map[s1], local_map[s2]
-            if c1 != c2:
-                continue  # bookends disagree — keep gap unattributed
-            for sidx in range(s1 + 1, s2):
-                if sidx not in local_map:
-                    local_map[sidx] = c1
-                    propagated_count += 1
-    new_total = sum(len(v) for v in attribution_by_origin.values())
-    print(f"[3a.3/5] Proximity propagation (gap≤{MAX_GAP}, agreeing bookends): "
-          f"+{propagated_count} new attributions → {new_total} total")
-    print(f"[3a.2/5] Loading seeded book manifest (legacy fallback) …")
-    manifest = SeedManifest.load()
-    print(f"       {len(manifest.works)} seeded works in manifest")
-    book_claims = find_book_anchors(entries, manifest)
-    print(f"       {len(book_claims)} book anchors found in TMs:")
-    for claim in book_claims:
-        print(f"       - {claim.author} / {claim.title_orig}")
-        print(f"           anchored at {claim.origin}:{claim.anchor_idx}, pattern={claim.matched_pattern!r}")
-        print(f"           segment_ranges: {len(claim.segment_ranges)} range(s), {claim.total_segments_in_range} segments total")
-
-    # ── Compute origin offsets ──
-    origin_offsets: dict[str, int] = {}
-    for i, e in enumerate(entries):
-        o = e.get("origin", "")
-        if o not in origin_offsets:
-            origin_offsets[o] = i
 
     # ── Phase A or B ──
     if args.export_segments:
-        export_segments(contexts, attribution_by_origin, book_claims, origin_offsets)
+        export_segments(contexts, attrib_result, entries_by_t_index)
         return
 
     if args.ingest_extractions:
@@ -714,8 +530,8 @@ def main():
             for c in contexts
         }
         ingest_extractions(
-            args, contexts, attribution_by_origin, book_claims,
-            origin_offsets, entries_by_origin,
+            args, contexts, attrib_result, entries_by_t_index,
+            entries_by_origin,
         )
         return
 
