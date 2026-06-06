@@ -449,7 +449,7 @@ Question to answer: "Which code reads `title_en` (as opposed to `title_orig` / `
 > Verify new tests pass; existing tests pass; existing live KG container count (`book_translation=93` per audit baseline) is unchanged after a dry re-ingest (script is idempotent on existing nodes by id).
 > Report: full diff, the `_LANG_MARKER_TO_CODE` table you used + which markers were observed in the bibliography file, test outputs.
 
-- [ ] **Step 4.3: Coordinator dispatches `feature-dev:code-reviewer` for an independent review pass.**
+- [ ] **Step 4.3: Coordinator dispatches `pythonista-reviewer` for an independent review pass.**
 
 The reviewer's brief: confirm constraints 9 and 10 are upheld in the diff; confirm no hardcoded language pair, no `cited_in` edge, no conflation of self-authored records with book-bibliography cited works. Confirm the review-queue routing matches the existing mechanism (no new ad-hoc file).
 
@@ -524,7 +524,7 @@ git commit -m "cobiss ingest: canonical title_orig/title_translation; language-n
 - Step 5.1: `feature-dev:code-architect` (dispatcher design — no code, returns blueprint)
 - Step 5.2: `python-development:python-pro` for TDD red
 - Step 5.3: `python-development:python-pro` for TDD green
-- Step 5.4: `feature-dev:code-reviewer` for diff review
+- Step 5.4: `pythonista-reviewer` for diff review
 - Skills the coordinator invokes before dispatching: `python-development:python-design-patterns` (SRP, single-chokepoint design), `python-development:python-error-handling` (review-queue routing), `superpowers:test-driven-development`, `python-development:python-testing-patterns`.
 
 ### Tasks
@@ -576,9 +576,9 @@ Brief: "Find every call site that currently writes to the existing review queue 
 > Verify: new tests pass; all existing tests pass; the diff does NOT introduce raw `kg.G.add_edge` calls.
 > Report: full per-file diff; pytest output for new tests AND for the full suite.
 
-- [ ] **Step 5.4: Coordinator dispatches `feature-dev:code-reviewer` for the diff review.**
+- [ ] **Step 5.4: Coordinator dispatches `pythonista-reviewer` for the diff review.**
 
-> Subagent type: `feature-dev:code-reviewer`.
+> Subagent type: `pythonista-reviewer`.
 > Brief: "Review the Phase 5 diff (`translate_core/kg_ingest_entities.py`, smol/cobiss/doc_pair producers, the new test file). Check specifically for: constraint 9 (no hardcoded language pair anywhere); constraint 10 (containers ONLY from cobiss_personal, cited_work from any of the three valid provenances, NO `cited_in` on self-authored COBISS records); no `kg.G.add_edge` direct writes; review-queue write goes to the existing mechanism, not a new file. Report only high-confidence findings."
 
 - [ ] **Step 5.5: Coordinator real-data check (dry-run).**
@@ -631,7 +631,7 @@ git commit -m "kg_ingest: single-chokepoint routing by provenance; reject mis-ty
 - Step 6.3: `python-development:python-pro` for TDD red
 - Step 6.4: `python-development:python-pro` for TDD green
 - Step 6.5: `python-development:python-pro` for the path-mismatch fix
-- Step 6.6: `feature-dev:code-reviewer` for the diff review
+- Step 6.6: `pythonista-reviewer` for the diff review
 - Skills the coordinator invokes before dispatching: `python-development:python-design-patterns` (separation of attribution from ingest), `python-development:python-project-structure` (where the new module lives), `superpowers:test-driven-development`, `python-development:python-testing-patterns`.
 
 ### Tasks
@@ -689,7 +689,7 @@ No commit yet — bundled with Step 6.7.
 > Verify: new tests pass; existing tests pass; `.venv/bin/python3 -c "from run_entity_extraction import SMOL_EXTRACTIONS_PATH; print(SMOL_EXTRACTIONS_PATH.exists())"` returns `True`.
 > Report: full diff.
 
-- [ ] **Step 6.5: Coordinator dispatches `feature-dev:code-reviewer` for the diff review.**
+- [ ] **Step 6.5: Coordinator dispatches `pythonista-reviewer` for the diff review.**
 
 Brief: "Review the Phase 6 diff. Confirm: no naive `enumerate(tm.entries)` slicing reintroduced; the chronological walker keys off `t_index` only; conflicts are surfaced (not silently resolved); no `MAX_GAP` heuristic; `data/` paths are correct; SMOL_EXTRACTIONS_PATH fix applied. Report only high-confidence findings."
 
@@ -825,7 +825,7 @@ git commit -m "vl: delete VL-era parser/extractor stack; strip use_vl branch fro
 ### Agent mix
 - Step 8.0: `Explore` (find every caller of the four to-be-deleted factories)
 - Step 8.1: `python-development:python-pro` for the surgery
-- Step 8.2: `feature-dev:code-reviewer` for post-delete review
+- Step 8.2: `pythonista-reviewer` for post-delete review
 - Skills the coordinator invokes before dispatching: `python-development:python-anti-patterns`.
 - **Coordinator pause**: destructive phase. Coordinator confirms with the user after the Step 8.0 Explore report before dispatching Step 8.1.
 
@@ -844,7 +844,7 @@ Brief: "Find every reference (excluding `.venv/`, `__pycache__/`, and files we p
 > Run the full test suite. Any test that exercised the deleted methods must also be deleted (e.g. tests under `tests/` that import `seed_from_tm` or instantiate `add_collocation_node`).
 > Report: files deleted, KG file diff, test outputs.
 
-- [ ] **Step 8.2: Coordinator dispatches `feature-dev:code-reviewer` for review.**
+- [ ] **Step 8.2: Coordinator dispatches `pythonista-reviewer` for review.**
 
 Brief: "Review the Phase 8 deletion diff. Confirm: no orphaned helpers left in `knowledge_graph.py`; no dead imports; no tests reference deleted symbols. Run `grep -rn 'seed_from_tm\\|add_collocation_node\\|add_segment_node\\|add_domain_node' --include='*.py' .` and report any survivors."
 
@@ -890,7 +890,7 @@ git commit -m "kg: delete seed_kg + seed_from_tm + ontology §6 out-of-scope fac
 - Step 9.2: `python-development:python-pro` for TDD red
 - Step 9.3: `python-development:python-pro` for TDD green
 - Step 9.4-5: coordinator runs the dry-run + `--apply` (no agent dispatch — just shell)
-- Step 9.6: `feature-dev:code-reviewer` for the drain script's correctness before `--apply`
+- Step 9.6: `pythonista-reviewer` for the drain script's correctness before `--apply`
 - Skills the coordinator invokes before dispatching: `superpowers:test-driven-development`, `python-development:python-testing-patterns`, `python-development:python-performance-optimization` (touching 8,455 nodes; avoid quadratic walks).
 - **Coordinator pause**: destructive KG mutation. Coordinator confirms with the user after the dry-run shows the would-delete count before any `--apply`.
 
@@ -928,7 +928,7 @@ ls -la data/knowledge.db data/knowledge.db.phase9.bak
 > Verify tests pass; full suite green.
 > Report.
 
-- [ ] **Step 9.3a: Coordinator dispatches `feature-dev:code-reviewer` for drain-script review.**
+- [ ] **Step 9.3a: Coordinator dispatches `pythonista-reviewer` for drain-script review.**
 
 Brief: "Review `scripts/drain_noise_concepts.py` and the new `KnowledgeGraph.remove_concept_node` factory. Confirm: only the factory method touches the graph (no raw `kg.G.remove_node`); incident edges are cleaned exhaustively (no dangling edges possible); the `--apply` path is idempotent; `--dry-run` reports the same set the `--apply` would delete. Single-pass walk only — no nested concept-over-edge loops. Report only high-confidence findings."
 
@@ -996,7 +996,7 @@ git commit -m "kg: drain ~8455 noise concepts lacking definitions/lineage/proven
 - Step 10.1: coordinator inspects file shapes (no agent needed — single Python read)
 - Step 10.3: `python-development:python-pro` for TDD red
 - Step 10.4: `python-development:python-pro` for TDD green
-- Step 10.5: `feature-dev:code-reviewer` for the ingester review
+- Step 10.5: `pythonista-reviewer` for the ingester review
 - Step 10.6: coordinator runs the ingester against a KG copy
 - Skills the coordinator invokes before dispatching: `superpowers:test-driven-development`, `python-development:python-testing-patterns`, `python-development:python-error-handling` (missing-agent routing to review).
 
@@ -1044,7 +1044,7 @@ cp data/quarantine/_concept_theorists.json data/concept_theorists.json
 > Verify tests pass.
 > Report.
 
-- [ ] **Step 10.4a: Coordinator dispatches `feature-dev:code-reviewer` for the ingester review.**
+- [ ] **Step 10.4a: Coordinator dispatches `pythonista-reviewer` for the ingester review.**
 
 Brief: "Review `scripts/ingest_curator_lineages.py` and its tests. Confirm: factory methods only (no raw `G.add_edge`); idempotent; missing-agent routes to existing review queue, not a new file; concept definitions come from the curator notes (not auto-generated); lineage relations are validated against the ontology §3.4 set. Report only high-confidence findings."
 
@@ -1271,7 +1271,7 @@ Dispatch the agent type that matches the WORK, not the same generic agent for ev
 | 7, 8, 11 (deletions) | Surgery | `python-development:python-pro` |
 | 9, 10 (KG data work) | Implement | `python-development:python-pro` |
 | 12 (end-to-end) | Integration harness | `python-development:python-pro` |
-| Between green and commit, every substantive phase | Independent review pass | `feature-dev:code-reviewer` OR `pythonista-reviewer` (pick one; rotate if reviewing the same agent's work) |
+| Between green and commit, every substantive phase | Independent review pass | `pythonista-reviewer` |
 
 Rule of thumb: dispatch `Explore` whenever the coordinator would otherwise run more than two greps inline; the protected-context savings are real on large phases.
 
@@ -1279,7 +1279,7 @@ Rule of thumb: dispatch `Explore` whenever the coordinator would otherwise run m
 
 ## Appendix: subagent dispatch template
 
-For every dispatch the coordinator uses this skeleton. **Pick the subagent type from the per-phase Agent mix subsection — not always `python-pro`.** Allowed types in this work: `Explore` (read-only search), `feature-dev:code-architect` (design), `python-development:python-pro` (implementation), `feature-dev:code-reviewer` / `pythonista-reviewer` (review), `feature-dev:code-explorer` (deep walks).
+For every dispatch the coordinator uses this skeleton. **Pick the subagent type from the per-phase Agent mix subsection — not always `python-pro`.** Allowed types in this work: `Explore` (read-only search), `feature-dev:code-architect` (design), `python-development:python-pro` (implementation), `pythonista-reviewer` / `pythonista-reviewer` (review), `feature-dev:code-explorer` (deep walks).
 
 ```
 Subagent type: <pick from the phase's Agent mix subsection>
