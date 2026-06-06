@@ -1,44 +1,30 @@
 #!/usr/bin/env python3
-"""Harvest title anchors from COBISS containers against the live TM.
+"""Title-anchor harvester — STRICT one-anchor-per-(container, origin).
 
-For every COBISS container (translator-role entry):
-  - Build a TITLE TOKEN SET from (entry.title + entry.title_en).
-  - Build an AUTHOR SURNAME SET from entry.agents.
-  - Scan every TM segment (per origin, sorted by t_index ascending).
-  - Score each segment: (title-token overlap on src+tgt) AND (author surname
-    appears somewhere in src+tgt).
-  - Above threshold → that (origin, seg_idx) is a title anchor for the
-    container.
-  - Multiple matches in different t_index regions ARE written (the walker
-    supports multi-interval containers: a book translated across several
-    sessions has multiple title-page occurrences in the TM).
+For each COBISS translator container, write AT MOST ONE anchor per TMX
+origin file. The anchor is the FIRST chronological segment matching one
+of these strict signals:
 
-This delivers the *coverage* the chronological-anchor walker needs: every
-container present in the TM has its title anchored at the segment where
-the translator typed the title page. End-of-container = the next anchor's
-seg_idx minus one (per the walker's design). No explicit end markers
-needed — they fall out of complete title coverage.
+  A. Author byline pattern: segment whose normalised text is essentially
+     "<firstname> <surname>" alone (≥60% of the segment is the author's
+     full name). This is what the translator types as the article's
+     by-line at the start of the body.
 
-Outputs:
-  data/segment_title_attribution.json — merged with existing entries.
-  A *.bak file is saved before any write.
+  B. Title-page pattern: segment whose normalised text is essentially
+     the title alone (≥60% of the segment is the title phrase). This
+     catches title-page lines like "Za slavo" or "For Glory".
 
-Scoring rules (deterministic):
-  - title tokens: alphanumeric 3+ char, NFKD-normalised lowercase, from
-    `title + " " + title_en + " " + subtitle`. Stop-word ish prefixes
-    ("the", "a", "an", "in", "of", "and", "v", "in", "na", "z", "od")
-    excluded.
-  - segment tokens: same normalisation, drawn from
-    `entry["source"] + " " + entry["target"]`.
-  - overlap_ratio = |title_tokens ∩ seg_tokens| / |title_tokens|.
-  - author_match = any surname appears as a whole-word token in the segment.
-  - PASS when overlap_ratio >= MIN_TITLE_OVERLAP and (author_match OR
-    overlap_ratio == 1.0 [full title match alone is enough]).
+Both passes are anchored at the FIRST chronological hit in each origin.
+A container can therefore have AT MOST one anchor per origin file —
+multi-interval propagation across sessions is handled by the walker
+when other containers fire their anchors in between.
 
-Default thresholds chosen conservatively to avoid false anchors:
-  - MIN_TITLE_OVERLAP = 0.7 (i.e. 70% of title tokens present)
-  - MIN_TITLE_TOKENS = 2 (skip containers whose effective title token set
-    is too small to discriminate; logged so curator can handle them).
+NGRAM-derived anchors (from build_segment_attribution.py for the books
+with source MD files: kunst, zaloznik, okri) are PRESERVED — they are
+the gold standard for the books where we have the source text.
+
+No regex; no thresholds beyond the 60% dominance rule for the strict
+signal.
 """
 from __future__ import annotations
 
@@ -47,7 +33,6 @@ import json
 import shutil
 import sys
 import unicodedata
-import re
 from collections import defaultdict
 from pathlib import Path
 
@@ -63,63 +48,48 @@ from translate_core.cobiss_classifier import classify_entry
 ATTR_PATH = ROOT / "data" / "segment_title_attribution.json"
 COBISS_PATH = ROOT / "data" / "personal bibliography" / "bibliography_belina.txt"
 
-# Tokens that don't discriminate between titles
-STOP_TOKENS = frozenset({
-    "the", "and", "for", "with", "from", "into", "onto", "upon", "this",
-    "that", "these", "those", "their", "them", "than", "then", "but", "not",
-    # Slovenian short function words / prepositions and common verbs
-    "ali", "kot", "kjer", "ker", "kar", "kaj", "kdo", "kdaj",
-    "tako", "tudi", "samo", "tega", "tem", "tej", "tega", "ima",
-    "bil", "bila", "bili", "biti", "smo", "sta", "ste", "sva",
-    "jih", "jim", "jih", "njihov",
-    "njegov", "njena", "njeno", "naj",
-    # one and two-letter prepositions are filtered by the length check
-})
-
-MIN_TITLE_OVERLAP = 0.7   # for the full-title pass
-CORE_OVERLAP = 0.8        # for the core-title pass (post `:`/`;`/` = ` stripping)
-MIN_TITLE_TOKENS = 2
-TOKEN_RE = re.compile(r"[a-z0-9]{3,}")
-# Year tokens 19xx/20xx and bare numbers are non-discriminating noise
-NUMERIC_RE = re.compile(r"^[0-9]+$")
+DOMINANCE = 0.6   # signal phrase must be ≥60% of segment length
+MIN_PHRASE_LEN = 4  # minimum normalised length of a discriminating phrase
+# Containers whose anchors came from the ngram matcher
+# (preserve their existing anchors verbatim).
+NGRAM_PROTECTED_PREFIXES = (
+    "source:kunst-zivljenje-umetnosti",
+    "source:zaloznik-jasmina-zavzemanje-prostora-2024",
+    "source:okri-ben-cesta-sestradanih-2016",
+)
 
 
-def _strip(s: str) -> str:
-    n = unicodedata.normalize("NFKD", s)
-    return "".join(c for c in n if not unicodedata.combining(c)).lower()
+def _phrase_normalise(text: str) -> str:
+    """NFKD-strip, lowercase, replace non-alphanumeric with space, collapse."""
+    n = unicodedata.normalize("NFKD", text)
+    n = "".join(c for c in n if not unicodedata.combining(c)).lower()
+    cleaned = "".join(c if c.isalnum() else " " for c in n)
+    return " ".join(cleaned.split())
 
 
-def _tokenize(text: str) -> set[str]:
-    return {
-        t for t in TOKEN_RE.findall(_strip(text))
-        if t not in STOP_TOKENS and not NUMERIC_RE.fullmatch(t)
-    }
-
-
-def _extract_core(title: str) -> str:
-    """Strip COBISS metadata cruft after the first ':' / ';' / ' = '.
-
-    COBISS catalogue titles often look like:
-      'Standing waves : Muzej in galerije mesta Ljubljane ... 2024'
-      'Cofestival: 14. mednarodni festival ... 2025'
-      'When gesture becomes event = Wenn die Geste zum Ereignis wird : ...'
-    Translators type only the core ('Standing waves', 'Cofestival',
-    'When gesture becomes event') in the TM. We match against the core
-    for high-recall anchoring.
-    """
+def _title_core(title: str) -> str:
+    """Strip COBISS metadata after first `:`/`;`/` = `."""
     if not title:
         return ""
     s = title
     for sep in (" = ", ":", ";"):
-        idx = s.find(sep)
-        if idx > 0:
-            s = s[:idx]
+        i = s.find(sep)
+        if i > 0:
+            s = s[:i]
     return s.strip(" ,.-")
 
 
+def _slug_part(s: str) -> str:
+    """NFKD-strip + lowercase + replace non-alphanumeric with '-'."""
+    s = unicodedata.normalize("NFKD", s)
+    s = "".join(c for c in s if not unicodedata.combining(c)).lower()
+    interim = "".join(c if (c.isalnum() and c.isascii()) else "-" for c in s)
+    parts = [p for p in interim.split("-") if p]
+    return "-".join(parts)[:80]
+
+
 def _container_id_for_entry(entry, kg: KnowledgeGraph) -> str | None:
-    """Find the KG container id for this COBISS entry, matching by the
-    upstream slug formula `<author>-<title[:60]>-<year>`."""
+    """Find canonical KG container id (year-suffixed slug)."""
     if not entry.agents:
         return None
     author = entry.agents[0]
@@ -127,58 +97,56 @@ def _container_id_for_entry(entry, kg: KnowledgeGraph) -> str | None:
     title_slug = _slug_part(entry.title[:60] if entry.title else "")
     year_slug = str(entry.year) if entry.year else ""
     parts = [p for p in (author_slug, title_slug, year_slug) if p]
-    bare = "-".join(parts)
-    candidate = f"source:{bare}"
+    candidate = f"source:{'-'.join(parts)}"
     if kg.G.has_node(candidate):
         return candidate
     return None
 
 
-def _slug_part(s: str) -> str:
-    s = unicodedata.normalize("NFKD", s)
-    s = "".join(c for c in s if not unicodedata.combining(c))
-    s = s.lower()
-    s = re.sub(r"[^a-z0-9]+", "-", s).strip("-")
-    return s[:80]
+def _first_anchor(
+    origin_segments: list[tuple[int, dict, str, str]],
+    needles: list[str],
+) -> int | None:
+    """Return seg_idx of the FIRST segment where ANY needle dominates ≥60%
+    of EITHER the source-side OR target-side normalised text. Bilingual
+    title-page segments score independently on each side, avoiding the
+    spurious 50% dominance that combining-both-sides would produce."""
+    for seg_idx, _entry, src_phrase, tgt_phrase in origin_segments:
+        for side in (src_phrase, tgt_phrase):
+            side_len = len(side)
+            if side_len == 0:
+                continue
+            for needle in needles:
+                if needle in side and len(needle) / side_len >= DOMINANCE:
+                    return seg_idx
+    return None
 
 
-def harvest(tm: TranslationMemory, kg: KnowledgeGraph,
-            *, verbose: bool = False) -> tuple[dict, dict]:
-    """Walk every COBISS translator entry; produce
-    (anchors_by_origin, stats)."""
+def harvest(tm: TranslationMemory, kg: KnowledgeGraph) -> tuple[dict, dict]:
     entries = parse_cobiss_file(str(COBISS_PATH))
-    print(f"  COBISS entries: {len(entries)}")
 
-    # Pre-build per-origin sorted segment lists keyed by their original
-    # seg_idx in tm.entries (the same convention load_curator_anchors uses).
-    by_origin: dict[str, list[tuple[int, dict]]] = defaultdict(list)
+    # Per-origin natural order. For each segment store TWO normalised
+    # phrases: source-side and target-side. Dominance is checked against
+    # whichever side the needle matches (so a bilingual title-page segment
+    # with the title on BOTH sides scores high on each side independently).
+    by_origin: dict[str, list[tuple[int, dict, str, str]]] = defaultdict(list)
     for e in tm.entries:
         origin = e.get("origin")
-        if origin:
-            by_origin[origin].append((len(by_origin[origin]), e))
-    print(f"  TM origins: {list(by_origin.keys())}")
-    for o, lst in by_origin.items():
-        print(f"    {o}: {len(lst)} segments")
-
-    # Build per-segment token sets ONCE (heavy work — do it once, reuse for
-    # every container).
-    seg_tokens_by_origin: dict[str, list[set[str]]] = {}
-    for origin, lst in by_origin.items():
-        seg_tokens_by_origin[origin] = [
-            _tokenize((e.get("source") or "") + " " + (e.get("target") or ""))
-            for _i, e in lst
-        ]
+        if not origin:
+            continue
+        src_phrase = _phrase_normalise(e.get("source") or "")
+        tgt_phrase = _phrase_normalise(e.get("target") or "")
+        seg_idx = len(by_origin[origin])
+        by_origin[origin].append((seg_idx, e, src_phrase, tgt_phrase))
 
     anchors_by_origin: dict[str, dict[str, list[str]]] = defaultdict(dict)
-    stats: dict = {
+    stats = {
         "containers_total": 0,
         "containers_with_kg_id": 0,
-        "containers_anchored": 0,
+        "containers_anchored_anywhere": 0,
         "containers_no_anchor": 0,
-        "containers_too_few_tokens": 0,
-        "total_anchors_written": 0,
+        "anchor_records_written": 0,
         "no_anchor_examples": [],
-        "too_few_tokens_examples": [],
     }
 
     for entry in entries:
@@ -192,157 +160,49 @@ def harvest(tm: TranslationMemory, kg: KnowledgeGraph,
             continue
         stats["containers_with_kg_id"] += 1
 
-        # Title tokens — core (post `:`/`;`/`=` strip) and full fallback.
-        core_blob = " ".join([
-            _extract_core(entry.title or ""),
-            _extract_core(entry.title_en or ""),
-        ])
-        full_blob = " ".join([
-            entry.title or "",
-            entry.title_en or "",
-            entry.subtitle or "",
-        ])
-        core_tokens = _tokenize(core_blob)
-        full_tokens = _tokenize(full_blob)
-
-        if len(core_tokens) < MIN_TITLE_TOKENS and len(full_tokens) < MIN_TITLE_TOKENS:
-            stats["containers_too_few_tokens"] += 1
-            if len(stats["too_few_tokens_examples"]) < 5:
-                stats["too_few_tokens_examples"].append({
-                    "kg_id": kg_id,
-                    "title": entry.title,
-                    "title_en": entry.title_en,
-                    "core_tokens": sorted(core_tokens),
-                    "full_tokens": sorted(full_tokens),
-                })
-            continue
-
-        # Author-role agents only (skip translator/editor agents bundled in
-        # the COBISS record — those don't locate the work).
-        author_surname_tokens: set[str] = set()
-        author_firstname_tokens: set[str] = set()
+        # AUTHOR-role agents only
+        author_full_phrases: list[str] = []
         for ag in entry.agents:
             if "author" in (ag.roles or []) or not ag.roles:
-                author_surname_tokens |= _tokenize(ag.last_name)
-                author_firstname_tokens |= _tokenize(ag.first_name)
+                first = _phrase_normalise(ag.first_name)
+                last = _phrase_normalise(ag.last_name)
+                if first and last:
+                    author_full_phrases.append(first + " " + last)
+                    author_full_phrases.append(last + " " + first)
 
-        title_match_tokens = core_tokens or full_tokens
-        title_threshold = CORE_OVERLAP if core_tokens else MIN_TITLE_OVERLAP
-        title_has_signal = len(title_match_tokens) >= MIN_TITLE_TOKENS
+        # Title phrases - core SL + core EN
+        title_phrases = []
+        for raw in (entry.title or "", entry.title_en or ""):
+            core = _title_core(raw)
+            norm = _phrase_normalise(core)
+            if len(norm) >= MIN_PHRASE_LEN:
+                title_phrases.append(norm)
 
-        AUTHOR_RARE_LIMIT = 10  # ≤ this many TM mentions → byline-anchor pattern
+        if not author_full_phrases and not title_phrases:
+            continue
 
-        found_in_any_origin = False
-        for origin, lst in by_origin.items():
-            seg_tokens_list = seg_tokens_by_origin[origin]
-            n_segs = len(lst)
-
-            # Find seg_idxs where the AUTHOR's surname is present (whole-token
-            # match through the tokenizer set membership).
-            author_hits = [
-                seg_idx
-                for (seg_idx, _entry), st in zip(lst, seg_tokens_list)
-                if author_surname_tokens & st
-            ] if author_surname_tokens else []
-
-            # Strategy decision for THIS origin:
-            #   - If author is RARE in this origin (≤10 hits): each hit is
-            #     likely a byline. Anchor at each hit regardless of title
-            #     overlap (the title token set is unreliable for short or
-            #     missing titles like "Za slavo").
-            #   - If author is COMMON in this origin (>10 hits): treat them
-            #     as body-text mentions and require title-overlap in window
-            #     to disambiguate.
-            #   - If NO author hits but a long, distinctive title exists,
-            #     fall back to direct title-overlap scanning (catalogue).
-
-            if author_hits and len(author_hits) <= AUTHOR_RARE_LIMIT:
-                # Byline pattern: anchor at each author-mentioning segment.
-                # Firstname-confirmation when there are multiple authors with
-                # the same surname is a soft requirement.
-                for c_idx in author_hits:
-                    lo = max(0, c_idx - 2)
-                    hi = min(n_segs, c_idx + 3)
-                    window_tokens: set[str] = set()
-                    for w_idx in range(lo, hi):
-                        window_tokens |= seg_tokens_list[w_idx]
-                    if (
-                        author_firstname_tokens
-                        and not (author_firstname_tokens & window_tokens)
-                    ):
-                        # Different person with the same surname → skip
-                        continue
-                    slot = anchors_by_origin[origin].setdefault(str(c_idx), [])
-                    if kg_id not in slot:
-                        slot.append(kg_id)
-                        stats["total_anchors_written"] += 1
-                    found_in_any_origin = True
-                continue  # no need to also try title-only here
-
-            if author_hits and title_has_signal:
-                # Common-author pattern: title-overlap in window required
-                for c_idx in author_hits:
-                    lo = max(0, c_idx - 2)
-                    hi = min(n_segs, c_idx + 3)
-                    window_tokens = set()
-                    for w_idx in range(lo, hi):
-                        window_tokens |= seg_tokens_list[w_idx]
-                    if not window_tokens:
-                        continue
-                    overlap = len(title_match_tokens & window_tokens)
-                    if not overlap:
-                        continue
-                    ratio = overlap / len(title_match_tokens)
-                    if ratio < title_threshold:
-                        continue
-                    if (
-                        author_firstname_tokens
-                        and not (author_firstname_tokens & window_tokens)
-                        and ratio < 1.0
-                    ):
-                        continue
-                    slot = anchors_by_origin[origin].setdefault(str(c_idx), [])
-                    if kg_id not in slot:
-                        slot.append(kg_id)
-                        stats["total_anchors_written"] += 1
-                    found_in_any_origin = True
+        any_origin = False
+        for origin, segs in by_origin.items():
+            # Try byline (author full name dominates), then title page
+            seg_idx = _first_anchor(segs, author_full_phrases)
+            if seg_idx is None:
+                seg_idx = _first_anchor(segs, title_phrases)
+            if seg_idx is None:
                 continue
+            slot = anchors_by_origin[origin].setdefault(str(seg_idx), [])
+            if kg_id not in slot:
+                slot.append(kg_id)
+                stats["anchor_records_written"] += 1
+            any_origin = True
 
-            # No author hits in this origin: catalogue-style title-only
-            # fallback. Requires high core-title overlap.
-            if title_has_signal:
-                for (seg_idx, _entry), st in zip(lst, seg_tokens_list):
-                    if not st:
-                        continue
-                    overlap = len(title_match_tokens & st)
-                    if not overlap:
-                        continue
-                    ratio = overlap / len(title_match_tokens)
-                    if ratio < title_threshold:
-                        continue
-                    slot = anchors_by_origin[origin].setdefault(str(seg_idx), [])
-                    if kg_id not in slot:
-                        slot.append(kg_id)
-                        stats["total_anchors_written"] += 1
-                    found_in_any_origin = True
-
-        if found_in_any_origin:
-            stats["containers_anchored"] += 1
-            if verbose:
-                count = sum(
-                    1
-                    for o, segs in anchors_by_origin.items()
-                    for cids in segs.values()
-                    if kg_id in cids
-                )
-                print(f"  ANCHORED {kg_id}  in {count} segment(s)")
+        if any_origin:
+            stats["containers_anchored_anywhere"] += 1
         else:
             stats["containers_no_anchor"] += 1
             if len(stats["no_anchor_examples"]) < 10:
                 stats["no_anchor_examples"].append({
                     "kg_id": kg_id,
                     "title": entry.title,
-                    "title_en": entry.title_en,
                     "year": entry.year,
                 })
 
@@ -352,8 +212,10 @@ def harvest(tm: TranslationMemory, kg: KnowledgeGraph,
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--apply", action="store_true",
-                        help="Write anchors into segment_title_attribution.json")
-    parser.add_argument("-v", "--verbose", action="store_true")
+                        help="Write harvested anchors into "
+                             "data/segment_title_attribution.json. "
+                             "Existing ngram-derived anchors for the 3 "
+                             "books with source MD files are preserved.")
     args = parser.parse_args(argv)
 
     print("loading TM...")
@@ -363,62 +225,75 @@ def main(argv=None) -> int:
     kg = KnowledgeGraph()
     print(f"  nodes: {kg.G.number_of_nodes()}")
 
-    print("\nharvesting title anchors from COBISS containers...")
-    new_anchors, stats = harvest(tm, kg, verbose=args.verbose)
+    print("\nharvesting STRICT one-per-origin anchors...")
+    harvested, stats = harvest(tm, kg)
 
     print()
-    print("─" * 60)
-    print(f"COBISS translator containers:  {stats['containers_total']}")
-    print(f"  with KG node id:             {stats['containers_with_kg_id']}")
-    print(f"  successfully anchored:       {stats['containers_anchored']}")
-    print(f"  no anchor found:             {stats['containers_no_anchor']}")
-    print(f"  title too few tokens:        {stats['containers_too_few_tokens']}")
-    print(f"  total anchor records:        {stats['total_anchors_written']}")
-    print()
+    print(f"COBISS translator containers:       {stats['containers_total']}")
+    print(f"  with KG node id:                  {stats['containers_with_kg_id']}")
+    print(f"  successfully anchored:            {stats['containers_anchored_anywhere']}")
+    print(f"  no anchor:                        {stats['containers_no_anchor']}")
+    print(f"  total anchor records (≤1 per origin per container): "
+          f"{stats['anchor_records_written']}")
     if stats["no_anchor_examples"]:
-        print("no-anchor examples (curator may need to handle):")
+        print("\nno-anchor examples:")
         for ex in stats["no_anchor_examples"]:
-            print(f"  - {ex['kg_id']}")
-            print(f"      title:    {ex['title'][:70]!r}")
-            print(f"      title_en: {(ex.get('title_en') or '')[:70]!r}")
-            print(f"      year:     {ex['year']}")
-    if stats["too_few_tokens_examples"]:
-        print("\ntitle-too-short examples:")
-        for ex in stats["too_few_tokens_examples"]:
-            print(f"  - {ex['kg_id']}  title={ex['title']!r}  core={ex.get('core_tokens')} full={ex.get('full_tokens')}")
+            print(f"  - {ex['kg_id']}  title={ex['title']!r}  year={ex['year']}")
 
     if not args.apply:
         print("\n(dry-run; pass --apply to merge into segment_title_attribution.json)")
         return 0
 
-    # Merge with existing curator-set entries.
+    # MERGE strategy:
+    #   - Load existing file
+    #   - Preserve anchors for NGRAM_PROTECTED_PREFIXES verbatim
+    #   - Drop OTHER existing anchors (they came from my prior bad harvester
+    #     runs and are over-dense title-token false positives)
+    #   - Add the new strict one-per-origin anchors
     existing = json.loads(ATTR_PATH.read_text(encoding="utf-8"))
-    shutil.copy(ATTR_PATH, str(ATTR_PATH) + ".bak")
+    shutil.copy(ATTR_PATH, str(ATTR_PATH) + ".pre-strict.bak")
 
-    merged_anchors_added = 0
-    for origin, seg_map in new_anchors.items():
-        existing.setdefault(origin, {})
+    cleaned: dict[str, dict[str, list[str]]] = {}
+    preserved = 0
+    dropped = 0
+    for origin, seg_map in existing.items():
+        cleaned.setdefault(origin, {})
+        for seg_idx_str, val in seg_map.items():
+            cids = val if isinstance(val, list) else [val]
+            keep = [
+                c for c in cids
+                if isinstance(c, str)
+                and c.startswith("source:")
+                and any(c.startswith(p) for p in NGRAM_PROTECTED_PREFIXES)
+            ]
+            dropped += len(cids) - len(keep)
+            preserved += len(keep)
+            if keep:
+                cleaned[origin][seg_idx_str] = keep
+
+    # Merge strict anchors
+    added = 0
+    for origin, seg_map in harvested.items():
+        cleaned.setdefault(origin, {})
         for seg_idx_str, cids in seg_map.items():
-            current = existing[origin].get(seg_idx_str)
-            if current is None:
-                existing[origin][seg_idx_str] = list(cids)
-                merged_anchors_added += len(cids)
-            elif isinstance(current, list):
-                for c in cids:
-                    if c not in current:
-                        current.append(c)
-                        merged_anchors_added += 1
-            elif isinstance(current, str):
-                if current not in cids:
-                    existing[origin][seg_idx_str] = [current] + list(cids)
-                    merged_anchors_added += len(cids)
+            existing_at = cleaned[origin].get(seg_idx_str, [])
+            for c in cids:
+                if c not in existing_at:
+                    existing_at.append(c)
+                    added += 1
+            cleaned[origin][seg_idx_str] = existing_at
+
+    # Remove empty origin entries
+    cleaned = {o: m for o, m in cleaned.items() if m}
 
     ATTR_PATH.write_text(
-        json.dumps(existing, ensure_ascii=False, indent=2),
+        json.dumps(cleaned, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    print(f"\nattribution file updated: +{merged_anchors_added} cid references")
-    print(f"  backup: {ATTR_PATH}.bak")
+    print(f"\npreserved (ngram-protected): {preserved} cid refs")
+    print(f"dropped (over-dense title-phrase): {dropped} cid refs")
+    print(f"added (strict one-per-origin): {added} cid refs")
+    print(f"backup: {ATTR_PATH}.pre-strict.bak")
     return 0
 
 
