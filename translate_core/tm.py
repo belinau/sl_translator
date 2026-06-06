@@ -3,10 +3,9 @@
 import html
 import re
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, Iterator, List, Optional
 
 from rapidfuzz import fuzz, process
-from translate.storage.tmx import tmxfile
 
 import config
 
@@ -23,7 +22,7 @@ def clean_xml(text: str) -> str:
 class TranslationMemory:
     def __init__(self, tm_dir: Path = config.TM_DIR):
         self.tm_dir = Path(tm_dir)
-        self.entries: List[Dict[str, str]] = []
+        self.entries: List[Dict[str, Any]] = []
         self._load_all()
 
     def _load_all(self):
@@ -32,34 +31,60 @@ class TranslationMemory:
             return
         for p in self.tm_dir.glob("*.tmx"):
             self._load_tmx(p)
+        # After all files are loaded, recompute t_index globally so that
+        # iter_chronological() reflects a stable ordering across origins.
+        self._reindex_t_index()
 
     def _load_tmx(self, path: Path):
-        # Detect source language from TMX header srclang attribute
-        raw = path.read_text(encoding="utf-8")
-        srclang = "en"  # default assumption
-        m = re.search(r'srclang\s*=\s*"([^"]+)"', raw)
-        if m:
-            srclang = m.group(1).lower().split("-")[0]  # "EN-GB" -> "en", "SL" -> "sl"
+        # Delegate to tm_timecodes.read_tmx_with_timecodes so we keep the
+        # TU-level creationdate attribute (translate.storage.tmx silently
+        # drops it). Imported lazily because tm_timecodes does a lazy
+        # back-import of clean_xml from this module.
+        from translate_core.tm_timecodes import read_tmx_with_timecodes
 
-        with open(path, "rb") as f:
-            tmx_file = tmxfile(f)
-        for unit in tmx_file.unit_iter():
-            src = clean_xml(unit.source)
-            tgt = clean_xml(unit.target)
-            if src and tgt:
-                # Normalize: app convention is always EN source → SL target
-                if srclang == "sl":
-                    src, tgt = tgt, src
+        file_entries = read_tmx_with_timecodes(path)
+        offset = len(self.entries)
+        for entry in file_entries:
+            # Rebase raw_index to be globally unique across self.entries.
+            # t_index will be recomputed globally in _load_all once every
+            # file has been ingested, so we leave it as a per-file value
+            # for now (it'll be overwritten).
+            entry["raw_index"] += offset
+        self.entries.extend(file_entries)
 
-                self.entries.append(
-                    {
-                        "source": src,
-                        "target": tgt,
-                        "origin": str(path.name),
-                        "source_lang": "en",
-                        "target_lang": "sl",
-                    }
-                )
+    def _reindex_t_index(self) -> None:
+        """Recompute ``t_index`` for every entry across the full corpus.
+
+        Sort key: dated entries first (ascending by creationdate),
+        dateless entries after (ascending by raw_index to preserve
+        natural order). The list ``self.entries`` is NOT reordered ---
+        only the ``t_index`` value on each dict is overwritten.
+        """
+        sorted_view = sorted(
+            self.entries,
+            key=lambda e: (
+                e.get("creationdate") is None,
+                e.get("creationdate") or "",
+                e["raw_index"],
+            ),
+        )
+        for i, entry in enumerate(sorted_view):
+            entry["t_index"] = i
+
+    def iter_chronological(
+        self, origin: Optional[str] = None
+    ) -> Iterator[Dict[str, Any]]:
+        """Yield entries in ascending ``t_index`` (chronological) order.
+
+        When ``origin`` is provided, only entries from that origin file
+        are yielded, still in chronological order within that origin.
+        """
+        sel = (
+            self.entries
+            if origin is None
+            else [e for e in self.entries if e.get("origin") == origin]
+        )
+        yield from sorted(sel, key=lambda e: e["t_index"])
 
     def lookup_fuzzy(
         self, text: str, threshold: float = 90.0, limit: int = 3

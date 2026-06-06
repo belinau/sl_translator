@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE tmx SYSTEM "tmx14.dtd" >
+<tmx version="1.4">
+<header creationtool="sl_translator_test_fixture" creationtoolversion="1.0" segtype="sentence" o-tmf="unknown" adminlang="EN" srclang="EN" datatype="plaintext" creationdate="20260606T000000Z" >
+</header>
+<body>
+  <tu creationdate="20240101T120000Z" creationid="test" changedate="20240101T120000Z" changeid="test" usagecount="0">
+    <tuv xml:lang="EN">
+      <seg>hello A</seg>
+    </tuv>
+    <tuv xml:lang="SL">
+      <seg>pozdrav A</seg>
+    </tuv>
+  </tu>
+  <tu creationdate="20220101T120000Z" creationid="test" changedate="20220101T120000Z" changeid="test" usagecount="0">
+    <tuv xml:lang="EN">
+      <seg>hello B</seg>
+    </tuv>
+    <tuv xml:lang="SL">
+      <seg>pozdrav B</seg>
+    </tuv>
+  </tu>
+  <tu creationdate="20230101T120000Z" creationid="test" changedate="20230101T120000Z" changeid="test" usagecount="0">
+    <tuv xml:lang="EN">
+      <seg>hello C</seg>
+    </tuv>
+    <tuv xml:lang="SL">
+      <seg>pozdrav C</seg>
+    </tuv>
+  </tu>
+  <tu creationid="test" changeid="test" usagecount="0">
+    <tuv xml:lang="EN">
+      <seg>hello D</seg>
+    </tuv>
+    <tuv xml:lang="SL">
+      <seg>pozdrav D</seg>
+    </tuv>
+  </tu>
+</body>
+</tmx>
