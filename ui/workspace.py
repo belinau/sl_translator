@@ -362,7 +362,7 @@ def page_translate(project_id: str):
                         report = await loop.run_in_executor(
                             None,
                             lambda: extract_and_ingest(
-                                [snippet], kg, vl_extractor=None,
+                                [snippet], kg,
                             ),
                         )
                         if report.written > 0:

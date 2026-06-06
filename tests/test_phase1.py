@@ -3,8 +3,7 @@
 # Unit tests for Phase 1 changes:
 # - confidence.py: verified_typed_pipeline, verified_from_text, multi_mention reduction
 # - citation_types.py: detect_author_form style-scoped heuristic
-# - vl_typed_extractor.py: verified_typed_pipeline signal in records_from_verified,
-#   work ID is type-free
+# - _slug.py: type-free work IDs (slugify behaviour previously lived in vl_typed_extractor)
 
 import sys
 from pathlib import Path
@@ -18,7 +17,7 @@ from translate_core.entity_extraction.citation_types import (
     CitationStyle,
     detect_author_form,
 )
-from translate_core.entity_extraction.vl_typed_extractor import _slugify
+from translate_core.entity_extraction._slug import _slugify
 
 
 # ======================================================================
@@ -216,7 +215,7 @@ class TestDetectAuthorForm:
         ) == "footnote"
 
 # ======================================================================
-# Tests: vl_typed_extractor — type-free work IDs
+# Tests: _slug — type-free work IDs
 # ======================================================================
 
 

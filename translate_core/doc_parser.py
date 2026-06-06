@@ -128,7 +128,7 @@ class DocumentParser:
 
     def __init__(self, enable_plugins: bool = False):
         self.md = MarkItDown(enable_plugins=enable_plugins)
-        self._last_vl_result = None  # Holds VLBookResult after use_vl=True parse
+        self._last_vl_result = None  # Retained as None; VL pipeline retired in Phase 7
 
     # =======================================================================
     # STAGE 1: Pre-Translation Normalization (Ingestion)
@@ -319,8 +319,9 @@ class DocumentParser:
     ) -> str:
         """Convert a local book file to Markdown, automatically restructuring layout and styles.
 
-        When use_vl=True and the source is a PDF, delegates to the VL pipeline
-        (lazy-imported — the editor never loads mlx_vlm).
+        ``use_vl`` / ``vl_cache_dir`` are accepted for backward compatibility
+        with editor call sites and are silently ignored — the VL pipeline was
+        retired in Phase 7. Only the MarkItDown text path runs.
         """
         md, _ = self.to_markdown_with_meta(
             source,
@@ -343,23 +344,12 @@ class DocumentParser:
     ) -> Tuple[str, list]:
         """Convert a local book file to Markdown, returning (markdown, segments_meta).
 
-        segments_meta is an empty list for the MarkItDown path; populated only
-        when use_vl=True.
+        ``use_vl`` / ``vl_cache_dir`` / ``progress_callback`` are accepted for
+        backward compatibility with editor call sites and are silently ignored
+        — the VL pipeline was retired in Phase 7. segments_meta is always an
+        empty list (the MarkItDown text path emits no per-segment metadata).
         """
-        if use_vl and source.suffix.lower() == ".pdf":
-            from translate_core.vl_parser import VLBookParser  # lazy import
-
-            parser = VLBookParser(progress_callback=progress_callback)
-            result = parser.parse_book(source, cache_dir=vl_cache_dir)
-            md = result.final_markdown
-            if preprocess:
-                md = self.preprocess_source_style(
-                    md, remap_lists=True, list_style=list_style, convert_endnotes=False
-                )
-            # Store the full result so callers can access outline, etc.
-            self._last_vl_result = result
-            return md, result.segments_with_metadata
-
+        del use_vl, vl_cache_dir, progress_callback  # retired; signature kept for compat
         raw_text = self.md.convert(str(source)).text_content or ""
         if preprocess:
             raw_text = self.preprocess_source_style(

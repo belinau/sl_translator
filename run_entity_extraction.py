@@ -45,7 +45,6 @@ from translate_core.container_attribution import (
     load_ngram_anchors,
     attribute_segments_to_containers,
 )
-from translate_core.entity_extraction.bilingual_enrichment import enrich_titles_sl
 from translate_core.kg_ingest_entities import (
     aggregate_agent_signals,
     aggregate_institution_signals,
@@ -286,10 +285,10 @@ def ingest_extractions(
 
     print(f"      {len(all_records)} records after orphan-citation drop")
 
-    # Bilingual enrichment (TM matching only, no LLM)
-    if not args.no_bilingual:
-        print(f"[3c/5] Bilingual second pass — filling title_sl on work records …")
-        enrich_titles_sl(all_records, entries_by_origin, extractor=None)
+    # Phase 7: bilingual enrichment retired with the VL stack. The
+    # `--no-bilingual` flag is kept on the argparser for backward compat
+    # but is now a no-op; Phase 11 will remove it entirely along with
+    # the rest of this orchestrator.
 
     # Score and deduplicate
     print(f"[4/5] Aggregating signals, scoring, deduplicating …")

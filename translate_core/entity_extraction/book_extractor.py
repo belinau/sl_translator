@@ -33,13 +33,35 @@ from .segment_classifier import (
     PAGE_REF_RE,
     INLINE_CITE_PAREN_RE,
 )
-from .bilingual_titles import parse_bilingual_title, _extract_pub_info
 from .name_dedup import (
     is_plausible_person_name,
     dedup_group_key,
     normalize_person_name,
     looks_like_organization,
 )
+
+
+# Phase 7: bilingual_titles was deleted with the VL stack. This file goes away
+# in Phase 11. Provide a minimal in-module stand-in so the file imports cleanly
+# and downstream `bt.X or fallback` patterns degrade to the fallback path.
+class _NoopBilingualTitle:
+    title_orig: Optional[str] = None
+    title_en: Optional[str] = None
+    title_sl: Optional[str] = None
+    original_pub: Optional[dict] = None
+    slovenian_edition: Optional[dict] = None
+
+
+def parse_bilingual_title(en_src: str, sl_tgt: str) -> _NoopBilingualTitle:
+    """Phase 7 stub. The real bilingual parser was retired with the VL stack;
+    this file is deleted in Phase 11. Returns an empty decomposition so the
+    citation extractor falls through to its plain regex paths."""
+    return _NoopBilingualTitle()
+
+
+def _extract_pub_info(text: str) -> Optional[dict]:
+    """Phase 7 stub. Always returns None; this file is deleted in Phase 11."""
+    return None
 
 
 # Multi-citation splitter: `;` is the safest splitter inside a citation block

@@ -23,13 +23,6 @@ from .entity_extraction.citation_types import (
     is_short_reference,
 )
 from .entity_extraction.segment_classifier import SegmentClass
-from .entity_extraction.vl_typed_extractor import (
-    extract_typed_citation,
-    records_from_verified,
-)
-from .entity_extraction.vl_typed_verifier import verify_typed_citation
-
-from .entity_extraction.segment_classifier import SegmentClass
 
 log = logging.getLogger("citation_collector")
 
@@ -370,21 +363,16 @@ def collect_from_editor_segment(
 def extract_and_ingest(
     snippets: Iterable[CitationSnippet],
     kg,  # KnowledgeGraph instance
-    vl_extractor=None,  # VLExtractor instance (has ._vl_chat)
     review_path: str = "data/extraction_review.json",
     dropped_path: str = "data/extraction_dropped.jsonl",
 ) -> IngestReport:
-    """Run the full citation extraction pipeline on a batch of snippets.
+    """Run the citation extraction pipeline on a batch of snippets.
 
-    For each snippet:
-    1. Skip short references (ibid, op. cit.)
-    2. Classify citation type via VL (if vl_extractor available)
-    3. Extract typed fields via VL
-    4. Verify extracted fields against the segment text
-    5. Build records (cited_work + companion agents/institutions)
-    6. Enrich with SL title (bilingual)
-    7. Score confidence
-    8. Write to KG or queue for review
+    Phase 7 retired the VL-typed extraction branch; this orchestrator
+    currently only filters short references and drops noise. Phase 11
+    deletes ``citation_collector.py`` outright — the file remains live
+    until then so editor callers can still construct snippets without
+    crashing.
 
     Returns an IngestReport with counts per phase.
     """
@@ -407,75 +395,14 @@ def extract_and_ingest(
             report.dropped += 1
             continue
 
-        # If VL extractor is available, run the typed pipeline
-        if vl_extractor is not None:
-            try:
-                result = extract_typed_citation(
-                    extractor=vl_extractor,
-                    segment_text=text,
-                )
-            except Exception as e:
-                log.warning("Typed extraction failed for snippet %d: %s",
-                            snippet.segment_idx, e)
-                report.errors += 1
-                continue
-
-            if result is None:
-                report.dropped += 1
-                continue
-
-            citation_type = result.get("type", "other")
-            if citation_type in ("short_reference", "other"):
-                report.dropped += 1
-                continue
-
-            report.classified += 1
-
-            # The typed pipeline already ran verification inside
-            # extract_typed_citation. The result is a verified dict
-            # with typed fields.
-            report.verified += 1
-
-            # Build records from verified citation
-            records = records_from_verified(
-                verified=result,
-                origin=snippet.origin,
-                seg_idx=snippet.segment_idx,
-                src=text,
-                tgt="",  # SL side not available in single-source extraction
-            )
-
-            # Wire cited_in edge if container_work_id is present (O-17: no self-loops)
-            if snippet.container_work_id:
-                for rec in all_records:
-                    pass  # Will be wired during KG write
-                for rec in records:
-                    if rec.get("kind") in ("cited_work",) or rec.get("payload", {}).get("project_type"):
-                        rec.setdefault("payload", {})["container_work_id"] = snippet.container_work_id
-
-            all_records.extend(records)
-        else:
-            # No VL extractor — cannot do typed extraction
-            log.debug("No VL extractor, skipping snippet %d", snippet.segment_idx)
-            report.errors += 1
-
-    # Bilingual enrichment: use batch enrichment (TMX-based) rather than
-    # per-record VL call, since the fallback path was removed in Phase 4.
-    # The batch enrichment (enrich_from_tmx) runs as a separate script,
-    # so here we only enrich from TM data if available.
-    try:
-        from .tm import TranslationMemory
-        from .entity_extraction.bilingual_enrichment_batch import enrich_from_tmx
-        tm = TranslationMemory()
-        all_records = enrich_from_tmx(
-            kg,
-            tm.entries,
-            dry_run=False,
+        # No typed extractor wired in Phase 7+ — log and count as error.
+        log.debug(
+            "extract_and_ingest: no typed extractor, skipping snippet %d",
+            snippet.segment_idx,
         )
-    except Exception as e:
-        log.warning("Bilingual enrichment failed: %s", e)
+        report.errors += 1
 
-    # Score and dedup
+    # Score and dedup (currently empty until a non-VL typed extractor is wired)
     scored = score_all(all_records)
     deduped = dedup_records(scored)
 
