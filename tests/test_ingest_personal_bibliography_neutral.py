@@ -40,10 +40,11 @@ def _other(role: str = "author", *, first="Jane", last="DOE") -> CobissAgent:
 
 
 class _Graph:
-    """Minimal networkx-like stub: only `has_node` is used in the ingest path."""
+    """Minimal networkx-like stub: `has_node` + dict-like `nodes` for upsert."""
 
     def __init__(self) -> None:
         self._nodes: set[str] = set()
+        self.nodes: dict[str, dict] = {}
 
     def has_node(self, nid: str) -> bool:
         return nid in self._nodes
@@ -69,6 +70,12 @@ class _RecordingKG:
     def add_source_text_node(self, *, text_id, title, project_type, **kwargs):
         nid = f"source:{text_id.lower()}"
         self.G._nodes.add(nid)
+        self.G.nodes[nid] = {
+            "id": nid,
+            "title": title,
+            "project_type": project_type,
+            **kwargs,
+        }
         self.source_calls.append(
             {
                 "text_id": text_id,

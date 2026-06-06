@@ -1,4 +1,4 @@
-"""Tests for KnowledgeGraph.link_sl_published_by (ontology §3.2).
+"""Tests for KnowledgeGraph.link_translation_published_by (ontology §3.2; Phase 4 rename of link_sl_published_by).
 
 Mirrors link_published_by: same return semantics, same edge attribute
 shape, same self-loop behaviour. Uses in-memory KnowledgeGraph() only
@@ -21,20 +21,20 @@ def _seed_work_and_publisher(kg: KnowledgeGraph) -> tuple[str, str]:
     return src, inst
 
 
-def test_creates_exactly_one_sl_published_by_edge(tmp_path):
+def test_creates_exactly_one_translation_published_by_edge(tmp_path):
     kg = _fresh_kg(tmp_path)
     src, inst = _seed_work_and_publisher(kg)
 
-    ok = kg.link_sl_published_by("foo-work", "foo-publisher")
+    ok = kg.link_translation_published_by("foo-work", "foo-publisher")
 
     assert ok is True
-    sl_edges = [
+    edges = [
         (u, v, d)
         for u, v, d in kg.G.edges(data=True)
-        if d.get("relation") == "sl_published_by"
+        if d.get("relation") == "translation_published_by"
     ]
-    assert len(sl_edges) == 1
-    u, v, _ = sl_edges[0]
+    assert len(edges) == 1
+    u, v, _ = edges[0]
     assert u == src and v == inst, "direction must be source_text -> institution"
 
 
@@ -42,11 +42,11 @@ def test_idempotent_no_duplicate_edge(tmp_path):
     kg = _fresh_kg(tmp_path)
     _seed_work_and_publisher(kg)
 
-    assert kg.link_sl_published_by("foo-work", "foo-publisher") is True
-    assert kg.link_sl_published_by("foo-work", "foo-publisher") is True
+    assert kg.link_translation_published_by("foo-work", "foo-publisher") is True
+    assert kg.link_translation_published_by("foo-work", "foo-publisher") is True
 
-    sl_edges = [d for *_e, d in kg.G.edges(data=True) if d.get("relation") == "sl_published_by"]
-    assert len(sl_edges) == 1
+    edges = [d for _u, _v, d in kg.G.edges(data=True) if d.get("relation") == "translation_published_by"]
+    assert len(edges) == 1
 
 
 def test_returns_false_on_dangling_node(tmp_path):
@@ -54,11 +54,11 @@ def test_returns_false_on_dangling_node(tmp_path):
     kg.add_source_text_node("foo-work", title="Foo")
     # institution node intentionally absent
 
-    ok = kg.link_sl_published_by("foo-work", "missing-publisher")
+    ok = kg.link_translation_published_by("foo-work", "missing-publisher")
 
     assert ok is False
     assert not any(
-        d.get("relation") == "sl_published_by" for *_e, d in kg.G.edges(data=True)
+        d.get("relation") == "translation_published_by" for _u, _v, d in kg.G.edges(data=True)
     )
 
 
@@ -74,16 +74,16 @@ def test_self_loop_behaviour_matches_link_published_by(tmp_path):
     kg_sl.add_source_text_node("loop", title="Loop")
 
     pub_result = kg_pub.link_published_by(same_id, same_id)
-    sl_result = kg_sl.link_sl_published_by(same_id, same_id)
+    tr_result = kg_sl.link_translation_published_by(same_id, same_id)
 
-    assert pub_result == sl_result, "self-loop return parity"
+    assert pub_result == tr_result, "self-loop return parity"
 
     pub_self_loops = [
         d for u, v, d in kg_pub.G.edges(data=True)
         if u == v == same_id and d.get("relation") == "published_by"
     ]
-    sl_self_loops = [
+    tr_self_loops = [
         d for u, v, d in kg_sl.G.edges(data=True)
-        if u == v == same_id and d.get("relation") == "sl_published_by"
+        if u == v == same_id and d.get("relation") == "translation_published_by"
     ]
-    assert len(pub_self_loops) == len(sl_self_loops), "self-loop creation parity"
+    assert len(pub_self_loops) == len(tr_self_loops), "self-loop creation parity"

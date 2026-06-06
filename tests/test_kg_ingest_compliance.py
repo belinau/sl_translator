@@ -106,18 +106,19 @@ def records():
             "kind": "press",
         }, provenance="tm_smol"),
         # cited_work — diacritic cited_id, off-allowlist project_type,
-        # off-allowlist citation_style, SL edition (exercises sl_published_by).
+        # off-allowlist citation_style, translation edition (exercises
+        # link_translation_published_by, post-Phase-4 rename).
         _rec("cited_work", {
             "cited_id": "Foucault Discipliné",
-            "title_en": "Discipline and Punish",
-            "title_sl": "Nadzor in kazen",
+            "title_orig": "Discipline and Punish",
+            "title_translation": "Nadzor in kazen",
             "orig_lang": "en",
             "translation_lang": "sl",
             "project_type": "memoir",  # off-allowlist → cited_work
             "citation_style": "harvard",  # off-allowlist → dropped
             "author": "Michel Foucault",
             "original_pub": {"publisher": "Vintage", "city": "New York"},
-            "slovenian_edition": {"publisher": "Krtina", "city": "Ljubljana"},
+            "translation_edition": {"publisher": "Krtina", "city": "Ljubljana"},
         }, provenance="tm_smol"),
         # artwork — diacritic work_id, artist with diacritics.
         _rec("artwork", {
@@ -285,17 +286,17 @@ def test_source_text_ids_are_slugified(ran):
         assert not ran["kg"].G.has_node(raw)
 
 
-# ----- sl_published_by edge wired via factory ------------------------------
+# ----- translation_published_by edge wired via factory --------------------
 
-def test_sl_published_by_edge_present(ran):
-    """The cited_work with a slovenian_edition publisher gets an
-    sl_published_by edge — proves link_sl_published_by was used, not a
-    direct add_edge."""
+def test_translation_published_by_edge_present(ran):
+    """The cited_work with a translation_edition publisher gets a
+    translation_published_by edge — proves link_translation_published_by was
+    used, not a direct add_edge."""
     kg = ran["kg"]
     src = "source:" + ingest._slugify("Foucault Discipliné")
     inst = "institution:" + ingest._slugify("Krtina")
     assert kg.G.has_edge(src, inst)
-    assert kg.G[src][inst].get("relation") == "sl_published_by"
+    assert kg.G[src][inst].get("relation") == "translation_published_by"
 
 
 # ----- Dead code removed ----------------------------------------------------
