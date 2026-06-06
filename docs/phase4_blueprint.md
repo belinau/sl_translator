@@ -324,6 +324,7 @@ def migrate(kg_path, apply):
         "nodes_already_neutral_legacy_stripped": 0,
         "nodes_skipped_no_legacy_fields": 0,
     }
+    review_records: list[dict] = []  # neither-edge nodes for curator decision
 
     for node in nodes:
         has_legacy = any(k in node for k in LEGACY_NODE_FIELDS)
@@ -369,18 +370,20 @@ def migrate(kg_path, apply):
                 node["orig_lang"] = "en"
 
         else:
-            # Neither edge (smol/doc_pair): SL-first corpus default
-            if title_sl_val and title_en_val:
-                node["title_orig"] = title_sl_val
-                node["orig_lang"] = "sl"
-                node["title_translation"] = title_en_val
-                node["translation_lang"] = "en"
-            elif title_sl_val:
-                node["title_orig"] = title_sl_val
-                node["orig_lang"] = "sl"
-            elif title_en_val:
-                node["title_orig"] = title_en_val
-                node["orig_lang"] = "en"
+            # Neither edge: NO evidence for direction. Do NOT assume.
+            # Append the node id + its legacy field values to
+            # data/migration_review.json for curator decision. Do NOT
+            # write title_orig / title_translation / orig_lang / translation_lang
+            # on this node. The legacy fields ARE stripped below as part of
+            # the migration, but the queue lets the curator restore them in
+            # the correct neutral slots via the editor.
+            review_records.append({
+                "node_id": nid,
+                "reason": "direction_undetermined",
+                "title_sl_value": title_sl_val,
+                "title_en_value": title_en_val,
+                "slovenian_edition": sl_edition,
+            })
 
         if isinstance(sl_edition, dict):
             node["translation_edition"] = {
@@ -395,24 +398,33 @@ def migrate(kg_path, apply):
 
         counts["nodes_migrated"] += 1
 
-    # PASS 4 — reshape JSON review queues
-    queues_reshaped = 0
-    for qpath in (Path("data/extraction_review.json"),
-                  Path("data/kg_review.json")):
-        queues_reshaped += reshape_review_queue(qpath, apply=apply)
+    # Write the curator-review queue for neither-edge nodes
+    review_path = Path("data/migration_review.json")
+    if apply:
+        review_path.write_text(json.dumps(review_records, ensure_ascii=False, indent=2))
 
     print(f"edges_renamed={edges_renamed}")
     for k, v in counts.items():
         print(f"{k}={v}")
-    print(f"queue_records_reshaped={queues_reshaped}")
+    print(f"nodes_routed_to_review={len(review_records)}")
 
     if apply:
         Path(kg_path).write_text(json.dumps(data, ensure_ascii=False, indent=2))
+
+# OUT OF SCOPE for the Phase 4 migration script:
+# - data/extraction_review.json and data/kg_review.json reshape.
+#   Those review-queue files carry pre-write records that the curator
+#   processes through the editor; the new ingest pipeline writes only
+#   neutral fields when those records are accepted. Reshaping them
+#   without direction evidence would violate the "no blind language
+#   assignment" rule. The user decides separately whether to clear
+#   those queues, edit them manually, or process record-by-record
+#   through the curator UI.
 ```
 
-`reshape_review_queue` applies the SL-first corpus default to queue payloads (queue records lack edge evidence) and writes the reshaped queue when `apply=True`.
+**Direction is assigned ONLY when an edge supplies evidence.** `translated_by` and `written_by` are the two direction signals the migration recognizes. Nodes with neither edge are routed to `data/migration_review.json` for curator decision; their legacy fields are stripped from the node, but no neutral direction fields are written until the curator confirms.
 
-**Idempotency:** second run finds `has_legacy=False` for previously migrated nodes → all counted under `nodes_skipped_no_legacy_fields`; zero writes.
+**Idempotency:** second run finds `has_legacy=False` for previously migrated nodes → all counted under `nodes_skipped_no_legacy_fields`; zero writes. `data/migration_review.json` is rewritten (not appended) so re-running produces the same review file.
 
 **Dry-run baseline:** `edges_renamed ≈ 20` per audit. Deviation → inspect before applying.
 
@@ -559,15 +571,15 @@ HARD = {
 | `test_edge_rename` | `sl_published_by` → `translation_published_by` under `--apply` |
 | `test_node_translator_edge` | `translated_by` node: SL → translation, EN → orig |
 | `test_node_author_edge` | `written_by` only: SL → orig, EN → translation |
-| `test_node_no_edge_both_fields` | SL-first default: SL → orig, EN → translation |
-| `test_node_no_edge_sl_only` | Only SL: `title_orig`, `orig_lang="sl"` |
-| `test_node_no_edge_en_only` | Only EN: `title_orig`, `orig_lang="en"` |
-| `test_slovenian_edition_rename` | sub-dict → `translation_edition` with `language="sl"` |
+| `test_node_no_edge_routes_to_review` | Neither-edge node with title_sl+title_en → appended to `data/migration_review.json`; NO `title_orig`/`title_translation`/`orig_lang`/`translation_lang` written; legacy fields ARE stripped from the node |
+| `test_node_no_edge_sl_only_to_review` | Only `title_sl` set → routed to review (no direction assumed even with one side) |
+| `test_node_no_edge_en_only_to_review` | Only `title_en` set → routed to review |
+| `test_slovenian_edition_rename` | sub-dict on node WITH edge evidence → `translation_edition` with `language="sl"`. Without edge → routed to review along with the node, sub-dict captured in the review record |
 | `test_legacy_fields_stripped` | After `--apply`, no legacy fields anywhere |
 | `test_idempotency` | Second run is no-op |
 | `test_partial_migration_idempotency` | Both neutral + legacy → legacy stripped only |
-| `test_dry_run_no_writes` | Counts reported; KG file unchanged |
-| `test_review_queue_reshape` | `extraction_review.json` payloads reshaped under `--apply` |
+| `test_dry_run_no_writes` | Counts reported; KG file unchanged; `data/migration_review.json` not written |
+| `test_review_file_not_overwritten_on_dry_run` | If `data/migration_review.json` exists, `--dry-run` does NOT touch it |
 
 ### 9.2 `tests/test_ingest_personal_bibliography_neutral.py` (NEW)
 
@@ -637,11 +649,11 @@ Existing assertions that legacy fields ARE written must be INVERTED.
 
 ## §11 — Risks and open questions
 
-**R1: Non-Belina `translated_by` direction.** The migration assigns `title_sl`→`title_translation` for all `translated_by` nodes (SL is the translation target). For Belina's corpus this is correct. If non-Belina translators working into non-SL languages exist in the KG, the rule misclassifies. Mitigation: inspect `--dry-run` output; the SL-first structural rule remains correct for the corpus as a whole (Slovenian-anchored). No text detection.
+**R1: Non-Belina `translated_by` direction.** The migration assigns `title_sl`→`title_translation` for all `translated_by` nodes (the corpus convention: Belina translates into SL). If non-Belina translators working into non-SL languages exist in the KG, the rule misclassifies. Mitigation: inspect `--dry-run` output for `translated_by` edges to agents other than `agent:urban-belina`; if any surface, treat those nodes as neither-edge (route to review) instead of applying the rule blindly. TDD red must include a fixture covering this case.
 
-**R2: `translation_lang=None` when `slovenian_edition` is present.** The builder must guard: only produce `translation_edition` when `translation_lang is not None`.
+**R2: `translation_lang=None` when `slovenian_edition` is present.** The builder must guard: only produce `translation_edition` when `translation_lang is not None`. Otherwise drop the sub-dict.
 
-**R3: JSON review queues.** If `data/extraction_review.json` and `data/kg_review.json` are not reshaped by the migration's Pass 4, queue records render blank titles after readers update. Mitigation: dry-run reports `queue_records_reshaped`; zero on a non-empty queue prints a warning.
+**R3: Review-queue JSON files (`extraction_review.json`, `kg_review.json`) are OUT OF SCOPE for the Phase 4 migration script.** These files carry pre-write records the curator processes through the editor; new ingest writes only neutral fields when records are accepted. Reshaping them without direction evidence would violate the no-blind-language rule. The user decides separately whether to clear those queues, hand-edit them, or process each via the curator UI. Phase 4 leaves the queue files untouched.
 
 **R4: `extra_containers.json` schema extensibility.** Use an explicit allowlist of recognised optional fields; unrecognised fields are ignored.
 
