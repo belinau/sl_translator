@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE tmx SYSTEM "tmx14.dtd" >
+<tmx version="1.4">
+<header creationtool="sl_translator_test_fixture" creationtoolversion="1.0" segtype="sentence" o-tmf="unknown" adminlang="HR" srclang="HR" datatype="plaintext" creationdate="20260606T000000Z" >
+</header>
+<body>
+  <tu creationdate="20240101T120000Z" creationid="test" changedate="20240101T120000Z" changeid="test" usagecount="0">
+    <tuv xml:lang="HR">
+      <seg>dobar dan A</seg>
+    </tuv>
+    <tuv xml:lang="SL">
+      <seg>dober dan A</seg>
+    </tuv>
+  </tu>
+  <tu creationdate="20220101T120000Z" creationid="test" changedate="20220101T120000Z" changeid="test" usagecount="0">
+    <tuv xml:lang="HR">
+      <seg>dobar dan B</seg>
+    </tuv>
+    <tuv xml:lang="SL">
+      <seg>dober dan B</seg>
+    </tuv>
+  </tu>
+  <tu creationdate="20230101T120000Z" creationid="test" changedate="20230101T120000Z" changeid="test" usagecount="0">
+    <tuv xml:lang="HR">
+      <seg>dobar dan C</seg>
+    </tuv>
+    <tuv xml:lang="SL">
+      <seg>dober dan C</seg>
+    </tuv>
+  </tu>
+</body>
+</tmx>

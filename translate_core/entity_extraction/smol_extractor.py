@@ -184,19 +184,21 @@ Rules:
 Start your response with: {{"entities":["""
 
 
-def _detect_source_lang(origin: str) -> tuple[str, str]:
+def _detect_source_lang(origin: str) -> tuple[str | None, str | None]:
     """Infer (src_lang, tgt_lang) from origin filename.
 
-    Convention: `big-EN-SL.tmx`, `2022-SL-EN.tmx`, `mglc-EN-SL.tmx`, etc.
-    The two-letter codes embedded in the filename indicate source then target.
+    Phase 1B blueprint §6: a single regex matches any two-letter ISO-639-1
+    pair flanked by non-letter boundaries. Returns lowercase pair tuple or
+    ``(None, None)`` when no pair is recognised. The caller is responsible
+    for surfacing the (None, None) case (e.g. routing to review) — we no
+    longer silently default to EN→SL.
+
+    Recognised: ``big-HR-SL.tmx`` → (hr, sl); ``2022-SL-EN.tmx`` → (sl, en);
+    ``mglc-EN-SL.tmx`` → (en, sl); ``en-sl.tmx`` → (en, sl);
+    ``DE-FR.tmx`` → (de, fr). Unrecognised: ``foo.tmx`` → (None, None).
     """
-    o = origin.lower()
-    if "en-sl" in o:
-        return (LANG_EN, LANG_SL)
-    if "sl-en" in o:
-        return (LANG_SL, LANG_EN)
-    # Default to en→sl
-    return (LANG_EN, LANG_SL)
+    m = re.search(r"(?<![a-z])([a-z]{2})-([a-z]{2})(?![a-z])", origin.lower())
+    return (m.group(1), m.group(2)) if m else (None, None)
 
 
 def format_extract_prompt(
@@ -207,11 +209,16 @@ def format_extract_prompt(
 ) -> str:
     """Format a prompt for a smol agent extraction dispatch."""
     src_lang, tgt_lang = _detect_source_lang(origin)
+    # Phase 1B blueprint §6 / Risk 3: detector may return None when no pair
+    # is embedded in the origin filename. Guard the .upper() calls and emit
+    # "??" as a sentinel so the LLM knows the language is undetermined.
+    src_lang_label = src_lang.upper() if src_lang else "??"
+    tgt_lang_label = tgt_lang.upper() if tgt_lang else "??"
     return EXTRACT_PROMPT_TEMPLATE.format(
         origin=origin,
         container=container_work_id or "(unknown — body text)",
-        src_lang=src_lang.upper(),
-        tgt_lang=tgt_lang.upper(),
+        src_lang=src_lang_label,
+        tgt_lang=tgt_lang_label,
         src=src[:1000],
         tgt=tgt[:1000],
         roles=", ".join(sorted(VALID_AGENT_ROLES)),
@@ -292,10 +299,17 @@ def build_record(
     origin: str,
     seg_idx: int,
     container_work_id: str = "",
-    src_lang: str = LANG_EN,
-    tgt_lang: str = LANG_SL,
+    *,
+    src_lang: str | None,
+    tgt_lang: str | None,
 ) -> dict | None:
     """Build a kg_ingest_entities-compatible record from a parsed entity.
+
+    Phase 1B blueprint §7: ``src_lang`` and ``tgt_lang`` are required
+    keyword arguments with no defaults — callers MUST pass an explicit
+    pair (or explicit ``None``). The legacy ``LANG_EN`` / ``LANG_SL``
+    defaults were removed; the only external caller
+    (``ingest_smol_extractions``) already passes both explicitly.
 
     Enforces all ontology constraints. Returns None for empty/invalid entities.
     """
@@ -332,7 +346,7 @@ def _name_canonical(ent: dict) -> str:
 
 def _build_agent_person(
     ent: dict, origin: str, seg_idx: int,
-    src_lang: str, tgt_lang: str,
+    src_lang: str | None, tgt_lang: str | None,
 ) -> dict | None:
     name = _name_canonical(ent)
     if not name:
@@ -398,7 +412,7 @@ def _build_agent_person(
 
 def _build_institution(
     ent: dict, origin: str, seg_idx: int,
-    src_lang: str, tgt_lang: str,
+    src_lang: str | None, tgt_lang: str | None,
 ) -> dict | None:
     # Institution name canonical form: prefer name_orig, fall back to name_translation/name
     name = (
@@ -453,7 +467,7 @@ def _build_institution(
 
 def _build_cited_work(
     ent: dict, origin: str, seg_idx: int, container_work_id: str,
-    src_lang: str, tgt_lang: str,
+    src_lang: str | None, tgt_lang: str | None,
 ) -> dict | None:
     title_orig = (ent.get("title_orig") or "").strip() or None
     title_translation = (ent.get("title_translation") or "").strip() or None
@@ -524,10 +538,6 @@ def _build_cited_work(
         "title_translation": title_translation,
         "orig_lang": orig_lang,
         "translation_lang": translation_lang,
-        # Backwards-compat aliases for the legacy editor that kg_ingest_entities expects.
-        # These are populated based on src_lang/tgt_lang so the legacy fields don't lie.
-        "title_en": title_orig if orig_lang == LANG_EN else (title_translation if translation_lang == LANG_EN else None),
-        "title_sl": title_orig if orig_lang == LANG_SL else (title_translation if translation_lang == LANG_SL else None),
         "year": year,
         "project_type": project_type,
         "pages": (ent.get("pages") or "").strip() or None,
@@ -535,6 +545,14 @@ def _build_cited_work(
         "slovenian_edition": slovenian_edition,
         "container_work_id": container_work_id or None,
     }
+    # SUNSET: Phase 11 — delete when kg_ingest_entities.deferred_artwork
+    # + all consumers are migrated to title_orig/title_translation.
+    # Legacy title_en/title_sl aliases only make sense when the pair is
+    # actually {en, sl}; set-membership `LANG_EN in {None, "sl"}` is
+    # False so unknown lang values skip safely.
+    if LANG_EN in {orig_lang, translation_lang} and LANG_SL in {orig_lang, translation_lang}:
+        payload["title_en"] = title_orig if orig_lang == LANG_EN else title_translation
+        payload["title_sl"] = title_orig if orig_lang == LANG_SL else title_translation
     # O-5 enforcement (ontology §2.4.2 + §4 invariant #4): slovenian_edition
     # implies the citation exists in BOTH languages. If we don't have both
     # title_orig AND title_translation, drop slovenian_edition rather than
@@ -562,7 +580,14 @@ def _build_cited_work(
             "has_year": year is not None,
             "has_bilingual_title": bool(title_orig and title_translation),
             "has_publisher": bool(original_pub),
-            "has_sl_edition": bool(slovenian_edition),
+            # Phase 1B blueprint §8 / audit §3.3: signal key renamed from
+            # the SL-baked `has_sl_edition` to the language-neutral
+            # `has_target_lang_edition`. The +0.10 cited_work bump in
+            # confidence.py:129 reads the new key. Ontology §2.4.2 still
+            # uses the `slovenian_edition` sub-dict shape (sunset deferred
+            # to Phase 11); the rename here is purely about the signal
+            # flowing into the confidence scorer.
+            "has_target_lang_edition": bool(slovenian_edition),
             # Smol returned a structured cited_work classification (author + title)
             "smol_verified_classification": bool(title_orig or title_translation),
             # Phase 3 composite-gate signals (audit §3.4, ontology §4 inv 9):
@@ -585,7 +610,7 @@ def _build_cited_work(
 
 def _build_concept(
     ent: dict, origin: str, seg_idx: int, container_work_id: str,
-    src_lang: str, tgt_lang: str,
+    src_lang: str | None, tgt_lang: str | None,
 ) -> dict | None:
     """Build a concept record with originating author + source work attribution.
 
@@ -679,7 +704,7 @@ def _build_concept(
 # ── Batch ingestion from smol agent results ────────────────────────────────────
 def _build_artwork(
     ent: dict, origin: str, seg_idx: int, container_work_id: str,
-    src_lang: str, tgt_lang: str,
+    src_lang: str | None, tgt_lang: str | None,
 ) -> dict | None:
     """Build an artwork record (ontology §2.4.1: project_type=artwork).
 
@@ -723,9 +748,6 @@ def _build_artwork(
         "title_translation": title_translation,
         "orig_lang": orig_lang,
         "translation_lang": translation_lang,
-        # Legacy aliases (kg_ingest_entities deferred_artwork expects title_en/title_sl)
-        "title_en": title_orig if orig_lang == LANG_EN else (title_translation if translation_lang == LANG_EN else None),
-        "title_sl": title_orig if orig_lang == LANG_SL else (title_translation if translation_lang == LANG_SL else None),
         "year": year,
         "medium": medium,
         # Host institution captured so ingestion can wire hosted_by edge
@@ -734,6 +756,11 @@ def _build_artwork(
         # Container (e.g. exhibition catalogue this artwork appears in)
         "container_work_id": container_work_id or None,
     }
+    # SUNSET: Phase 11 — delete when kg_ingest_entities.deferred_artwork
+    # + all consumers are migrated to title_orig/title_translation.
+    if LANG_EN in {orig_lang, translation_lang} and LANG_SL in {orig_lang, translation_lang}:
+        payload["title_en"] = title_orig if orig_lang == LANG_EN else title_translation
+        payload["title_sl"] = title_orig if orig_lang == LANG_SL else title_translation
     payload = {k: v for k, v in payload.items() if v is not None}
 
     return {
@@ -767,7 +794,7 @@ def _build_artwork(
 
 def _build_performance(
     ent: dict, origin: str, seg_idx: int, container_work_id: str,
-    src_lang: str, tgt_lang: str,
+    src_lang: str | None, tgt_lang: str | None,
 ) -> dict | None:
     """Build a performance record (ontology §2.4.1: project_type=performance).
 
@@ -846,9 +873,6 @@ def _build_performance(
         "title_translation": title_translation,
         "orig_lang": orig_lang,
         "translation_lang": translation_lang,
-        # Legacy aliases
-        "title_en": title_orig if orig_lang == LANG_EN else (title_translation if translation_lang == LANG_EN else None),
-        "title_sl": title_orig if orig_lang == LANG_SL else (title_translation if translation_lang == LANG_SL else None),
         "year": year,
         "performance_kind": performance_kind,
         "creators": creators,
@@ -857,6 +881,11 @@ def _build_performance(
         "venue_city": venue_city,
         "container_work_id": container_work_id or None,
     }
+    # SUNSET: Phase 11 — delete when kg_ingest_entities.deferred_artwork
+    # + all consumers are migrated to title_orig/title_translation.
+    if LANG_EN in {orig_lang, translation_lang} and LANG_SL in {orig_lang, translation_lang}:
+        payload["title_en"] = title_orig if orig_lang == LANG_EN else title_translation
+        payload["title_sl"] = title_orig if orig_lang == LANG_SL else title_translation
     payload = {k: v for k, v in payload.items() if v is not None}
 
     return {

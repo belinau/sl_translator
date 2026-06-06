@@ -404,3 +404,108 @@ def test_per_kind_bumps_unchanged_for_agent_person():
         "smol_verified_classification must no longer contribute a reason "
         "code after Phase 3"
     )
+
+
+# ===========================================================================
+# Phase 1B (TDD red) — signal rename: has_sl_edition → has_target_lang_edition
+#
+# Blueprint §8 / audit §3.3: the SL-baked ``has_sl_edition`` signal is renamed
+# to the language-neutral ``has_target_lang_edition``. The +0.10 bump
+# magnitude and the read site stay identical, but:
+#   * the NEW key must trigger the bump
+#   * the OLD key must NOT (no auto-aliasing)
+# This is a hard rename, not a backwards-compatible alias.
+# ===========================================================================
+
+
+def test_has_target_lang_edition_signal_scored():
+    """Per blueprint §8 — the renamed ``has_target_lang_edition`` signal
+    triggers the legacy ``cited_work`` SL-edition bump of +0.10.
+
+    With signal set: smol_extracted (0.15) + has_author (0.20) +
+    has_title (0.15) + has_year (0.10) + has_target_lang_edition (0.10)
+    = base 0.30 + 0.70 = 1.00 → clamped to 1.00 → DIRECT_WRITE.
+
+    The reason codes must include ``has_target_lang_edition``.
+
+    Against the current implementation: ``confidence.py`` reads
+    ``signals.get("has_sl_edition")`` only — the new key is ignored — and
+    the reason code ``"has_sl_edition"`` would appear instead. With the
+    new key the bump is NOT applied today, so the reason_code assertion
+    is the discriminator.
+    """
+    result = score_record(
+        "cited_work",
+        {
+            "smol_extracted": True,
+            "has_target_lang_edition": True,
+            "has_author": True,
+            "has_title": True,
+            "has_year": True,
+        },
+    )
+
+    assert "has_target_lang_edition" in result.reason_codes, (
+        f"has_target_lang_edition must trigger the +0.10 cited_work bump "
+        f"after Phase 1B; got reason_codes={result.reason_codes}"
+    )
+    # The OLD key must not appear because we did not pass it in.
+    assert "has_sl_edition" not in result.reason_codes, (
+        f"has_sl_edition must no longer be a reason code after the rename; "
+        f"got reason_codes={result.reason_codes}"
+    )
+
+
+def test_legacy_has_sl_edition_no_longer_scored():
+    """Per blueprint §8 — after the rename there is NO backwards-compat
+    aliasing. The legacy key ``has_sl_edition`` must NOT trigger any bump
+    and must NOT appear in reason codes.
+
+    Discriminator (scores stay below the 1.0 clamp so the difference is
+    visible):
+
+      signal set: smol_extracted + has_author + has_title + has_year
+
+      WITH the new key (control)   →
+        base 0.30 + 0.15 + 0.20 + 0.15 + 0.10 + 0.10 = 1.00 → clamp 1.00.
+
+      WITH the OLD key only        →
+        base 0.30 + 0.15 + 0.20 + 0.15 + 0.10        = 0.90.
+        No +0.10 bump, no reason code.
+
+    Today: ``has_sl_edition`` still triggers the +0.10 bump and the reason
+    code, so old_score == 1.00 and ``"has_sl_edition"`` is in reason_codes.
+    Both assertions below fail today.
+    """
+    common_signals = {
+        "smol_extracted": True,
+        "has_author": True,
+        "has_title": True,
+        "has_year": True,
+    }
+
+    result_old = score_record(
+        "cited_work",
+        {**common_signals, "has_sl_edition": True},
+    )
+
+    # Reason codes: no auto-aliasing, no rename echo.
+    assert "has_sl_edition" not in result_old.reason_codes, (
+        f"legacy has_sl_edition must not appear in reason_codes after the "
+        f"rename; got {result_old.reason_codes}"
+    )
+    assert "has_target_lang_edition" not in result_old.reason_codes, (
+        f"the old key must not auto-alias to the new reason code; got "
+        f"{result_old.reason_codes}"
+    )
+
+    # And the +0.10 bump must NOT be applied for the legacy key.
+    # Compute the reference (no edition signal at all): 0.90.
+    result_no_edition = score_record("cited_work", common_signals)
+    assert result_old.confidence == pytest.approx(
+        result_no_edition.confidence, abs=EPS
+    ), (
+        f"legacy has_sl_edition must not influence the score after the "
+        f"rename; old-key score {result_old.confidence} vs "
+        f"no-edition reference {result_no_edition.confidence}"
+    )

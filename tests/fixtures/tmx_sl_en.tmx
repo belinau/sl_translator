@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE tmx SYSTEM "tmx14.dtd" >
+<tmx version="1.4">
+<header creationtool="sl_translator_test_fixture" creationtoolversion="1.0" segtype="sentence" o-tmf="unknown" adminlang="SL" srclang="SL" datatype="plaintext" creationdate="20260606T000000Z" >
+</header>
+<body>
+  <tu creationdate="20210101T120000Z" creationid="test" changedate="20210101T120000Z" changeid="test" usagecount="0">
+    <tuv xml:lang="SL">
+      <seg>slovenski izvor A</seg>
+    </tuv>
+    <tuv xml:lang="EN">
+      <seg>english target A</seg>
+    </tuv>
+  </tu>
+  <tu creationdate="20200101T120000Z" creationid="test" changedate="20200101T120000Z" changeid="test" usagecount="0">
+    <tuv xml:lang="SL">
+      <seg>slovenski izvor B</seg>
+    </tuv>
+    <tuv xml:lang="EN">
+      <seg>english target B</seg>
+    </tuv>
+  </tu>
+</body>
+</tmx>

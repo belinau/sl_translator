@@ -126,8 +126,14 @@ def score_record(record_kind: str, signals: dict) -> ScoreResult:
         # bump that lived here was removed because it double-credited the
         # bilingual axis already counted by the composite. Tests in
         # tests/test_confidence.py require composite alone to deliver 0.85.
-        if signals.get("has_sl_edition"):
-            bump("has_sl_edition", 0.10)
+        # Phase 1B blueprint §8 / audit §3.3: signal renamed from
+        # SL-baked `has_sl_edition` to language-neutral
+        # `has_target_lang_edition`. Maps to ontology §2.4.2's
+        # `slovenian_edition` sub-dict (sub-dict key rename deferred to
+        # Phase 11). No backwards-compat aliasing — the legacy key is
+        # now ignored.
+        if signals.get("has_target_lang_edition"):
+            bump("has_target_lang_edition", 0.10)
         
         
 

@@ -8,10 +8,12 @@ translation memory while keeping ``self.entries`` in natural file order
 for editor-side stability.
 
 The public entry point is :func:`read_tmx_with_timecodes`. It parses
-the TMX with ``lxml.etree`` directly, applies the same EN-source/
-SL-target normalization and ``clean_xml`` text scrubbing that
-``tm.py`` performs today, and returns enriched dicts with three new
-keys: ``raw_index``, ``creationdate``, and ``t_index``.
+the TMX with ``lxml.etree`` directly, pairs ``<tuv>`` children by header
+``srclang`` + positional fallback (Phase 1B blueprint §5), applies the
+``clean_xml`` text scrubbing that ``tm.py`` performs today, and returns
+enriched dicts with three new keys: ``raw_index``, ``creationdate``, and
+``t_index``. ``source_lang`` / ``target_lang`` carry the ACTUAL
+``xml:lang`` codes (or ``None``) — no normalisation to EN/SL.
 """
 
 from __future__ import annotations
@@ -31,15 +33,20 @@ def _norm_lang(value: Optional[str]) -> str:
     return value.lower().split("-")[0]
 
 
-def _read_srclang(root: etree._Element) -> str:
-    """Return the TMX header's ``srclang`` attribute (normalized) or ``en``."""
+def _read_srclang(root: etree._Element) -> Optional[str]:
+    """Return the TMX header's ``srclang`` attribute (normalized) or ``None``.
+
+    Phase 1B blueprint §5: previous behaviour defaulted to ``"en"`` on missing
+    header / missing attribute. We now return ``None`` so the caller can fall
+    back to positional pairing without inventing a language label.
+    """
     header = root.find("header")
     if header is None:
         # Some TMX serializations namespace-qualify; try a broad search.
         header = root.find(".//header")
     if header is None:
-        return "en"
-    return _norm_lang(header.get("srclang")) or "en"
+        return None
+    return _norm_lang(header.get("srclang")) or None
 
 
 def _seg_text(tuv: etree._Element) -> str:
@@ -75,49 +82,47 @@ def read_tmx_with_timecodes(path: Path) -> List[Dict[str, Any]]:
     - ``t_index`` is the position the entry would occupy if the list were
       sorted ascending by ``creationdate``. Dateless entries are pushed
       after all dated entries, preserving their relative natural order.
+    - ``source_lang`` / ``target_lang`` are the ACTUAL ``xml:lang`` codes
+      from the TMX (lowercased, locale stripped) or ``None`` when absent.
+      Phase 1B blueprint §5 / audit §3.2: no normalisation to EN/SL.
 
-    Source/target are normalized so the in-memory representation is
-    always EN -> SL, matching the existing convention in ``tm.py``.
-    Entries with empty source OR empty target are skipped, also matching
-    ``tm.py``.
+    Pairing strategy (blueprint §5):
+      1. If the header declares ``srclang`` and one of the two ``<tuv>``
+         children carries that ``xml:lang``, that ``<tuv>`` is the source
+         and the other is the target.
+      2. Otherwise fall back to positional order: first ``<tuv>`` is the
+         source, second is the target.
+
+    Entries with empty source OR empty target are skipped, matching
+    ``tm.py`` behaviour today.
     """
     path = Path(path)
     tree = etree.parse(str(path))
     root = tree.getroot()
 
-    srclang = _read_srclang(root)
+    srclang = _read_srclang(root)  # may be None
     origin = path.name
 
     entries: List[Dict[str, Any]] = []
     for tu in root.iter("tu"):
         creationdate = tu.get("creationdate")  # None when absent
 
-        # Pair the two tuv children by xml:lang.
-        src_text = ""
-        tgt_text = ""
-        for tuv in tu.findall("tuv"):
-            lang = _norm_lang(tuv.get(XML_LANG))
-            text = _seg_text(tuv)
-            if lang == "en":
-                src_text = text
-            elif lang == "sl":
-                tgt_text = text
-            # Unknown langs are ignored; matches existing behavior where
-            # only EN/SL pairs are kept.
+        tuvs = tu.findall("tuv")
+        if len(tuvs) != 2:
+            continue  # skip TU silently; matches today's behaviour
+        a_lang = _norm_lang(tuvs[0].get(XML_LANG))  # "" if absent
+        b_lang = _norm_lang(tuvs[1].get(XML_LANG))
 
-        # If the file declares SL as source, the EN/SL detection above
-        # already labels them correctly. The legacy swap in tm.py was a
-        # workaround for the translate-toolkit API; here we infer by
-        # xml:lang directly, so no manual swap is needed --- but we still
-        # honor the legacy invariant for files where xml:lang labels are
-        # missing or where srclang flips meaning.
-        if srclang == "sl" and not src_text and not tgt_text:
-            # Defensive: if the lang detection found nothing but srclang
-            # is SL, fall back to positional order with a swap.
-            tuvs = tu.findall("tuv")
-            if len(tuvs) >= 2:
-                tgt_text = _seg_text(tuvs[0])
-                src_text = _seg_text(tuvs[1])
+        if srclang and a_lang and a_lang == srclang:
+            src_text, src_lang = _seg_text(tuvs[0]), a_lang
+            tgt_text, tgt_lang = _seg_text(tuvs[1]), b_lang or None
+        elif srclang and b_lang and b_lang == srclang:
+            src_text, src_lang = _seg_text(tuvs[1]), b_lang
+            tgt_text, tgt_lang = _seg_text(tuvs[0]), a_lang or None
+        else:
+            # Positional fallback
+            src_text, src_lang = _seg_text(tuvs[0]), a_lang or None
+            tgt_text, tgt_lang = _seg_text(tuvs[1]), b_lang or None
 
         if not src_text or not tgt_text:
             continue
@@ -127,8 +132,8 @@ def read_tmx_with_timecodes(path: Path) -> List[Dict[str, Any]]:
                 "source": src_text,
                 "target": tgt_text,
                 "origin": origin,
-                "source_lang": "en",
-                "target_lang": "sl",
+                "source_lang": src_lang,
+                "target_lang": tgt_lang,
                 "raw_index": len(entries),
                 "creationdate": creationdate,
                 "t_index": -1,  # filled in below

@@ -26,6 +26,7 @@ from typing import List
 sys.path.insert(0, str(Path(__file__).parent))
 
 from translate_core.entity_extraction.smol_extractor import (
+    _detect_source_lang,
     format_extract_prompt,
     build_record,
 )
@@ -195,8 +196,15 @@ def ingest_extractions(
                         if claim:
                             container = claim.work_id
 
+                # Phase 1B: build_record now requires explicit src_lang/tgt_lang
+                # (no EN/SL defaults). Derive from the origin filename via the
+                # same regex detector smol_extractor uses internally.
+                src_lang, tgt_lang = _detect_source_lang(ctx.origin)
                 for ent in entities:
-                    rec = build_record(ent, ctx.origin, int(lbl.idx), container)
+                    rec = build_record(
+                        ent, ctx.origin, int(lbl.idx), container,
+                        src_lang=src_lang, tgt_lang=tgt_lang,
+                    )
                     if rec:
                         ctx_records.append(rec)
                 smol_hit_count += 1

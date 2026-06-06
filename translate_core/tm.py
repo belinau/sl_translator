@@ -3,7 +3,7 @@
 import html
 import re
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from rapidfuzz import fuzz, process
 
@@ -22,6 +22,12 @@ def clean_xml(text: str) -> str:
 class TranslationMemory:
     def __init__(self, tm_dir: Path = config.TM_DIR):
         self.tm_dir = Path(tm_dir)
+        # Phase 1B blueprint §2: per-pair bucket index keyed by actual
+        # (source_lang, target_lang) tuples (None tolerated). The compat-view
+        # ``self.entries`` (built at the end of _load_all) is derived from
+        # this dict; runtime ``main.py:251`` appends append directly to
+        # ``self.entries`` so it stays a concrete list, not a property.
+        self._entries_by_pair: Dict[Tuple[Optional[str], Optional[str]], List[Dict[str, Any]]] = {}
         self.entries: List[Dict[str, Any]] = []
         self._load_all()
 
@@ -31,9 +37,16 @@ class TranslationMemory:
             return
         for p in self.tm_dir.glob("*.tmx"):
             self._load_tmx(p)
-        # After all files are loaded, recompute t_index globally so that
-        # iter_chronological() reflects a stable ordering across origins.
+
+        # Phase 1B blueprint §10 step 4 / Risk 1: FIRST recompute t_index
+        # across ALL pair buckets so original entry dicts in
+        # ``_entries_by_pair`` receive their global rank. THEN build the
+        # ``self.entries`` compat view from those (now correctly-indexed)
+        # originals — the swapped shallow copies inherit the assigned
+        # ``t_index`` from the originals. Inverting this order would leave
+        # the swapped copies with a stale ``t_index`` of -1.
         self._reindex_t_index()
+        self._build_compat_entries()
 
     def _load_tmx(self, path: Path):
         # Delegate to tm_timecodes.read_tmx_with_timecodes so we keep the
@@ -43,25 +56,30 @@ class TranslationMemory:
         from translate_core.tm_timecodes import read_tmx_with_timecodes
 
         file_entries = read_tmx_with_timecodes(path)
-        offset = len(self.entries)
+
+        # Phase 1B blueprint §2: raw_index is GLOBAL across all pair
+        # buckets — count the flat total across every bucket already
+        # populated, not per-pair.
+        offset = sum(len(bucket) for bucket in self._entries_by_pair.values())
         for entry in file_entries:
-            # Rebase raw_index to be globally unique across self.entries.
-            # t_index will be recomputed globally in _load_all once every
-            # file has been ingested, so we leave it as a per-file value
-            # for now (it'll be overwritten).
             entry["raw_index"] += offset
-        self.entries.extend(file_entries)
+            key = (entry.get("source_lang"), entry.get("target_lang"))
+            self._entries_by_pair.setdefault(key, []).append(entry)
 
     def _reindex_t_index(self) -> None:
         """Recompute ``t_index`` for every entry across the full corpus.
 
         Sort key: dated entries first (ascending by creationdate),
         dateless entries after (ascending by raw_index to preserve
-        natural order). The list ``self.entries`` is NOT reordered ---
-        only the ``t_index`` value on each dict is overwritten.
+        natural order). Writes ``t_index`` back into the ORIGINAL entry
+        dicts living in ``_entries_by_pair`` — those dicts are the
+        source of truth that the compat-view swap copies from.
         """
+        flat: List[Dict[str, Any]] = []
+        for bucket in self._entries_by_pair.values():
+            flat.extend(bucket)
         sorted_view = sorted(
-            self.entries,
+            flat,
             key=lambda e: (
                 e.get("creationdate") is None,
                 e.get("creationdate") or "",
@@ -71,18 +89,84 @@ class TranslationMemory:
         for i, entry in enumerate(sorted_view):
             entry["t_index"] = i
 
+    def _build_compat_entries(self) -> None:
+        """Materialise ``self.entries`` as the EN/SL compat view.
+
+        Per blueprint §3: draws from exactly ``("en", "sl")`` (originals)
+        and ``("sl", "en")`` (shallow-copy with source/target swapped and
+        labels forced to en/sl). All other pair buckets are excluded.
+        Merged list sorted by global ``raw_index`` to preserve natural
+        load order, then re-numbered 0..N-1 so the editor / inline_test
+        fixtures see a contiguous index (blueprint §3 invariant).
+
+        Both EN-SL originals AND SL-EN swapped copies are shallow-copied
+        before any mutation here — the dicts living in
+        ``_entries_by_pair`` MUST remain untouched as the chronological
+        source of truth.
+
+        Built ONCE at end of ``_load_all`` AFTER ``_reindex_t_index``;
+        ``main.py:251`` appends to ``self.entries`` at runtime so this
+        must remain a concrete list, never a derived property.
+        """
+        # COMPAT-SHIM: audited exception to constraint 9; sunset in Phase 11
+        en_sl = self._entries_by_pair.get(("en", "sl"), [])
+        # COMPAT-SHIM: audited exception to constraint 9; sunset in Phase 11
+        sl_en = self._entries_by_pair.get(("sl", "en"), [])
+
+        merged: List[Dict[str, Any]] = []
+        # Shallow-copy each EN-SL original so the renumbering below
+        # doesn't mutate the bucket source of truth.
+        for entry in en_sl:
+            merged.append(dict(entry))
+        for entry in sl_en:
+            # COMPAT-SHIM: audited exception to constraint 9; sunset in Phase 11
+            # Swap source/target so the editor sees a uniform EN→SL
+            # orientation. Original entry in _entries_by_pair is NOT
+            # mutated (shallow-copy first).
+            swapped = dict(entry)
+            swapped["source"] = entry["target"]
+            swapped["target"] = entry["source"]
+            swapped["source_lang"] = "en"
+            swapped["target_lang"] = "sl"
+            merged.append(swapped)
+
+        merged.sort(key=lambda e: e["raw_index"])
+
+        # Re-number raw_index across the compat view so it forms a
+        # contiguous 0..N-1 range — blueprint §3 invariant and the
+        # editor-side contract (test_translation_memory_entries_remain_in_natural_load_order).
+        for i, entry in enumerate(merged):
+            entry["raw_index"] = i
+
+        self.entries = merged
+
     def iter_chronological(
         self, origin: Optional[str] = None
     ) -> Iterator[Dict[str, Any]]:
         """Yield entries in ascending ``t_index`` (chronological) order.
 
+        Reads from ALL pair buckets in ``_entries_by_pair`` (blueprint §4),
+        not from the EN/SL-filtered ``self.entries``. Entries carry their
+        ACTUAL ``source_lang``/``target_lang`` codes — no swap, no
+        normalisation.
+
         When ``origin`` is provided, only entries from that origin file
         are yielded, still in chronological order within that origin.
+
+        TODO (Phase 6 / Risk 2): ``main.py:251`` appends runtime-confirmed
+        TUs to ``self.entries`` but NOT to ``_entries_by_pair``. Those
+        appends are invisible to ``iter_chronological`` within the same
+        session. Acceptable for the Phase 6 batch attribution pass; a
+        future phase will need to mirror runtime appends into the pair
+        index if a live consumer is added.
         """
+        flat: List[Dict[str, Any]] = []
+        for bucket in self._entries_by_pair.values():
+            flat.extend(bucket)
         sel = (
-            self.entries
+            flat
             if origin is None
-            else [e for e in self.entries if e.get("origin") == origin]
+            else [e for e in flat if e.get("origin") == origin]
         )
         yield from sorted(sel, key=lambda e: e["t_index"])
 
