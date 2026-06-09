@@ -454,56 +454,39 @@ def delete_and_refresh(project_id: str, container: ui.column, client):
 
 
 async def handle_new_upload(e, lang_pair: str):
+    from nicegui import run
+
     name = getattr(e, "name", "document.docx")
     suffix = Path(name).suffix.lower()
     if suffix not in (".docx", ".pdf"):
         return ui.notify("DOCX or PDF files only", type="warning")
 
-    try:
-        content = await e.file.read()
-    except Exception as ex:
-        return ui.notify(f"Error: {ex}", type="negative")
-
     project_id = str(uuid.uuid4())[:8]
     saved_path = PROJECTS_DIR / f"{project_id}{suffix}"
     PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
-    saved_path.write_bytes(content)
+
+    # Save uploaded file to disk (NiceGUI FileUpload.save writes directly,
+    # no intermediate read-into-memory for large files).
+    try:
+        await e.file.save(saved_path)
+    except Exception as ex:
+        return ui.notify(f"Error saving file: {ex}", type="negative")
 
     # ── DOCX: direct python-docx paragraph extraction ────────────────────
     if suffix == ".docx":
         try:
-            import io
-            import docx as _docx
-            doc = _docx.Document(io.BytesIO(content))
+            segments = await run.io_bound(_parse_docx, saved_path)
         except Exception as ex:
             return ui.notify(f"DOCX parse error: {ex}", type="negative")
-
-        segments = []
-        for p in doc.paragraphs:
-            txt = p.text.strip()
-            if txt:
-                segments.append(
-                    {"id": len(segments), "source": txt, "target": "", "status": "pending"}
-                )
 
     # ── PDF: MarkItDown fallback ──────────────────────────────────────────
     else:
         if doc_parser is None:
             return ui.notify("Document parser not initialized", type="negative")
         try:
-            md_text, _ = doc_parser.to_markdown_with_meta(
-                saved_path, preprocess=True
-            )
+            segments = await run.io_bound(_parse_pdf, doc_parser, saved_path)
         except Exception as ex:
             return ui.notify(f"PDF parsing error: {ex}", type="negative")
-
-        segments = []
-        for block in md_text.split("\n\n"):
-            txt = block.strip()
-            if txt:
-                segments.append(
-                    {"id": len(segments), "source": txt, "target": "", "status": "pending"}
-                )
 
     if not segments:
         return ui.notify("No text extracted from document", type="warning")
@@ -516,9 +499,32 @@ async def handle_new_upload(e, lang_pair: str):
         "segments": segments,
     }
 
-    save_project(ws)
+    await run.io_bound(save_project, ws)
     ui.notify(f"Created: {len(segments)} segments", type="positive")
     ui.navigate.to(f"/translate/{project_id}")
+
+
+def _parse_docx(path: Path) -> list[dict]:
+    """Extract paragraphs from a DOCX file. Runs in a thread pool."""
+    import docx as _docx
+    doc = _docx.Document(str(path))
+    segments = []
+    for p in doc.paragraphs:
+        txt = p.text.strip()
+        if txt:
+            segments.append({"id": len(segments), "source": txt, "target": "", "status": "pending"})
+    return segments
+
+
+def _parse_pdf(parser: "DocumentParser", path: Path) -> list[dict]:
+    """Convert PDF to markdown and split into segments. Runs in a thread pool."""
+    md_text, _ = parser.to_markdown_with_meta(path, preprocess=True)
+    segments = []
+    for block in md_text.split("\n\n"):
+        txt = block.strip()
+        if txt:
+            segments.append({"id": len(segments), "source": txt, "target": "", "status": "pending"})
+    return segments
 
 
 # Register the translation workspace page. Importing ui.workspace is a
