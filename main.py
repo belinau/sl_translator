@@ -456,7 +456,7 @@ def delete_and_refresh(project_id: str, container: ui.column, client):
 async def handle_new_upload(e, lang_pair: str):
     from nicegui import run
 
-    name = getattr(e, "name", "document.docx")
+    name = e.file.name
     suffix = Path(name).suffix.lower()
     if suffix not in (".docx", ".pdf"):
         return ui.notify("DOCX or PDF files only", type="warning")
