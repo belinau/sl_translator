@@ -279,7 +279,8 @@ def page_translate(project_id: str):
         if next_idx < len(state.segments):
             state.set_active(next_idx)
         else:
-            ui.notify("Document complete! 🎉", type="positive")
+            with state.client:
+                ui.notify("Document complete! 🎉", type="positive")
         background_tasks.create(_promote_pair(seg, state.lang_pair, idx), name="kg_promote")
 
     async def _promote_pair(seg: dict, lang_pair: str, seg_index: int = -1):
