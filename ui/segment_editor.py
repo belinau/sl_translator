@@ -149,7 +149,7 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
 
         def _run():
             g_hits = glossary.lookup_terms(seg_now["source"], src, tgt) if glossary else []
-            return qa_engine.check_segment(seg_now["source"], seg_now["target"], g_hits) if qa_engine else []
+            return qa_engine.check_segment(seg_now["source"], seg_now["target"], g_hits, src_lang=src, tgt_lang=tgt) if qa_engine else []
 
         try:
             warnings = await loop.run_in_executor(None, _run)

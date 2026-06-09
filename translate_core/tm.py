@@ -211,47 +211,33 @@ class TranslationMemory:
 
     def search_concordance(self, text: str, top_n: int = 5) -> List[Dict]:
         """
-        Search for word matches.
-        Penalizes suggestions that are much longer than the input text.
+        Concordance search: return all segments containing any of the query words.
+        Ranked by word coverage (more query words matched = higher rank), then
+        by segment length ascending (shorter = more precise match).
+        No length penalty — concordance must return full sentences regardless of
+        how short the query is.
         """
         words = [w for w in text.split() if len(w) >= 2]
         if not words:
             return []
 
-        input_len = len(text)
         scored_entries = []
         for entry in self.entries:
             src_text = entry["source"]
             tgt_text = entry["target"]
-            # Search in both source and target
             count = sum(
                 1
                 for w in words
                 if w.lower() in src_text.lower() or w.lower() in tgt_text.lower()
             )
-
             if count > 0:
-                # Base relevance: percentage of query words found
-                relevance = (count / len(words)) * 100
+                scored_entries.append({
+                    **entry,
+                    "relevance": count / len(words),
+                    "_seg_len": len(src_text),
+                })
 
-                # Length penalty: if hit is much longer than input, it's less relevant
-                hit_len = len(src_text)
-                len_penalty = 1.0
-                if input_len > 0:
-                    ratio = hit_len / input_len
-                    if ratio > 2.0:
-                        len_penalty = 0.6
-                    if ratio > 4.0:
-                        len_penalty = 0.3
-                    if ratio > 10.0:
-                        len_penalty = 0.0  # Ignore massive segments for tiny inputs
-
-                final_relevance = relevance * len_penalty
-
-                if final_relevance > 20:  # Slightly higher threshold for concordance
-                    scored_entries.append({**entry, "relevance": final_relevance})
-
-        scored_entries.sort(key=lambda x: x["relevance"], reverse=True)
+        scored_entries.sort(key=lambda x: (-x["relevance"], x["_seg_len"]))
         return scored_entries[:top_n]
 
     def search_prefix(self, prefix: str) -> List[str]:

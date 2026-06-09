@@ -252,8 +252,8 @@ def page_translate(project_id: str):
                 def _trigger_confirm() -> None:
                     background_tasks.create(_confirm_segment(), name="confirm_btn")
 
-                editor_refs = segment_editor.build(state, deps, on_confirm=_trigger_confirm)
                 intel_refs = intel_panel.build(state, deps)
+                editor_refs = segment_editor.build(state, deps, on_confirm=_trigger_confirm)
 
     _render_batch_button()
 

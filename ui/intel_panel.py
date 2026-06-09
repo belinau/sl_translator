@@ -337,15 +337,6 @@ def build(state: WorkspaceState, deps: dict) -> dict:
     refs: dict = {}
 
     with ui.column().classes("w-full gap-3 mt-4"):
-        # ----------------------------------------------------- Glossary section
-        with ui.card().props("flat bordered").classes("w-full p-4 rounded-2xl"):
-            with ui.row().classes("w-full items-center gap-2 mb-2"):
-                ui.icon("menu_book", size="16px").props("color=primary")
-                ui.label("GLOSSARY").classes(
-                    "text-[10px] font-black tracking-[.3em] opacity-70"
-                )
-            gl_container = ui.column().classes("w-full gap-2")
-            refs["gl_container"] = gl_container
 
         # ---------------------------------------------------------- KG section
         with ui.card().props("flat bordered").classes("w-full p-4 rounded-2xl"):
@@ -366,6 +357,16 @@ def build(state: WorkspaceState, deps: dict) -> dict:
                 )
             tm_container = ui.column().classes("w-full gap-2")
             refs["tm_container"] = tm_container
+
+        # ----------------------------------------------------- Glossary section
+        with ui.card().props("flat bordered").classes("w-full p-4 rounded-2xl"):
+            with ui.row().classes("w-full items-center gap-2 mb-2"):
+                ui.icon("menu_book", size="16px").props("color=primary")
+                ui.label("GLOSSARY").classes(
+                    "text-[10px] font-black tracking-[.3em] opacity-70"
+                )
+            gl_container = ui.column().classes("w-full gap-2")
+            refs["gl_container"] = gl_container
 
     # ------------------------------------------------------------------
     # Helpers
