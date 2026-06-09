@@ -112,11 +112,6 @@ def save_project(ws: dict):
         "done": done,
         "segments": segs,
     }
-    # Preserve VL pipeline metadata (outline, segments_meta) if present
-    if "segments_meta" in ws:
-        data["segments_meta"] = ws["segments_meta"]
-    if "outline" in ws:
-        data["outline"] = ws["outline"]
     path = PROJECTS_DIR / f"{ws['project_id']}.json"
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -277,6 +272,7 @@ async def init_resources():
         translator = Translator()
         app_state.translator = translator
         qa_engine = QAEngine()
+        qa_engine.build_lemma_index(glossary.entries)
         app_state.qa_engine = qa_engine
     except Exception as e:
         # Make startup failures loud so the UI doesn't silently see None
@@ -363,15 +359,6 @@ def page_home():
                         )
 
                 with ui.column().classes("w-full gap-3 mt-2"):
-                    vl_switch = ui.switch(
-                        "Parse with VL (recommended for PDFs)",
-                        value=True,
-                    ).classes("text-[11px]").tooltip(
-                        "Use the Vision-Language model for PDF parsing. "
-                        "Handles footnotes, endnotes, columns, and tables of contents correctly. "
-                        "Uncheck to use the fast MarkItDown fallback instead."
-                    )
-
                     ai_master_switch = ui.switch(
                         "AI Translation",
                         value=ui_settings.ai_master_enabled(),
@@ -387,7 +374,6 @@ def page_home():
                     await handle_new_upload(
                         e,
                         f"{src_lang.value}->{tgt_lang.value}",
-                        use_vl=vl_switch.value,
                     )
 
                 ui.upload(
@@ -467,15 +453,11 @@ def delete_and_refresh(project_id: str, container: ui.column, client):
     render_project_list(container, client)
 
 
-async def handle_new_upload(e, lang_pair: str, use_vl: bool = True):
+async def handle_new_upload(e, lang_pair: str):
     name = getattr(e, "name", "document.docx")
     suffix = Path(name).suffix.lower()
     if suffix not in (".docx", ".pdf"):
         return ui.notify("DOCX or PDF files only", type="warning")
-
-    # Auto-disable VL for non-PDF files
-    if use_vl and suffix != ".pdf":
-        use_vl = False
 
     try:
         content = await e.file.read()
@@ -487,64 +469,44 @@ async def handle_new_upload(e, lang_pair: str, use_vl: bool = True):
     PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
     saved_path.write_bytes(content)
 
-    if doc_parser is None:
-        return ui.notify("Document parser not initialized", type="negative")
+    # ── DOCX: direct python-docx paragraph extraction ────────────────────
+    if suffix == ".docx":
+        try:
+            import io
+            import docx as _docx
+            doc = _docx.Document(io.BytesIO(content))
+        except Exception as ex:
+            return ui.notify(f"DOCX parse error: {ex}", type="negative")
 
-    server = None
-    if use_vl:
-        from translate_core.vl_server import VLMServerManager
-        server = VLMServerManager()
-        ui.notify("Starting VL server…", type="info")
-        if not server.start(timeout=180):
-            ui.notify("VL server failed to start. Falling back to standard parsing.", type="warning")
-            server = None
-            use_vl = False
+        segments = []
+        for p in doc.paragraphs:
+            txt = p.text.strip()
+            if txt:
+                segments.append(
+                    {"id": len(segments), "source": txt, "target": "", "status": "pending"}
+                )
 
-    try:
-        cache_dir = None
-        if use_vl:
-            cache_dir = Path("data/.vl_cache") / saved_path.stem
-
-        # Progress callback for VL parsing
-        progress_label = {"text": ""}
-        def _upload_progress(phase: str, current: int, total: int, cached: bool = False):
-            pct = int((current + 1) / total * 100)
-            status = " (cached)" if cached else ""
-            msg = f"[{phase}] {current + 1}/{total}{status} ({pct}%)"
-            progress_label["text"] = msg
-            # NiceGUI notifications for long-running VL parse
-            if current == 0:
-                ui.notify(f"Parsing with VL: {phase}…", type="info")
-
-        md_text, segments_meta = doc_parser.to_markdown_with_meta(
-            saved_path,
-            preprocess=True,
-            use_vl=use_vl,
-            vl_cache_dir=cache_dir,
-            progress_callback=_upload_progress if use_vl else None,
-        )
-    except Exception as ex:
-        if use_vl:
-            ui.notify(f"VL parsing error: {ex}", type="negative")
-        else:
-            ui.notify(f"Parsing error: {ex}", type="negative")
-        return
-    finally:
-        if server:
-            server.stop()
-
-    segments = []
-    for block in md_text.split("\n\n"):
-        txt = block.strip()
-        if txt:
-            segments.append(
-                {
-                    "id": len(segments),
-                    "source": txt,
-                    "target": "",
-                    "status": "pending",
-                }
+    # ── PDF: MarkItDown fallback ──────────────────────────────────────────
+    else:
+        if doc_parser is None:
+            return ui.notify("Document parser not initialized", type="negative")
+        try:
+            md_text, _ = doc_parser.to_markdown_with_meta(
+                saved_path, preprocess=True
             )
+        except Exception as ex:
+            return ui.notify(f"PDF parsing error: {ex}", type="negative")
+
+        segments = []
+        for block in md_text.split("\n\n"):
+            txt = block.strip()
+            if txt:
+                segments.append(
+                    {"id": len(segments), "source": txt, "target": "", "status": "pending"}
+                )
+
+    if not segments:
+        return ui.notify("No text extracted from document", type="warning")
 
     ws = {
         "project_id": project_id,
@@ -554,36 +516,8 @@ async def handle_new_upload(e, lang_pair: str, use_vl: bool = True):
         "segments": segments,
     }
 
-    # If VL pipeline produced segment metadata, persist it for Phase 2 KG filtering
-    if segments_meta:
-        ws["segments_meta"] = segments_meta
-
-    # If VL pipeline produced an outline, persist it for chapter navigation
-    vl_result = getattr(doc_parser, '_last_vl_result', None)
-    if vl_result is not None:
-        outline_data = {
-            "entries": [
-                {
-                    "level": e.level,
-                    "kind": e.kind,
-                    "number": e.number,
-                    "title": e.title,
-                    "page_number": e.page_number,
-                    "source_page": e.source_page,
-                }
-                for e in vl_result.outline.entries
-            ],
-            "page_to_chapter": vl_result.outline.page_to_chapter,
-            "reconciliation_warnings": vl_result.outline.reconciliation_warnings,
-        }
-        ws["outline"] = outline_data
-        outline_path = PROJECTS_DIR / f"{project_id}_outline.json"
-        outline_path.write_text(
-            json.dumps(outline_data, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
-
     save_project(ws)
-    ui.notify(f"Created: {len(segments)} paragraphs", type="positive")
+    ui.notify(f"Created: {len(segments)} segments", type="positive")
     ui.navigate.to(f"/translate/{project_id}")
 
 
