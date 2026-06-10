@@ -140,6 +140,54 @@ class TranslationMemory:
 
         self.entries = merged
 
+    def upsert_runtime_pair(
+        self,
+        source: str,
+        target: str,
+        src_lang: str,
+        tgt_lang: str,
+        origin: str = "working.tmx",
+    ) -> None:
+        """Mirror a runtime-confirmed TU into ``_entries_by_pair``.
+
+        If the same ``source`` already exists in the ``(src_lang, tgt_lang)``
+        bucket with the same ``origin``, update its ``target`` in place.
+        Otherwise append a new entry with the highest ``raw_index`` and
+        ``t_index`` (a runtime confirm is chronologically newest).
+
+        Also appends/updates in ``self.entries`` (compat view) so both
+        collections stay in sync.
+        """
+        key = (src_lang, tgt_lang)
+        bucket = self._entries_by_pair.setdefault(key, [])
+
+        for entry in bucket:
+            if entry.get("source") == source and entry.get("origin") == origin:
+                entry["target"] = target
+                # Mirror into self.entries if present there
+                for ce in self.entries:
+                    if ce.get("source") == source and ce.get("origin") == origin:
+                        ce["target"] = target
+                return
+
+        # Compute next raw_index / t_index (highest + 1)
+        max_raw = max((e.get("raw_index", -1) for e in bucket), default=-1)
+        max_t = max(
+            (e.get("t_index", -1) for bucket2 in self._entries_by_pair.values() for e in bucket2),
+            default=-1,
+        )
+        new_entry = {
+            "source": source,
+            "target": target,
+            "origin": origin,
+            "source_lang": src_lang,
+            "target_lang": tgt_lang,
+            "raw_index": max_raw + 1,
+            "t_index": max_t + 1,
+        }
+        bucket.append(new_entry)
+        self.entries.append(new_entry)
+
     def iter_chronological(
         self, origin: Optional[str] = None
     ) -> Iterator[Dict[str, Any]]:
@@ -153,12 +201,8 @@ class TranslationMemory:
         When ``origin`` is provided, only entries from that origin file
         are yielded, still in chronological order within that origin.
 
-        TODO (Phase 6 / Risk 2): ``main.py:251`` appends runtime-confirmed
-        TUs to ``self.entries`` but NOT to ``_entries_by_pair``. Those
-        appends are invisible to ``iter_chronological`` within the same
-        session. Acceptable for the Phase 6 batch attribution pass; a
-        future phase will need to mirror runtime appends into the pair
-        index if a live consumer is added.
+        confirmed TUs are now mirrored into the pair index via
+        ``upsert_runtime_pair``, so they are visible here.
         """
         flat: List[Dict[str, Any]] = []
         for bucket in self._entries_by_pair.values():

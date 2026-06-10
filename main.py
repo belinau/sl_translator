@@ -233,20 +233,7 @@ def save_pair_to_tm(source: str, target: str, lang_pair: str):
     # Mirror the upsert in the in-memory TM so lookup_fuzzy sees the
     # change without a reload.
     if tm is not None:
-        for entry in tm.entries:
-            if entry.get("source") == src_n and entry.get("origin") == "working.tmx":
-                entry["target"] = tgt_n
-                break
-        else:
-            tm.entries.append(
-                {
-                    "source": src_n,
-                    "target": tgt_n,
-                    "origin": "working.tmx",
-                    "source_lang": src_lang,
-                    "target_lang": tgt_lang,
-                }
-            )
+        tm.upsert_runtime_pair(src_n, tgt_n, src_lang, tgt_lang)
 
 
 async def init_resources():
