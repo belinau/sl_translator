@@ -531,115 +531,64 @@ class DocumentParser:
         doc.save(str(output_path))
 
     @staticmethod
-    def _merge_adjacent_runs(runs: list) -> list[dict]:
-        """Merge adjacent runs that share the same formatting into
-        logical groups.  Word often splits a single formatting span
-        into many runs (spell-check boundaries, edit marks, etc.).
-        We collapse them back so the proportional split operates on
-        *meaningful* formatting regions, not Word's internal noise.
-        """
-        groups: list[dict] = []
-        for r in runs:
-            rgb = None
-            if r.font.color and r.font.color.rgb:
-                rgb = r.font.color.rgb
-            fmt = (
-                r.bold, r.italic, r.underline,
-                r.font.name, r.font.size, rgb,
-            )
-            if groups and groups[-1]["fmt"] == fmt:
-                groups[-1]["text"] += r.text
-            else:
-                groups.append({"fmt": fmt, "text": r.text})
-        return groups
-
-    @staticmethod
     def _replace_paragraph_text(paragraph, new_text: str) -> None:
-        """Replace paragraph text while preserving formatting structure.
+        """Replace paragraph text preserving bold/italic/font at the
+        XML \u003cw:rPr\u003e level.
 
-        Strategy: merge adjacent runs that share the same formatting
-        (Word splits runs at spell-check boundaries etc.), then
-        distribute the translated text proportionally across the
-        merged groups, snapping splits to word boundaries.  Each group
-        keeps its original bold/italic/font/size/color.
+        Works directly on the paragraph's lxml element tree:
+        1. Merge adjacent \u003cw:r\u003e elements whose \u003cw:rPr\u003e
+           carry the same bold/italic/underline state (Word splits runs
+           at spell-check boundaries etc.)
+        2. Redistribute the translation text proportionally into the
+           surviving \u003cw:t\u003e elements
 
-        This preserves formatting patterns like a bold name followed by
-        normal body text, a bold heading, or italic terms mid-sentence
-        — without any per-document tuning.
+        The \u003cw:rPr\u003e subtrees are never touched — \u003cw:b\u003e,
+        \u003cw:i\u003e, font refs, sizes etc. survive exactly as the
+        author set them.
         """
-        from docx.shared import RGBColor
-
-        runs = paragraph.runs
-        if not runs:
+        _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+        p_el = paragraph._element
+        r_elements = list(p_el.findall(f"{_W}r"))
+        if not r_elements:
             paragraph.add_run(new_text)
             return
 
-        # Merge Word's internal run splits into meaningful groups.
-        groups = DocumentParser._merge_adjacent_runs(runs)
+        # ── Merge adjacent same-format runs ──────────────────────────
+        def _fmt_key(r_el):
+            rPr = r_el.find(f"{_W}rPr")
+            b = rPr is not None and rPr.find(f"{_W}b") is not None
+            i = rPr is not None and rPr.find(f"{_W}i") is not None
+            u = rPr is not None and rPr.find(f"{_W}u") is not None
+            return (b, i, u)
 
-        # Capture each group's formatting and character count.
-        run_fmts: list[dict] = []
-        orig_lengths: list[int] = []
-        for g in groups:
-            bold, italic, underline, fname, fsize, rgb = g["fmt"]
-            run_fmts.append({
-                "bold": bold,
-                "italic": italic,
-                "underline": underline,
-                "font_name": fname,
-                "font_size": fsize,
-                "font_color_rgb": rgb,
-            })
-            orig_lengths.append(max(len(g["text"]), 1))
-
-        total_orig = sum(orig_lengths)
-
-        # Proportionally split new_text into len(groups) chunks,
-        # snapping to word boundaries.
-        chunks: list[str] = []
-        remaining = new_text
-        for i, length in enumerate(orig_lengths):
-            if i == len(orig_lengths) - 1:
-                chunks.append(remaining)
-                remaining = ""
-                break
-            share = length / total_orig
-            target_pos = int(share * len(new_text))
-            # Snap forward to the next word boundary.
-            snap = remaining.find(" ", target_pos)
-            if snap != -1 and snap < len(remaining):
-                cut = snap + 1
+        idx = 0
+        while idx < len(r_elements) - 1:
+            if _fmt_key(r_elements[idx]) == _fmt_key(r_elements[idx + 1]):
+                cur_t = r_elements[idx].find(f"{_W}t")
+                nxt_t = r_elements[idx + 1].find(f"{_W}t")
+                if cur_t is not None and nxt_t is not None:
+                    cur_t.text = (cur_t.text or "") + (nxt_t.text or "")
+                p_el.remove(r_elements[idx + 1])
+                r_elements.pop(idx + 1)
             else:
-                cut = len(remaining)
-            chunks.append(remaining[:cut])
+                idx += 1
+
+        # ── Redistribute text proportionally ──────────────────────────
+        t_els = [r.find(f"{_W}t") for r in r_elements if r.find(f"{_W}t") is not None]
+        orig_lens = [max(len(t.text or ""), 1) for t in t_els]
+        total = sum(orig_lens)
+
+        remaining = new_text
+        for j, length in enumerate(orig_lens):
+            if j == len(orig_lens) - 1:
+                t_els[j].text = remaining
+                break
+            share = length / total
+            target = int(share * len(new_text))
+            snap = remaining.find(" ", target)
+            cut = snap + 1 if snap != -1 and snap < len(remaining) else len(remaining)
+            t_els[j].text = remaining[:cut]
             remaining = remaining[cut:]
-        if remaining:
-            chunks.append(remaining)
-
-        # Pad or trim chunks to match group count.
-        while len(chunks) < len(groups):
-            chunks.append("")
-        chunks = chunks[:len(groups)]
-
-        # Remove all existing runs, then recreate with captured formatting.
-        for run in runs:
-            run._r.getparent().remove(run._r)
-
-        for text, fmt in zip(chunks, run_fmts):
-            new_run = paragraph.add_run(text)
-            new_run.bold = fmt["bold"]
-            new_run.italic = fmt["italic"]
-            new_run.underline = fmt["underline"]
-            if fmt["font_name"]:
-                new_run.font.name = fmt["font_name"]
-            if fmt["font_size"]:
-                new_run.font.size = fmt["font_size"]
-            if fmt["font_color_rgb"]:
-                new_run.font.color.rgb = RGBColor(
-                    fmt["font_color_rgb"][0],
-                    fmt["font_color_rgb"][1],
-                    fmt["font_color_rgb"][2],
-                )
 
     def _add_footnote_reference_run(self, paragraph, fn_global_id: int) -> None:
         """Add a `<w:footnoteReference w:id="N"/>` inside a new superscript
