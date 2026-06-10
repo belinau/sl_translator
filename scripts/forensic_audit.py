@@ -9,8 +9,6 @@ Answers:
 from __future__ import annotations
 import json
 import sys
-import unicodedata
-import re
 from collections import Counter
 from pathlib import Path
 
@@ -18,19 +16,13 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from translate_core.knowledge_graph import KnowledgeGraph
+from translate_core.entity_extraction._slug import _slugify
 from translate_core.cobiss_parser import parse_cobiss_file
 from translate_core.cobiss_classifier import classify_entry
 
 KG_PATH = ROOT / "data" / "knowledge.db"
 ATTR_PATH = ROOT / "data" / "segment_title_attribution.json"
 COBISS_PATH = ROOT / "data" / "personal bibliography" / "bibliography_belina.txt"
-
-# Copy of slug helpers from scripts/ingest_personal_bibliography.py
-def _slugify(text: str) -> str:
-    nfkd = unicodedata.normalize("NFKD", text)
-    s = "".join(c for c in nfkd if not unicodedata.combining(c))
-    s = re.sub(r"[^a-zA-Z0-9]+", "-", s).strip("-").lower()
-    return s[:80] if s else "unknown"
 
 def _make_agent_id(last_name: str, first_name: str) -> str:
     parts = [last_name]

@@ -40,13 +40,8 @@ from translate_core.entity_extraction.bilingual_tm_matcher import (
     CitationWithTMRefs,
 )
 from translate_core.knowledge_graph import KnowledgeGraph
+from translate_core.entity_extraction._slug import _slugify
 
-
-def _slugify(text: str) -> str:
-    nfkd = unicodedata.normalize("NFKD", text)
-    s = "".join(c for c in nfkd if not unicodedata.combining(c))
-    s = re.sub(r"[^a-zA-Z0-9]+", "-", s).strip("-").lower()
-    return s[:80] if s else "unknown"
 
 
 def _cited_work_id(citation: ParsedCitation) -> str:

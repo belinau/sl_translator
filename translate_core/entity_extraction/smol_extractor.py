@@ -47,6 +47,8 @@ import logging
 import re
 import unicodedata
 
+from ._slug import _slugify
+
 logger = logging.getLogger(__name__)
 
 # Tracks origins for which we've already warned about a missing t_index in
@@ -249,18 +251,6 @@ def format_extract_prompt(
         proj_types=", ".join(sorted(VALID_CITED_PROJECT_TYPES)),
         concept_domains=", ".join(sorted(VALID_CONCEPT_DOMAINS)),
     )
-
-
-# ── Slugify (must match kg_ingest_entities._slugify) ──────────────────────────
-
-def _slugify(text: str) -> str:
-    """Canonical ontology slugify (§0 / §4 invariant #1 / audit-template #12).
-
-    Delegates to the single canonical implementation in `kg_ingest_entities`
-    so the smol pipeline and the ingester cannot drift apart.
-    """
-    from ..kg_ingest_entities import _slugify as _canonical_slugify
-    return _canonical_slugify(text)
 
 
 # ── JSON parsing (robust, handles partial/malformed responses) ─────────────────

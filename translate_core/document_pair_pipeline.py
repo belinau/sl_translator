@@ -37,8 +37,8 @@ from __future__ import annotations
 
 import logging
 import re
-import unicodedata
 from dataclasses import dataclass, field
+import unicodedata
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 from xml.sax.saxutils import escape as _xml_escape
@@ -50,6 +50,7 @@ from .citation_collector import (
     write_tmx_manifest,
 )
 from .doc_parser import DocumentParser
+from .entity_extraction._slug import _slugify
 
 if TYPE_CHECKING:  # avoid runtime import cycle; KG passed in by caller anyway
     from .knowledge_graph import KnowledgeGraph
@@ -115,18 +116,6 @@ def _normalise(text: str) -> str:
     stripped = "".join(c for c in nfkd if not unicodedata.combining(c))
     return re.sub(r"[^a-zA-Z0-9]+", " ", stripped).strip().lower()
 
-
-def _slugify(text: str) -> str:
-    """O-2 slug: NFKD → strip combining → lowercase → '-' collapsed → trim 80.
-
-    Empty slug becomes ``"unknown"``.
-    """
-    if not text:
-        return "unknown"
-    nfkd = unicodedata.normalize("NFKD", text)
-    stripped = "".join(c for c in nfkd if not unicodedata.combining(c))
-    s = re.sub(r"[^a-zA-Z0-9]+", "-", stripped).strip("-").lower()
-    return s[:80] if s else "unknown"
 
 
 def _tokens(text: str) -> list[str]:

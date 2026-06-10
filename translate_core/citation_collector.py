@@ -1,13 +1,13 @@
 # translate_core/citation_collector.py
 #
-# Single entry point for citation extraction from any source format.
-# Replaces the four fragmented extraction paths (regex/TM, typed VL,
-# VL book parser, book-source ingest) with a unified pipeline:
+# Citation snippet adapters for multiple source formats (editor segments,
+# project segments_meta, MD footnotes, DOCX footnotes, TMX manifests).
 #
-#   Source format adapters → CitationSnippet → Typed VL pipeline
-#       → Verifier → Bilingual enricher → Confidence scorer → KG ingest
-#
-# Phase 2 of the pipeline restructuring plan.
+# The typed VL extraction pipeline was retired in Phase 7. This module's
+# extract_and_ingest now filters short references and noise only; it does
+# not produce extraction records. Smol-quality extraction of editor-
+# confirmed segments happens via working.tmx → run_entity_extraction.py
+# (Pipeline 2). CitationSnippet adapters remain live for downstream consumers.
 
 from __future__ import annotations
 
@@ -368,11 +368,10 @@ def extract_and_ingest(
 ) -> IngestReport:
     """Run the citation extraction pipeline on a batch of snippets.
 
-    Phase 7 retired the VL-typed extraction branch; this orchestrator
-    currently only filters short references and drops noise. Phase 11
-    deletes ``citation_collector.py`` outright — the file remains live
-    until then so editor callers can still construct snippets without
-    crashing.
+    The typed extraction pipeline was retired in Phase 7. This orchestrator
+    filters short references and drops noise; it does not produce extraction
+    records. Smol-quality extraction of editor-confirmed segments happens
+    via working.tmx → run_entity_extraction.py (Pipeline 2).
 
     Returns an IngestReport with counts per phase.
     """

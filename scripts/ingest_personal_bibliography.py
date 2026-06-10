@@ -27,8 +27,6 @@ from __future__ import annotations
 
 import json
 import sys
-import unicodedata
-import re
 from pathlib import Path
 
 # Add project root to path
@@ -47,6 +45,7 @@ from translate_core.cobiss_classifier import (
     AGENT_ROLES,
 )
 from translate_core.entity_extraction.name_dedup import dedup_group_key
+from translate_core.entity_extraction._slug import _slugify
 
 
 KG_PATH = Path(__file__).resolve().parent.parent / "data" / "knowledge.db"
@@ -54,13 +53,6 @@ COBISS_PATH = Path(__file__).resolve().parent.parent / "data" / "personal biblio
 REPORT_PATH = Path(__file__).resolve().parent.parent / "data" / "cobiss_ingest_report.md"
 UNCLASSIFIED_PATH = Path(__file__).resolve().parent.parent / "data" / "cobiss_unclassified_entries.json"
 
-
-def _slugify(text: str) -> str:
-    """O-2: NFKD strip → lowercase → non-alphanumeric → '-' → truncate 80 → 'unknown'."""
-    nfkd = unicodedata.normalize("NFKD", text)
-    s = "".join(c for c in nfkd if not unicodedata.combining(c))
-    s = re.sub(r"[^a-zA-Z0-9]+", "-", s).strip("-").lower()
-    return s[:80] if s else "unknown"
 
 
 def _make_agent_id(last_name: str, first_name: str) -> str:
