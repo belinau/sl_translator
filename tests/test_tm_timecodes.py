@@ -20,7 +20,6 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-import pytest
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "tmx_unordered.tmx"

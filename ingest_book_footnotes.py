@@ -14,13 +14,12 @@ Pipeline:
   5. cited_in edge → containing translated_work
 """
 
-import logging
 from __future__ import annotations
 
+import logging
+
 import argparse
-import re
 import sys
-import unicodedata
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -40,19 +39,20 @@ from translate_core.entity_extraction.bilingual_tm_matcher import (
     summarize_matches,
     CitationWithTMRefs,
 )
-from translate_core.knowledge_graph import KnowledgeGraph
-from translate_core.entity_extraction._slug import _slugify
 from translate_core.entity_extraction.ingest_helpers import (
     ensure_agent,
     ensure_institution,
-    cited_work_id as _cited_work_id,
+    cited_work_id as _shared_cited_work_id,
 )
+
+from translate_core.knowledge_graph import KnowledgeGraph
 
 
 log = logging.getLogger(__name__)
 
+
 def _cited_work_id(citation: ParsedCitation) -> str:
-    return _cited_work_id(
+    return _shared_cited_work_id(
         citation.primary_author_surname or "anon",
         (citation.title or citation.container_title or "untitled")[:40],
         citation.year or "",
@@ -266,7 +266,7 @@ def main():
     footnotes = parse_markdown_footnotes(str(args.md))
     log.info(f"      {len(footnotes)} footnotes, {sum(len(f.citations) for f in footnotes)} raw citations")
 
-    log.info(f"Resolving Ibid + short-form references …")
+    log.info("Resolving Ibid + short-form references …")
     # Map citation idx → list of footnote numbers it appeared in
     # We need this so each cited_work knows its footnote provenance
     resolved: List[ParsedCitation] = []
@@ -326,7 +326,7 @@ def main():
 
     log.info(f"      {len(resolved)} citations after Ibid resolution")
 
-    log.info(f"Bilingual TM matching (with page-tail & URL signals) …")
+    log.info("Bilingual TM matching (with page-tail & URL signals) …")
     tm = TranslationMemory()
     matched: List[CitationWithTMRefs] = []
     for cit in resolved:
@@ -351,17 +351,17 @@ def main():
         # Write report
         args.report_path.parent.mkdir(parents=True, exist_ok=True)
         with open(args.report_path, "w", encoding="utf-8") as f:
-            f.write(f"# Footnote ingest report\n\n")
+            f.write("# Footnote ingest report\n\n")
             f.write(f"**Source:** `{args.md}`\n")
             f.write(f"**Container work:** `{args.container_work_id}`\n\n")
-            f.write(f"## Summary\n\n")
+            f.write("## Summary\n\n")
             f.write(f"- Footnotes: {len(footnotes)}\n")
             f.write(f"- Raw citations: {sum(len(fn.citations) for fn in footnotes)}\n")
             f.write(f"- After Ibid resolution: {len(resolved)}\n")
             f.write(f"- Unique cited_works: {len(cwid_to_match)}\n")
             f.write(f"- With TM matches: {summary['citations_with_tm_matches']}\n")
             f.write(f"- Total TM segment refs: {summary['total_tm_match_count']}\n\n")
-            f.write(f"## Sample (top 20 by TM match count)\n\n")
+            f.write("## Sample (top 20 by TM match count)\n\n")
             top = sorted(cwid_to_match.values(), key=lambda m: -len(m.tm_matches))[:20]
             for m in top:
                 c = m.citation
@@ -377,11 +377,11 @@ def main():
                     f.write(f"- url: {c.url}\n")
                 f.write(f"- footnote numbers: {sorted(set(cwid_to_fn_numbers[_cited_work_id(c)]))[:10]}\n")
                 f.write(f"- tm matches: {len(m.tm_matches)}\n")
-                f.write(f"\n")
+                f.write("\n")
         log.info(f"\nReport written to {args.report_path}")
         return
 
-    log.info(f"Writing to KG …")
+    log.info("Writing to KG …")
     kg = KnowledgeGraph()
     container_node = f"source:{args.container_work_id.lower()}"
     if not kg.G.has_node(container_node):

@@ -17,10 +17,9 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any
 
 import pytest
-from nicegui import Client, ui
+from nicegui import ui
 
 from _kg_helpers import make_kg, seed_concept, seed_mapping, seed_term
 from ui import intel_panel, predictions, segment_editor, segment_navigator, settings as ui_settings

@@ -111,16 +111,16 @@ def main() -> None:
             if len(orphan_samples) < 5:
                 orphan_samples.append((nid, d.get("title") or d.get("title_orig") or d.get("title_translation") or "(no title)"))
 
-    print(f"\n--- orphan vs live ---")
+    print("\n--- orphan vs live ---")
     print(f"  live source_text:   {live_count}")
     print(f"  orphan source_text: {orphan_count}")
-    print(f"  edges by relation (live-class only):")
+    print("  edges by relation (live-class only):")
     for (direction, rel), c in sorted(relation_edge_counter.items(), key=lambda x: -x[1]):
         print(f"    {direction:3s} {rel:30s} {c}")
-    print(f"  live samples:")
+    print("  live samples:")
     for nid, t in live_samples:
         print(f"    {nid} :: {t[:70]}")
-    print(f"  orphan samples:")
+    print("  orphan samples:")
     for nid, t in orphan_samples:
         print(f"    {nid} :: {t[:70]}")
 

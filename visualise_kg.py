@@ -18,7 +18,9 @@ import math
 import pathlib
 import sys
 from collections import Counter, defaultdict
-from typing import Any, Dict, List, Set, Tuple
+from typing import Dict, List, Tuple
+
+log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Setup CLI and Config Fallbacks
@@ -58,7 +60,6 @@ ALL_EDGES = raw_data.get("edges", [])
 node_by_id = {n["id"]: n for n in ALL_NODES}
 
 log.info(f"Loaded {len(ALL_NODES)} nodes and {len(ALL_EDGES)} edges.")
-log = logging.getLogger(__name__)
 
 def compute_physics_defaults(n_nodes: int, n_edges: int) -> Dict[str, float]:
     """Choose sane force-graph parameters from graph density.
@@ -1793,7 +1794,7 @@ try:
     dest_v4.write_text(view4_html, encoding="utf-8")
     dest_v5.write_text(view5_html, encoding="utf-8")
     dest_v6.write_text(view6_html, encoding="utf-8")
-    log.info(f"\nGenerated SIX canvas visualizations successfully:")
+    log.info("\nGenerated SIX canvas visualizations successfully:")
     log.info(f"  - V1 Provenance:        {dest_v1.resolve()}")
     log.info(f"  - V2 Bilingual Terms:   {dest_v2.resolve()}")
     log.info(f"  - V3 Agents & Works:    {dest_v3.resolve()}")

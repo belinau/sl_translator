@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
 
-from .bibliography_parser import ParsedAuthor, ParsedCitation, CITATION_TYPES
+from .bibliography_parser import ParsedAuthor, ParsedCitation
 
 
 # Markdown footnote definition: `[^N]: text...` (may span lines until next `[^M]:` or end)

@@ -14,8 +14,9 @@ is kept ONLY as a fallback for citation-style segments where no smol extraction
 is available.
 """
 
-import logging
 from __future__ import annotations
+
+import logging
 
 import argparse
 import json
@@ -33,8 +34,6 @@ from translate_core.entity_extraction.smol_extractor import (
 )
 from translate_core.entity_extraction.book_extractor import (
     extract_from_book_origin,
-    _agent_person_from_name as _book_agent_person,
-    _institution_from_publisher as _book_institution,
 )
 from translate_core.tm import TranslationMemory
 from translate_core.entity_extraction.origin_walker import (
@@ -112,7 +111,7 @@ def export_segments(
         encoding="utf-8",
     )
     log.info(f"Wrote {len(export)} segments to {SEGMENTS_EXPORT_PATH}")
-    log.info(f"         Now dispatch OMP smol agents to extract entities.")
+    log.info("         Now dispatch OMP smol agents to extract entities.")
     log.info(f"         Write results to {SMOL_EXTRACTIONS_PATH}")
 
 
@@ -128,7 +127,7 @@ def ingest_extractions(
     """Read smol agent results, merge with book_extractor fallback, score, ingest."""
     if not SMOL_EXTRACTIONS_PATH.exists():
         log.error(f"ERROR: No smol extraction results at {SMOL_EXTRACTIONS_PATH}")
-        log.info(f"         Run --export-segments first, then dispatch OMP agents.")
+        log.info("         Run --export-segments first, then dispatch OMP agents.")
         sys.exit(1)
 
     raw_extractions = json.loads(SMOL_EXTRACTIONS_PATH.read_text(encoding="utf-8"))
@@ -286,7 +285,7 @@ def ingest_extractions(
     # the rest of this orchestrator.
 
     # Score and deduplicate
-    log.info(f"[4/5] Aggregating signals, scoring, deduplicating …")
+    log.info("[4/5] Aggregating signals, scoring, deduplicating …")
     aggregate_agent_signals(all_records)
     aggregate_institution_signals(all_records)
     scored = score_all(all_records)
@@ -319,18 +318,18 @@ def ingest_extractions(
             with open(dropped_path, "w", encoding="utf-8") as f:
                 for r in dropped:
                     f.write(json.dumps(r, ensure_ascii=False, default=str) + "\n")
-        log.info(f"\nWrote:")
+        log.info("\nWrote:")
         if args.preview_patterns:
             log.info(f"  {preview_path}")
         if review:
             log.info(f"  {review_path} ({len(review)} records)")
         if dropped:
             log.info(f"  {dropped_path} ({len(dropped)} records)")
-        log.info(f"\nNo KG writes performed (dry run).")
+        log.info("\nNo KG writes performed (dry run).")
         return
 
     # Real write mode
-    log.info(f"Writing direct-tier records to KG …")
+    log.info("Writing direct-tier records to KG …")
     from translate_core.knowledge_graph import KnowledgeGraph
     if args.kg_path:
         # Ensure parent dir exists; KnowledgeGraph reads from this path on
@@ -340,7 +339,7 @@ def ingest_extractions(
         log.info(f"      writing to KG at: {args.kg_path}")
     else:
         kg = KnowledgeGraph()
-        log.info(f"      writing to default KG (data/knowledge.db)")
+        log.info("      writing to default KG (data/knowledge.db)")
     stats = write_to_kg(
         kg, re_scored,
         review_path=review_path,
@@ -350,7 +349,7 @@ def ingest_extractions(
     log.info(f"      direct-write: {stats.direct_write}")
     log.info(f"      review queue: {stats.review_queued}")
     log.info(f"      dropped:      {stats.dropped}")
-    log.info(f"\nBy kind:")
+    log.info("\nBy kind:")
     for kind, counts in stats.by_kind.items():
         log.info(f"  {kind:18s} direct={counts['direct_write']:5d}  review={counts['review']:5d}  drop={counts['dropped']:5d}")
 
@@ -464,7 +463,7 @@ def main():
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     # ── Load TM and build contexts (shared between both phases) ──
-    log.info(f"[1/5] Loading TMs from data/tm/ …")
+    log.info("[1/5] Loading TMs from data/tm/ …")
     tm = TranslationMemory()
     entries = tm.entries
     log.info(f"      {len(entries)} TM entries total")
@@ -477,7 +476,7 @@ def main():
         entries = entries[: args.limit]
         log.info(f"      [fire-test] limited to first {len(entries)} entries")
 
-    log.info(f"[2/5] Building per-origin contexts (segment classification, profile derivation) …")
+    log.info("[2/5] Building per-origin contexts (segment classification, profile derivation) …")
     contexts = build_origin_contexts(entries)
     for c in contexts:
         log.info(f"      origin={c.origin:24s} segments={len(c.labels):6d} dominant={c.dominant}")

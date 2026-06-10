@@ -14,7 +14,7 @@ import html as html_lib
 
 from nicegui import background_tasks, ui
 
-from . import predictions, settings as ui_settings
+from . import predictions
 from .state import WorkspaceState
 
 

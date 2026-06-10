@@ -5,6 +5,8 @@
 #   python import_book.py data/books/book.pdf
 #   python import_book.py data/books/book.docx
 
+from __future__ import annotations
+
 import logging
 import json
 import sys
@@ -12,6 +14,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
+from translate_core.doc_parser import DocumentParser
 sys.path.append(str(Path(__file__).parent))
 
 log = logging.getLogger(__name__)
@@ -108,12 +111,12 @@ def import_book(file_path: str, lang_pair: str = "en->sl"):
     target_json.write_text(json.dumps(ws, ensure_ascii=False, indent=2), encoding="utf-8")
 
     # ── Summary ────────────────────────────────────────────────────────
-    log.info(f"\n✅ Done!")
+    log.info("\n✅ Done!")
     log.info(f"   Project:  {project_id}")
     log.info(f"   Language: {clean_pair}")
     log.info(f"   Segments: {len(segments)}")
     log.info(f"   File:     {target_json}")
-    log.info(f"\n   Open localhost:8080 to translate")
+    log.info("\n   Open localhost:8080 to translate")
 
 
 if __name__ == "__main__":

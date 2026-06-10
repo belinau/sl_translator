@@ -77,7 +77,8 @@ def main() -> None:
             import shutil
             shutil.copy2(str(KG_PATH), str(bak_path))
 
-        import tempfile, os
+        import tempfile
+        import os
         fd, tmp_path = tempfile.mkstemp(dir=str(KG_PATH.parent), suffix=".tmp")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:

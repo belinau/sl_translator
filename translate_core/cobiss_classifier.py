@@ -14,7 +14,6 @@
 from __future__ import annotations
 
 import unicodedata
-import re
 
 from .cobiss_parser import CobissEntry, CobissAgent
 
@@ -68,10 +67,6 @@ def _normalize_name(last: str, first: str) -> str:
     return s.lower().strip()
 
 
-def is_belina(agent: CobissAgent) -> bool:
-    """Check if an agent is Urban Belina (fuzzy name match)."""
-    normalized = _normalize_name(agent.last_name, agent.first_name)
-    return "belina" in normalized and "urban" in normalized
 def is_belina(agent: CobissAgent) -> bool:
     """Check if an agent is Urban Belina (fuzzy name match)."""
     normalized = _normalize_name(agent.last_name, agent.first_name)

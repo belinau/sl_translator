@@ -159,8 +159,7 @@ def page_translate(project_id: str):
 
     with (
         ui.right_drawer(value=True, fixed=True)
-        .props("width=380 bordered") as intel_drawer
-    ):
+        .props("width=380 bordered")):
         with ui.column().classes("w-full p-4 gap-2"):
             # Chapter outline (VL-generated books only)
             if outline_entries:
@@ -209,8 +208,8 @@ def page_translate(project_id: str):
                                 "text-[11px] font-medium truncate"
                             )
 
-            nav_refs = segment_navigator.build(state)
-            search_refs = kg_search.build(state, deps)
+            segment_navigator.build(state)
+            kg_search.build(state, deps)
 
     with ui.column().classes("w-full h-screen pt-2 overflow-hidden no-wrap"):
         with ui.column().classes("w-full flex-1 overflow-y-auto pb-8"):
@@ -218,8 +217,8 @@ def page_translate(project_id: str):
                 def _trigger_confirm() -> None:
                     background_tasks.create(_confirm_segment(), name="confirm_btn")
 
-                intel_refs = intel_panel.build(state, deps)
-                editor_refs = segment_editor.build(state, deps, on_confirm=_trigger_confirm)
+                intel_panel.build(state, deps)
+                segment_editor.build(state, deps, on_confirm=_trigger_confirm)
 
 
     # ------------------------------------------------------------------

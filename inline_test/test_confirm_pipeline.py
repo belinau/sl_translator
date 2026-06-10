@@ -19,7 +19,7 @@ from typing import Iterable
 
 import pytest
 
-from _kg_helpers import make_kg, seed_mapping, seed_pair, seed_term
+from _kg_helpers import make_kg, seed_pair
 
 
 # ---------------------------------------------------------------------------
@@ -35,7 +35,16 @@ def tm_dir(tmp_path, monkeypatch):
 
     monkeypatch.setattr(_config, "TM_DIR", tmp_path)
     monkeypatch.setattr(_main.config, "TM_DIR", tmp_path)
-    monkeypatch.setattr(_main, "tm", SimpleNamespace(entries=[]))
+    class _StubTM:
+        def __init__(self):
+            self.entries = []
+        def upsert_runtime_pair(self, source, target, src_lang, tgt_lang, origin="working.tmx"):
+            for e in self.entries:
+                if e["source"] == source and e["origin"] == origin:
+                    e["target"] = target
+                    return
+            self.entries.append({"source": source, "target": target, "origin": origin, "source_lang": src_lang, "target_lang": tgt_lang})
+    monkeypatch.setattr(_main, "tm", _StubTM())
     return tmp_path
 
 

@@ -125,7 +125,7 @@ class Glossary:
                         }
                     )
 
-            except Exception as e:
+            except Exception:
                 # Skip malformed entries
                 continue
 

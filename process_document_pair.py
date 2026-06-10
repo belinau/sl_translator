@@ -17,8 +17,9 @@
 #       --container source:cesta-sestradanih-okri-2010 \
 #       [--dry-run]
 
-import logging
 from __future__ import annotations
+
+import logging
 
 import argparse
 import json
@@ -30,7 +31,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import config
 from translate_core.knowledge_graph import KnowledgeGraph
 from translate_core.document_pair_pipeline import (
-    parse_side,
     process_pair,
     PairResult,
 )

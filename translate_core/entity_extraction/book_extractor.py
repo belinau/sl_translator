@@ -22,7 +22,6 @@ from __future__ import annotations
 from ._slug import _slugify
 
 import re
-import unicodedata
 from typing import List, Optional
 
 from .segment_classifier import (
@@ -31,10 +30,7 @@ from .segment_classifier import (
     KNOWN_PUBLISHERS,
     PAREN_YEAR_RE,
     ANY_YEAR_RE,
-    LASTNAME_COMMA_RE,
-    LASTNAME_FIRST_RE,
     LEADING_PREFIX_RE,
-    PAGE_REF_RE,
     INLINE_CITE_PAREN_RE,
 )
 from .name_dedup import (

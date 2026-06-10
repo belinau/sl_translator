@@ -4,7 +4,6 @@
 # Fully integrated with advanced document pre-processing and compiled DOCX exports
 #
 
-import asyncio
 import json
 import re
 import sys

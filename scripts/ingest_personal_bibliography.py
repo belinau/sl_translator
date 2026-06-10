@@ -33,15 +33,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from translate_core.knowledge_graph import KnowledgeGraph
-from translate_core.cobiss_parser import parse_cobiss_file, CobissEntry, CobissAgent
+from translate_core.cobiss_parser import parse_cobiss_file
 from translate_core.cobiss_classifier import (
     classify_entry,
     classify_institution_kind,
-    is_belina,
     BELINA_SLUG,
     CONTAINER_TYPES,
-    CITED_TYPES,
-    INSTITUTION_KINDS,
     AGENT_ROLES,
 )
 from translate_core.entity_extraction.name_dedup import dedup_group_key
@@ -140,16 +137,15 @@ def ingest_bibliography(
 
         # Dedup key: use cobiss_id if available, else title+year
         if entry.cobiss_id:
-            dedup_key = f"cobiss-{entry.cobiss_id}"
+            pass
         else:
-            dedup_key = _make_source_id(entry.title, entry.year, "")
+            _make_source_id(entry.title, entry.year, "")
 
         # Primary author slug (first listed author)
         primary_author_slug = ""
-        primary_author_name = ""
         if entry.agents:
             primary_author_slug = _make_agent_id(entry.agents[0].last_name, entry.agents[0].first_name)
-            primary_author_name = f"{entry.agents[0].first_name} {entry.agents[0].last_name}".strip()
+            f"{entry.agents[0].first_name} {entry.agents[0].last_name}".strip()
 
         # Source text ID
         source_id = _make_source_id(entry.title, entry.year, primary_author_slug)

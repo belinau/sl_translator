@@ -143,7 +143,7 @@ def main(argv=None) -> int:
         print(f"\n✓ Saved KG to {kg.db_path} "
               f"({kg.G.number_of_nodes()} nodes, {kg.G.number_of_edges()} edges)")
     else:
-        print(f"\n  (dry-run — no changes written. Re-run with --apply to persist.)")
+        print("\n  (dry-run — no changes written. Re-run with --apply to persist.)")
 
     return 0
 

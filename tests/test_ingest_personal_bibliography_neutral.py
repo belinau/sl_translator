@@ -22,7 +22,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from translate_core.cobiss_parser import CobissEntry, CobissAgent
-from translate_core.knowledge_graph import KnowledgeGraph
 import scripts.ingest_personal_bibliography as ing
 
 

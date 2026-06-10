@@ -21,14 +21,12 @@ Usage:
   python ingest_book_bibliography.py --docx data/books/Skrb_...docx --container-work-id kunst-zivljenje-umetnosti
 """
 
-import logging
 from __future__ import annotations
 
+import logging
+
 import argparse
-import json
-import re
 import sys
-import unicodedata
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -220,7 +218,7 @@ def main():
     citations = parse_docx_bibliography(str(args.docx))
     log.info(f"      Parsed {len(citations)} citations")
 
-    log.info(f"Loading TM and matching citations …")
+    log.info("Loading TM and matching citations …")
     tm = TranslationMemory()
     matched = match_all_citations(citations, tm.entries)
     summary = summarize_matches(matched)
@@ -230,13 +228,13 @@ def main():
     log.info(f"Writing report to {args.report_path} …")
     args.report_path.parent.mkdir(parents=True, exist_ok=True)
     with open(args.report_path, "w", encoding="utf-8") as f:
-        f.write(f"# Bibliography ingest report\n\n")
+        f.write("# Bibliography ingest report\n\n")
         f.write(f"**Source:** `{args.docx}`\n")
         f.write(f"**Container work:** `{args.container_work_id}`\n\n")
-        f.write(f"## Summary\n\n")
+        f.write("## Summary\n\n")
         for k, v in summary.items():
             f.write(f"- **{k}:** {v}\n")
-        f.write(f"\n## Sample entries\n\n")
+        f.write("\n## Sample entries\n\n")
         for m in matched[:20]:
             c = m.citation
             a = " + ".join(au.full_name for au in c.authors)
@@ -261,16 +259,16 @@ def main():
                 f.write(f"- **URL:** {c.url}\n")
             f.write(f"- **TM matches:** {len(m.tm_matches)}\n")
             if m.alt_publishers:
-                f.write(f"- **Alt publishers (SL editions found in TM):**\n")
+                f.write("- **Alt publishers (SL editions found in TM):**\n")
                 for ap in m.alt_publishers:
                     f.write(f"  - {ap.get('city')}: {ap.get('publisher')}\n")
             f.write(f"- **Raw:** `{c.raw[:200]}`\n\n")
 
     if args.dry_run:
-        log.info(f"\nNo KG writes performed.")
+        log.info("\nNo KG writes performed.")
         return
 
-    log.info(f"Writing to KG …")
+    log.info("Writing to KG …")
     kg = KnowledgeGraph()
     container_node = f"source:{args.container_work_id.lower()}"
     if not kg.G.has_node(container_node):
@@ -284,7 +282,7 @@ def main():
     kg.save()
     log.info(f"      Nodes: {nodes_before} → {kg.G.number_of_nodes()} (+{kg.G.number_of_nodes() - nodes_before})")
     log.info(f"      Edges: {edges_before} → {kg.G.number_of_edges()} (+{kg.G.number_of_edges() - edges_before})")
-    log.info(f"\n      KG saved.")
+    log.info("\n      KG saved.")
 
 
 if __name__ == "__main__":

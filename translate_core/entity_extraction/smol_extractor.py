@@ -45,7 +45,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-import unicodedata
 
 from ._slug import _slugify
 
@@ -266,7 +265,7 @@ def parse_smol_response(raw: str) -> list[dict]:
         return []
 
     # If it doesn't start with { or [, find the first JSON delimiter
-    if not text[0] in "{[":
+    if text[0] not in "{[":
         for delim in ("{", "["):
             idx = text.find(delim)
             if idx >= 0:
