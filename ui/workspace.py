@@ -1,7 +1,7 @@
 """@ui.page('/translate/{project_id}') — the rebuilt translation workspace.
 
 Persistent DOM, virtualized navigator, client-side ghost predictions,
-non-blocking confirm. Top bar exposes dark mode + AI pretranslate toggles.
+non-blocking confirm. Top bar exposes dark mode toggle.
 
 Module-level imports are kept minimal so that this file can be imported by
 main.py without triggering circular imports at module load time. All
@@ -11,6 +11,9 @@ import ...`.
 from __future__ import annotations
 
 import asyncio
+import logging
+
+log = logging.getLogger(__name__)
 
 from nicegui import background_tasks, ui
 
@@ -267,7 +270,7 @@ def page_translate(project_id: str):
                     lambda: save_pair_to_tm(seg["source"], seg["target"], lang_pair),
                 )
             except Exception as e:
-                print(f"[promote_pair TM-only] {e}")
+                log.warning(f"promote_pair TM-only: {e}")
             return
 
         # Derive domain and context from segments_meta for KG enrichment
@@ -332,10 +335,10 @@ def page_translate(project_id: str):
                             ui.notify(f"Citation extracted: {report.written} record(s)", type="positive")
                         request_kg_save(kg.save, delay=1.0)
                 except Exception as e:
-                    print(f"[promote_pair citation] {e}")
+                    log.warning(f"promote_pair citation: {e}")
 
         except Exception as e:
-            print(f"[promote_pair] {e}")
+            log.error(f"promote_pair: {e}")
 
     # ------------------------------------------------------------------
     # Export
@@ -359,7 +362,7 @@ def page_translate(project_id: str):
                 path.unlink(missing_ok=True)
                 return
         except Exception as e:
-            print(f"[export target] {e}")
+            log.error(f"export target: {e}")
         ui.notify("Export failed", type="negative")
 
     def _export_source_docx():
@@ -372,7 +375,7 @@ def page_translate(project_id: str):
                 path.unlink(missing_ok=True)
                 return
         except Exception as e:
-            print(f"[export source] {e}")
+            log.error(f"export source: {e}")
         ui.notify("Export failed", type="negative")
 
     def _export_txt():

@@ -14,6 +14,7 @@ Pipeline:
   5. cited_in edge → containing translated_work
 """
 
+import logging
 from __future__ import annotations
 
 import argparse
@@ -47,6 +48,8 @@ from translate_core.entity_extraction.ingest_helpers import (
     cited_work_id as _cited_work_id,
 )
 
+
+log = logging.getLogger(__name__)
 
 def _cited_work_id(citation: ParsedCitation) -> str:
     return _cited_work_id(
@@ -248,6 +251,7 @@ def ingest_one(
 
 
 def main():
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--md", type=Path, required=True,
                         help="Path to the markdown export of the translated book")
@@ -258,12 +262,11 @@ def main():
                         default=Path("data/footnote_ingest_report.md"))
     args = parser.parse_args()
 
-    print(f"[1/4] Parsing footnotes from {args.md} …")
+    log.info(f"Parsing footnotes from {args.md} …")
     footnotes = parse_markdown_footnotes(str(args.md))
-    print(f"      {len(footnotes)} footnotes, "
-          f"{sum(len(f.citations) for f in footnotes)} raw citations")
+    log.info(f"      {len(footnotes)} footnotes, {sum(len(f.citations) for f in footnotes)} raw citations")
 
-    print(f"[2/4] Resolving Ibid + short-form references …")
+    log.info(f"Resolving Ibid + short-form references …")
     # Map citation idx → list of footnote numbers it appeared in
     # We need this so each cited_work knows its footnote provenance
     resolved: List[ParsedCitation] = []
@@ -321,16 +324,16 @@ def main():
             resolved.append(cit)
             fn_numbers_per_cit.append([fn.footnote_number])
 
-    print(f"      {len(resolved)} citations after Ibid resolution")
+    log.info(f"      {len(resolved)} citations after Ibid resolution")
 
-    print(f"[3/4] Bilingual TM matching (with page-tail & URL signals) …")
+    log.info(f"Bilingual TM matching (with page-tail & URL signals) …")
     tm = TranslationMemory()
     matched: List[CitationWithTMRefs] = []
     for cit in resolved:
         matched.append(match_citation_against_tm(cit, tm.entries))
     summary = summarize_matches(matched)
     for k, v in summary.items():
-        print(f"      {k}: {v}")
+        log.info(f"      {k}: {v}")
 
     # Collapse same-work citations: same cwid = same node
     cwid_to_fn_numbers: Dict[str, List[int]] = {}
@@ -342,8 +345,7 @@ def main():
         if cwid not in cwid_to_match or len(m.tm_matches) > len(cwid_to_match[cwid].tm_matches):
             cwid_to_match[cwid] = m
             cwid_to_citation[cwid] = m.citation
-    print(f"      {len(cwid_to_match)} unique cited_works "
-          f"(collapsed from {len(matched)} footnote citations)")
+    log.info(f"      {len(cwid_to_match)} unique cited_works (collapsed from {len(matched)} footnote citations)")
 
     if args.dry_run:
         # Write report
@@ -376,22 +378,22 @@ def main():
                 f.write(f"- footnote numbers: {sorted(set(cwid_to_fn_numbers[_cited_work_id(c)]))[:10]}\n")
                 f.write(f"- tm matches: {len(m.tm_matches)}\n")
                 f.write(f"\n")
-        print(f"\n[dry-run] Report written to {args.report_path}")
+        log.info(f"\nReport written to {args.report_path}")
         return
 
-    print(f"[4/4] Writing to KG …")
+    log.info(f"Writing to KG …")
     kg = KnowledgeGraph()
     container_node = f"source:{args.container_work_id.lower()}"
     if not kg.G.has_node(container_node):
-        print(f"      ERROR: container {container_node} not in KG")
+        log.error(f"      ERROR: container {container_node} not in KG")
         sys.exit(1)
     nb, eb = kg.G.number_of_nodes(), kg.G.number_of_edges()
     for cwid, m in cwid_to_match.items():
         fns = sorted(set(cwid_to_fn_numbers[cwid]))
         ingest_one(kg, cwid_to_citation[cwid], m, args.container_work_id, fns)
     kg.save()
-    print(f"      Nodes: {nb} → {kg.G.number_of_nodes()} (+{kg.G.number_of_nodes() - nb})")
-    print(f"      Edges: {eb} → {kg.G.number_of_edges()} (+{kg.G.number_of_edges() - eb})")
+    log.info(f"      Nodes: {nb} → {kg.G.number_of_nodes()} (+{kg.G.number_of_nodes() - nb})")
+    log.info(f"      Edges: {eb} → {kg.G.number_of_edges()} (+{kg.G.number_of_edges() - eb})")
 
 
 if __name__ == "__main__":

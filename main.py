@@ -8,11 +8,14 @@ import asyncio
 import json
 import re
 import sys
+import logging
 import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Tuple
 
+
+log = logging.getLogger(__name__)
 try:
     from nicegui import app, context, ui
 
@@ -26,7 +29,7 @@ try:
         TranslationMemory,
     )
 except ImportError as e:
-    print(f"\n[ERROR] Import failed: {e.name}")
+    log.error(f"Import failed: {e.name}")
     sys.exit(1)
 
 # Global resources
@@ -258,7 +261,7 @@ async def init_resources():
         # Make startup failures loud so the UI doesn't silently see None
         # resources later.
         import traceback
-        print(f"\n[FATAL] init_resources failed: {e}")
+        log.error(f"init_resources failed: {e}")
         traceback.print_exc()
         return
 

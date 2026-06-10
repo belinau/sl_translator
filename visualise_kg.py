@@ -11,6 +11,7 @@
 #
 #
 
+import logging
 import argparse
 import json
 import math
@@ -43,20 +44,22 @@ else:
         kg_path = pathlib.Path("data/knowledge_graph.json")
 
 if not kg_path.exists():
-    print(f"[ERROR] Database file not found at: {kg_path}", file=sys.stderr)
+    log.error(f"Database file not found at: {kg_path}")
     sys.exit(1)
 
 try:
     raw_data = json.loads(kg_path.read_text(encoding="utf-8"))
 except Exception as e:
-    print(f"[ERROR] Failed to read or parse KG: {e}", file=sys.stderr)
+    log.error(f"Failed to read or parse KG: {e}")
     sys.exit(1)
 
 ALL_NODES = raw_data.get("nodes", [])
 ALL_EDGES = raw_data.get("edges", [])
 node_by_id = {n["id"]: n for n in ALL_NODES}
 
-print(f"[KG Loader] Loaded {len(ALL_NODES)} nodes and {len(ALL_EDGES)} edges.")
+log.info(f"Loaded {len(ALL_NODES)} nodes and {len(ALL_EDGES)} edges.")
+log = logging.getLogger(__name__)
+
 def compute_physics_defaults(n_nodes: int, n_edges: int) -> Dict[str, float]:
     """Choose sane force-graph parameters from graph density.
     Heuristic: dense graphs (high edges/node) need stronger repulsion and
@@ -220,7 +223,7 @@ for e in ALL_EDGES:
 # ===========================================================================
 # VIEW 1 PROCESSING: Provenance & Intellectual Lineage Projection
 # ===========================================================================
-print("[Pipeline] Processing View 1: Concepts, Agents, Texts & Institutions (With Projected Links)...")
+log.info("Processing View 1: Concepts, Agents, Texts & Institutions (With Projected Links)...")
 V1_ALLOWED_TYPES = {"concept", "agent", "source_text", "institution"}
 v1_nodes_raw = [n for n in ALL_NODES if n.get("type") in V1_ALLOWED_TYPES]
 v1_ids = {n["id"] for n in v1_nodes_raw}
@@ -349,9 +352,9 @@ for n in d3_nodes_v1:
     n["lineages"] = sorted(v1_node_lineages.get(n["id"], []))
 # Collect available lineages for V1 filter dropdown
 available_lineages_v1 = sorted(set(e["lineage"] for e in d3_edges_v1 if e.get("lineage")))
-print(f"  Result View 1: {len(d3_nodes_v1)} nodes, {len(d3_edges_v1)} edges.")
+log.info(f"  Result View 1: {len(d3_nodes_v1)} nodes, {len(d3_edges_v1)} edges.")
 # ===========================================================================
-print("[Pipeline] Processing View 2: Bilingual Term Space...")
+log.info("Processing View 2: Bilingual Term Space...")
 
 base_terms = [
     n for n in ALL_NODES
@@ -448,7 +451,7 @@ for e in v2_edges_pruned:
         "year": e.get("year", "")
     })
 
-print(f"  Result View 2: {len(d3_nodes_v2)} nodes, {len(d3_edges_v2)} edges.")
+log.info(f"  Result View 2: {len(d3_nodes_v2)} nodes, {len(d3_edges_v2)} edges.")
 
 # ===========================================================================
 # VIEW 3 PROCESSING: Agents, Works & Institutions (With Projected Connections)
@@ -548,12 +551,12 @@ for e in v3_edges_pruned:
         "lineage": e.get("lineage", "")
     })
 
-print(f"  Result View 3: {len(d3_nodes_v3)} nodes, {len(d3_edges_v3)} edges.")
+log.info(f"  Result View 3: {len(d3_nodes_v3)} nodes, {len(d3_edges_v3)} edges.")
 
 # ===========================================================================
 # VIEW 4 PROCESSING: Artworks, Performances & Their Creators
 # ===========================================================================
-print("[Pipeline] Processing View 4: Artworks, Performances & Creators...")
+log.info("Processing View 4: Artworks, Performances & Creators...")
 V4_ALLOWED_TYPES = {"agent", "source_text", "institution"}
 V4_PROJECT_TYPES = {"artwork", "performance"}
 v4_nodes_raw = [
@@ -717,11 +720,11 @@ for e in v4_edges_pruned:
         "lineage": e.get("lineage", "")
     })
 
-print(f"  Result View 4: {len(d3_nodes_v4)} nodes, {len(d3_edges_v4)} edges.")
+log.info(f"  Result View 4: {len(d3_nodes_v4)} nodes, {len(d3_edges_v4)} edges.")
 # ===========================================================================
 # VIEW 5 PROCESSING: Lineage → Concepts (focused provenance)
 # ===========================================================================
-print("[Pipeline] Processing View 5: Lineage \u2192 Concepts...")
+log.info("Processing View 5: Lineage \u2192 Concepts...")
 # Default / placeholder lineages excluded from this focused view.
 # Per ontology §2.3, translation_mapping nodes carry the `lineage` field —
 # that is the SOLE source of lineage information in the KG. There are NO
@@ -821,11 +824,11 @@ for e in v5_edges_pruned:
     })
 
 available_lineages_v5 = sorted({n.get("label", "") for n in lineage_hub_nodes_v5.values()})
-print(f"  Result View 5: {len(d3_nodes_v5)} nodes ({len(lineage_hub_nodes_v5)} lineage hubs), {len(d3_edges_v5)} edges.")
+log.info(f"  Result View 5: {len(d3_nodes_v5)} nodes ({len(lineage_hub_nodes_v5)} lineage hubs), {len(d3_edges_v5)} edges.")
 # ===========================================================================
 # VIEW 6 PROCESSING: Lineage \u2192 Works + Agents
 # ===========================================================================
-print("[Pipeline] Processing View 6: Lineage \u2192 Works + Agents...")
+log.info("Processing View 6: Lineage \u2192 Works + Agents...")
 # Aggregate source_text→lineage and agent→lineage from translation_mapping
 # bridges per ontology §3.3. Lineage hubs are synthesized at view-time only.
 work_lineage_votes: Dict[str, Counter] = defaultdict(Counter)
@@ -934,7 +937,7 @@ for e in v6_edges_pruned:
         "verified": e.get("verified", False),
     })
 available_lineages_v6 = sorted({n.get("label", "") for n in lineage_hub_nodes_v6.values()})
-print(f"  Result View 6: {len(d3_nodes_v6)} nodes ({len(lineage_hub_nodes_v6)} lineage hubs), {len(d3_edges_v6)} edges.")
+log.info(f"  Result View 6: {len(d3_nodes_v6)} nodes ({len(lineage_hub_nodes_v6)} lineage hubs), {len(d3_edges_v6)} edges.")
 # ---------------------------------------------------------------------------
 # Dynamic D3.js Output Templates (Pure CSS/JS replacement strategy)
 # ---------------------------------------------------------------------------
@@ -1790,13 +1793,13 @@ try:
     dest_v4.write_text(view4_html, encoding="utf-8")
     dest_v5.write_text(view5_html, encoding="utf-8")
     dest_v6.write_text(view6_html, encoding="utf-8")
-    print(f"\n[Success] Generated SIX canvas visualizations successfully:")
-    print(f"  - V1 Provenance:        {dest_v1.resolve()}")
-    print(f"  - V2 Bilingual Terms:   {dest_v2.resolve()}")
-    print(f"  - V3 Agents & Works:    {dest_v3.resolve()}")
-    print(f"  - V4 Artworks:          {dest_v4.resolve()}")
-    print(f"  - V5 Lineage→Concepts:  {dest_v5.resolve()}")
-    print(f"  - V6 Lineage→Works:     {dest_v6.resolve()}")
+    log.info(f"\nGenerated SIX canvas visualizations successfully:")
+    log.info(f"  - V1 Provenance:        {dest_v1.resolve()}")
+    log.info(f"  - V2 Bilingual Terms:   {dest_v2.resolve()}")
+    log.info(f"  - V3 Agents & Works:    {dest_v3.resolve()}")
+    log.info(f"  - V4 Artworks:          {dest_v4.resolve()}")
+    log.info(f"  - V5 Lineage→Concepts:  {dest_v5.resolve()}")
+    log.info(f"  - V6 Lineage→Works:     {dest_v6.resolve()}")
 except Exception as e:
-    print(f"[ERROR] Failed to write HTML output files: {e}", file=sys.stderr)
+    log.error(f"Failed to write HTML output files: {e}")
     sys.exit(1)

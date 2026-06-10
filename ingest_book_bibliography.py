@@ -21,6 +21,7 @@ Usage:
   python ingest_book_bibliography.py --docx data/books/Skrb_...docx --container-work-id kunst-zivljenje-umetnosti
 """
 
+import logging
 from __future__ import annotations
 
 import argparse
@@ -51,6 +52,8 @@ from translate_core.entity_extraction.ingest_helpers import (
     cited_work_id as _shared_cited_work_id,
 )
 
+
+log = logging.getLogger(__name__)
 
 def _agent_id(author: ParsedAuthor) -> str:
     full = f"{author.given} {author.surname}".strip() or author.surname
@@ -201,6 +204,7 @@ def ingest_citation(
 
 
 def main():
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--docx", type=Path, required=True,
                         help="Path to the translated book .docx with bibliography")
@@ -212,19 +216,18 @@ def main():
                         help="Where to write the parsing+matching report")
     args = parser.parse_args()
 
-    print(f"[1/4] Parsing bibliography from {args.docx} …")
+    log.info(f"Parsing bibliography from {args.docx} …")
     citations = parse_docx_bibliography(str(args.docx))
-    print(f"      Parsed {len(citations)} citations")
+    log.info(f"      Parsed {len(citations)} citations")
 
-    print(f"[2/4] Loading TM and matching citations …")
+    log.info(f"Loading TM and matching citations …")
     tm = TranslationMemory()
     matched = match_all_citations(citations, tm.entries)
     summary = summarize_matches(matched)
-    print(f"      {summary['citations_with_tm_matches']}/{summary['total_citations']} citations matched to TM "
-          f"({summary['total_tm_match_count']} total segment refs)")
-    print(f"      Alt-publishers found: {summary['citations_with_alt_publisher']}")
+    log.info(f"      {summary['citations_with_tm_matches']}/{summary['total_citations']} citations matched to TM ({summary['total_tm_match_count']} total segment refs)")
+    log.info(f"      Alt-publishers found: {summary['citations_with_alt_publisher']}")
 
-    print(f"[3/4] Writing report to {args.report_path} …")
+    log.info(f"Writing report to {args.report_path} …")
     args.report_path.parent.mkdir(parents=True, exist_ok=True)
     with open(args.report_path, "w", encoding="utf-8") as f:
         f.write(f"# Bibliography ingest report\n\n")
@@ -264,15 +267,14 @@ def main():
             f.write(f"- **Raw:** `{c.raw[:200]}`\n\n")
 
     if args.dry_run:
-        print(f"\n[dry-run] No KG writes performed.")
+        log.info(f"\nNo KG writes performed.")
         return
 
-    print(f"[4/4] Writing to KG …")
+    log.info(f"Writing to KG …")
     kg = KnowledgeGraph()
     container_node = f"source:{args.container_work_id.lower()}"
     if not kg.G.has_node(container_node):
-        print(f"      ERROR: container work {container_node} not found in KG. "
-              f"Run the seed pipeline first to create it.")
+        log.error(f"      container work {container_node} not found in KG. Run the seed pipeline first to create it.")
         sys.exit(1)
 
     nodes_before = kg.G.number_of_nodes()
@@ -280,9 +282,9 @@ def main():
     for rec in matched:
         ingest_citation(kg, rec, args.container_work_id)
     kg.save()
-    print(f"      Nodes: {nodes_before} → {kg.G.number_of_nodes()} (+{kg.G.number_of_nodes() - nodes_before})")
-    print(f"      Edges: {edges_before} → {kg.G.number_of_edges()} (+{kg.G.number_of_edges() - edges_before})")
-    print(f"\n      KG saved.")
+    log.info(f"      Nodes: {nodes_before} → {kg.G.number_of_nodes()} (+{kg.G.number_of_nodes() - nodes_before})")
+    log.info(f"      Edges: {edges_before} → {kg.G.number_of_edges()} (+{kg.G.number_of_edges() - edges_before})")
+    log.info(f"\n      KG saved.")
 
 
 if __name__ == "__main__":
