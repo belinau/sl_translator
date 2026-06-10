@@ -28,7 +28,7 @@ INGEST_SCRIPT_PATH = str(Path(ing.__file__).resolve())
 
 
 def _fixture_entry() -> CobissEntry:
-    """One container entry: one foreign author + a publisher. Belina is
+    """One container entry: one foreign author + a publisher. The curator is
     NOT listed among the agents — classify_entry will treat the entry as
     a book_translation with an implicit translator role (so exactly one
     written_by edge fires, alongside one translated_by and one

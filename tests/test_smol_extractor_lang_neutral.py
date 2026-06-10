@@ -161,7 +161,7 @@ def test_cited_work_no_slovenian_edition_key():
             "publisher": "Maska",
             "city": "Ljubljana",
             "year": 2010,
-            "translator": "Urban Belina",
+            "translator": "Test Translator",
         },
     }
     record = _build_cited_work(
@@ -181,7 +181,7 @@ def test_cited_work_no_slovenian_edition_key():
     assert te["publisher"] == "Maska"
     assert te["city"] == "Ljubljana"
     assert te["year"] == 2010
-    assert te["translator"] == "Urban Belina"
+    assert te["translator"] == "Test Translator"
 
 
 def test_translation_edition_has_language_field():
@@ -192,7 +192,7 @@ def test_translation_edition_has_language_field():
         "orig_lang": "en",
         "translation_lang": "sl",
         "author": "Mark Fisher",
-        "slovenian_edition": {"publisher": "Maska", "translator": "Urban Belina"},
+        "slovenian_edition": {"publisher": "Maska", "translator": "Test Translator"},
     }
     record = _build_cited_work(
         ent,

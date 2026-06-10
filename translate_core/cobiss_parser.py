@@ -7,7 +7,7 @@ is numbered (``N. ...``) and may carry trailing ``award:`` lines.
 This parser is **deterministic regex-based** — no LLM, no fuzzy matching.
 The grammar covered here is exactly the one observed in the bilingual
 Slovenian / Croatian / Serbian / English COBISS export at
-``data/personal bibliography/bibliography_belina.txt``.
+``data/personal bibliography/bibliography_export.txt``.
 """
 
 from __future__ import annotations

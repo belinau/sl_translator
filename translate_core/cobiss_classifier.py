@@ -3,24 +3,25 @@
 # Classifies COBISS bibliography entries into container types
 # (book_translation, article_translation, festival_programme, exhibition_catalogue)
 # or cited types (book, magazine_article, journal_article, etc.) for
-# Belina's own authored works.
+# the curator's own authored works.
 #
 # Per the pipeline restructuring plan (Phase 3):
-# - When Belina is listed as translator → container type (book_translation, etc.)
-# - When Belina is listed as first author with no translator role → cited type
-#   (his own work: book, magazine_article, etc.)
+# - When the curator is listed as translator → container type (book_translation, etc.)
+# - When the curator is listed as first author with no translator role → cited type
+#   (own work: book, magazine_article, etc.)
 # - When unclassifiable → None (flagged for curator review)
 
 from __future__ import annotations
 
 import unicodedata
-import re
 
 from .cobiss_parser import CobissEntry, CobissAgent
 
-# The translator agent — Urban Belina
-BELINA_LAST = "BELINA"
-BELINA_SLUG = "urban-belina"
+# The translator/curator agent
+CURATOR_LAST = "BELINA"
+CURATOR_FIRST = "Urban"
+CURATOR_NAME = f"{CURATOR_FIRST} {CURATOR_LAST.capitalize()}"
+CURATOR_SLUG = "urban-belina"
 
 # Valid container project_types (O-16)
 CONTAINER_TYPES = {
@@ -30,50 +31,58 @@ CONTAINER_TYPES = {
     "exhibition_catalogue",
 }
 
-# Valid cited project_types for Belina's own works (O-16)
+# Valid cited project_types for the curator's own works (O-16)
 CITED_TYPES = {
     "book",
     "magazine_article",
     "journal_article",
-    "book_chapter",
-    "newspaper_article",
-    "web_source",
-    "interview",
-    "thesis_dissertation",
+    "festival_programme",
+    "exhibition_catalogue",
 }
 
 # Valid institution kinds (O-14)
 INSTITUTION_KINDS = {
-    "publisher", "gallery", "museum", "university",
-    "festival", "theatre", "journal", "organization",
-    "sponsor", "country", "other",
+    "publisher",
+    "gallery",
+    "museum",
+    "university",
+    "festival",
+    "theatre",
+    "journal",
+    "organization",
+    "sponsor",
+    "country",
+    "other",
 }
 
 # Valid agent roles (O-13 / ontology §2.5)
 AGENT_ROLES = {
-    "author", "translator", "editor", "curator", "artist",
-    "interviewer", "interviewee", "choreographer", "director",
-    "performer", "dancer", "composer", "dramaturg", "agent",
+    "author",
+    "translator",
+    "editor",
+    "curator",
+    "artist",
+    "interviewer",
+    "interviewee",
+    "choreographer",
+    "director",
+    "performer",
+    "dancer",
+    "composer",
+    "dramaturg",
+    "agent",
 }
 
 
 def _normalize_name(last: str, first: str) -> str:
     """NFKD-normalise and lowercase a name for matching."""
-    parts = [last]
-    if first:
-        parts.append(first)
-    combined = " ".join(parts)
-    nfkd = unicodedata.normalize("NFKD", combined)
-    s = "".join(c for c in nfkd if not unicodedata.combining(c))
+    s = unicodedata.normalize("NFKD", f"{last} {first}")
+    s = "".join(c for c in s if not unicodedata.combining(c))
     return s.lower().strip()
 
 
-def is_belina(agent: CobissAgent) -> bool:
-    """Check if an agent is Urban Belina (fuzzy name match)."""
-    normalized = _normalize_name(agent.last_name, agent.first_name)
-    return "belina" in normalized and "urban" in normalized
-def is_belina(agent: CobissAgent) -> bool:
-    """Check if an agent is Urban Belina (fuzzy name match)."""
+def is_curator(agent: CobissAgent) -> bool:
+    """Check if an agent is the curator (fuzzy name match)."""
     normalized = _normalize_name(agent.last_name, agent.first_name)
     return "belina" in normalized and "urban" in normalized
 
@@ -85,112 +94,105 @@ def _is_journal_article(entry: CobissEntry) -> bool:
 
 def _is_festival_programme(entry: CobissEntry) -> bool:
     """Check if entry is a festival programme."""
-    title_lower = (entry.title + " " + entry.title_en).lower()
-    festival_words = {"festival", "cofestival", "programme", "program"}
-    if any(w in title_lower for w in festival_words):
+    n = entry.title.lower()
+    if any(w in n for w in ("festival", "cofestival", "festivalna", "festivalska")):
         return True
-    pub_lower = (entry.publisher + " " + entry.publisher_city).lower()
-    if "festival" in pub_lower or "cofestival" in pub_lower:
-        return True
+    for a in entry.agents:
+        if "curator" in (a.roles or []):
+            return True
     return False
 
 
 def _is_exhibition_catalogue(entry: CobissEntry) -> bool:
     """Check if entry is an exhibition catalogue."""
-    title_lower = (entry.title + " " + entry.title_en).lower()
-    exhibition_words = {
-        "razstava", "exhibition", "retrospektivna", "retrospective",
-        "katalog", "catalogue", "catalog", "zgibanka",
-    }
-    if any(w in title_lower for w in exhibition_words):
+    n = entry.title.lower()
+    if any(w in n for w in ("katalog", "catalogue", "razstava", "exhibition")):
         return True
-    pub_lower = (entry.publisher + " " + entry.publisher_city).lower()
-    if any(w in pub_lower for w in ("muzej", "museum", "galerij", "gallery")):
-        return True
+    for a in entry.agents:
+        if "curator" in (a.roles or []):
+            return True
     return False
 
 
 def _classify_article_type(entry: CobissEntry) -> str:
     """Classify an article entry into magazine_article or journal_article."""
-    jname = entry.journal_name.lower()
-    magazine_names = {
-        "vpogled", "maska", "i.d.i.o.t", "otočjeo", "neodvisni",
-        "dialogi", "emzin", "gledališki list",
-    }
-    for mag in magazine_names:
-        if mag in jname:
-            return "magazine_article"
+    if entry.issn:
+        return "journal_article"
+    if entry.journal_name:
+        j = entry.journal_name.lower()
+        if any(w in j for w in ("revij", "journal", "študijsk")):
+            return "journal_article"
     return "magazine_article"
 
 
 def classify_entry(entry: CobissEntry) -> tuple[str | None, str | None]:
-    """Classify a COBISS entry into (project_type, belina_role).
+    """Classify a COBISS entry into (project_type, curator_role).
 
     Per O-16 and the Phase 3 plan:
-    - When Belina is translator → container type
-    - When Belina is first author with no translator role → cited type (own work)
+    - When the curator is translator → container type
+    - When the curator is first author with no translator role → cited type (own work)
     - When unclassifiable → (None, None) for curator review
     """
-    # Find Belina among the agents
-    belina_agent = None
-    belina_is_first = False
-    belina_role = None
+    # Find the curator among the agents
+    curator_agent = None
+    curator_is_first = False
+    curator_role = None
 
     for i, agent in enumerate(entry.agents):
-        if is_belina(agent):
-            belina_agent = agent
-            belina_is_first = (i == 0)
+        if is_curator(agent):
+            curator_agent = agent
+            curator_is_first = (i == 0)
             if agent.roles:
-                belina_role = agent.roles[0]
+                curator_role = agent.roles[0]
             else:
-                belina_role = "author"
+                curator_role = "author"
             break
 
-    # Determine if Belina is a translator (explicitly or implicitly)
-    belina_is_translator = False
-    if belina_agent:
-        if "translator" in (belina_agent.roles or []):
-            belina_is_translator = True
-        if not belina_is_translator:
+    # Determine if the curator is a translator (explicitly or implicitly)
+    curator_is_translator = False
+    if curator_agent:
+        if "translator" in (curator_agent.roles or []):
+            curator_is_translator = True
+        if not curator_is_translator:
             for agent in entry.agents:
                 if "translator" in (agent.roles or []):
-                    belina_is_translator = True
+                    curator_is_translator = True
                     break
 
-    # If Belina is first author with no translator role → his own work
-    if belina_agent and belina_is_first and not belina_is_translator:
-        belina_role_out = belina_role or "author"
+    # If the curator is first author with no translator role → own work
+    if curator_agent and curator_is_first and not curator_is_translator:
+        curator_role_out = curator_role or "author"
         if _is_journal_article(entry):
-            return (_classify_article_type(entry), belina_role_out)
+            return (_classify_article_type(entry), curator_role_out)
         if _is_festival_programme(entry):
-            return ("festival_programme", belina_role_out)
+            return ("festival_programme", curator_role_out)
         if _is_exhibition_catalogue(entry):
-            return ("exhibition_catalogue", belina_role_out)
+            return ("exhibition_catalogue", curator_role_out)
         if entry.isbn or entry.publisher:
-            return ("book", belina_role_out)
+            return ("book", curator_role_out)
         if entry.pages:
-            return ("magazine_article", belina_role_out)
-        return ("book", belina_role_out)
+            return ("magazine_article", curator_role_out)
+        return ("book", curator_role_out)
 
-    # All other cases: container type (Belina translated/edited this work)
-    if not belina_agent:
-        belina_role_out = "translator"  # Implicit
-    elif "translator" in (belina_agent.roles or []):
-        belina_role_out = "translator"
-    elif "editor" in (belina_agent.roles or []):
-        belina_role_out = "editor"
+    # All other cases: container type (the curator translated/edited this work)
+    if not curator_agent:
+        curator_role_out = "translator"  # Implicit
+    elif "translator" in (curator_agent.roles or []):
+        curator_role_out = "translator"
+    elif "editor" in (curator_agent.roles or []):
+        curator_role_out = "editor"
     else:
-        belina_role_out = belina_role or "author"
+        curator_role_out = curator_role or "author"
 
     if _is_festival_programme(entry):
-        return ("festival_programme", belina_role_out)
+        return ("festival_programme", curator_role_out)
     if _is_exhibition_catalogue(entry):
-        return ("exhibition_catalogue", belina_role_out)
+        return ("exhibition_catalogue", curator_role_out)
     if _is_journal_article(entry):
-        return ("article_translation", belina_role_out)
+        return ("article_translation", curator_role_out)
 
     # Default: book translation
-    return ("book_translation", belina_role_out)
+    return ("book_translation", curator_role_out)
 
 def classify_institution_kind(name: str) -> str:
     """Classify an institution name into an O-14 kind.
@@ -241,8 +243,9 @@ def classify_institution_kind(name: str) -> str:
 __all__ = [
     "classify_entry",
     "classify_institution_kind",
-    "is_belina",
-    "BELINA_SLUG",
+    "is_curator",
+    "CURATOR_SLUG",
+    "CURATOR_NAME",
     "CONTAINER_TYPES",
     "CITED_TYPES",
     "INSTITUTION_KINDS",

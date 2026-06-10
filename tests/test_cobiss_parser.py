@@ -1,8 +1,8 @@
 """Unit tests for the deterministic COBISS bibliography parser.
 
-These tests run the parser against the real export at
-``data/personal bibliography/bibliography_belina.txt`` because the parser
-is, by design, tightly coupled to that grammar.  Tests assert on behaviour
+# These tests run the parser against the real export at
+# ``data/personal bibliography/bibliography_export.txt`` because the parser
+# is, by design, tightly coupled to that grammar.
 that would silently break if the grammar drifts (entry count, key field
 extraction, agent role splitting, URL splitting, etc.).
 """
@@ -34,7 +34,7 @@ BIB_PATH = (
     Path(__file__).resolve().parent.parent
     / "data"
     / "personal bibliography"
-    / "bibliography_belina.txt"
+    / "bibliography_export.txt"
 )
 
 

@@ -23,7 +23,7 @@ from translate_core.cobiss_classifier import classify_entry
 
 KG_PATH = ROOT / "data" / "knowledge.db"
 ATTR_PATH = ROOT / "data" / "segment_title_attribution.json"
-COBISS_PATH = ROOT / "data" / "personal bibliography" / "bibliography_belina.txt"
+COBISS_PATH = ROOT / "data" / "personal bibliography" / "bibliography_export.txt"
 
 # Copy of slug helpers from scripts/ingest_personal_bibliography.py
 def _slugify(text: str) -> str:
@@ -147,14 +147,14 @@ def main() -> None:
     cobiss_slugs = set()
     cobiss_slug_to_entry = {}
     for e in entries:
-        ptype, belina_role = classify_entry(e)
+        ptype, curator_role = classify_entry(e)
         primary_author_slug = ""
         if e.agents:
             primary_author_slug = _make_agent_id(e.agents[0].last_name, e.agents[0].first_name)
         sid = _make_source_id(e.title, e.year, primary_author_slug)
         node_id = f"source:{sid}"
         cobiss_slugs.add(node_id)
-        cobiss_slug_to_entry[node_id] = (e.entry_number, e.title[:60], ptype, belina_role)
+        cobiss_slug_to_entry[node_id] = (e.entry_number, e.title[:60], ptype, curator_role)
 
     # Classify each anchor cid
     print("\n--- Anchor cid table ---")

@@ -46,7 +46,7 @@ from translate_core.cobiss_parser import parse_cobiss_file
 from translate_core.cobiss_classifier import classify_entry
 
 ATTR_PATH = ROOT / "data" / "segment_title_attribution.json"
-COBISS_PATH = ROOT / "data" / "personal bibliography" / "bibliography_belina.txt"
+COBISS_PATH = ROOT / "data" / "personal bibliography" / "bibliography_export.txt"
 
 DOMINANCE = 0.6   # signal phrase must be ≥60% of segment length
 MIN_PHRASE_LEN = 4  # minimum normalised length of a discriminating phrase

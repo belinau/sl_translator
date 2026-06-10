@@ -3,7 +3,7 @@
 Verifies blueprint §2 (the two surgical edits to
 `scripts/ingest_personal_bibliography.py`):
 
-- kwargs rename per `belina_role` branch — author/editor → title_orig+sl,
+- kwargs rename per `curator_role` branch — author/editor → title_orig+sl,
   translator → title_translation+sl; secondary side flips accordingly.
 - `provenance="cobiss_personal"` is stamped on every container/cited write.
 - Legacy kwarg names (`title_en`, `title_sl`, `slovenian_edition`) MUST
@@ -31,7 +31,7 @@ import scripts.ingest_personal_bibliography as ing
 # ---------------------------------------------------------------------------
 
 
-def _belina(role: str) -> CobissAgent:
+def _curator(role: str) -> CobissAgent:
     return CobissAgent(last_name="BELINA", first_name="Urban", roles=[role])
 
 
@@ -126,17 +126,17 @@ def _drive_ingest(
 
 
 # ---------------------------------------------------------------------------
-# A. Author entry — Belina as first author / sole author
+# A. Author entry — the curator as first author / sole author
 # ---------------------------------------------------------------------------
 
 
 def test_author_entry_kwargs(monkeypatch, tmp_path):
-    """`belina_role="author"`: SL → title_orig+orig_lang=sl;
+    """`curator_role="author"`: SL → title_orig+orig_lang=sl;
     EN side → title_translation+translation_lang=en."""
     entry = CobissEntry(
         entry_number=1,
         raw_text="",
-        agents=[_belina("author")],
+        agents=[_curator("author")],
         title="Avtorski naslov",
         title_en="Authored Title",
         publisher="Some Publisher",
@@ -161,7 +161,7 @@ def test_author_entry_no_en_side(monkeypatch, tmp_path):
     entry = CobissEntry(
         entry_number=1,
         raw_text="",
-        agents=[_belina("author")],
+        agents=[_curator("author")],
         title="Slovenski naslov",
         publisher="Pub",
         year=2010,
@@ -177,17 +177,17 @@ def test_author_entry_no_en_side(monkeypatch, tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# B. Translator entry — Belina translates
+# B. Translator entry — the curator translates
 # ---------------------------------------------------------------------------
 
 
 def test_translator_entry_kwargs(monkeypatch, tmp_path):
-    """`belina_role="translator"`: SL side → title_translation+sl;
+    """`curator_role="translator"`: SL side → title_translation+sl;
     EN side → title_orig+en."""
     entry = CobissEntry(
         entry_number=2,
         raw_text="",
-        agents=[_other(role="author"), _belina("translator")],
+        agents=[_other(role="author"), _curator("translator")],
         title="Slovenski prevod",
         title_en="Original English",
         publisher="Translator Pub",
@@ -211,11 +211,11 @@ def test_translator_entry_kwargs(monkeypatch, tmp_path):
 
 
 def test_editor_entry_kwargs(monkeypatch, tmp_path):
-    """`belina_role="editor"` ⇒ same shape as author: SL→orig, EN→translation."""
+    """`curator_role="editor"` ⇒ same shape as author: SL→orig, EN→translation."""
     entry = CobissEntry(
         entry_number=3,
         raw_text="",
-        agents=[_belina("editor")],
+        agents=[_curator("editor")],
         title="Urednikov uvod",
         title_en="Editor Introduction",
         publisher="Editor Pub",
@@ -242,7 +242,7 @@ def test_no_legacy_field_in_kwargs(monkeypatch, tmp_path):
         CobissEntry(
             entry_number=1,
             raw_text="",
-            agents=[_belina("author")],
+            agents=[_curator("author")],
             title="Avtor",
             title_en="Author EN",
             publisher="P",
@@ -252,7 +252,7 @@ def test_no_legacy_field_in_kwargs(monkeypatch, tmp_path):
         CobissEntry(
             entry_number=2,
             raw_text="",
-            agents=[_other("author"), _belina("translator")],
+            agents=[_other("author"), _curator("translator")],
             title="Prevod",
             title_en="Translation EN",
             publisher="P2",
@@ -262,7 +262,7 @@ def test_no_legacy_field_in_kwargs(monkeypatch, tmp_path):
         CobissEntry(
             entry_number=3,
             raw_text="",
-            agents=[_belina("editor")],
+            agents=[_curator("editor")],
             title="Ured",
             title_en="Edited EN",
             publisher="P3",
@@ -288,7 +288,7 @@ def test_provenance_cobiss_personal(monkeypatch, tmp_path):
         CobissEntry(
             entry_number=1,
             raw_text="",
-            agents=[_belina("author")],
+            agents=[_curator("author")],
             title="X",
             publisher="P",
             year=2010,
@@ -297,7 +297,7 @@ def test_provenance_cobiss_personal(monkeypatch, tmp_path):
         CobissEntry(
             entry_number=2,
             raw_text="",
-            agents=[_other("author"), _belina("translator")],
+            agents=[_other("author"), _curator("translator")],
             title="Y",
             publisher="P",
             year=2010,
@@ -321,7 +321,7 @@ def test_bilingual_publisher_split(monkeypatch, tmp_path):
     entry = CobissEntry(
         entry_number=1,
         raw_text="",
-        agents=[_other("author"), _belina("translator")],
+        agents=[_other("author"), _curator("translator")],
         title="Naslov",
         title_en="Title",
         publisher="Maska: = English Pub",
@@ -340,7 +340,7 @@ def test_single_publisher_no_split(monkeypatch, tmp_path):
     entry = CobissEntry(
         entry_number=1,
         raw_text="",
-        agents=[_other("author"), _belina("translator")],
+        agents=[_other("author"), _curator("translator")],
         title="Naslov",
         title_en="Title",
         publisher="Maska",

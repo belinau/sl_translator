@@ -39,8 +39,9 @@ from translate_core.cobiss_parser import parse_cobiss_file, CobissEntry, CobissA
 from translate_core.cobiss_classifier import (
     classify_entry,
     classify_institution_kind,
-    is_belina,
-    BELINA_SLUG,
+    is_curator,
+    CURATOR_SLUG,
+    CURATOR_NAME,
     CONTAINER_TYPES,
     CITED_TYPES,
     INSTITUTION_KINDS,
@@ -50,7 +51,7 @@ from translate_core.entity_extraction.name_dedup import dedup_group_key
 
 
 KG_PATH = Path(__file__).resolve().parent.parent / "data" / "knowledge.db"
-COBISS_PATH = Path(__file__).resolve().parent.parent / "data" / "personal bibliography" / "bibliography_belina.txt"
+COBISS_PATH = Path(__file__).resolve().parent.parent / "data" / "personal bibliography" / "bibliography_export.txt"
 REPORT_PATH = Path(__file__).resolve().parent.parent / "data" / "cobiss_ingest_report.md"
 UNCLASSIFIED_PATH = Path(__file__).resolve().parent.parent / "data" / "cobiss_unclassified_entries.json"
 
@@ -119,20 +120,19 @@ def ingest_bibliography(
         "unclassified": [],
         "errors": [],
     }
-    # Pre-create the translator agent (O-12, O-20)
-    belina_id = kg.add_agent_node(
-        agent_id=BELINA_SLUG,
-        name="Urban Belina",
+    curator_id = kg.add_agent_node(
+        agent_id=CURATOR_SLUG,
+        name=CURATOR_NAME,
         role="translator",
-        dedup_group=dedup_group_key("Urban Belina"),
-        alt_spellings=["Belina, Urban", "BELINA, Urban", "Urban Belina"],
+        dedup_group=dedup_group_key(CURATOR_NAME),
+        alt_spellings=["Belina, Urban", "BELINA, Urban", CURATOR_NAME],
         all_roles=["translator", "author", "editor", "curator"],
         mention_count=1,
     )
 
     for entry in entries:
         try:
-            ptype, belina_role = classify_entry(entry)
+            ptype, curator_role = classify_entry(entry)
         except Exception as e:
             report["errors"].append(f"Entry #{entry.entry_number}: classification error: {e}")
             continue
@@ -173,7 +173,7 @@ def ingest_bibliography(
         secondary_title = entry.title_en  # EN side after "=" separator
 
         # Create source_text node (O-1, O-16). Assign canonical neutral
-        # bilingual fields based on belina_role. Language codes are DATA VALUES
+        # bilingual fields based on curator_role. Language codes are DATA VALUES
         # from the COBISS parser convention: entry.title = SL side,
         # entry.title_en = EN side. No text-level language detection.
         kwargs: dict = {
@@ -188,7 +188,7 @@ def ingest_bibliography(
         # side is the original; translator → catalogued side is the
         # translation. End-of-plan curator review settles edge cases
         # where role-derived direction disagrees with the actual work.
-        if belina_role == "translator":
+        if curator_role == "translator":
             if primary_title:
                 kwargs["title_translation"] = primary_title
                 kwargs["translation_lang"] = "sl"
@@ -283,7 +283,7 @@ def ingest_bibliography(
 
         # Wire translated_by for containers (O-20)
         if ptype in CONTAINER_TYPES:
-            if kg.link_translated_by(node_id, belina_id):
+            if kg.link_translated_by(node_id, curator_id):
                 report["edges_created"] += 1
 
         # Wire published_by for publisher (O-1, O-14). Bilingual publisher
