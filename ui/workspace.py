@@ -224,9 +224,10 @@ def page_translate(project_id: str):
     # ------------------------------------------------------------------
     # Confirm + batch + KG/TM promotion
     # ------------------------------------------------------------------
-    # Segment types that need implementation of metadata to entities for KG.
+    # Segment types excluded from KG promotion (noun-chunk noise) — they
+    # still save to TM; whole-bibliography pages are handled by the
+    # ingest_book_bibliography.py CLI.
     _KG_SKIP_TYPES = {"bibliography", "index"}
-    _CITATION_TYPES = {"footnote", "endnote", "bibliography_entry"}
 
     async def _confirm_segment():
         if not state.segments:
@@ -310,9 +311,11 @@ def page_translate(project_id: str):
             if kg is not None:
                 request_kg_save(kg.save, delay=3.0)
 
-            # Phase 7: Extract citations from footnote/bibliography segments
-            # and ingest into KG via the typed pipeline.
-            if seg_meta and seg_meta.get("type") in _CITATION_TYPES:
+            # Live smol entity extraction: every confirmed segment goes
+            # through Ollama (glm) → ontology record builders → the O-10
+            # confidence-tier chokepoint. If Ollama is unreachable the
+            # segment stays in working.tmx for the offline batch pipeline.
+            if kg is not None and getattr(config, "SMOL_LIVE_EXTRACTION", False):
                 try:
                     from translate_core.citation_collector import (
                         collect_from_editor_segment,
@@ -320,21 +323,27 @@ def page_translate(project_id: str):
                     )
                     snippet = collect_from_editor_segment(
                         segment_text=seg["source"],
-                        segments_meta_entry=seg_meta,
+                        segments_meta_entry=seg_meta or {},
                         project_id=state.project_id,
+                        container_work_id=_proj_slug,
+                        target_text=seg["target"],
+                        lang_pair=f"{src}-{tgt}",
                     )
                     if snippet is not None:
                         report = await loop.run_in_executor(
                             None,
-                            lambda: extract_and_ingest(
-                                [snippet], kg,
-                            ),
+                            lambda: extract_and_ingest([snippet], kg),
                         )
-                        if report.written > 0:
-                            ui.notify(f"Citation extracted: {report.written} record(s)", type="positive")
+                        if report.written or report.queued:
+                            with state.client:
+                                ui.notify(
+                                    f"Entities: {report.written} written, "
+                                    f"{report.queued} queued for review",
+                                    type="positive",
+                                )
                         request_kg_save(kg.save, delay=1.0)
                 except Exception as e:
-                    log.warning(f"promote_pair citation: {e}")
+                    log.warning(f"promote_pair entity extraction: {e}")
 
         except Exception as e:
             log.error(f"promote_pair: {e}")

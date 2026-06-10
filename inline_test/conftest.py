@@ -49,4 +49,11 @@ def _fast_backends(monkeypatch):
     except Exception:
         pass
 
+    # Live smol extraction: never call Ollama from UI tests.
+    try:
+        import config as _config
+        monkeypatch.setattr(_config, "SMOL_LIVE_EXTRACTION", False)
+    except Exception:
+        pass
+
     yield

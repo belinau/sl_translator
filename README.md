@@ -336,7 +336,7 @@ See `ontology.md` for the complete specification.
 | Glossary | FlashText |
 | NLP | spacy (EN), classla (SL), stanza (fallback) |
 | Document Parsing | PyMuPDF (PDF), python-docx (DOCX), MarkItDown |
-| Entity Extraction | Regex patterns + smol agent (offline batch via Ollama) |
+| Entity Extraction | smol agent via Ollama (live on segment confirm + offline batch), regex fallback |
 | Visualization | D3.js (HTML5 Canvas) |
 | Python | 3.14 |
 | Type Checking | basedpyright (basic mode) |

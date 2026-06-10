@@ -114,13 +114,39 @@ class TestCollectFromEditorSegment:
         assert snippet is not None
         assert snippet.format == "bibliography"
 
-    def test_non_citation_segment_returns_none(self):
+    def test_body_segment_yields_body_snippet(self):
+        """Body segments now flow to live extraction (format='body')."""
         snippet = collect_from_editor_segment(
             segment_text="This is regular body text.",
             segments_meta_entry={"type": "body_text", "index": 10},
             project_id="test_project",
         )
-        assert snippet is None
+        assert snippet is not None
+        assert snippet.format == "body"
+
+    def test_lang_pair_embedded_in_origin(self):
+        """lang_pair lands in origin so _detect_source_lang recovers it."""
+        from translate_core.entity_extraction.smol_extractor import _detect_source_lang
+
+        snippet = collect_from_editor_segment(
+            segment_text="Haraway, Donna. A Cyborg Manifesto. Routledge, 1991.",
+            segments_meta_entry={"type": "footnote", "index": 5},
+            project_id="test_project",
+            target_text="Haraway, Donna. Kiborški manifest. Routledge, 1991.",
+            lang_pair="en-sl",
+        )
+        assert snippet is not None
+        assert _detect_source_lang(snippet.origin) == ("en", "sl")
+        assert snippet.target_text == "Haraway, Donna. Kiborški manifest. Routledge, 1991."
+
+    def test_no_lang_pair_keeps_project_origin(self):
+        snippet = collect_from_editor_segment(
+            segment_text="Some citation text here.",
+            segments_meta_entry={"type": "footnote", "index": 1},
+            project_id="test_project",
+        )
+        assert snippet is not None
+        assert snippet.origin == "test_project"
 
     def test_empty_text_returns_none(self):
         snippet = collect_from_editor_segment(
@@ -292,3 +318,102 @@ class TestTmxManifest:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+# ======================================================================
+# Tests: extract_and_ingest live-extractor wiring
+# ======================================================================
+
+
+@pytest.fixture
+def kg(tmp_path):
+    from translate_core.knowledge_graph import KnowledgeGraph
+
+    g = KnowledgeGraph(db_path=tmp_path / "kg.json")
+    # Never touch data/knowledge.db.
+    g.save = lambda: None  # type: ignore[method-assign]
+    return g
+
+
+class TestExtractAndIngestWiring:
+    """The orchestrator feeds extractor output through build_record →
+    score_all → dedup_records → write_to_kg (O-10 tiers)."""
+
+    def _snippet(self, **overrides):
+        defaults = dict(
+            text="Haraway, Donna. A Cyborg Manifesto. Routledge, 1991.",
+            origin="editor_en-sl_test_project",
+            segment_idx=5,
+            format="footnote",
+            container_work_id="test-container",
+            target_text="Haraway, Donna. Kiborški manifest. Routledge, 1991.",
+        )
+        defaults.update(overrides)
+        return CitationSnippet(**defaults)
+
+    def test_extractor_none_counts_as_error(self, kg, tmp_path):
+        from translate_core.citation_collector import extract_and_ingest
+
+        report = extract_and_ingest(
+            [self._snippet()],
+            kg,
+            review_path=str(tmp_path / "review.json"),
+            dropped_path=str(tmp_path / "dropped.jsonl"),
+            extractor=lambda **kw: None,
+        )
+        assert report.extracted == 1
+        assert report.errors == 1
+        assert report.written == 0 and report.queued == 0
+
+    def test_entities_flow_to_chokepoint(self, kg, tmp_path):
+        """A returned entity must leave the pipeline as written/queued/dropped
+        — never silently vanish."""
+        from translate_core.citation_collector import extract_and_ingest
+
+        seen_calls: list[dict] = []
+
+        def extractor(**kw):
+            seen_calls.append(kw)
+            return [
+                {
+                    "kind": "agent_person",
+                    "name": "Donna Haraway",
+                    "role": "author",
+                }
+            ]
+
+        report = extract_and_ingest(
+            [self._snippet()],
+            kg,
+            review_path=str(tmp_path / "review.json"),
+            dropped_path=str(tmp_path / "dropped.jsonl"),
+            extractor=extractor,
+        )
+        # Extractor received the bilingual pair and editor metadata.
+        assert seen_calls[0]["src"].startswith("Haraway")
+        assert seen_calls[0]["tgt"].startswith("Haraway, Donna. Kiborški")
+        assert seen_calls[0]["origin"] == "editor_en-sl_test_project"
+        assert seen_calls[0]["container_work_id"] == "test-container"
+        # The record must be accounted for at the chokepoint.
+        assert report.extracted == 1
+        assert report.errors == 0
+        assert report.written + report.queued + report.dropped == 1
+
+    def test_short_reference_never_reaches_extractor(self, kg, tmp_path):
+        from translate_core.citation_collector import extract_and_ingest
+
+        calls = []
+
+        def extractor(**kw):
+            calls.append(kw)
+            return []
+
+        report = extract_and_ingest(
+            [self._snippet(text="Ibid., 45.")],
+            kg,
+            review_path=str(tmp_path / "review.json"),
+            dropped_path=str(tmp_path / "dropped.jsonl"),
+            extractor=extractor,
+        )
+        assert calls == []
+        assert report.dropped == 1

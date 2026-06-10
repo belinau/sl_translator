@@ -3,11 +3,12 @@
 # Citation snippet adapters for multiple source formats (editor segments,
 # project segments_meta, MD footnotes, DOCX footnotes, TMX manifests).
 #
-# The typed VL extraction pipeline was retired in Phase 7. This module's
-# extract_and_ingest now filters short references and noise only; it does
-# not produce extraction records. Smol-quality extraction of editor-
-# confirmed segments happens via working.tmx → run_entity_extraction.py
-# (Pipeline 2). CitationSnippet adapters remain live for downstream consumers.
+# extract_and_ingest runs live smol extraction (Ollama via
+# entity_extraction.smol_client) on each snippet, builds ontology-compliant
+# records (smol_extractor.build_record), scores them and writes via the
+# kg_ingest_entities chokepoint (confidence tiers, O-10). When the LLM is
+# unreachable, snippets are skipped — the offline batch pipeline
+# (working.tmx → run_entity_extraction.py) remains the backstop.
 
 from __future__ import annotations
 
@@ -15,7 +16,7 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Callable, Iterable, Optional
 
 from .entity_extraction.citation_types import (
     CitationStyle,
@@ -44,6 +45,7 @@ class CitationSnippet:
     container_work_id: Optional[str] = None
     source_page: Optional[int] = None
     footnote_number: Optional[int] = None
+    target_text: Optional[str] = None  # translated side, for bilingual extraction
 
 
 # ── Ingest report ─────────────────────────────────────────────────────────────
@@ -322,11 +324,18 @@ def collect_from_editor_segment(
     segments_meta_entry: dict,
     project_id: str,
     container_work_id: Optional[str] = None,
+    target_text: Optional[str] = None,
+    lang_pair: Optional[str] = None,
 ) -> Optional[CitationSnippet]:
     """Build a CitationSnippet from a single confirmed editor segment.
 
-    Used when the user confirms a footnote segment in the editor,
-    triggering immediate extraction.
+    Used when the user confirms a segment in the editor, triggering
+    immediate live extraction. Citation-bearing types map to their format;
+    everything else is "body" (smol extracts agents/works/concepts from
+    body text too, matching the offline batch pipeline).
+
+    ``lang_pair`` ("en-sl") is embedded into the snippet origin so
+    smol_extractor._detect_source_lang recovers the language combo.
     """
     if not segment_text.strip():
         return None
@@ -339,22 +348,23 @@ def collect_from_editor_segment(
     elif seg_type == "endnote":
         fmt = "endnote"
     else:
-        # Not a citation-bearing segment type
-        return None
+        fmt = "body"
 
+    origin = f"editor_{lang_pair}_{project_id}" if lang_pair else project_id
     style = detect_style(segment_text)
     fn_num = segments_meta_entry.get("footnote_number")
     page = segments_meta_entry.get("page_number")
 
     return CitationSnippet(
         text=segment_text,
-        origin=project_id,
+        origin=origin,
         segment_idx=segments_meta_entry.get("index", 0),
         format=fmt,
         style_hint=style,
         container_work_id=container_work_id,
         source_page=page,
         footnote_number=fn_num,
+        target_text=target_text,
     )
 
 
@@ -365,17 +375,27 @@ def extract_and_ingest(
     kg,  # KnowledgeGraph instance
     review_path: str = "data/extraction_review.json",
     dropped_path: str = "data/extraction_dropped.jsonl",
+    extractor: Optional[Callable[..., Optional[list[dict]]]] = None,
 ) -> IngestReport:
-    """Run the citation extraction pipeline on a batch of snippets.
+    """Run live smol extraction + KG ingest on a batch of snippets.
 
-    The typed extraction pipeline was retired in Phase 7. This orchestrator
-    filters short references and drops noise; it does not produce extraction
-    records. Smol-quality extraction of editor-confirmed segments happens
-    via working.tmx → run_entity_extraction.py (Pipeline 2).
+    ``extractor`` has the smol_client.extract_entities contract:
+    ``(src, tgt, origin, container_work_id) -> list[entity] | None`` where
+    None means "LLM unavailable" (counted as error; the offline batch
+    pipeline picks the segment up later from working.tmx). Defaults to the
+    live Ollama client.
+
+    Records flow through the same chokepoint as the batch pipeline:
+    score_all → dedup_records → write_to_kg (O-10 confidence tiers).
 
     Returns an IngestReport with counts per phase.
     """
+    from .entity_extraction.smol_extractor import _detect_source_lang, build_record
     from .kg_ingest_entities import write_to_kg, score_all, dedup_records
+
+    if extractor is None:
+        from .entity_extraction.smol_client import extract_entities
+        extractor = extract_entities
 
     report = IngestReport()
     all_records: list[dict] = []
@@ -394,32 +414,51 @@ def extract_and_ingest(
             report.dropped += 1
             continue
 
-        # No typed extractor wired in Phase 7+ — log and count as error.
-        log.debug(
-            "extract_and_ingest: no typed extractor, skipping snippet %d",
-            snippet.segment_idx,
+        entities = extractor(
+            src=text,
+            tgt=snippet.target_text or "",
+            origin=snippet.origin,
+            container_work_id=snippet.container_work_id or "",
         )
-        report.errors += 1
+        if entities is None:
+            # LLM unavailable — leave for the offline batch pipeline.
+            report.errors += 1
+            continue
 
-    # Score and dedup (currently empty until a non-VL typed extractor is wired)
-    scored = score_all(all_records)
-    deduped = dedup_records(scored)
+        src_lang, tgt_lang = _detect_source_lang(snippet.origin)
+        for ent in entities:
+            rec = build_record(
+                ent,
+                origin=snippet.origin,
+                seg_idx=snippet.segment_idx,
+                container_work_id=snippet.container_work_id or "",
+                src_lang=src_lang,
+                tgt_lang=tgt_lang,
+            )
+            if rec is not None:
+                all_records.append(rec)
+
+    # Score → dedup → re-score (dedup merges rebuild records without tier),
+    # then write through the O-10 chokepoint — same sequence as the batch
+    # pipeline (run_entity_extraction.ingest_extractions).
+    deduped = dedup_records(score_all(all_records))
+    re_scored = score_all(deduped)
 
     # Write to KG or queue for review
     from pathlib import Path as _Path
     stats = write_to_kg(
         kg,
-        deduped,
+        re_scored,
         review_path=_Path(review_path),
         dropped_path=_Path(dropped_path),
     )
 
     report.written = stats.direct_write
-    report.queued = stats.queued
+    report.queued = stats.review_queued
     report.dropped += stats.dropped
 
     # Wire cited_in edges for records that have container_work_id
-    for rec in deduped:
+    for rec in re_scored:
         cw_id = rec.get("payload", {}).get("container_work_id")
         src_id = rec.get("payload", {}).get("cited_id")
         if cw_id and src_id and cw_id != src_id:  # O-17: no self-loops
