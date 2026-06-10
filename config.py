@@ -21,4 +21,4 @@ KG_DB_PATH = BASE_DIR / "data" / "knowledge.db"
 # the offline batch pipeline (working.tmx → run_entity_extraction.py).
 SMOL_LIVE_EXTRACTION = True
 OLLAMA_URL = "http://localhost:11434"
-SMOL_MODEL = "glm-5.1:cloud"
+SMOL_MODEL = "deepseek-v4-flash:cloud"
