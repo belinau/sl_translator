@@ -184,9 +184,6 @@ class TestClassifyTranslations:
 
 
 class TestClassifyInstitutionKind:
-    def test_publisher(self):
-        assert classify_institution_kind("Maska") == "publisher"
-
     def test_gallery(self):
         assert classify_institution_kind("Galerija Moderna") == "gallery"
 

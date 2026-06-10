@@ -37,7 +37,6 @@ from translate_core.cobiss_parser import parse_cobiss_file
 from translate_core.cobiss_classifier import (
     classify_entry,
     classify_institution_kind,
-    is_curator,
     CURATOR_SLUG,
     CURATOR_NAME,
     CONTAINER_TYPES,
