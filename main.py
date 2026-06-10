@@ -5,7 +5,6 @@
 #
 
 import asyncio
-import concurrent.futures
 import json
 import re
 import sys
@@ -25,7 +24,6 @@ try:
         KnowledgeGraph,
         QAEngine,
         TranslationMemory,
-        Translator,
     )
 except ImportError as e:
     print(f"\n[ERROR] Import failed: {e.name}")
@@ -36,10 +34,8 @@ except ImportError as e:
 tm: "TranslationMemory | None" = None
 glossary: "Glossary | None" = None
 kg: "KnowledgeGraph | None" = None
-translator: "Translator | None" = None
 doc_parser: "DocumentParser | None" = None
 qa_engine: "QAEngine | None" = None
-llm_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 GLOBAL_VOCAB: Dict[str, set] = {}  # Project ID -> Set of words
 
 # ---------------------------------------------------------------------------
@@ -48,10 +44,9 @@ GLOBAL_VOCAB: Dict[str, set] = {}  # Project ID -> Set of words
 PROJECTS_DIR = config.BASE_DIR / "data" / "projects"
 PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
 
-# Publish module-level paths + executor to the shared app_state immediately.
+# Publish module-level paths to the shared app_state immediately.
 # Functions are wired further down once defined.
 app_state.PROJECTS_DIR = PROJECTS_DIR
-app_state.llm_executor = llm_executor
 app_state.config = config
 
 
@@ -259,7 +254,7 @@ async def init_resources():
     layer reads live values regardless of which Python process owns this
     module (matters with NiceGUI's auto-reload: the worker runs as
     __mp_main__, not __main__)."""
-    global tm, glossary, kg, doc_parser, translator, qa_engine
+    global tm, glossary, kg, doc_parser, qa_engine
     try:
         tm = TranslationMemory()
         app_state.tm = tm
@@ -269,8 +264,6 @@ async def init_resources():
         app_state.kg = kg
         doc_parser = DocumentParser()
         app_state.doc_parser = doc_parser
-        translator = Translator()
-        app_state.translator = translator
         qa_engine = QAEngine()
         qa_engine.build_lemma_index(glossary.entries)
         app_state.qa_engine = qa_engine
@@ -281,10 +274,6 @@ async def init_resources():
         print(f"\n[FATAL] init_resources failed: {e}")
         traceback.print_exc()
         return
-
-    # The MLX model is now lazy-loaded on first use. If the user disables
-    # AI via the master toggle, the model never enters memory at all.
-
 
 # Register the startup handler idempotently. NiceGUI's testing plugin re-runs
 # main.py via runpy for every test, and `@app.on_startup` raises RuntimeError
@@ -358,17 +347,6 @@ def page_home():
                             .classes("w-20")
                         )
 
-                with ui.column().classes("w-full gap-3 mt-2"):
-                    ai_master_switch = ui.switch(
-                        "AI Translation",
-                        value=ui_settings.ai_master_enabled(),
-                        on_change=lambda e: ui_settings.set_ai_master_enabled(bool(e.value)),
-                    ).classes("text-[11px]").tooltip(
-                        "Master switch for AI/LLM translation. "
-                        "When off, the language model is not loaded into memory and all AI "
-                        "translation controls are disabled in the editor. "
-                        "Disable for language pairs where you prefer manual translation only."
-                    )
 
                 async def upload_wrapper(e):
                     await handle_new_upload(
@@ -558,8 +536,8 @@ app_state.apply_colors = apply_colors
 
 
 if __name__ in {"__main__", "__mp_main__"}:
-    # storage_secret is required for app.storage.user (dark mode + AI pretranslate
-    # toggle persistence). Any non-empty string works for a single-user desktop app.
+    # storage_secret is required for app.storage.user (dark mode persistence).
+    # Any non-empty string works for a single-user desktop app.
     ui.run(
         title="Zen Translator",
         favicon="✨",

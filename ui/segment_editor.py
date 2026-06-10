@@ -19,12 +19,10 @@ from .state import WorkspaceState
 
 
 def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> dict:
-    translator = deps["translator"]
     tm = deps["tm"]
     glossary = deps["glossary"]
     kg = deps["kg"]
     qa_engine = deps["qa_engine"]
-    llm_executor = deps["llm_executor"]
     parse_lang_pair = deps["parse_lang_pair"]
 
     seg = state.segments[state.active_index] if state.segments else {
@@ -84,15 +82,6 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
 
         ui.separator()
         with ui.row().classes("w-full px-6 py-3 justify-between items-center"):
-            ai_master_on = ui_settings.ai_master_enabled()
-            if ai_master_on:
-                regen_btn = ui.button(icon="auto_awesome").props(
-                    "flat round dense size=md color=primary"
-                ).tooltip("Regenerate AI Draft")
-            else:
-                regen_btn = ui.button(icon="auto_awesome").props(
-                    "flat round dense size=md disable color=grey"
-                ).tooltip("AI Translation is disabled on the home page")
             with ui.row().classes("items-center gap-4"):
                 ui.label("⌘↵ confirm").classes(
                     "text-[10px] font-bold uppercase tracking-wider opacity-50"
@@ -109,10 +98,8 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
         "qa_row": qa_row,
         "target_textarea": target_textarea,
         "ghost_overlay": ghost_overlay,
-        "regen_btn": regen_btn,
         "confirm_btn": confirm_btn,
     }
-
     def _paint_overlay_full(value: str) -> None:
         """Mirror a full textarea value into the ghost overlay. Used ONLY
         on segment-switch / external mutation (AI draft completion, intel
@@ -170,54 +157,6 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
                     )
                     ui.label(w.get("message", "")).classes("font-medium text-xs")
 
-    async def _ai_draft(force: bool = False):
-        if not state.segments:
-            return
-        if not ui_settings.ai_master_enabled():
-            return
-        idx = state.active_index
-        seg_now = state.segments[idx]
-        if not force and seg_now["target"].strip():
-            return
-        if not force and not ui_settings.ai_pretranslate_enabled():
-            return
-        src, tgt = _src_tgt()
-        loop = asyncio.get_running_loop()
-
-        def _lookups():
-            a = tm.lookup_fuzzy(seg_now["source"], threshold=90.0, limit=1) if tm else []
-            b = glossary.lookup_terms(seg_now["source"], src, tgt) if glossary else []
-            c = tm.search_concordance(seg_now["source"], top_n=2) if tm else []
-            k = kg.extract_entities(seg_now["source"]) if kg else []
-            return a, b, c, k
-
-        try:
-            target_textarea.props("loading")
-        except Exception:
-            pass
-        try:
-            a, b, c, k = await loop.run_in_executor(None, _lookups)
-            _, text = await loop.run_in_executor(
-                llm_executor,
-                lambda: translator.translate(seg_now["source"], src, tgt, a, b, c, k),
-            )
-            if not state.segments:
-                return
-            captured_seg = state.segments[idx]
-            if force or not captured_seg["target"].strip():
-                captured_seg["target"] = text
-                if state.active_index == idx:
-                    state.current["target"] = text
-                state.request_autosave()
-        except Exception as ex:
-            print(f"[AI] {ex}")
-        finally:
-            try:
-                target_textarea.props(remove="loading")
-            except Exception:
-                pass
-
-    regen_btn.on_click(lambda _: background_tasks.create(_ai_draft(force=True), name="ai_regen"))
 
     def _on_active_change():
         if not state.segments:
@@ -243,8 +182,6 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
             name="push_bundle",
         )
         background_tasks.create(_refresh_qa(), name="qa_refresh")
-        if not seg_now["target"].strip() and ui_settings.ai_pretranslate_enabled():
-            background_tasks.create(_ai_draft(), name="ai_init")
 
     def _on_status_change():
         if not state.segments:
@@ -278,8 +215,6 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
         src, tgt = _src_tgt()
         await predictions.push_bundle(target_textarea.id, seg_now["source"], src, tgt, tm, glossary, kg, client=state.client)
         await _refresh_qa()
-        if not seg_now["target"].strip() and ui_settings.ai_pretranslate_enabled():
-            background_tasks.create(_ai_draft(), name="ai_initial")
 
     background_tasks.create(_initial(), name="editor_initial")
 

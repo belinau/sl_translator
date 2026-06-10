@@ -120,10 +120,6 @@ class StubKG:
         return None
 
 
-class StubTranslator:
-    def translate(self, text, src, tgt, *a, **kw):
-        return ("prompt", f"AI({text})")
-
 
 class StubQA:
     def check_segment(self, src, tgt, glossary_hits=None):
@@ -151,14 +147,12 @@ def _make_state(segments=None) -> WorkspaceState:
     return WorkspaceState(ws, save_callback=lambda _: None)
 
 
-def _deps(tm=None, glossary=None, kg=None, translator=None, qa=None) -> dict:
+def _deps(tm=None, glossary=None, kg=None, qa=None) -> dict:
     return {
         "tm": tm or StubTM(),
         "glossary": glossary or StubGlossary(),
         "kg": kg or StubKG(),
-        "translator": translator or StubTranslator(),
         "qa_engine": qa or StubQA(),
-        "llm_executor": None,
         "parse_lang_pair": _parse_lang_pair,
     }
 

@@ -35,18 +35,16 @@ def page_translate(project_id: str):
     doc_parser = app_state.doc_parser
     glossary = app_state.glossary
     kg = app_state.kg
-    llm_executor = app_state.llm_executor
     load_project = app_state.load_project
     parse_lang_pair = app_state.parse_lang_pair
     qa_engine = app_state.qa_engine
     save_pair_to_tm = app_state.save_pair_to_tm
     save_project = app_state.save_project
     tm = app_state.tm
-    translator = app_state.translator
 
     # If init_resources hasn't completed yet (page hit during startup window),
     # tell the user instead of feeding None into the rest of the page.
-    if any(x is None for x in (tm, glossary, kg, translator, qa_engine, doc_parser,
+    if any(x is None for x in (tm, glossary, kg, qa_engine, doc_parser,
                                  PROJECTS_DIR, apply_colors, load_project,
                                  save_project, save_pair_to_tm, parse_lang_pair, config)):
         with ui.column().classes("w-full h-screen items-center justify-center"):
@@ -59,10 +57,10 @@ def page_translate(project_id: str):
     assert (
         PROJECTS_DIR is not None and apply_colors is not None and config is not None
         and doc_parser is not None and glossary is not None and kg is not None
-        and llm_executor is not None and load_project is not None
+        and load_project is not None
         and parse_lang_pair is not None and qa_engine is not None
         and save_pair_to_tm is not None and save_project is not None
-        and tm is not None and translator is not None
+        and tm is not None
     )
 
     apply_colors()
@@ -91,12 +89,10 @@ def page_translate(project_id: str):
     state = WorkspaceState(ws_dict, save_callback=save_project, client=page_client)
 
     deps = {
-        "translator": translator,
         "tm": tm,
         "glossary": glossary,
         "kg": kg,
         "qa_engine": qa_engine,
-        "llm_executor": llm_executor,
         "parse_lang_pair": parse_lang_pair,
     }
 
@@ -130,40 +126,7 @@ def page_translate(project_id: str):
             ).props('size="6px" :show-value="false"').classes("w-full rounded-full")
 
         with ui.row().classes("gap-2 items-center"):
-            ai_master_on = ui_settings.ai_master_enabled()
-            if ai_master_on:
-                ai_switch = ui.switch(
-                    "AI auto-draft",
-                    value=ui_settings.ai_pretranslate_enabled(),
-                    on_change=lambda e: ui_settings.set_ai_pretranslate(bool(e.value)),
-                ).props("dense").classes("text-[11px]")
-            else:
-                ai_switch = ui.switch(
-                    "AI auto-draft",
-                    value=False,
-                    on_change=lambda e: ui_settings.set_ai_pretranslate(bool(e.value)),
-                ).props("dense disable").classes("text-[11px]").tooltip(
-                    "AI Translation is disabled on the home page"
-                )
             ui_settings.dark_toggle_button(dm)
-
-            batch_btn_holder = ui.row().classes("items-center")
-
-            def _render_batch_button():
-                batch_btn_holder.clear()
-                with batch_btn_holder:
-                    if state.is_batch:
-                        ui.button("Stop", icon="stop", on_click=_stop_batch).props(
-                            "outline rounded dense color=negative"
-                        )
-                    elif not ai_master_on:
-                        ui.button("Auto-translate", icon="auto_awesome").props(
-                            "outline rounded dense color=grey disable"
-                        ).tooltip("AI Translation is disabled on the home page")
-                    else:
-                        ui.button("Auto-translate", icon="auto_awesome", on_click=lambda: background_tasks.create(_batch())).props(
-                            "outline rounded dense color=accent"
-                        )
 
             with ui.dropdown_button("Export", icon="file_download", auto_close=True).props(
                 "rounded unelevated dense color=positive"
@@ -255,7 +218,6 @@ def page_translate(project_id: str):
                 intel_refs = intel_panel.build(state, deps)
                 editor_refs = segment_editor.build(state, deps, on_confirm=_trigger_confirm)
 
-    _render_batch_button()
 
     # ------------------------------------------------------------------
     # Confirm + batch + KG/TM promotion
@@ -374,49 +336,6 @@ def page_translate(project_id: str):
 
         except Exception as e:
             print(f"[promote_pair] {e}")
-
-    async def _batch():
-        if state.is_batch:
-            return
-            ui.notify("AI Translation is disabled", type="warning")
-            return
-        state.is_batch = True
-        _render_batch_button()
-        src, tgt = parse_lang_pair(state.lang_pair)
-        loop = asyncio.get_running_loop()
-        try:
-            for seg in state.segments:
-                if not state.is_batch:
-                    break
-                if seg["status"] == "done" or seg["target"].strip():
-                    continue
-                try:
-                    a = tm.lookup_fuzzy(seg["source"], threshold=90.0, limit=1) if tm else []
-                    b = glossary.lookup_terms(seg["source"], src, tgt) if glossary else []
-                    c = tm.search_concordance(seg["source"], top_n=2) if tm else []
-                    _, text = await loop.run_in_executor(
-                        llm_executor,
-                        lambda s=seg, a=a, b=b, c=c: translator.translate(
-                            s["source"], src, tgt, a, b, c
-                        ),
-                    )
-                    seg["target"] = text
-                    if seg["id"] == state.active_index:
-                        state.current["target"] = text
-                except Exception as ex:
-                    print(f"[batch] {ex}")
-            state.request_autosave()
-            state.notify("segments")
-            if state.is_batch:
-                ui.notify("Batch complete!", type="positive")
-        finally:
-            state.is_batch = False
-            _render_batch_button()
-
-    def _stop_batch():
-        state.is_batch = False
-        ui.notify("Batch stopped", type="warning")
-        _render_batch_button()
 
     # ------------------------------------------------------------------
     # Export

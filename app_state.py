@@ -15,13 +15,11 @@ from typing import Any, Callable, Optional
 tm: Any = None
 glossary: Any = None
 kg: Any = None
-translator: Any = None
 doc_parser: Any = None
 qa_engine: Any = None
 
 # Persistence layer / paths used by the UI.
 PROJECTS_DIR: Optional[Path] = None
-llm_executor: Any = None
 
 # Pure functions provided by main.py. Bound during module load (they don't
 # depend on init_resources) so they're available immediately.
