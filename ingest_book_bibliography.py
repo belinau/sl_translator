@@ -45,7 +45,11 @@ from translate_core.entity_extraction.bilingual_tm_matcher import (
 )
 from translate_core.knowledge_graph import KnowledgeGraph
 from translate_core.entity_extraction._slug import _slugify
-
+from translate_core.entity_extraction.ingest_helpers import (
+    ensure_agent,
+    ensure_institution,
+    cited_work_id as _shared_cited_work_id,
+)
 
 
 def _agent_id(author: ParsedAuthor) -> str:
@@ -54,30 +58,24 @@ def _agent_id(author: ParsedAuthor) -> str:
 
 
 def _ensure_agent(kg: KnowledgeGraph, author: ParsedAuthor) -> str:
-    aid = _agent_id(author)
-    node_key = f"agent:{aid.lower()}"
-    if not kg.G.has_node(node_key):
-        full = f"{author.given} {author.surname}".strip() or author.surname
-        kg.add_agent_node(aid, name=full, role=author.role)
-    return aid
+    full = f"{author.given} {author.surname}".strip() or author.surname
+    return ensure_agent(kg, full, role=author.role)
+
 
 
 def _ensure_institution(
     kg: KnowledgeGraph, name: str, city: str | None, kind: str = "publisher"
 ) -> str:
-    iid = _slugify(name)
-    node_key = f"institution:{iid.lower()}"
-    if not kg.G.has_node(node_key):
-        kg.add_institution_node(iid, name=name, kind=kind, city=city)
-    return iid
+    return ensure_institution(kg, name, city, kind)
 
 
 def _cited_work_id(citation: ParsedCitation) -> str:
     """Stable id for the cited work."""
-    surname = citation.primary_author_surname or "anon"
-    title_part = (citation.title or "untitled")[:40]
-    year = citation.year or ""
-    return _slugify(f"{surname}-{title_part}-{year}")
+    return _shared_cited_work_id(
+        citation.primary_author_surname or "anon",
+        (citation.title or "untitled")[:40],
+        citation.year or "",
+    )
 
 
 def ingest_citation(

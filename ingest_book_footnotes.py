@@ -41,14 +41,19 @@ from translate_core.entity_extraction.bilingual_tm_matcher import (
 )
 from translate_core.knowledge_graph import KnowledgeGraph
 from translate_core.entity_extraction._slug import _slugify
-
+from translate_core.entity_extraction.ingest_helpers import (
+    ensure_agent,
+    ensure_institution,
+    cited_work_id as _cited_work_id,
+)
 
 
 def _cited_work_id(citation: ParsedCitation) -> str:
-    surname = citation.primary_author_surname or "anon"
-    title_part = (citation.title or citation.container_title or "untitled")[:40]
-    year = citation.year or ""
-    return _slugify(f"{surname}-{title_part}-{year}")
+    return _cited_work_id(
+        citation.primary_author_surname or "anon",
+        (citation.title or citation.container_title or "untitled")[:40],
+        citation.year or "",
+    )
 
 
 def _is_short_form(citation: ParsedCitation) -> bool:
@@ -134,21 +139,13 @@ def _resolve_ibid_references(
 
 def _ensure_agent(kg: KnowledgeGraph, author: ParsedAuthor) -> str:
     full = f"{author.given} {author.surname}".strip() or author.surname
-    aid = _slugify(full)
-    node_key = f"agent:{aid.lower()}"
-    if not kg.G.has_node(node_key):
-        kg.add_agent_node(aid, name=full, role=author.role)
-    return aid
+    return ensure_agent(kg, full, role=author.role)
 
 
 def _ensure_institution(
     kg: KnowledgeGraph, name: str, city: Optional[str], kind: str = "publisher"
 ) -> str:
-    iid = _slugify(name)
-    node_key = f"institution:{iid.lower()}"
-    if not kg.G.has_node(node_key):
-        kg.add_institution_node(iid, name=name, kind=kind, city=city)
-    return iid
+    return ensure_institution(kg, name, city, kind)
 
 
 def ingest_one(
