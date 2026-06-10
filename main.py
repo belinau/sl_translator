@@ -89,15 +89,17 @@ def list_projects() -> list:
 
 def save_project(ws: dict):
     validate_project_id(ws["project_id"])
-    segs = [
-        {
+    segs = []
+    for s in ws["segments"]:
+        seg: dict = {
             "id": s["id"],
             "source": s["source"],
             "target": s["target"],
             "status": s["status"],
         }
-        for s in ws["segments"]
-    ]
+        if "docx_para_idx" in s:
+            seg["docx_para_idx"] = s["docx_para_idx"]
+        segs.append(seg)
     done = sum(1 for s in segs if s["status"] == "done")
     data = {
         "id": ws["project_id"],

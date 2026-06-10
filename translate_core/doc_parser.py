@@ -489,6 +489,96 @@ class DocumentParser:
             _inject_footnotes_part(output_path, footnotes_to_add)
         print(f"[Parser] Styled Book compiled successfully to {output_path}")
 
+    def compile_from_template(
+        self,
+        template_path: Path,
+        output_path: Path,
+        segments: List[dict],
+    ) -> None:
+        """Compile a translated DOCX by cloning the original and replacing
+        text in-place, preserving all paragraph styles, run formatting,
+        and document structure.
+
+        ``segments`` is a list of dicts with at least ``source``,
+        ``target``, ``status``, and ``docx_para_idx`` (the paragraph index
+        in the original document).  Only segments with a non-empty
+        ``target`` are written; others keep their original source text.
+        """
+        if not HAS_DOCX:
+            raise RuntimeError("python-docx not installed")
+        assert docx is not None
+
+        doc = docx.Document(str(template_path))
+
+        # Build index: original paragraph position → segment
+        idx_to_seg: Dict[int, dict] = {}
+        for seg in segments:
+            pi = seg.get("docx_para_idx")
+            if pi is not None:
+                idx_to_seg[pi] = seg
+
+        paragraphs = doc.paragraphs
+        for para_idx, para in enumerate(paragraphs):
+            seg = idx_to_seg.get(para_idx)
+            if seg is None:
+                continue
+            replacement = seg.get("target", "").strip()
+            if not replacement:
+                continue
+            self._replace_paragraph_text(para, replacement)
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        doc.save(str(output_path))
+
+    @staticmethod
+    def _replace_paragraph_text(paragraph, new_text: str) -> None:
+        """Replace all text in a paragraph while preserving the first
+        run's formatting (font, size, bold, italic, underline, color).
+        All other runs are removed so the paragraph becomes a single
+        run with the translated text.
+
+        This deliberately does NOT try to map source-run boundaries onto
+        the translated text — that would require alignment heuristics
+        that are fragile across languages.  Keeping the first run's
+        format preserves the dominant style (heading bold, body font,
+        etc.) which is the 80/20 for formatting fidelity.
+        """
+        runs = paragraph.runs
+        if not runs:
+            # Paragraph has no runs (empty or odd XML); add a fresh run.
+            paragraph.add_run(new_text)
+            return
+
+        # Capture the first run's formatting.
+        first = runs[0]
+        fmt = {
+            "bold": first.bold,
+            "italic": first.italic,
+            "underline": first.underline,
+            "font_name": first.font.name,
+            "font_size": first.font.size,
+            "font_color": first.font.color.rgb if first.font.color and first.font.color.rgb else None,
+        }
+
+        # Remove all runs from the paragraph XML.
+        for run in runs:
+            run._r.getparent().remove(run._r)
+
+        # Add a single new run with the captured formatting.
+        new_run = paragraph.add_run(new_text)
+        new_run.bold = fmt["bold"]
+        new_run.italic = fmt["italic"]
+        new_run.underline = fmt["underline"]
+        if fmt["font_name"]:
+            new_run.font.name = fmt["font_name"]
+        if fmt["font_size"]:
+            new_run.font.size = fmt["font_size"]
+        if fmt["font_color"]:
+            from docx.shared import RGBColor
+            new_run.font.color.rgb = RGBColor(
+                fmt["font_color"][0], fmt["font_color"][1], fmt["font_color"][2]
+            )
+
     def _add_footnote_reference_run(self, paragraph, fn_global_id: int) -> None:
         """Add a `<w:footnoteReference w:id="N"/>` inside a new superscript
         run on the given paragraph. The actual footnote definition lives in

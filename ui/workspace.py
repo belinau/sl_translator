@@ -361,6 +361,24 @@ def page_translate(project_id: str):
         return "\n\n".join(lines)
 
     def _export_target_docx():
+        # Template-based export: clone original DOCX, replace translated
+        # segments in-place to preserve all formatting and structure.
+        template = PROJECTS_DIR / f"{state.project_id}.docx"
+        if template.exists() and any(
+            "docx_para_idx" in s for s in state.segments
+        ):
+            out = PROJECTS_DIR / f"compiled_target_{state.project_id}.docx"
+            try:
+                doc_parser.compile_from_template(
+                    template, out, state.segments,
+                )
+                if out.exists():
+                    ui.download(out.read_bytes(), f"translated_{state.filename}")
+                    out.unlink(missing_ok=True)
+                    return
+            except Exception as e:
+                log.error(f"template export: {e}")
+        # Fallback: markdown compilation (no paragraph index mapping).
         md = _compile_md(use_target=True)
         path = PROJECTS_DIR / f"compiled_target_{state.project_id}.docx"
         try:

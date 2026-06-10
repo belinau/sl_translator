@@ -55,10 +55,16 @@ def import_book(file_path: str, lang_pair: str = "en->sl"):
             return
 
         segments = []
-        for p in doc.paragraphs:
+        for i, p in enumerate(doc.paragraphs):
             txt = p.text.strip()
             if txt:
-                segments.append({"id": len(segments), "source": txt, "target": "", "status": "pending"})
+                segments.append({
+                    "id": len(segments),
+                    "source": txt,
+                    "target": "",
+                    "status": "pending",
+                    "docx_para_idx": i,
+                })
 
         segments_meta = []
 
