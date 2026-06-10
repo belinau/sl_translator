@@ -32,3 +32,12 @@ reportImplicitStringConcatenation = "none"
 reportUnannotatedClassAttribute = "none"
 reportUninitializedInstanceVariable = "none"
 reportImportCycles = "none"
+
+[tool.ruff]
+target-version = "py313"
+line-length = 120
+extend-exclude = [".venv", "data", "scratch", "kg_canvas_*.html"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+ignore = ["E402", "E741", "E701", "E702", "E722"]

@@ -15,21 +15,14 @@ from __future__ import annotations
 
 import json
 import re
-import unicodedata
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from .entity_extraction._slug import _slugify
 from .entity_extraction.confidence import ConfidenceTier, score_record
 from .knowledge_graph import KnowledgeGraph
-
-
-def _slugify(text: str) -> str:
-    nfkd = unicodedata.normalize("NFKD", text)
-    s = "".join(c for c in nfkd if not unicodedata.combining(c))
-    s = re.sub(r"[^a-zA-Z0-9]+", "-", s).strip("-").lower()
-    return s[:80] if s else "unknown"
 
 
 MAX_MENTION_SEGMENTS = 20
@@ -146,19 +139,6 @@ def _collect_mention_segments(records: List[dict]) -> List[dict]:
             break
     return out
 
-
-def _provenance_kwargs(record: dict) -> dict:
-    """Deprecated. TM provenance (origin, segment_idx, mention_segments) is
-    INTERNAL to the extraction pipeline and MUST NOT leak into KG node
-    attributes. The KG is the canonical bibliographic graph — it does not
-    carry TM segment IDs.
-
-    This stub is retained so existing call sites keep working while we
-    audit and remove them, but it now returns `{}` unconditionally.
-    Any node-attribute provenance you need belongs on the extraction
-    record (`record["source"]`), not on the persisted node.
-    """
-    return {}
 
 
 @dataclass
@@ -606,11 +586,6 @@ def write_to_kg(
         if kind == "agent_person":
             p = r["payload"]
             agent_id = _slugify(p["name"])
-            # ontology §2.5: agent MAY carry optional `origin`, `segment_idx`,
-            # `mention_segments` (≤20 pointers). These are POINTERS only,
-            # never the TM strings themselves. _provenance_kwargs returns {}
-            # now but the call is left in place for the agent type because
-            # §2.5 explicitly permits these fields.
             kg.add_agent_node(
                 agent_id,
                 name=p["name"],
@@ -772,7 +747,6 @@ def write_to_kg(
                 extras["translation_edition"] = p["translation_edition"]
             # Strip None and merge provenance
             extras = {k: v for k, v in extras.items() if v is not None}
-            extras.update(_provenance_kwargs(r))
 
             kg.add_source_text_node(
                 cid,

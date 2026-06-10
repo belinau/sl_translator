@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import argparse
 import json
 import sys
@@ -29,11 +31,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import config
 from translate_core.knowledge_graph import KnowledgeGraph
 from translate_core.document_pair_pipeline import (
-    parse_side,
     process_pair,
     PairResult,
 )
 
+
+log = logging.getLogger(__name__)
 
 def main() -> None:
     ap = argparse.ArgumentParser(
@@ -57,16 +60,16 @@ def main() -> None:
     container_id = args.container
 
     if not en_path.exists():
-        print(f"ERROR: EN file not found: {en_path}", file=sys.stderr)
+        log.error(f"ERROR: EN file not found: {en_path}")
         sys.exit(1)
     if not sl_path.exists():
-        print(f"ERROR: SL file not found: {sl_path}", file=sys.stderr)
+        log.error(f"ERROR: SL file not found: {sl_path}")
         sys.exit(1)
 
-    print(f"EN: {en_path}")
-    print(f"SL: {sl_path}")
-    print(f"Container: {container_id}")
-    print(f"Dry-run: {args.dry_run}")
+    log.info(f"EN: {en_path}")
+    log.info(f"SL: {sl_path}")
+    log.info(f"Container: {container_id}")
+    log.info(f"Dry-run: {args.dry_run}")
 
     # Load KG
     kg = KnowledgeGraph(db_path=config.KG_DB_PATH)
@@ -74,8 +77,7 @@ def main() -> None:
     # Verify container exists
     container_node = f"source:{container_id.removeprefix('source:').lower()}"
     if not kg.G.has_node(container_node):
-        print(f"WARNING: container node {container_node!r} not found in KG. "
-              "It will be referenced but not verified.", file=sys.stderr)
+        log.warning(f"container node {container_node!r} not found in KG. It will be referenced but not verified.")
 
     # Run the pipeline
     result: PairResult = process_pair(
@@ -87,23 +89,23 @@ def main() -> None:
     )
 
     # Print summary
-    print()
-    print("=== Document-Pair Pipeline Result ===")
-    print(f"  Bilingual citations (title_en + title_sl):  {result.n_bilingual}")
-    print(f"  EN-only citations (no SL match):            {result.n_en_only}")
-    print(f"  SL-only citations (no EN match):            {result.n_sl_only}")
-    print(f"  Unmatched EN:  {len(result.unmatched_en)}")
-    print(f"  Unmatched SL:  {len(result.unmatched_sl)}")
+    log.info("Document-Pair Pipeline Result ===")
+    log.info("=== Document-Pair Pipeline Result ===")
+    log.info(f"  Bilingual citations (title_en + title_sl):  {result.n_bilingual}")
+    log.info(f"  EN-only citations (no SL match):            {result.n_en_only}")
+    log.info(f"  SL-only citations (no EN match):            {result.n_sl_only}")
+    log.info(f"  Unmatched EN:  {len(result.unmatched_en)}")
+    log.info(f"  Unmatched SL:  {len(result.unmatched_sl)}")
     if result.tmx_path:
-        print(f"  Generated TMX: {result.tmx_path}")
+        log.info(f"  Generated TMX: {result.tmx_path}")
 
     if result.unmatched_en:
-        print("\nUnmatched EN citations (no SL equivalent found):")
+        log.info("\nUnmatched EN citations (no SL equivalent found):")
         for rec in result.unmatched_en[:5]:
             p = rec.get("payload", {})
-            print(f"  - {p.get('title_en', '(no title)')[:80]}")
+            log.info(f"  - {p.get('title_en', '(no title)')[:80]}")
         if len(result.unmatched_en) > 5:
-            print(f"  ... and {len(result.unmatched_en) - 5} more")
+            log.info(f"  ... and {len(result.unmatched_en) - 5} more")
 
     # Write report
     if args.report:
@@ -127,12 +129,12 @@ def main() -> None:
             json.dumps(report, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
-        print(f"\nReport written to {args.report}")
+        log.info(f"\nReport written to {args.report}")
 
     if not args.dry_run:
-        print("\nKG updated successfully." if result.n_bilingual > 0
-              else "\nNo bilingual citations found to write.")
+        log.info('KG updated successfully.' if result.n_bilingual > 0 else 'No bilingual citations found to write.')
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     main()

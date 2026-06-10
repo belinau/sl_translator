@@ -2,7 +2,7 @@
 
 **Bilingual translation workbench with an integrated knowledge graph for citation and entity extraction.**
 
-A desktop application for literary translators working between source and target text. Combines a segment-based translation editor with AI-assisted suggestions, a translation memory, glossary management, and a deeply structured knowledge graph that captures authors, works, institutions, concepts, and their interrelationships from book footnotes and bibliographies.
+A desktop application for literary translators working between source and target text. Combines a segment-based translation editor with citation and entity extraction, a translation memory, glossary management, and a deeply structured knowledge graph that captures authors, works, institutions, concepts, and their interrelationships from book footnotes and bibliographies.
 
 Built on **NiceGUI** for the translation workspace and **Streamlit** for knowledge graph curation.
 
@@ -167,8 +167,6 @@ sl_translator/
 │       ├── docx_footnote_parser.py    # DOCX footnote XML extraction
 │       ├── name_dedup.py             # Person-name canonicalisation
 │       ├── origin_walker.py          # Origin context walking
-│       ├── seeded_book_finder.py     # Seeded container detection
-│       ├── multi_segment_merge.py    # Multi-segment citation merging
 │       └── _slug.py                  # Canonical slugify implementation
 │
 ├── ui/                               # NiceGUI workspace UI
@@ -299,9 +297,7 @@ python scripts/validate_kg.py
 ### Run Tests
 
 ```bash
-python -m pytest tests/ -v
-# Skip the known vl_parser failure:
-python -m pytest tests/ --ignore=tests/test_vl_parser.py -v
+python -m pytest tests/ inline_test/ -v
 ```
 
 ---
@@ -340,7 +336,7 @@ See `ontology.md` for the complete specification.
 | Glossary | FlashText |
 | NLP | spacy (EN), classla (SL), stanza (fallback) |
 | Document Parsing | PyMuPDF (PDF), python-docx (DOCX), MarkItDown |
-| Entity Extraction | Regex patterns + smol agent LLM dispatch (Ollama) |
+| Entity Extraction | Regex patterns + smol agent (offline batch via Ollama) |
 | Visualization | D3.js (HTML5 Canvas) |
 | Python | 3.14 |
 | Type Checking | basedpyright (basic mode) |
@@ -388,9 +384,6 @@ JSON file with two top-level arrays:
 
 | Setting | Default | Purpose |
 |---|---|---|
-| `TRANSLATION_MODEL_TYPE` | `"mlx"` | Translation backend |
-| `MLX_MODEL_NAME` | `mlx-community/Meta-Llama-3.1-8B-Instruct-4bit` | MLX model |
-| `NLLB_MODEL_NAME` | `facebook/nllb-200-distilled-1.3B` | NLLB fallback |
 | `LANG_PAIRS` | `[en↔sl]` | Supported language pairs |
 | `DEFAULT_SOURCE_LANG` | `"en"` | Default source language |
 | `DEFAULT_TARGET_LANG` | `"sl"` | Default target language |

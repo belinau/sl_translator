@@ -234,34 +234,3 @@ class TestTypeFreeWorkIDs:
         slug = _slugify("Smith-Important Work-2023")
         assert "smith" in slug
         assert "2023" in slug
-
-
-# ======================================================================
-# Tests: prompt_for_type — form parameter is discarded (O-18)
-# ======================================================================
-
-
-class TestPromptForTypeFormDiscarded:
-    """Phase 1: form parameter in prompt_for_type is documented as not-used per O-18."""
-
-    def test_form_parameter_discarded(self):
-        """Calling prompt_for_type with form='bibliography' should produce
-        the same output as form='footnote' — form is discarded."""
-        from translate_core.entity_extraction.citation_types import (
-            CitationType,
-            prompt_for_type,
-        )
-
-        user_foot, prefill_foot, max_tok_foot = prompt_for_type(
-            CitationType.BOOK, "Test segment", style=CitationStyle.CHICAGO_EN, form="footnote"
-        )
-        user_bib, prefill_bib, max_tok_bib = prompt_for_type(
-            CitationType.BOOK, "Test segment", style=CitationStyle.CHICAGO_EN, form="bibliography"
-        )
-        assert user_foot == user_bib
-        assert prefill_foot == prefill_bib
-        assert max_tok_foot == max_tok_bib
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

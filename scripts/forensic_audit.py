@@ -9,8 +9,6 @@ Answers:
 from __future__ import annotations
 import json
 import sys
-import unicodedata
-import re
 from collections import Counter
 from pathlib import Path
 
@@ -18,19 +16,13 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from translate_core.knowledge_graph import KnowledgeGraph
+from translate_core.entity_extraction._slug import _slugify
 from translate_core.cobiss_parser import parse_cobiss_file
 from translate_core.cobiss_classifier import classify_entry
 
 KG_PATH = ROOT / "data" / "knowledge.db"
 ATTR_PATH = ROOT / "data" / "segment_title_attribution.json"
 COBISS_PATH = ROOT / "data" / "personal bibliography" / "bibliography_export.txt"
-
-# Copy of slug helpers from scripts/ingest_personal_bibliography.py
-def _slugify(text: str) -> str:
-    nfkd = unicodedata.normalize("NFKD", text)
-    s = "".join(c for c in nfkd if not unicodedata.combining(c))
-    s = re.sub(r"[^a-zA-Z0-9]+", "-", s).strip("-").lower()
-    return s[:80] if s else "unknown"
 
 def _make_agent_id(last_name: str, first_name: str) -> str:
     parts = [last_name]
@@ -119,16 +111,16 @@ def main() -> None:
             if len(orphan_samples) < 5:
                 orphan_samples.append((nid, d.get("title") or d.get("title_orig") or d.get("title_translation") or "(no title)"))
 
-    print(f"\n--- orphan vs live ---")
+    print("\n--- orphan vs live ---")
     print(f"  live source_text:   {live_count}")
     print(f"  orphan source_text: {orphan_count}")
-    print(f"  edges by relation (live-class only):")
+    print("  edges by relation (live-class only):")
     for (direction, rel), c in sorted(relation_edge_counter.items(), key=lambda x: -x[1]):
         print(f"    {direction:3s} {rel:30s} {c}")
-    print(f"  live samples:")
+    print("  live samples:")
     for nid, t in live_samples:
         print(f"    {nid} :: {t[:70]}")
-    print(f"  orphan samples:")
+    print("  orphan samples:")
     for nid, t in orphan_samples:
         print(f"    {nid} :: {t[:70]}")
 

@@ -226,7 +226,3 @@ class TestKGIntegrity(unittest.TestCase):
         self.assertEqual(node2.get("display_form"), "lepi")
         self.assertIn("lepi", node2.get("variants", []))
 
-
-# ===================================================================
-if __name__ == "__main__":
-    unittest.main()

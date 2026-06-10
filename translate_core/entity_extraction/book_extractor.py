@@ -15,10 +15,13 @@ Recall is the success metric. Confidence scoring + REVIEW tier handle
 precision downstream.
 """
 
+
 from __future__ import annotations
 
+
+from ._slug import _slugify
+
 import re
-import unicodedata
 from typing import List, Optional
 
 from .segment_classifier import (
@@ -27,10 +30,7 @@ from .segment_classifier import (
     KNOWN_PUBLISHERS,
     PAREN_YEAR_RE,
     ANY_YEAR_RE,
-    LASTNAME_COMMA_RE,
-    LASTNAME_FIRST_RE,
     LEADING_PREFIX_RE,
-    PAGE_REF_RE,
     INLINE_CITE_PAREN_RE,
 )
 from .name_dedup import (
@@ -40,28 +40,6 @@ from .name_dedup import (
     looks_like_organization,
 )
 
-
-# Phase 7: bilingual_titles was deleted with the VL stack. This file goes away
-# in Phase 11. Provide a minimal in-module stand-in so the file imports cleanly
-# and downstream `bt.X or fallback` patterns degrade to the fallback path.
-class _NoopBilingualTitle:
-    title_orig: Optional[str] = None
-    title_en: Optional[str] = None
-    title_sl: Optional[str] = None
-    original_pub: Optional[dict] = None
-    slovenian_edition: Optional[dict] = None
-
-
-def parse_bilingual_title(en_src: str, sl_tgt: str) -> _NoopBilingualTitle:
-    """Phase 7 stub. The real bilingual parser was retired with the VL stack;
-    this file is deleted in Phase 11. Returns an empty decomposition so the
-    citation extractor falls through to its plain regex paths."""
-    return _NoopBilingualTitle()
-
-
-def _extract_pub_info(text: str) -> Optional[dict]:
-    """Phase 7 stub. Always returns None; this file is deleted in Phase 11."""
-    return None
 
 
 # Multi-citation splitter: `;` is the safest splitter inside a citation block
@@ -149,12 +127,6 @@ OPCIT_AUTHOR_RE = re.compile(
     re.IGNORECASE,
 )
 
-
-def _slugify(text: str) -> str:
-    nfkd = unicodedata.normalize("NFKD", text)
-    s = "".join(c for c in nfkd if not unicodedata.combining(c))
-    s = re.sub(r"[^a-zA-Z0-9]+", "-", s).strip("-").lower()
-    return s[:80] if s else "unknown"
 
 
 def _origin_to_work_id(origin: str) -> str:
@@ -356,21 +328,21 @@ def _parse_one_citation_segment(
         if not author:
             continue
 
-        bt = parse_bilingual_title(rest, tgt_clean)
-        pub_info = bt.original_pub or _extract_pub_info(rest)
-        sl_pub = bt.slovenian_edition or _extract_pub_info(tgt_clean)
+        # Bilingual title parsing and pub info extraction were retired with
+        # the VL stack. All values default to None; regex fallbacks handle
+        # year and title extraction directly.
+        pub_info = None
+        sl_pub = None
+        title_orig = None
 
         # Year extraction: try multiple sources
         year = None
-        if pub_info:
-            year = pub_info.get("year")
-        if not year:
-            ym = PAREN_YEAR_RE.search(part)
-            if ym:
-                try:
-                    year = int(ym.group(1).split("-")[0].split("–")[0])
-                except ValueError:
-                    pass
+        ym = PAREN_YEAR_RE.search(part)
+        if ym:
+            try:
+                year = int(ym.group(1).split("-")[0].split("–")[0])
+            except ValueError:
+                pass
         if not year:
             ym = ANY_YEAR_RE.search(part)
             if ym:
@@ -379,19 +351,15 @@ def _parse_one_citation_segment(
                 except ValueError:
                     pass
 
-        # If title came from BIBLIO_TITLE_FIRST_RE we already have it
-        if title_first_form:
-            bt.title_sl = title_first_form
-            if en_gloss_first:
-                bt.title_en = en_gloss_first
-        title_en = bt.title_en or bt.title_orig
+        title_en = title_orig
         if not title_en:
             title_en = re.split(r"\s*\(", rest, maxsplit=1)[0].rstrip(",;:.")
         # Strip ed./eds./uredil from title head
         if title_en:
             title_en = ED_PREFIX_RE.sub("", title_en).strip()
 
-        title_sl = bt.title_sl
+        # If title came from BIBLIO_TITLE_FIRST_RE we already have it
+        title_sl = title_first_form if title_first_form else None
         if not title_sl and tgt_clean:
             tgt_part = tgt_clean
             tgt_m = BIBLIO_LASTNAME_FIRST_RE.match(tgt_part) or BIBLIO_AUTHOR_TITLE_RE.match(tgt_part)
@@ -401,15 +369,19 @@ def _parse_one_citation_segment(
                     title_sl = re.split(r"\s*\(", sl_rest, maxsplit=1)[0].rstrip(",;:.")
                     title_sl = ED_PREFIX_RE.sub("", title_sl).strip()
 
+        # Apply en_gloss if available from title-first form
+        if title_first_form and en_gloss_first:
+            title_en = en_gloss_first
+
         cited_id = _slugify(f"{author}-{title_en or title_sl or 'untitled'}-{year or ''}")
 
         signals = {
             "has_author": True,
-            "has_title": bool(title_en or bt.title_orig or title_sl),
+            "has_title": bool(title_en or title_orig or title_sl),
             "has_year": bool(year),
-            "has_publisher_city": bool(pub_info and pub_info.get("city")),
-            "has_publisher": bool(pub_info and pub_info.get("publisher")),
-            "title_bilingual": bool(bt.title_orig or (title_en and title_sl)),
+            "has_publisher_city": False,
+            "has_publisher": False,
+            "title_bilingual": bool(title_orig or (title_en and title_sl)),
             "in_biblio_cluster": klass in (SegmentClass.BIBLIOGRAPHY_ENTRY,),
         }
 
@@ -420,7 +392,7 @@ def _parse_one_citation_segment(
                 "author": author,
                 "title_en": title_en,
                 "title_sl": title_sl,
-                "title_orig": bt.title_orig,
+                "title_orig": title_orig,
                 "year": year,
                 "original_pub": pub_info,
                 "slovenian_edition": sl_pub,

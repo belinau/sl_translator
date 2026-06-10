@@ -29,7 +29,6 @@ class WorkspaceState:
         self.current: dict[str, str] = {"source": seg0["source"], "target": seg0["target"]}
 
         self.is_dirty: bool = False
-        self.is_batch: bool = False
 
         # NiceGUI Client tied to the current page render. Stored so background
         # tasks can enter the client context (`with state.client:`) before

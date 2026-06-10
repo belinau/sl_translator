@@ -14,7 +14,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import pickle
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -22,7 +21,6 @@ from typing import Dict, List, Optional, Set, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import config
-from translate_core.knowledge_graph import KnowledgeGraph
 from translate_core.tm import TranslationMemory
 
 # ── Constants ──────────────────────────────────────────────────────────
@@ -92,7 +90,6 @@ def build_source_corpus() -> Dict[str, Tuple[str, str]]:
     
     Returns: {slug: (path, text)}
     """
-    import docx
     
     corpus: Dict[str, Tuple[str, str]] = {}
     
@@ -279,7 +276,6 @@ def main():
     
     # 1. Build source corpus
     print("\n[1/5] Building source corpus...")
-    import docx  # ensure import
     corpus = build_source_corpus()
     print(f"\n  Total unique sources: {len(corpus)}")
     
@@ -329,7 +325,7 @@ def main():
             container_counts[slug] += 1
     
     print(f"\n  Total attributed: {total_attributed}/{total_segments} ({total_attributed/max(total_segments,1)*100:.1f}%)")
-    print(f"\n  Attribution by container:")
+    print("\n  Attribution by container:")
     for slug, count in container_counts.most_common(20):
         print(f"    {slug}: {count}")
     
@@ -404,7 +400,7 @@ def main():
                 skipped_no_mapping[slug] += 1
 
     if skipped_no_mapping:
-        print(f"\n  Unmapped slugs (loader will skip these):")
+        print("\n  Unmapped slugs (loader will skip these):")
         for slug, n in skipped_no_mapping.most_common(10):
             print(f"    {slug}: {n} segments")
 

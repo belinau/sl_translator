@@ -51,9 +51,6 @@ class StubGlossary:
         return []
 
 
-class StubTranslator:
-    def translate(self, *a, **kw):
-        return ("p", "")
 
 
 class StubQA:
@@ -82,9 +79,7 @@ def _deps(kg=None):
         "tm": StubTM(),
         "glossary": StubGlossary(),
         "kg": kg,
-        "translator": StubTranslator(),
         "qa_engine": StubQA(),
-        "llm_executor": None,
         "parse_lang_pair": _parse_lang_pair,
     }
 

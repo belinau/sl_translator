@@ -1,17 +1,8 @@
 """Editor-side book outline + paragraph segmentation primitives.
 
-These symbols (``TOCEntry``, ``BookOutline`` and ``split_paragraphs``) are
-imported by ``import_book.py`` (editor-side document preparation, OUT OF SCOPE
-for the parsing-simplification work in
-``docs/superpowers/plans/2026-06-06-parsing-simplification.md``).
-
-They were extracted verbatim from ``translate_core/vl_parser.py``, which Phase
-7 of the parsing-simplification plan will delete. From Phase 2 forward this
-module is the source-of-truth for these names; the still-extant
-``vl_parser.py`` definitions are dead-code-walking pending that deletion.
-
-This module is intentionally self-contained: it imports nothing from
-``translate_core.vl_parser`` so that it survives ``vl_parser.py``'s removal.
+``TOCEntry``, ``BookOutline`` and ``split_paragraphs`` are imported by
+``import_book.py`` for editor-side document preparation. This module is
+the source-of-truth for these names.
 """
 
 from __future__ import annotations
@@ -21,7 +12,7 @@ from dataclasses import dataclass, field
 
 
 # ----------------------------------------------------------------------
-# Outline dataclasses (copied verbatim from vl_parser.py:108-142)
+# Outline dataclasses
 # ----------------------------------------------------------------------
 
 
@@ -47,7 +38,7 @@ class BookOutline:
 
 
 # ----------------------------------------------------------------------
-# Paragraph segmentation (copied verbatim from vl_parser.py:512-594)
+# Paragraph segmentation
 # ----------------------------------------------------------------------
 
 # Goal: translator-editable segments that never contain half-sentences.

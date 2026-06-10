@@ -208,7 +208,7 @@ class TestWordAtCursorDetection:
         @ui.page("/test_word_at")
         def page():
             nonlocal js_pattern_works
-            ti = ui.textarea(value="apple banana").classes("w-full")
+            ui.textarea(value="apple banana").classes("w-full")
 
             def check():
                 # The JS pattern for word detection is verified to be syntactically correct

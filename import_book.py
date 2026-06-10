@@ -5,13 +5,19 @@
 #   python import_book.py data/books/book.pdf
 #   python import_book.py data/books/book.docx
 
+from __future__ import annotations
+
+import logging
 import json
 import sys
 import uuid
 from datetime import datetime
 from pathlib import Path
 
+from translate_core.doc_parser import DocumentParser
 sys.path.append(str(Path(__file__).parent))
+
+log = logging.getLogger(__name__)
 
 def sanitize_lang_pair(pair: str) -> str:
     if not pair:
@@ -31,21 +37,21 @@ def sanitize_lang_pair(pair: str) -> str:
 def import_book(file_path: str, lang_pair: str = "en->sl"):
     path = Path(file_path)
     if not path.exists():
-        print(f"[ERROR] File not found: {path.resolve()}")
+        log.error(f"File not found: {path.resolve()}")
         return
 
     clean_pair = sanitize_lang_pair(lang_pair)
     suffix = path.suffix.lower()
-    print(f"\n📖 {path.name}  ({clean_pair})", flush=True)
+    log.info(f"\n📖 {path.name}  ({clean_pair})", flush=True)
 
     # ── DOCX: direct python-docx paragraph extraction ────────────────────
     if suffix == ".docx":
         import docx as _docx
-        print("   Parsing with python-docx…")
+        log.info("   Parsing with python-docx…")
         try:
             doc = _docx.Document(str(path))
         except Exception as ex:
-            print(f"\n[ERROR] DOCX parse failed: {ex}")
+            log.error(f"\nDOCX parse failed: {ex}")
             return
 
         segments = []
@@ -58,15 +64,15 @@ def import_book(file_path: str, lang_pair: str = "en->sl"):
 
     # ── PDF: MarkItDown fallback ──────────────────────────────────────────
     else:
-        print("   Parsing with MarkItDown…")
+        log.info("   Parsing with MarkItDown…")
         parser = DocumentParser()
         try:
             md_text, segments_meta = parser.to_markdown_with_meta(
                 path, preprocess=True
             )
         except Exception as ex:
-            print(f"\n[ERROR] Parse failed: {ex}")
-            print("   pip install 'markitdown[pdf]'")
+            log.error(f"\nParse failed: {ex}")
+            log.info("   pip install 'markitdown[pdf]'")
             return
 
         # Use the smart paragraph splitter (handles PyMuPDF's indent-based
@@ -78,7 +84,7 @@ def import_book(file_path: str, lang_pair: str = "en->sl"):
             segments.append({"id": len(segments), "source": txt, "target": "", "status": "pending"})
 
     if not segments:
-        print("[ERROR] No text extracted from document.")
+        log.error("No text extracted from document.")
         return
 
     # ── Save ───────────────────────────────────────────────────────────
@@ -105,15 +111,16 @@ def import_book(file_path: str, lang_pair: str = "en->sl"):
     target_json.write_text(json.dumps(ws, ensure_ascii=False, indent=2), encoding="utf-8")
 
     # ── Summary ────────────────────────────────────────────────────────
-    print(f"\n✅ Done!")
-    print(f"   Project:  {project_id}")
-    print(f"   Language: {clean_pair}")
-    print(f"   Segments: {len(segments)}")
-    print(f"   File:     {target_json}")
-    print(f"\n   Open localhost:8080 to translate")
+    log.info("\n✅ Done!")
+    log.info(f"   Project:  {project_id}")
+    log.info(f"   Language: {clean_pair}")
+    log.info(f"   Segments: {len(segments)}")
+    log.info(f"   File:     {target_json}")
+    log.info("\n   Open localhost:8080 to translate")
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     import argparse
 
     ap = argparse.ArgumentParser(

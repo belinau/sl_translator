@@ -16,6 +16,8 @@ is available.
 
 from __future__ import annotations
 
+import logging
+
 import argparse
 import json
 import sys
@@ -32,8 +34,6 @@ from translate_core.entity_extraction.smol_extractor import (
 )
 from translate_core.entity_extraction.book_extractor import (
     extract_from_book_origin,
-    _agent_person_from_name as _book_agent_person,
-    _institution_from_publisher as _book_institution,
 )
 from translate_core.tm import TranslationMemory
 from translate_core.entity_extraction.origin_walker import (
@@ -60,6 +60,8 @@ SMOL_EXTRACTIONS_PATH = Path("data/smol_entities_map/smol_extractions.json")
 
 
 # ── Phase A: Export segments for OMP agent dispatch ───────────────────────────
+
+log = logging.getLogger(__name__)
 
 def export_segments(
     contexts: List[OriginContext],
@@ -108,9 +110,9 @@ def export_segments(
         json.dumps(export, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    print(f"[export] Wrote {len(export)} segments to {SEGMENTS_EXPORT_PATH}")
-    print(f"         Now dispatch OMP smol agents to extract entities.")
-    print(f"         Write results to {SMOL_EXTRACTIONS_PATH}")
+    log.info(f"Wrote {len(export)} segments to {SEGMENTS_EXPORT_PATH}")
+    log.info("         Now dispatch OMP smol agents to extract entities.")
+    log.info(f"         Write results to {SMOL_EXTRACTIONS_PATH}")
 
 
 # ── Phase B: Ingest smol agent extraction results ──────────────────────────────
@@ -124,12 +126,12 @@ def ingest_extractions(
 ) -> None:
     """Read smol agent results, merge with book_extractor fallback, score, ingest."""
     if not SMOL_EXTRACTIONS_PATH.exists():
-        print(f"[ingest] ERROR: No smol extraction results at {SMOL_EXTRACTIONS_PATH}")
-        print(f"         Run --export-segments first, then dispatch OMP agents.")
+        log.error(f"ERROR: No smol extraction results at {SMOL_EXTRACTIONS_PATH}")
+        log.info("         Run --export-segments first, then dispatch OMP agents.")
         sys.exit(1)
 
     raw_extractions = json.loads(SMOL_EXTRACTIONS_PATH.read_text(encoding="utf-8"))
-    print(f"[ingest] Loaded {len(raw_extractions)} extraction results from {SMOL_EXTRACTIONS_PATH}")
+    log.info(f"Loaded {len(raw_extractions)} extraction results from {SMOL_EXTRACTIONS_PATH}")
 
     all_records: List[dict] = []
 
@@ -186,16 +188,12 @@ def ingest_extractions(
         # smol coverage is complete.
         if not ctx_records:
             if args.no_fallback:
-                print(f"      {ctx.origin}: smol returned 0, "
-                      f"book_extractor fallback DISABLED (--no-fallback)")
+                log.info(f"      {ctx.origin}: smol returned 0, book_extractor fallback DISABLED (--no-fallback)")
             else:
                 ctx_records = extract_from_book_origin(ctx.labels)
-                print(f"      {ctx.origin}: smol returned 0, using book_extractor fallback "
-                      f"({len(ctx_records)} records)")
+                log.info(f"      {ctx.origin}: smol returned 0, using book_extractor fallback ({len(ctx_records)} records)")
         else:
-            print(f"      {ctx.origin}: {smol_hit_count} smol hits, "
-                  f"{fallback_count} segments without smol "
-                  f"({'no fallback' if args.no_fallback else 'book_extractor fallback'})")
+            log.info(f"      {ctx.origin}: {smol_hit_count} smol hits, {fallback_count} segments without smol ({'no fallback' if args.no_fallback else 'book_extractor fallback'})")
 
         # Per-segment supplement: only when fallback is enabled
         if ctx_records and fallback_count > 0 and not args.no_fallback:
@@ -215,7 +213,7 @@ def ingest_extractions(
                     ctx_records.append(br)
                     added += 1
             if added:
-                print(f"      {ctx.origin}: supplemented with {added} book_extractor records")
+                log.info(f"      {ctx.origin}: supplemented with {added} book_extractor records")
         # Retarget cited_in. Two valid sources of a container_work_id, in
         # priority order:
         #   (1) attribution      — curator + ngram anchors propagated through
@@ -276,14 +274,10 @@ def ingest_extractions(
                     continue
             kept_recs.append(r)
 
-        print(f"      {ctx.origin}: {len(ctx_records)} raw records "
-              f"(retargeted: {retargeted_attr} attribution, "
-              f"{retargeted_smol} smol_payload; "
-              f"dropped {dropped_shapeless} shapeless cited_work; "
-              f"dominant={ctx.dominant})")
+        log.info(f"      {ctx.origin}: {len(ctx_records)} raw records (retargeted: {retargeted_attr} attribution, {retargeted_smol} smol_payload; dropped {dropped_shapeless} shapeless cited_work; dominant={ctx.dominant})")
         all_records.extend(kept_recs)
 
-    print(f"      {len(all_records)} records after orphan-citation drop")
+    log.info(f"      {len(all_records)} records after orphan-citation drop")
 
     # Phase 7: bilingual enrichment retired with the VL stack. The
     # `--no-bilingual` flag is kept on the argparser for backward compat
@@ -291,22 +285,21 @@ def ingest_extractions(
     # the rest of this orchestrator.
 
     # Score and deduplicate
-    print(f"[4/5] Aggregating signals, scoring, deduplicating …")
+    log.info("[4/5] Aggregating signals, scoring, deduplicating …")
     aggregate_agent_signals(all_records)
     aggregate_institution_signals(all_records)
     scored = score_all(all_records)
     deduped = dedup_records(scored)
     re_scored = score_all(deduped)
-    print(f"      after dedup: {len(re_scored)} records")
+    log.info(f"      after dedup: {len(re_scored)} records")
 
     tier_counts = Counter(r.get("tier") for r in re_scored)
-    print(f"      tiers: direct_write={tier_counts.get('direct_write', 0)} "
-          f"review={tier_counts.get('review', 0)} drop={tier_counts.get('drop', 0)}")
+    log.info(f"      tiers: direct_write={tier_counts.get('direct_write', 0)} review={tier_counts.get('review', 0)} drop={tier_counts.get('drop', 0)}")
 
     # Preview
     if args.preview_patterns:
         preview_path = args.output_dir / "extraction_pattern_preview.md"
-        print(f"[5/5] Writing pattern preview to {preview_path} …")
+        log.info(f"Writing pattern preview to {preview_path} …")
         preview_path.write_text(_build_preview(contexts, re_scored), encoding="utf-8")
 
     # Write review + dropped files
@@ -325,40 +318,40 @@ def ingest_extractions(
             with open(dropped_path, "w", encoding="utf-8") as f:
                 for r in dropped:
                     f.write(json.dumps(r, ensure_ascii=False, default=str) + "\n")
-        print(f"\n[dry run] Wrote:")
+        log.info("\nWrote:")
         if args.preview_patterns:
-            print(f"  {preview_path}")
+            log.info(f"  {preview_path}")
         if review:
-            print(f"  {review_path} ({len(review)} records)")
+            log.info(f"  {review_path} ({len(review)} records)")
         if dropped:
-            print(f"  {dropped_path} ({len(dropped)} records)")
-        print(f"\nNo KG writes performed (dry run).")
+            log.info(f"  {dropped_path} ({len(dropped)} records)")
+        log.info("\nNo KG writes performed (dry run).")
         return
 
     # Real write mode
-    print(f"[5/5] Writing direct-tier records to KG …")
+    log.info("Writing direct-tier records to KG …")
     from translate_core.knowledge_graph import KnowledgeGraph
     if args.kg_path:
         # Ensure parent dir exists; KnowledgeGraph reads from this path on
         # construction (or starts empty if the file is absent).
         args.kg_path.parent.mkdir(parents=True, exist_ok=True)
         kg = KnowledgeGraph(db_path=args.kg_path)
-        print(f"      writing to KG at: {args.kg_path}")
+        log.info(f"      writing to KG at: {args.kg_path}")
     else:
         kg = KnowledgeGraph()
-        print(f"      writing to default KG (data/knowledge.db)")
+        log.info("      writing to default KG (data/knowledge.db)")
     stats = write_to_kg(
         kg, re_scored,
         review_path=review_path,
         dropped_path=dropped_path,
         dry_run=False,
     )
-    print(f"      direct-write: {stats.direct_write}")
-    print(f"      review queue: {stats.review_queued}")
-    print(f"      dropped:      {stats.dropped}")
-    print(f"\nBy kind:")
+    log.info(f"      direct-write: {stats.direct_write}")
+    log.info(f"      review queue: {stats.review_queued}")
+    log.info(f"      dropped:      {stats.dropped}")
+    log.info("\nBy kind:")
     for kind, counts in stats.by_kind.items():
-        print(f"  {kind:18s} direct={counts['direct_write']:5d}  review={counts['review']:5d}  drop={counts['dropped']:5d}")
+        log.info(f"  {kind:18s} direct={counts['direct_write']:5d}  review={counts['review']:5d}  drop={counts['dropped']:5d}")
 
 
 # ── Shared helpers ─────────────────────────────────────────────────────────────
@@ -419,6 +412,7 @@ def _build_preview(
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 def main():
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dry-run", action="store_true",
                         help="Skip KG writes; only compute and report.")
@@ -453,14 +447,14 @@ def main():
     if not args.export_segments and not args.ingest_extractions:
         # Default: export segments (first phase)
         args.export_segments = True
-        print("[hint] No --export-segments or --ingest-extractions given; defaulting to export.")
+        log.info("[hint] No --export-segments or --ingest-extractions given; defaulting to export.")
 
     # Explicit gating for ingest phase
     if args.ingest_extractions:
         if args.write:
             args.dry_run = False
         elif not args.dry_run and not args.preview_patterns:
-            print("[hint] --ingest-extractions without --write — defaulting to --dry-run.")
+            log.info("[hint] --ingest-extractions without --write — defaulting to --dry-run.")
             args.dry_run = True
     else:
         # Export phase is always dry
@@ -469,34 +463,32 @@ def main():
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     # ── Load TM and build contexts (shared between both phases) ──
-    print(f"[1/5] Loading TMs from data/tm/ …")
+    log.info("[1/5] Loading TMs from data/tm/ …")
     tm = TranslationMemory()
     entries = tm.entries
-    print(f"      {len(entries)} TM entries total")
+    log.info(f"      {len(entries)} TM entries total")
 
     if args.origin:
         entries = [e for e in entries if e.get("origin") == args.origin]
-        print(f"      filtered to origin={args.origin}: {len(entries)} entries")
+        log.info(f"      filtered to origin={args.origin}: {len(entries)} entries")
 
     if args.limit:
         entries = entries[: args.limit]
-        print(f"      [fire-test] limited to first {len(entries)} entries")
+        log.info(f"      [fire-test] limited to first {len(entries)} entries")
 
-    print(f"[2/5] Building per-origin contexts (segment classification, profile derivation) …")
+    log.info("[2/5] Building per-origin contexts (segment classification, profile derivation) …")
     contexts = build_origin_contexts(entries)
     for c in contexts:
-        print(f"      origin={c.origin:24s} segments={len(c.labels):6d} dominant={c.dominant}")
+        log.info(f"      origin={c.origin:24s} segments={len(c.labels):6d} dominant={c.dominant}")
 
     # ── Load attribution (curator + ngram → t_index anchors) ──
-    print("[3a/5] Loading container attribution (curator + ngram) …")
+    log.info("[3a/5] Loading container attribution (curator + ngram) …")
     anchors = load_curator_anchors(tm_entries=entries)
     anchors += load_ngram_anchors(tm_entries=entries)
     attrib_result = attribute_segments_to_containers(anchors, entries)
-    print(f"      attributed={len(attrib_result.attributed)} "
-          f"conflicts={len(attrib_result.conflicts)} "
-          f"unanchored={len(attrib_result.unanchored)}")
+    log.info(f"      attributed={len(attrib_result.attributed)} conflicts={len(attrib_result.conflicts)} unanchored={len(attrib_result.unanchored)}")
     if attrib_result.conflicts:
-        print(f"      WARNING: {len(attrib_result.conflicts)} attribution conflicts queued for review")
+        log.warning(f"      WARNING: {len(attrib_result.conflicts)} attribution conflicts queued for review")
 
     # ── Build (origin, seg_idx) → t_index lookup for record retargeting ──
     # `entries` is `tm.entries`, already raw_index-sorted per-origin by

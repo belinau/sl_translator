@@ -13,6 +13,7 @@ data/
 *.log
 *.tmp
 *.swp
+*.bak
 
 # Environment
 .env

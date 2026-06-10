@@ -23,11 +23,10 @@ Usage:
 
 from __future__ import annotations
 
+import logging
+
 import argparse
-import json
-import re
 import sys
-import unicodedata
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -44,14 +43,15 @@ from translate_core.entity_extraction.bilingual_tm_matcher import (
     CitationWithTMRefs,
 )
 from translate_core.knowledge_graph import KnowledgeGraph
+from translate_core.entity_extraction._slug import _slugify
+from translate_core.entity_extraction.ingest_helpers import (
+    ensure_agent,
+    ensure_institution,
+    cited_work_id as _shared_cited_work_id,
+)
 
 
-def _slugify(text: str) -> str:
-    nfkd = unicodedata.normalize("NFKD", text)
-    s = "".join(c for c in nfkd if not unicodedata.combining(c))
-    s = re.sub(r"[^a-zA-Z0-9]+", "-", s).strip("-").lower()
-    return s[:80] if s else "unknown"
-
+log = logging.getLogger(__name__)
 
 def _agent_id(author: ParsedAuthor) -> str:
     full = f"{author.given} {author.surname}".strip() or author.surname
@@ -59,30 +59,24 @@ def _agent_id(author: ParsedAuthor) -> str:
 
 
 def _ensure_agent(kg: KnowledgeGraph, author: ParsedAuthor) -> str:
-    aid = _agent_id(author)
-    node_key = f"agent:{aid.lower()}"
-    if not kg.G.has_node(node_key):
-        full = f"{author.given} {author.surname}".strip() or author.surname
-        kg.add_agent_node(aid, name=full, role=author.role)
-    return aid
+    full = f"{author.given} {author.surname}".strip() or author.surname
+    return ensure_agent(kg, full, role=author.role)
+
 
 
 def _ensure_institution(
     kg: KnowledgeGraph, name: str, city: str | None, kind: str = "publisher"
 ) -> str:
-    iid = _slugify(name)
-    node_key = f"institution:{iid.lower()}"
-    if not kg.G.has_node(node_key):
-        kg.add_institution_node(iid, name=name, kind=kind, city=city)
-    return iid
+    return ensure_institution(kg, name, city, kind)
 
 
 def _cited_work_id(citation: ParsedCitation) -> str:
     """Stable id for the cited work."""
-    surname = citation.primary_author_surname or "anon"
-    title_part = (citation.title or "untitled")[:40]
-    year = citation.year or ""
-    return _slugify(f"{surname}-{title_part}-{year}")
+    return _shared_cited_work_id(
+        citation.primary_author_surname or "anon",
+        (citation.title or "untitled")[:40],
+        citation.year or "",
+    )
 
 
 def ingest_citation(
@@ -208,6 +202,7 @@ def ingest_citation(
 
 
 def main():
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--docx", type=Path, required=True,
                         help="Path to the translated book .docx with bibliography")
@@ -219,28 +214,27 @@ def main():
                         help="Where to write the parsing+matching report")
     args = parser.parse_args()
 
-    print(f"[1/4] Parsing bibliography from {args.docx} …")
+    log.info(f"Parsing bibliography from {args.docx} …")
     citations = parse_docx_bibliography(str(args.docx))
-    print(f"      Parsed {len(citations)} citations")
+    log.info(f"      Parsed {len(citations)} citations")
 
-    print(f"[2/4] Loading TM and matching citations …")
+    log.info("Loading TM and matching citations …")
     tm = TranslationMemory()
     matched = match_all_citations(citations, tm.entries)
     summary = summarize_matches(matched)
-    print(f"      {summary['citations_with_tm_matches']}/{summary['total_citations']} citations matched to TM "
-          f"({summary['total_tm_match_count']} total segment refs)")
-    print(f"      Alt-publishers found: {summary['citations_with_alt_publisher']}")
+    log.info(f"      {summary['citations_with_tm_matches']}/{summary['total_citations']} citations matched to TM ({summary['total_tm_match_count']} total segment refs)")
+    log.info(f"      Alt-publishers found: {summary['citations_with_alt_publisher']}")
 
-    print(f"[3/4] Writing report to {args.report_path} …")
+    log.info(f"Writing report to {args.report_path} …")
     args.report_path.parent.mkdir(parents=True, exist_ok=True)
     with open(args.report_path, "w", encoding="utf-8") as f:
-        f.write(f"# Bibliography ingest report\n\n")
+        f.write("# Bibliography ingest report\n\n")
         f.write(f"**Source:** `{args.docx}`\n")
         f.write(f"**Container work:** `{args.container_work_id}`\n\n")
-        f.write(f"## Summary\n\n")
+        f.write("## Summary\n\n")
         for k, v in summary.items():
             f.write(f"- **{k}:** {v}\n")
-        f.write(f"\n## Sample entries\n\n")
+        f.write("\n## Sample entries\n\n")
         for m in matched[:20]:
             c = m.citation
             a = " + ".join(au.full_name for au in c.authors)
@@ -265,21 +259,20 @@ def main():
                 f.write(f"- **URL:** {c.url}\n")
             f.write(f"- **TM matches:** {len(m.tm_matches)}\n")
             if m.alt_publishers:
-                f.write(f"- **Alt publishers (SL editions found in TM):**\n")
+                f.write("- **Alt publishers (SL editions found in TM):**\n")
                 for ap in m.alt_publishers:
                     f.write(f"  - {ap.get('city')}: {ap.get('publisher')}\n")
             f.write(f"- **Raw:** `{c.raw[:200]}`\n\n")
 
     if args.dry_run:
-        print(f"\n[dry-run] No KG writes performed.")
+        log.info("\nNo KG writes performed.")
         return
 
-    print(f"[4/4] Writing to KG …")
+    log.info("Writing to KG …")
     kg = KnowledgeGraph()
     container_node = f"source:{args.container_work_id.lower()}"
     if not kg.G.has_node(container_node):
-        print(f"      ERROR: container work {container_node} not found in KG. "
-              f"Run the seed pipeline first to create it.")
+        log.error(f"      container work {container_node} not found in KG. Run the seed pipeline first to create it.")
         sys.exit(1)
 
     nodes_before = kg.G.number_of_nodes()
@@ -287,9 +280,9 @@ def main():
     for rec in matched:
         ingest_citation(kg, rec, args.container_work_id)
     kg.save()
-    print(f"      Nodes: {nodes_before} → {kg.G.number_of_nodes()} (+{kg.G.number_of_nodes() - nodes_before})")
-    print(f"      Edges: {edges_before} → {kg.G.number_of_edges()} (+{kg.G.number_of_edges() - edges_before})")
-    print(f"\n      KG saved.")
+    log.info(f"      Nodes: {nodes_before} → {kg.G.number_of_nodes()} (+{kg.G.number_of_nodes() - nodes_before})")
+    log.info(f"      Edges: {edges_before} → {kg.G.number_of_edges()} (+{kg.G.number_of_edges() - edges_before})")
+    log.info("\n      KG saved.")
 
 
 if __name__ == "__main__":

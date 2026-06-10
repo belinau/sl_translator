@@ -254,7 +254,7 @@ def main(argv=None) -> int:
     if args.apply:
         kg.save()
         print()
-        print(f"KG saved.")
+        print("KG saved.")
         print(f"  node count: {initial_nodes} -> {kg.G.number_of_nodes()} "
               f"(+{kg.G.number_of_nodes()-initial_nodes})")
         print(f"  edge count: {initial_edges} -> {kg.G.number_of_edges()} "

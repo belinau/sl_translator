@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import sys
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -17,8 +16,6 @@ from translate_core.document_pair_pipeline import (
     _normalise,
     _extract_footnotes_from_md,
     _parse_author_and_title,
-    _author_surname,
-    _record_title,
     _score_pair,
     _match_citations,
     _heuristic_record,

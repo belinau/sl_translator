@@ -127,7 +127,6 @@ def parse_authors(text: str) -> List[ParsedAuthor]:
         is_editors = True
         text = _ED_MARKER_RE.sub("", text)
 
-    out: List[ParsedAuthor] = []
 
     # Split on " and " / " in " — but the SL `in` is also a preposition,
     # so prefer English "and" when ambiguous. Heuristic: split, then verify

@@ -275,3 +275,61 @@ def test_sl_en_swapped_into_en_sl_view(tm_dir_sl_en_only):
         # `target` — matching today's editor expectation.
         assert entry["source"].startswith("english target")
         assert entry["target"].startswith("slovenski izvor")
+
+
+# ---------------------------------------------------------------------------
+# B. upsert_runtime_pair tests
+# ---------------------------------------------------------------------------
+
+
+def test_upsert_new_pair_visible_in_iter_chronological(tm_dir_en_sl_only):
+    """Upserting a new runtime pair makes it visible in iter_chronological
+    with the highest t_index (chronologically newest)."""
+    from translate_core.tm import TranslationMemory
+
+    tm = TranslationMemory(tm_dir=tm_dir_en_sl_only)
+
+    existing_max_t = max(
+        e.get("t_index", -1)
+        for bucket in tm._entries_by_pair.values()
+        for e in bucket
+    )
+
+    tm.upsert_runtime_pair("new source", "new target", "en", "sl")
+
+    # Should appear in iter_chronological
+    chron = list(tm.iter_chronological())
+    new_entries = [e for e in chron if e.get("source") == "new source"]
+    assert len(new_entries) == 1
+    assert new_entries[0]["target"] == "new target"
+    assert new_entries[0]["t_index"] == existing_max_t + 1
+
+
+def test_upsert_existing_source_updates_target(tm_dir_en_sl_only):
+    """Upserting the same source with a new target updates the existing
+    entry — no duplicate in either collection."""
+    from translate_core.tm import TranslationMemory
+
+    tm = TranslationMemory(tm_dir=tm_dir_en_sl_only)
+
+    # First upsert
+    tm.upsert_runtime_pair("hello", "zdravo", "en", "sl")
+    count_after_first = len(list(tm.iter_chronological()))
+
+    # Second upsert with same source, different target
+    tm.upsert_runtime_pair("hello", "pozdravljeni", "en", "sl")
+    count_after_second = len(list(tm.iter_chronological()))
+
+    # No duplicate — same count
+    assert count_after_first == count_after_second
+
+    # Target was updated
+    chron = list(tm.iter_chronological())
+    hello_entries = [e for e in chron if e.get("source") == "hello"]
+    assert len(hello_entries) == 1
+    assert hello_entries[0]["target"] == "pozdravljeni"
+
+    # Also updated in self.entries
+    entries_hello = [e for e in tm.entries if e.get("source") == "hello"]
+    assert len(entries_hello) == 1
+    assert entries_hello[0]["target"] == "pozdravljeni"

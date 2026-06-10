@@ -27,15 +27,13 @@ from __future__ import annotations
 
 import json
 import sys
-import unicodedata
-import re
 from pathlib import Path
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from translate_core.knowledge_graph import KnowledgeGraph
-from translate_core.cobiss_parser import parse_cobiss_file, CobissEntry, CobissAgent
+from translate_core.cobiss_parser import parse_cobiss_file
 from translate_core.cobiss_classifier import (
     classify_entry,
     classify_institution_kind,
@@ -43,11 +41,10 @@ from translate_core.cobiss_classifier import (
     CURATOR_SLUG,
     CURATOR_NAME,
     CONTAINER_TYPES,
-    CITED_TYPES,
-    INSTITUTION_KINDS,
     AGENT_ROLES,
 )
 from translate_core.entity_extraction.name_dedup import dedup_group_key
+from translate_core.entity_extraction._slug import _slugify
 
 
 KG_PATH = Path(__file__).resolve().parent.parent / "data" / "knowledge.db"
@@ -55,13 +52,6 @@ COBISS_PATH = Path(__file__).resolve().parent.parent / "data" / "personal biblio
 REPORT_PATH = Path(__file__).resolve().parent.parent / "data" / "cobiss_ingest_report.md"
 UNCLASSIFIED_PATH = Path(__file__).resolve().parent.parent / "data" / "cobiss_unclassified_entries.json"
 
-
-def _slugify(text: str) -> str:
-    """O-2: NFKD strip → lowercase → non-alphanumeric → '-' → truncate 80 → 'unknown'."""
-    nfkd = unicodedata.normalize("NFKD", text)
-    s = "".join(c for c in nfkd if not unicodedata.combining(c))
-    s = re.sub(r"[^a-zA-Z0-9]+", "-", s).strip("-").lower()
-    return s[:80] if s else "unknown"
 
 
 def _make_agent_id(last_name: str, first_name: str) -> str:
@@ -148,16 +138,15 @@ def ingest_bibliography(
 
         # Dedup key: use cobiss_id if available, else title+year
         if entry.cobiss_id:
-            dedup_key = f"cobiss-{entry.cobiss_id}"
+            pass
         else:
-            dedup_key = _make_source_id(entry.title, entry.year, "")
+            _make_source_id(entry.title, entry.year, "")
 
         # Primary author slug (first listed author)
         primary_author_slug = ""
-        primary_author_name = ""
         if entry.agents:
             primary_author_slug = _make_agent_id(entry.agents[0].last_name, entry.agents[0].first_name)
-            primary_author_name = f"{entry.agents[0].first_name} {entry.agents[0].last_name}".strip()
+            f"{entry.agents[0].first_name} {entry.agents[0].last_name}".strip()
 
         # Source text ID
         source_id = _make_source_id(entry.title, entry.year, primary_author_slug)

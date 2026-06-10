@@ -45,7 +45,8 @@ from __future__ import annotations
 import json
 import logging
 import re
-import unicodedata
+
+from ._slug import _slugify
 
 logger = logging.getLogger(__name__)
 
@@ -251,18 +252,6 @@ def format_extract_prompt(
     )
 
 
-# ── Slugify (must match kg_ingest_entities._slugify) ──────────────────────────
-
-def _slugify(text: str) -> str:
-    """Canonical ontology slugify (§0 / §4 invariant #1 / audit-template #12).
-
-    Delegates to the single canonical implementation in `kg_ingest_entities`
-    so the smol pipeline and the ingester cannot drift apart.
-    """
-    from ..kg_ingest_entities import _slugify as _canonical_slugify
-    return _canonical_slugify(text)
-
-
 # ── JSON parsing (robust, handles partial/malformed responses) ─────────────────
 
 def parse_smol_response(raw: str) -> list[dict]:
@@ -276,7 +265,7 @@ def parse_smol_response(raw: str) -> list[dict]:
         return []
 
     # If it doesn't start with { or [, find the first JSON delimiter
-    if not text[0] in "{[":
+    if text[0] not in "{[":
         for delim in ("{", "["):
             idx = text.find(delim)
             if idx >= 0:
