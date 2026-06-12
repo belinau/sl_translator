@@ -1,1 +1,37 @@
-[]
+[
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Ljubljana Biennale of Graphic Arts",
+      "name_translation": "Grafični bienale Ljubljana",
+      "kind": "festival",
+      "city": "Ljubljana",
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_0d973d8d",
+          "segment_idx": 0
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_0d973d8d",
+      "segment_idx": 0,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  }
+]

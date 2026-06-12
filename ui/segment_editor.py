@@ -29,12 +29,26 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
         "id": 0, "source": "", "target": "", "status": "pending",
     }
 
-    card = ui.card().classes("w-full p-0 rounded-2xl my-6 overflow-hidden").props(
+    card = ui.card().classes("w-full p-0 gap-0 rounded-2xl overflow-hidden flex flex-col shrink-0 no-wrap").props(
         "bordered id=sl-editor-card"
     )
 
     with card:
-        with ui.row().classes("w-full px-6 py-3 justify-between items-center"):
+        # --- Prev rail (single-line context, click = navigate) ---
+        prev_strip = ui.row().classes(
+            "w-full px-4 py-2 shrink-0 items-center gap-3 no-wrap cursor-pointer "
+            "bg-gray-50 dark:bg-gray-800/60 hover:bg-primary/10 transition-colors "
+            "border-b border-gray-200 dark:border-gray-700"
+        ).on("click", lambda: state.set_active(state.active_index - 1))
+        prev_strip.tooltip("Go to previous segment (⌘↑)")
+        with prev_strip:
+            ui.icon("keyboard_arrow_up", size="14px").classes("opacity-40 shrink-0")
+            prev_caption = ui.label("").classes(
+                "text-[10px] font-bold tabular-nums opacity-40 shrink-0 w-8 text-right"
+            )
+            prev_label = ui.label("").classes("flex-1 min-w-0 text-xs opacity-60 truncate")
+        # --- Header row ---
+        with ui.row().classes("w-full px-4 py-2 justify-between items-center shrink-0 border-b border-gray-200 dark:border-gray-700"):
             with ui.row().classes("items-center gap-2"):
                 ui.icon("tag", size="14px").props("color=grey-6")
                 header_index_label = ui.label(f"SEGMENT {seg['id'] + 1}").classes(
@@ -44,11 +58,13 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
                 "CONFIRMED" if seg["status"] == "done" else "DRAFTING",
                 color="positive" if seg["status"] == "done" else "info",
             ).classes("text-[9px] font-bold px-2 py-0.5 rounded-full")
-        ui.separator()
 
-        with ui.column().classes("w-full px-6 pt-4 pb-2 gap-2"):
+        # --- Source zone (content-sized with cap; scrolls internally) ---
+        with ui.column().classes("w-full px-4 pt-3 pb-1 gap-1 shrink-0 no-wrap"):
             ui.label("SOURCE").classes("text-[9px] font-black tracking-[0.2em] uppercase opacity-50")
-            with ui.card().props("flat bordered").classes("rounded-xl p-4"):
+            with ui.card().props("flat bordered").classes(
+                "w-full rounded-xl p-4 max-h-[16vh] overflow-y-auto"
+            ):
                 source_label = ui.label(seg["source"]).classes(
                     "leading-relaxed"
                 ).style(
@@ -56,32 +72,33 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
                     '"Segoe UI", Roboto, sans-serif; font-size: 16px; line-height: 1.625;'
                 )
 
-        with ui.column().classes("w-full px-6 pb-4 gap-2"):
+        # --- Target zone (flexes between min/max; scrolls internally) ---
+        with ui.column().classes("w-full px-4 pt-2 pb-1 gap-1 shrink-0 no-wrap"):
             ui.label("TARGET").classes("text-[9px] font-black tracking-[0.2em] uppercase opacity-50")
-            qa_row = ui.column().classes("w-full gap-1 mb-2")
-            # Dual-layer ghost-text editor: a transparent textarea sits on top
-            # of an HTML overlay that mirrors the value plus the suggested
-            # continuation. Both elements are NiceGUI primitives; the
-            # transparency / overlay technique is the only Copilot-style
-            # pattern that needs the small CSS in settings.SHARED_CSS.
-            with ui.card().props("flat bordered").classes("relative w-full rounded-xl p-0"):
-                ghost_overlay = (
-                    ui.html(f"<span>{html_lib.escape(seg['target'])}</span>")
-                    .classes("absolute inset-0 pointer-events-none overflow-hidden z-10 ghost-prediction-overlay")
-                    .props("id=sl-ghost-overlay")
-                )
-                # NiceGUI ui.textarea emits <textarea id="c{int}"> directly,
-                # so passing target_textarea.id to predictions.push_bundle is
-                # enough for the JS runtime to locate it via getElementById.
-                target_textarea = (
-                    ui.textarea(value=seg["target"])
-                    .bind_value(state.current, "target")
-                    .props("borderless dense autogrow")
-                    .classes("w-full h-full z-20 prediction-textarea")
-                )
+            with ui.card().props("flat bordered").classes(
+                "target-zone w-full rounded-xl p-0 min-h-[16vh] max-h-[24vh] overflow-y-auto"
+            ):
+                with ui.element("div").classes("relative w-full min-h-full"):
+                    ghost_overlay = (
+                        ui.html(f"<span>{html_lib.escape(seg['target'])}</span>")
+                        .classes("absolute inset-0 pointer-events-none overflow-hidden z-10 ghost-prediction-overlay")
+                        .props("id=sl-ghost-overlay")
+                    )
+                    # NiceGUI ui.textarea emits <textarea id="c{int}"> directly,
+                    # so passing target_textarea.id to predictions.push_bundle is
+                    # enough for the JS runtime to locate it via getElementById.
+                    target_textarea = (
+                        ui.textarea(value=seg["target"])
+                        .bind_value(state.current, "target")
+                        .props("borderless dense autogrow")
+                        .classes("w-full h-full z-20 prediction-textarea")
+                    )
 
-        ui.separator()
-        with ui.row().classes("w-full px-6 py-3 justify-between items-center"):
+        # --- QA zone (below target so warnings don't shift the focal field) ---
+        qa_row = ui.column().classes("w-full px-4 gap-1 shrink-0 max-h-[8vh] overflow-y-auto")
+
+        # --- Footer (confirm bar) ---
+        with ui.row().classes("w-full px-4 py-2 justify-between items-center shrink-0"):
             with ui.row().classes("items-center gap-4"):
                 ui.label("⌘↵ confirm").classes(
                     "text-[10px] font-bold uppercase tracking-wider opacity-50"
@@ -89,6 +106,20 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
                 confirm_btn = ui.button("CONFIRM", on_click=lambda _: on_confirm()).props(
                     "unelevated rounded color=positive"
                 ).classes("px-8 py-2 font-black tracking-[.2em] text-[11px]")
+
+        # --- Next rail (single-line context, click = navigate) ---
+        next_strip = ui.row().classes(
+            "w-full px-4 py-2 shrink-0 items-center gap-3 no-wrap cursor-pointer "
+            "bg-gray-50 dark:bg-gray-800/60 hover:bg-primary/10 transition-colors "
+            "border-t border-gray-200 dark:border-gray-700"
+        ).on("click", lambda: state.set_active(state.active_index + 1))
+        next_strip.tooltip("Go to next segment (⌘↓)")
+        with next_strip:
+            ui.icon("keyboard_arrow_down", size="14px").classes("opacity-40 shrink-0")
+            next_caption = ui.label("").classes(
+                "text-[10px] font-bold tabular-nums opacity-40 shrink-0 w-8 text-right"
+            )
+            next_label = ui.label("").classes("flex-1 min-w-0 text-xs opacity-60 truncate")
 
     refs = {
         "card": card,
@@ -99,7 +130,34 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
         "target_textarea": target_textarea,
         "ghost_overlay": ghost_overlay,
         "confirm_btn": confirm_btn,
+        "prev_strip": prev_strip,
+        "prev_label": prev_label,
+        "prev_caption": prev_caption,
+        "next_strip": next_strip,
+        "next_label": next_label,
+        "next_caption": next_caption,
     }
+    def _refresh_strips() -> None:
+        """Update prev/next context strip text and visibility."""
+        if not state.segments:
+            prev_strip.set_visibility(False)
+            next_strip.set_visibility(False)
+            return
+        idx = state.active_index
+        if idx > 0:
+            prev = state.segments[idx - 1]
+            prev_label.set_text((prev.get("target") or prev.get("source", ""))[:200])
+            prev_caption.set_text(f"#{prev['id'] + 1}")
+            prev_strip.set_visibility(True)
+        else:
+            prev_strip.set_visibility(False)
+        if idx < len(state.segments) - 1:
+            nxt = state.segments[idx + 1]
+            next_label.set_text(nxt.get("source", "")[:200])
+            next_caption.set_text(f"#{nxt['id'] + 1}")
+            next_strip.set_visibility(True)
+        else:
+            next_strip.set_visibility(False)
     def _paint_overlay_full(value: str) -> None:
         """Mirror a full textarea value into the ghost overlay. Used ONLY
         on segment-switch / external mutation (AI draft completion, intel
@@ -149,13 +207,13 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
         with qa_row:
             for w in warnings:
                 is_err = w.get("type") == "error"
-                with ui.card().props(
-                    f"flat bordered text-color={'negative' if is_err else 'warning'}"
-                ).classes("w-full px-3 py-2 flex-row items-center gap-2"):
-                    ui.icon("error" if is_err else "warning", size="16px").props(
-                        f"color={'negative' if is_err else 'warning'}"
-                    )
-                    ui.label(w.get("message", "")).classes("font-medium text-xs")
+                with ui.row().classes(
+                    "w-full items-center gap-2 px-2 py-1 rounded "
+                    + ("bg-red-500/10" if is_err else "bg-amber-500/10")
+                ):
+                    ui.icon("error" if is_err else "warning", size="14px").props(
+                        f"color={'negative' if is_err else 'warning'}")
+                    ui.label(w.get("message", "")).classes("text-xs font-medium")
 
 
     def _on_active_change():
@@ -175,6 +233,7 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
         if not qa_row.is_deleted:
             qa_row.clear()
         target_textarea.run_method("focus")
+        _refresh_strips()
 
         src, tgt = _src_tgt()
         background_tasks.create(
@@ -211,7 +270,9 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
     async def _initial():
         seg_now = state.segments[state.active_index] if state.segments else None
         if seg_now is None:
+            _refresh_strips()
             return
+        _refresh_strips()
         src, tgt = _src_tgt()
         await predictions.push_bundle(target_textarea.id, seg_now["source"], src, tgt, tm, glossary, kg, client=state.client)
         await _refresh_qa()

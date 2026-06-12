@@ -108,21 +108,127 @@ def split_paragraphs(text: str, max_chars: int = 1500) -> list[str]:
     # Split overlong paragraphs at sentence boundaries only.
     result: list[str] = []
     for p in paragraphs:
-        if len(p) <= max_chars:
-            result.append(p)
-            continue
-        sentences = _SENTENCE_BOUNDARY_RE.split(p)
-        chunk = ""
-        for s in sentences:
-            candidate = f"{chunk} {s}".strip() if chunk else s
-            if len(candidate) > max_chars and chunk:
-                result.append(chunk)
-                chunk = s
-            else:
-                chunk = candidate
-        if chunk:
-            result.append(chunk)
+        result.extend(split_long_paragraph(p, max_chars))
     return result
 
 
-__all__ = ["TOCEntry", "BookOutline", "split_paragraphs"]
+def split_long_paragraph(p: str, max_chars: int) -> list[str]:
+    """Split a single paragraph at sentence boundaries.
+
+    Returns ``[p]`` when the paragraph fits within *max_chars*; otherwise
+    chunks at sentence boundaries.  A single sentence longer than
+    *max_chars* is kept whole (never mid-sentence).
+    """
+    if len(p) <= max_chars:
+        return [p]
+    sentences = _SENTENCE_BOUNDARY_RE.split(p)
+    chunks: list[str] = []
+    chunk = ""
+    for s in sentences:
+        candidate = f"{chunk} {s}".strip() if chunk else s
+        if len(candidate) > max_chars and chunk:
+            chunks.append(chunk)
+            chunk = s
+        else:
+            chunk = candidate
+    if chunk:
+        chunks.append(chunk)
+    return chunks
+
+
+def resegment_pending(ws: dict, max_chars: int) -> dict:
+    """Split oversized untouched segments in a project dict, in place.
+
+    A segment qualifies for splitting only when:
+      - ``status != "done"`` AND
+      - ``target`` is empty or whitespace AND
+      - ``len(source) > max_chars``
+
+    Children copy all parent keys; ``source`` is the chunk from
+    :func:`split_long_paragraph`, ``target=""``, ``status="pending"``.
+    ``docx_para_idx`` (when present) is copied to every child.
+    Segment ids are renumbered sequentially (ids ARE array indexes).
+    ``active_index`` is remapped to the first child of the formerly active segment.
+    ``segments_meta`` is expanded in lockstep (duplicated per child) when
+    present and aligned; dropped on mismatch.
+    ``total`` is updated; ``done`` count is unchanged by construction.
+
+    Returns ``{"before": n, "after": n, "split": 0}`` when nothing qualifies.
+    """
+    old_segments: list[dict] = ws.get("segments", [])
+    if not old_segments:
+        return {"before": 0, "after": 0, "split": 0}
+
+    new_segments: list[dict] = []
+    old_to_new_first: dict[int, int] = {}  # old index → new first index
+    split_count = 0
+
+    for idx, seg in enumerate(old_segments):
+        source = seg.get("source", "")
+        is_done = seg.get("status") == "done"
+        has_target = bool(seg.get("target", "").strip())
+        can_split = (not is_done) and (not has_target) and len(source) > max_chars
+
+        if can_split:
+            chunks = split_long_paragraph(source, max_chars)
+            if len(chunks) <= 1:
+                # Single huge sentence — keep as-is
+                old_to_new_first[idx] = len(new_segments)
+                new_segments.append(seg)
+            else:
+                split_count += 1
+                for chunk in chunks:
+                    child = dict(seg)  # copy all keys
+                    child["source"] = chunk
+                    child["target"] = ""
+                    child["status"] = "pending"
+                    # docx_para_idx is already copied via dict(seg)
+                    old_to_new_first[idx] = old_to_new_first.get(idx, len(new_segments))
+                    new_segments.append(child)
+        else:
+            old_to_new_first[idx] = len(new_segments)
+            new_segments.append(seg)
+
+    if split_count == 0:
+        # Even if nothing was split, clean up mismatched meta.
+        if "segments_meta" in ws and ws["segments_meta"] is not None:
+            if len(ws["segments_meta"]) != len(old_segments):
+                del ws["segments_meta"]
+        return {"before": len(old_segments), "after": len(old_segments), "split": 0}
+
+    # Renumber ids (ids ARE array indexes)
+    for new_idx, seg in enumerate(new_segments):
+        seg["id"] = new_idx
+
+    # Remap active_index
+    old_active = ws.get("active_index", 0)
+    ws["active_index"] = old_to_new_first.get(old_active, 0)
+
+    # Handle segments_meta parallel array
+    meta = ws.get("segments_meta")
+    if meta is not None:
+        if len(meta) == len(old_segments):
+            new_meta: list[dict] = []
+            for idx, seg in enumerate(old_segments):
+                source = seg.get("source", "")
+                is_done = seg.get("status") == "done"
+                has_target = bool(seg.get("target", "").strip())
+                can_split = (not is_done) and (not has_target) and len(source) > max_chars
+                if can_split:
+                    chunks = split_long_paragraph(source, max_chars)
+                    for _ in chunks:
+                        new_meta.append(dict(meta[idx]))
+                else:
+                    new_meta.append(dict(meta[idx]))
+            ws["segments_meta"] = new_meta
+        else:
+            del ws["segments_meta"]
+
+    ws["segments"] = new_segments
+    ws["total"] = len(new_segments)
+    # done count unchanged — we only split pending segments with no target
+
+    return {"before": len(old_segments), "after": len(new_segments), "split": split_count}
+
+
+__all__ = ["TOCEntry", "BookOutline", "split_paragraphs", "split_long_paragraph", "resegment_pending"]

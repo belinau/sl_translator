@@ -1,18 +1,10 @@
-"""Translation-intelligence panel — KG, TM, and Glossary stacked vertically.
+"""Translation-intelligence panel — TM, Glossary, and KG sections mounted
+into caller-provided slots (or a single fallback column).
 
-Lives directly below the editor card in the main column so every actionable
-hit is one short scroll (or none) away from the cursor. No tabs: during
-active translation the user wants the most relevant references — KG term
-context, TM matches, glossary terms — all visible at a glance.
-
-Layout order (closest to the editor first):
-  1. KG — entities found in the source, each with translations + related
-     concepts (`kg.find_neighbors`). This is the most informative section
-     because it surfaces the *graph* relationships you can't see anywhere
-     else.
-  2. TM — fuzzy matches + concordance, click any card to insert the target.
-  3. Glossary — colored buttons; placed last because glossary terms also
-     surface automatically inside the editor's ghost-text predictions.
+TM + Glossary live above the editor; KG lives below. The caller provides
+two container elements (`tm_gl_slot` and `kg_slot`) that the panel populates
+via context re-entry. When called without slots (all existing tests), a
+single fallback column holds all three sections in document order.
 
 All three refresh in parallel on every segment change. No cache between
 segments — translation flow needs fresh hits each time.
@@ -328,7 +320,13 @@ def _truncate(text: str, n: int = 90) -> str:
     return text if len(text) <= n else text[: n - 1] + "…"
 
 
-def build(state: WorkspaceState, deps: dict) -> dict:
+def build(
+    state: WorkspaceState,
+    deps: dict,
+    *,
+    tm_gl_slot: ui.element | None = None,
+    kg_slot: ui.element | None = None,
+) -> dict:
     tm = deps["tm"]
     glossary = deps["glossary"]
     kg = deps["kg"]
@@ -336,38 +334,44 @@ def build(state: WorkspaceState, deps: dict) -> dict:
 
     refs: dict = {}
 
-    with ui.column().classes("w-full gap-3 mt-4"):
+    if tm_gl_slot is None or kg_slot is None:
+        fallback = ui.column().classes("w-full gap-2")
+        tm_gl_slot = tm_gl_slot or fallback
+        kg_slot = kg_slot or fallback
 
-        # ---------------------------------------------------------- KG section
-        with ui.card().props("flat bordered").classes("w-full p-4 rounded-2xl"):
-            with ui.row().classes("w-full items-center gap-2 mb-2"):
-                ui.icon("account_tree", size="16px").props("color=primary")
-                ui.label("KNOWLEDGE GRAPH").classes(
-                    "text-[10px] font-black tracking-[.3em] opacity-70"
-                )
-            kg_container = ui.column().classes("w-full gap-2")
-            refs["kg_container"] = kg_container
+    with tm_gl_slot:
+        with ui.column().classes("w-full gap-2"):
+            # ---------------------------------------------------- TM section
+            with ui.card().props("flat bordered").classes("w-full p-4 rounded-2xl"):
+                with ui.row().classes("w-full items-center gap-2 mb-2"):
+                    ui.icon("memory", size="16px").props("color=primary")
+                    ui.label("TRANSLATION MEMORY").classes(
+                        "text-[10px] font-black tracking-[.3em] opacity-70"
+                    )
+                tm_container = ui.column().classes("w-full gap-2")
+                refs["tm_container"] = tm_container
 
-        # ---------------------------------------------------------- TM section
-        with ui.card().props("flat bordered").classes("w-full p-4 rounded-2xl"):
-            with ui.row().classes("w-full items-center gap-2 mb-2"):
-                ui.icon("memory", size="16px").props("color=primary")
-                ui.label("TRANSLATION MEMORY").classes(
-                    "text-[10px] font-black tracking-[.3em] opacity-70"
-                )
-            tm_container = ui.column().classes("w-full gap-2")
-            refs["tm_container"] = tm_container
+            # ---------------------------------------------- Glossary section
+            with ui.card().props("flat bordered").classes("w-full p-4 rounded-2xl"):
+                with ui.row().classes("w-full items-center gap-2 mb-2"):
+                    ui.icon("menu_book", size="16px").props("color=primary")
+                    ui.label("GLOSSARY").classes(
+                        "text-[10px] font-black tracking-[.3em] opacity-70"
+                    )
+                gl_container = ui.column().classes("w-full gap-2")
+                refs["gl_container"] = gl_container
 
-        # ----------------------------------------------------- Glossary section
-        with ui.card().props("flat bordered").classes("w-full p-4 rounded-2xl"):
-            with ui.row().classes("w-full items-center gap-2 mb-2"):
-                ui.icon("menu_book", size="16px").props("color=primary")
-                ui.label("GLOSSARY").classes(
-                    "text-[10px] font-black tracking-[.3em] opacity-70"
-                )
-            gl_container = ui.column().classes("w-full gap-2")
-            refs["gl_container"] = gl_container
-
+    with kg_slot:
+        with ui.column().classes("w-full gap-2"):
+            # ---------------------------------------------------- KG section
+            with ui.card().props("flat bordered").classes("w-full p-4 rounded-2xl"):
+                with ui.row().classes("w-full items-center gap-2 mb-2"):
+                    ui.icon("account_tree", size="16px").props("color=primary")
+                    ui.label("KNOWLEDGE GRAPH").classes(
+                        "text-[10px] font-black tracking-[.3em] opacity-70"
+                    )
+                kg_container = ui.column().classes("w-full gap-2")
+                refs["kg_container"] = kg_container
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
@@ -396,34 +400,13 @@ def build(state: WorkspaceState, deps: dict) -> dict:
     # most of the everyday translation work in humanities corpora).
     # ------------------------------------------------------------------
     def _render_hit(h: dict):
-        """One bilingual hit + its alt/sibling cluster row."""
+        """One bilingual hit with its alt/sibling chips inline — a single
+        wrapping row instead of hit row + indented cluster row."""
         t_term = h["tgt_term"]
-        hit_row = (
-            ui.row()
-            .classes(
-                "w-full items-center gap-2 cursor-pointer "
-                "hover:bg-primary/5 rounded"
-            )
-            .on("click", lambda _e, t=t_term: _insert(t))
-        )
-        with hit_row:
-            ui.label(h["src_term"]).classes("text-sm opacity-70")
-            ui.label("→").classes("text-xs opacity-30")
-            tgt_style = "color: var(--q-positive)" if h.get("verified") else ""
-            ui.label(t_term).classes("font-bold text-sm").style(tgt_style)
-            if h["verified"]:
-                ui.icon("verified", size="13px").props("color=positive")
-            else:
-                ui.badge(
-                    f"{int((h.get('confidence') or 0) * 100)}%",
-                    color="primary",
-                ).classes("text-[9px] px-1")
-
-        # Concept cluster row — alt translations + concept siblings.
         # Colours encode direction:
-        #   primary  = alternative renderings of the same source term
+        #   positive = alternative renderings of the same source term
         #   positive = target-lang concept siblings (clickable to insert)
-        #   positive = source-lang concept siblings (context only, dim)
+        #   positive = source-lang concept siblings (context only)
         tgt_alts = [tr["term"] for tr in h.get("alt_translations", []) or []]
         tgt_sibs = [
             r for r in h.get("related", []) or []
@@ -433,13 +416,26 @@ def build(state: WorkspaceState, deps: dict) -> dict:
             r for r in h.get("related", []) or []
             if r.get("lang") != h["tgt_lang"]
         ]
-        if not (tgt_alts or tgt_sibs or src_sibs):
-            return
-        with ui.row().classes(
-            "w-full items-center gap-1.5 flex-wrap"
-        ).style("padding-left: 1.5rem"):
-            ui.icon("circle", size="7px").props("color=grey-5")
-            ui.label("─").classes("text-[10px]")
+        with ui.row().classes("w-full items-center gap-x-1.5 gap-y-0.5 flex-wrap"):
+            # Clickable hit — handler lives on this no-wrap sub-row only, so
+            # chip clicks (siblings, not children) never double-insert.
+            with ui.row().classes(
+                "items-center gap-2 no-wrap cursor-pointer hover:bg-primary/5 rounded"
+            ).on("click", lambda _e, t=t_term: _insert(t)):
+                ui.label(h["src_term"]).classes("text-sm opacity-70")
+                ui.label("→").classes("text-xs opacity-30")
+                tgt_style = "color: var(--q-positive)" if h.get("verified") else ""
+                ui.label(t_term).classes("font-bold text-sm").style(tgt_style)
+                if h["verified"]:
+                    ui.icon("verified", size="13px").props("color=positive")
+                else:
+                    ui.badge(
+                        f"{int((h.get('confidence') or 0) * 100)}%",
+                        color="primary",
+                    ).classes("text-[9px] px-1")
+            if not (tgt_alts or tgt_sibs or src_sibs):
+                return
+            ui.label("·").classes("text-xs opacity-30")
             for alt_t in tgt_alts[:2]:
                 ui.button(
                     alt_t,
@@ -519,7 +515,7 @@ def build(state: WorkspaceState, deps: dict) -> dict:
                     "w-full p-3 rounded-2xl"
                 ):
                     with ui.row().classes(
-                        "w-full items-center gap-2 mb-1"
+                        "w-full items-center gap-x-2 gap-y-1 mb-1 flex-wrap"
                     ):
                         ui.icon("hub", size="13px").props("color=primary")
                         if concept is None:
@@ -535,11 +531,7 @@ def build(state: WorkspaceState, deps: dict) -> dict:
                             if concept.get("domain"):
                                 ui.badge(
                                     concept["domain"], color="grey-5",
-                                ).classes("text-[9px] px-1 ml-1")
-                    if concept and (concept.get("theorists") or concept.get("lineages")):
-                        with ui.row().classes(
-                            "w-full items-center gap-1 flex-wrap mb-1"
-                        ).style("padding-left: 1.25rem"):
+                                ).classes("text-[9px] px-1")
                             for th in concept.get("theorists", []):
                                 ui.badge(th, color="purple-4").props(
                                     "outline"
@@ -551,7 +543,7 @@ def build(state: WorkspaceState, deps: dict) -> dict:
                                     ui.badge(ln, color="grey-5").props(
                                         "outline"
                                     ).classes("text-[9px] px-1").tooltip("lineage")
-                    with ui.column().classes("w-full gap-2"):
+                    with ui.column().classes("w-full gap-1"):
                         for h in group_hits:
                             _render_hit(h)
 

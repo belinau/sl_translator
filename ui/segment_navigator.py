@@ -40,7 +40,7 @@ def build(state: WorkspaceState) -> dict:
             ui.label("SEGMENTS").classes(
                 "text-[10px] font-black tracking-[.3em] opacity-60"
             )
-            count_label = ui.label(f"{len(state.segments)}").classes(
+            count_label = ui.label(f"{state.active_index + 1} / {len(state.segments)}").classes(
                 "text-[10px] font-medium opacity-60"
             )
 
@@ -69,6 +69,7 @@ def build(state: WorkspaceState) -> dict:
         try:
             table.rows = _rows(state)
             table.update()
+            count_label.set_text(f"{state.active_index + 1} / {len(state.segments)}")
         except Exception as ex:
             print(f"[navigator refresh] {ex}")
 
@@ -82,6 +83,7 @@ def build(state: WorkspaceState) -> dict:
 
     def _on_active() -> None:
         _refresh_rows()
+        count_label.set_text(f"{state.active_index + 1} / {len(state.segments)}")
         _scroll_to_active()
 
     state.subscribe("active_index", _on_active)

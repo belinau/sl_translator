@@ -308,6 +308,7 @@ def page_home():
                     )
 
             with ui.row().classes("gap-3 items-center"):
+                ui.button(icon="account_tree", on_click=lambda: ui.navigate.to("/kg")).props("flat round dense color=white").tooltip("Knowledge Graph editor")
                 ui.button(icon="dark_mode", on_click=lambda: dm.toggle()).props(
                     "flat round dense color=white"
                 ).tooltip("Toggle dark mode")
@@ -408,17 +409,41 @@ def render_project_list(container: ui.column, client):
                                 ).classes("text-[10px] font-medium opacity-60")
                                 ui.label(f"{pct}%").classes("text-[10px] font-bold")
 
-                    ui.separator()
-                    with ui.row().classes("w-full pt-1 items-center justify-between"):
-                        ui.label(
-                            f"Saved {p['saved_at'][:16].replace('T', ' ')}"
-                        ).classes("text-[9px] font-medium italic opacity-50")
+                with ui.row().classes("w-full pt-1 items-center justify-between"):
+                    ui.label(
+                        f"Saved {p['saved_at'][:16].replace('T', ' ')}"
+                    ).classes("text-[9px] font-medium italic opacity-50")
+                    with ui.row().classes("gap-1 items-center"):
+                        ui.button(
+                            icon="content_cut",
+                            on_click=lambda e, pid=p["id"], c=container: resplit_and_refresh(pid, c, client),
+                        ).props("flat round dense size=sm color=grey-5").on("click.stop").tooltip("Re-split large segments")
                         ui.icon("arrow_forward", size="14px").props("color=primary")
 
 
 def delete_and_refresh(project_id: str, container: ui.column, client):
     ui.notify("Deleted", type="warning", timeout=1200)
     delete_project(project_id)
+    render_project_list(container, client)
+
+def resplit_and_refresh(project_id: str, container: ui.column, client):
+    from translate_core.book_outline import resegment_pending
+    data = load_project(project_id)
+    if data is None:
+        ui.notify("Project not found", type="negative")
+        return
+    # Backup before mutating
+    backup_path = PROJECTS_DIR / f"{project_id}.json.bak"
+    backup_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    ws = dict(data)
+    ws["project_id"] = project_id
+    stats = resegment_pending(ws, config.SEGMENT_MAX_CHARS)
+    if stats["split"] == 0:
+        ui.notify("No segments needed splitting", type="info")
+        return
+    save_project(ws)
+    ui.notify(f"Split {stats['split']} segments: {stats['before']} → {stats['after']}", type="positive")
     render_project_list(container, client)
 
 
@@ -476,23 +501,30 @@ async def handle_new_upload(e, lang_pair: str):
 def _parse_docx(path: Path) -> list[dict]:
     """Extract paragraphs from a DOCX file. Runs in a thread pool."""
     import docx as _docx
+    from translate_core.book_outline import split_paragraphs
     doc = _docx.Document(str(path))
     segments = []
-    for p in doc.paragraphs:
+    for i, p in enumerate(doc.paragraphs):
         txt = p.text.strip()
         if txt:
-            segments.append({"id": len(segments), "source": txt, "target": "", "status": "pending"})
+            for chunk in split_paragraphs(txt, max_chars=config.SEGMENT_MAX_CHARS):
+                segments.append({
+                    "id": len(segments),
+                    "source": chunk,
+                    "target": "",
+                    "status": "pending",
+                    "docx_para_idx": i,
+                })
     return segments
 
 
 def _parse_pdf(parser: "DocumentParser", path: Path) -> list[dict]:
     """Convert PDF to markdown and split into segments. Runs in a thread pool."""
+    from translate_core.book_outline import split_paragraphs
     md_text, _ = parser.to_markdown_with_meta(path, preprocess=True)
     segments = []
-    for block in md_text.split("\n\n"):
-        txt = block.strip()
-        if txt:
-            segments.append({"id": len(segments), "source": txt, "target": "", "status": "pending"})
+    for txt in split_paragraphs(md_text, max_chars=config.SEGMENT_MAX_CHARS):
+        segments.append({"id": len(segments), "source": txt, "target": "", "status": "pending"})
     return segments
 
 
@@ -501,7 +533,8 @@ def _parse_pdf(parser: "DocumentParser", path: Path) -> list[dict]:
 # The alias avoids shadowing NiceGUI's `ui` and the explicit noqa silences
 # both the import-position and unused-name checks.
 from ui import workspace as _zen_workspace  # noqa: E402, F401  # pyright: ignore[reportUnusedImport]
-_ = _zen_workspace  # mark the binding as deliberately consumed
+from ui import kg_editor as _kg_editor  # noqa: E402, F401  # pyright: ignore[reportUnusedImport]
+_ = _zen_workspace, _kg_editor  # mark the bindings as deliberately consumed
 
 
 # Publish module-level functions to app_state once they're all defined.

@@ -15,7 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 from translate_core.doc_parser import DocumentParser
-sys.path.append(str(Path(__file__).parent))
+import config
 
 log = logging.getLogger(__name__)
 
@@ -58,13 +58,15 @@ def import_book(file_path: str, lang_pair: str = "en->sl"):
         for i, p in enumerate(doc.paragraphs):
             txt = p.text.strip()
             if txt:
-                segments.append({
-                    "id": len(segments),
-                    "source": txt,
-                    "target": "",
-                    "status": "pending",
-                    "docx_para_idx": i,
-                })
+                from translate_core.book_outline import split_paragraphs as _split_paragraphs
+                for chunk in _split_paragraphs(txt, max_chars=config.SEGMENT_MAX_CHARS):
+                    segments.append({
+                        "id": len(segments),
+                        "source": chunk,
+                        "target": "",
+                        "status": "pending",
+                        "docx_para_idx": i,
+                    })
 
         segments_meta = []
 
@@ -84,9 +86,7 @@ def import_book(file_path: str, lang_pair: str = "en->sl"):
         # Use the smart paragraph splitter (handles PyMuPDF's indent-based
         # paragraph boundaries, de-hyphenates wrapped words, caps long
         # paragraphs at ~10 sentences so segments stay editable).
-        from translate_core.book_outline import split_paragraphs as _split_paragraphs
-        segments = []
-        for txt in _split_paragraphs(md_text):
+        for txt in _split_paragraphs(md_text, max_chars=config.SEGMENT_MAX_CHARS):
             segments.append({"id": len(segments), "source": txt, "target": "", "status": "pending"})
 
     if not segments:

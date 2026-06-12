@@ -1094,3 +1094,31 @@ async def test_push_bundle_uses_kg_query_for_candidates(monkeypatch):
     assert any("imaginirane" in c for c in candidates), (
         f"KG translation missing from candidates: {candidates}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Slot mounting — intel_panel sections go into caller-provided containers
+# ---------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_intel_panel_mounts_into_slots(user):
+    """TM/Glossary cards mount into tm_gl_slot, KG card into kg_slot."""
+    state = _make_state()
+    refs: dict = {}
+    slots: dict = {}
+    @ui.page("/intel_slots")
+    def page():
+        slots["top"] = ui.column()
+        slots["bottom"] = ui.column()
+        refs.update(intel_panel.build(
+            state, _deps(), tm_gl_slot=slots["top"], kg_slot=slots["bottom"],
+        ))
+    await user.open("/intel_slots")
+    await asyncio.sleep(0.3)
+    def _ancestors(el):
+        while el.parent_slot is not None:
+            el = el.parent_slot.parent
+            yield el
+    assert slots["top"] in _ancestors(refs["tm_container"])
+    assert slots["top"] in _ancestors(refs["gl_container"])
+    assert slots["bottom"] in _ancestors(refs["kg_container"])
+    assert slots["top"] not in _ancestors(refs["kg_container"])

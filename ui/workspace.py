@@ -71,6 +71,7 @@ def page_translate(project_id: str):
     # is NiceGUI components letting Quasar handle dark/light styling natively.
     ui.add_head_html(f"<style>{ui_settings.SHARED_CSS}</style>")
     predictions.inject_runtime()
+    ui.query(".nicegui-content").classes("p-0 gap-0 h-screen flex flex-col no-wrap")
 
     dm = ui_settings.install_dark_mode()
 
@@ -106,7 +107,7 @@ def page_translate(project_id: str):
 
     # Top bar — flat-bordered QCard auto-darks. No color classes needed.
     with ui.card().classes(
-        "w-full flex-row items-center justify-between rounded-none px-5 py-3"
+        "w-full flex-row items-center justify-between rounded-none px-5 py-3 shrink-0"
     ).props("flat bordered"):
         with ui.row().classes("items-center gap-3"):
             ui.button(icon="arrow_back", on_click=lambda: ui.navigate.to("/")).props(
@@ -129,8 +130,8 @@ def page_translate(project_id: str):
             ).props('size="6px" :show-value="false"').classes("w-full rounded-full")
 
         with ui.row().classes("gap-2 items-center"):
+            ui.button(icon="menu_open", on_click=lambda: drawer.toggle()).props("flat round dense color=grey-6").tooltip("Toggle side panel")
             ui_settings.dark_toggle_button(dm)
-
             with ui.dropdown_button("Export", icon="file_download", auto_close=True).props(
                 "rounded unelevated dense color=positive"
             ):
@@ -159,7 +160,7 @@ def page_translate(project_id: str):
 
     with (
         ui.right_drawer(value=True, fixed=True)
-        .props("width=380 bordered")):
+        .props('width=380 bordered :breakpoint="1280"')) as drawer:
         with ui.column().classes("w-full p-4 gap-2"):
             # Chapter outline (VL-generated books only)
             if outline_entries:
@@ -211,14 +212,21 @@ def page_translate(project_id: str):
             segment_navigator.build(state)
             kg_search.build(state, deps)
 
-    with ui.column().classes("w-full h-screen pt-2 overflow-hidden no-wrap"):
-        with ui.column().classes("w-full flex-1 overflow-y-auto pb-8"):
-            with ui.column().classes("w-full max-w-4xl mx-auto px-4"):
-                def _trigger_confirm() -> None:
-                    background_tasks.create(_confirm_segment(), name="confirm_btn")
+    with ui.column().classes("w-full flex-1 min-h-0 items-center gap-0 no-wrap"):
+        with ui.column().classes("w-full max-w-4xl flex-1 min-h-0 px-4 pt-2 pb-2 gap-2 no-wrap"):
+            def _trigger_confirm() -> None:
+                background_tasks.create(_confirm_segment(), name="confirm_btn")
 
-                intel_panel.build(state, deps)
-                segment_editor.build(state, deps, on_confirm=_trigger_confirm)
+            # TM + Glossary band — fixed height above the editor so the
+            # target field anchors at ~2/3 viewport on portrait screens.
+            tm_gl_zone = ui.scroll_area().classes("w-full h-[28vh] shrink-0")
+
+            segment_editor.build(state, deps, on_confirm=_trigger_confirm)
+
+            # KG zone — fills all remaining viewport below the editor.
+            kg_zone = ui.scroll_area().classes("w-full flex-1 min-h-0")
+
+            intel_panel.build(state, deps, tm_gl_slot=tm_gl_zone, kg_slot=kg_zone)
 
 
     # ------------------------------------------------------------------

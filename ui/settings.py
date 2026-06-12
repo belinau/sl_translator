@@ -63,4 +63,6 @@ SHARED_CSS = """
     word-break: break-word !important;
 }
 .ghost-prediction-overlay .ghost-fragment { opacity: 0.55; }
+.target-zone { transition: border-color .15s ease; }
+.target-zone:focus-within { border-color: var(--q-primary) !important; }
 """

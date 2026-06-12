@@ -510,21 +510,27 @@ class DocumentParser:
 
         doc = docx.Document(str(template_path))
 
-        # Build index: original paragraph position → segment
-        idx_to_seg: Dict[int, dict] = {}
+        # Build index: original paragraph position → segments (multi-map;
+        # after re-splitting, several children may share one docx_para_idx).
+        idx_to_segs: Dict[int, list[dict]] = {}
         for seg in segments:
             pi = seg.get("docx_para_idx")
             if pi is not None:
-                idx_to_seg[pi] = seg
+                idx_to_segs.setdefault(pi, []).append(seg)
 
         paragraphs = doc.paragraphs
         for para_idx, para in enumerate(paragraphs):
-            seg = idx_to_seg.get(para_idx)
-            if seg is None:
+            segs = idx_to_segs.get(para_idx)
+            if segs is None:
                 continue
-            replacement = seg.get("target", "").strip()
-            if not replacement:
+            # If ALL segments for this paragraph have empty target, keep original.
+            if all(not seg.get("target", "").strip() for seg in segs):
                 continue
+            # Join translated children; untranslated children fall back to source.
+            replacement = " ".join(
+                seg.get("target", "").strip() or seg.get("source", "").strip()
+                for seg in segs
+            )
             self._replace_paragraph_text(para, replacement)
 
         output_path.parent.mkdir(parents=True, exist_ok=True)

@@ -4,7 +4,7 @@
 
 A desktop application for literary translators working between source and target text. Combines a segment-based translation editor with citation and entity extraction, a translation memory, glossary management, and a deeply structured knowledge graph that captures authors, works, institutions, concepts, and their interrelationships from book footnotes and bibliographies.
 
-Built on **NiceGUI** for the translation workspace and **Streamlit** for knowledge graph curation.
+Built on **NiceGUI** for both the translation workspace and knowledge graph curation.
 
 ---
 
@@ -95,9 +95,9 @@ Six HTML5 Canvas-based interactive visualizations (D3.js force-directed):
 
 Each view supports physics-tuned force layout, type-aware pruning, and metadata inspector panels.
 
-### KG Curation UI (Streamlit)
+### KG Curation UI (NiceGUI)
 
-Search-first curation workspace for the knowledge graph:
+Search-first curation workspace for the knowledge graph, accessible at `/kg`:
 
 - **Terms & Mappings** — Search, edit, verify translation mappings
 - **Concepts** — Create, link with rhizomatic relations, manage domain labels
@@ -138,7 +138,7 @@ sl_translator/
 ├── ingest_book_footnotes.py          # CLI: Footnote ingestion into KG
 ├── ingest_book_bibliography.py       # CLI: Bibliography ingestion into KG
 ├── visualise_kg.py                   # 6-view HTML5 Canvas KG visualizer
-├── kg_editor_ui.py                   # Streamlit KG curation workspace
+├── kg_editor_ui.py                   # (DELETED — replaced by ui/kg_editor/)
 │
 ├── translate_core/                   # Core library
 │   ├── knowledge_graph.py            # KG: 6 node types, 13 edge relations
@@ -177,7 +177,16 @@ sl_translator/
 │   ├── kg_search.py                 # KG search panel
 │   ├── segment_navigator.py         # Segment navigation sidebar
 │   ├── settings.py                  # Theme/colors
-│   └── state.py                     # WorkspaceState + subscriber pattern
+│   ├── state.py                     # WorkspaceState + subscriber pattern
+│   └── kg_editor/                   # KG curation workspace (NiceGUI pages)
+│       ├── common.py                 # Shared frame, helpers, render_record
+│       ├── terms.py                  # Terms & Mappings page
+│       ├── concepts.py               # Concepts page
+│       ├── agents.py                 # Agents page
+│       ├── sources.py               # Sources page
+│       ├── lineages.py               # Lineage Cleanup page
+│       ├── review.py                 # Extraction Review page
+│       └── kg_review.py              # KG Review page
 │
 ├── scripts/                          # One-off migration & utility scripts
 │   ├── ingest_personal_bibliography.py   # COBISS ingestion
@@ -284,9 +293,7 @@ Opens 6 HTML files with interactive D3.js force-directed graphs.
 
 ### Curate the Knowledge Graph
 
-```bash
-streamlit run kg_editor_ui.py
-```
+Open `/kg` in the running app (or click the Knowledge Graph icon on the home page).
 
 ### Validate the Knowledge Graph
 
@@ -329,7 +336,7 @@ See `ontology.md` for the complete specification.
 | Component | Technology |
 |---|---|
 | Translation UI | NiceGUI |
-| KG Curation UI | Streamlit |
+| KG Curation UI | NiceGUI |
 | Knowledge Graph | NetworkX (JSON-persisted) |
 | Translation Memory | Custom TMX parser (lxml) |
 | Fuzzy Matching | rapidfuzz |

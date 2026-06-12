@@ -7,8 +7,6 @@ flashtext
 networkx
 torch
 transformers
-streamlit
-pandas
 python-docx
 pymupdf
 httpx
