@@ -66,7 +66,10 @@ class TestIndexSync:
             "Povsem nova opomba o koreografiji",  # new target
             "en", "sl",
         )
-        hits = tm.search_concordance("povsem nova opomba", top_n=5)
+        # Query ONLY tokens that exist in the NEW target: without the
+        # _reindex_entry hook they have no postings in _inv (stale index)
+        # and candidate generation returns nothing at all.
+        hits = tm.search_concordance("povsem nova", top_n=5)
         assert hits and hits[0]["target"] == "Povsem nova opomba o koreografiji"
 
 
