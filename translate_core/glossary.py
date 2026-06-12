@@ -209,6 +209,11 @@ class Glossary:
             }
         )
 
+    def add_entry(self, src, tgt, src_lang, tgt_lang, note="", origin="custom.tsv"):
+        """Public API to add a glossary entry (both directions) and rebuild indices."""
+        self._add_simple_entry(src, tgt, src_lang, tgt_lang, origin, note)
+        self._build_indices()
+
     def _build_indices(self):
         """Builds FlashText indices for fast lookup."""
         # Group by (source_lang, target_lang)

@@ -13,15 +13,29 @@ mechanism that fixes the freeze.
 from __future__ import annotations
 
 import asyncio
+import re
 from collections.abc import Callable
 from typing import Any
+
+
+def infer_pipeline(ws: dict) -> str:
+    """Explicit field wins; legacy projects: footnote defs or book-scale count → academic."""
+    if ws.get("pipeline") in ("academic", "simple"):
+        return ws["pipeline"]
+    segs = ws.get("segments", [])
+    if any(re.match(r"^\[\^\w+\]:", s.get("source", "")) for s in segs) or len(segs) >= 200:
+        return "academic"
+    return "simple"
 
 
 class WorkspaceState:
     def __init__(self, ws: dict, save_callback: Callable[[dict], None], client: Any = None) -> None:
         self.project_id: str = ws["project_id"]
-        self.filename: str = ws["filename"]
+        self.filename: str = ws.get("filename", "")
         self.lang_pair: str = ws.get("lang_pair", "en->sl")
+        self.pipeline: str = infer_pipeline(ws)
+        self.project_type: str = ws.get("project_type") or ("book_translation" if self.pipeline == "academic" else "article_translation")
+        self._segments_meta: list = ws.get("segments_meta", [])
         self.segments: list[dict] = ws["segments"]
         self.active_index: int = max(0, min(ws.get("active_index", 0), len(self.segments) - 1)) if self.segments else 0
 
@@ -111,12 +125,13 @@ class WorkspaceState:
                 "project_id": self.project_id,
                 "filename": self.filename,
                 "lang_pair": self.lang_pair,
+                "pipeline": self.pipeline,
+                "project_type": self.project_type,
                 "active_index": self.active_index,
-                "segments": [
-                    {k: s[k] for k in ("id", "source", "target", "status")}
-                    for s in self.segments
-                ],
+                "segments": [dict(s) for s in self.segments],
             }
+            if self._segments_meta:
+                payload["segments_meta"] = self._segments_meta
             await asyncio.get_running_loop().run_in_executor(None, self._save_callback, payload)
             self.is_dirty = False
         except asyncio.CancelledError:

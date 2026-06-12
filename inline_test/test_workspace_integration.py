@@ -121,7 +121,7 @@ class StubKG:
 
 
 class StubQA:
-    def check_segment(self, src, tgt, glossary_hits=None):
+    def check_segment(self, *a, **kw):
         return []
 
 

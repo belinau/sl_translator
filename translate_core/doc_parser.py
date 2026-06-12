@@ -1,46 +1,53 @@
 # translate_core/doc_parser.py
 #
 # Advanced Document Parser supporting:
-# 1. Pre-translation style restructuring (Endnote ➔ Footnote normalization)
+# 1. Pre-translation style restructuring (Endnote to Footnote normalization)
 # 2. House-style enumeration remapping
 # 3. Post-translation DOCX compilation with native bottom-of-page Word Footnotes
-#
+# 4. Academic DOCX parsing with footnote/endnote extraction
+# 5. Emphasis-aware DOCX export (italic/bold from markdown markup)
 
 import re
 import zipfile
+import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Callable, Dict, List, Tuple
+from typing import Dict, List, Tuple
 
 from markitdown import MarkItDown
 
 # python-docx imports
 try:
     import docx
-    from docx.enum.section import WD_SECTION
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
-    from docx.oxml import OxmlElement
-    from docx.oxml.ns import qn
     from docx.shared import Inches, Pt
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.section import WD_SECTION
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
 
     HAS_DOCX = True
 except ImportError:
     docx = None  # type: ignore[assignment]
-    WD_SECTION = None  # type: ignore[assignment,misc]
-    WD_ALIGN_PARAGRAPH = None  # type: ignore[assignment,misc]
-    OxmlElement = None  # type: ignore[assignment,misc]
-    qn = None  # type: ignore[assignment,misc]
-    Inches = None  # type: ignore[assignment,misc]
-    Pt = None  # type: ignore[assignment,misc]
+    Inches = Pt = WD_ALIGN_PARAGRAPH = WD_SECTION = OxmlElement = qn = None  # type: ignore[assignment]
     HAS_DOCX = False
 
 
 _W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-_REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
 _FOOTNOTES_REL_TYPE = (
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes"
 )
 _FOOTNOTES_CT = (
     "application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"
+)
+
+# Emphasis regex for markdown *...* / **...** / ***...*** in compiled output.
+_MD_EMPHASIS_RE = re.compile(
+    r"(\*\*\*[^*\n]+\*\*\*|\*\*[^*\n]+\*\*|\*[^*\n]+\*)"
+)
+
+# Notes-section header patterns (case-insensitive)
+_NOTES_SECTION_RE = re.compile(
+    r"^(?:#{1,3}\s*)?(?:Notes|Opombe|Bibliography|Viri|Reference):?\s*$",
+    re.IGNORECASE,
 )
 
 
@@ -55,9 +62,8 @@ def _xml_escape(s: str) -> str:
 def _build_footnotes_xml(footnotes: List[Tuple[int, str]]) -> bytes:
     """Build the contents of word/footnotes.xml.
 
-    `footnotes` is a list of (id, citation_text). Word reserves IDs
-    -1 (separator) and 0 (continuation separator) — user footnotes
-    start at id=1.
+    Each footnote text is split on markdown emphasis markers so that
+    *italic*, **bold**, and ***bold-italic*** render as real Word runs.
     """
     parts: List[str] = [
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
@@ -68,15 +74,46 @@ def _build_footnotes_xml(footnotes: List[Tuple[int, str]]) -> bytes:
         '<w:p><w:r><w:continuationSeparator/></w:r></w:p></w:footnote>',
     ]
     for fn_id, text in footnotes:
-        parts.append(
-            f'<w:footnote w:id="{fn_id}">'
-            '<w:p>'
-            '<w:pPr><w:pStyle w:val="FootnoteText"/></w:pPr>'
-            '<w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr>'
-            '<w:footnoteRef/></w:r>'
-            f'<w:r><w:t xml:space="preserve"> {_xml_escape(text)}</w:t></w:r>'
-            '</w:p></w:footnote>'
-        )
+        fn_parts = [f'<w:footnote w:id="{fn_id}">']
+        fn_parts.append('<w:p>')
+        fn_parts.append('<w:pPr><w:pStyle w:val="FootnoteText"/></w:pPr>')
+        fn_parts.append('<w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr>')
+        fn_parts.append('<w:footnoteRef/></w:r>')
+        spans = _MD_EMPHASIS_RE.split(text)
+        if spans == [text]:
+            fn_parts.append(
+                f'<w:r><w:t xml:space="preserve"> {_xml_escape(text)}</w:t></w:r>'
+            )
+        else:
+            fn_parts.append('<w:r><w:t xml:space="preserve"> </w:t></w:r>')
+            for span in spans:
+                if not span:
+                    continue
+                if span.startswith("***") and span.endswith("***"):
+                    inner = span[3:-3]
+                    fn_parts.append(
+                        f'<w:r><w:rPr><w:b/><w:i/></w:rPr>'
+                        f'<w:t xml:space="preserve">{_xml_escape(inner)}</w:t></w:r>'
+                    )
+                elif span.startswith("**") and span.endswith("**"):
+                    inner = span[2:-2]
+                    fn_parts.append(
+                        f'<w:r><w:rPr><w:b/></w:rPr>'
+                        f'<w:t xml:space="preserve">{_xml_escape(inner)}</w:t></w:r>'
+                    )
+                elif span.startswith("*") and span.endswith("*") and not span.startswith("**"):
+                    inner = span[1:-1]
+                    fn_parts.append(
+                        f'<w:r><w:rPr><w:i/></w:rPr>'
+                        f'<w:t xml:space="preserve">{_xml_escape(inner)}</w:t></w:r>'
+                    )
+                else:
+                    fn_parts.append(
+                        f'<w:r><w:t xml:space="preserve">{_xml_escape(span)}</w:t></w:r>'
+                    )
+        fn_parts.append('</w:p>')
+        fn_parts.append('</w:footnote>')
+        parts.extend(fn_parts)
     parts.append("</w:footnotes>")
     return "".join(parts).encode("utf-8")
 
@@ -101,8 +138,8 @@ def _inject_footnotes_part(
     fn_rel_id = f"rId{n}"
     rels_xml = rels_xml.replace(
         "</Relationships>",
-        f'<Relationship Id="{fn_rel_id}" Type="{_FOOTNOTES_REL_TYPE}" '
-        f'Target="footnotes.xml"/></Relationships>',
+        '<Relationship Id="' + fn_rel_id + '" Type="' + _FOOTNOTES_REL_TYPE + '" '
+        'Target="footnotes.xml"/></Relationships>',
     )
     files[rels_path] = rels_xml.encode("utf-8")
 
@@ -111,8 +148,8 @@ def _inject_footnotes_part(
     if "footnotes+xml" not in ct_xml:
         ct_xml = ct_xml.replace(
             "</Types>",
-            f'<Override PartName="/word/footnotes.xml" '
-            f'ContentType="{_FOOTNOTES_CT}"/></Types>',
+            '<Override PartName="/word/footnotes.xml" '
+            'ContentType="' + _FOOTNOTES_CT + '"/></Types>',
         )
         files[ct_path] = ct_xml.encode("utf-8")
 
@@ -121,79 +158,62 @@ def _inject_footnotes_part(
             zf.writestr(name, data)
 
 
+def footnote_alignment_report(segments: list) -> dict:
+    """Count footnote defs vs inline refs in segments.
+
+    Returns dict with keys: defs, refs, aligned (bool),
+    missing_def_numbers, unreferenced_def_numbers.
+    """
+    def_nums: set = set()
+    ref_nums: set = set()
+    for seg in segments:
+        src = seg.get("source", "")
+        if src.lstrip().startswith("[^"):
+            m = re.match(r"^\[\^(\w+)\]:", src.lstrip())
+            if m:
+                def_nums.add(m.group(1))
+        else:
+            for rm in re.finditer(r"\[\^(\w+)\]", src):
+                ref_nums.add(rm.group(1))
+    missing = sorted(ref_nums - def_nums, key=lambda x: int(x) if x.isdigit() else 0)
+    unreferenced = sorted(def_nums - ref_nums, key=lambda x: int(x) if x.isdigit() else 0)
+    return {
+        "defs": len(def_nums),
+        "refs": len(ref_nums),
+        "aligned": len(def_nums) == len(ref_nums) and not missing,
+        "missing_def_numbers": missing,
+        "unreferenced_def_numbers": unreferenced,
+    }
+
+
 class DocumentParser:
-    """
-    Wrapper around MarkItDown to convert, normalize, and compile styled book-like documents.
-    """
+    """Wrapper around MarkItDown to convert, normalize, and compile
+    styled book-like documents."""
 
     def __init__(self, enable_plugins: bool = False):
         self.md = MarkItDown(enable_plugins=enable_plugins)
-        self._last_vl_result = None  # Retained as None; VL pipeline retired in Phase 7
+        self._last_vl_result = None
+        self.last_footnote_report: dict | None = None
 
-    # =======================================================================
+    # ===================================================================
     # STAGE 1: Pre-Translation Normalization (Ingestion)
-    # =======================================================================
+    # ===================================================================
 
     def preprocess_source_style(
         self,
         raw_markdown: str,
         remap_lists: bool = True,
         list_style: str = "alphabetical",
-        convert_endnotes: bool = True,
+        convert_endnotes: bool = True,  # kept for backward compat; no-op
     ) -> str:
+        """Normalize the source text structure BEFORE translation.
+
+        Calls _renumber_footnotes then optionally remaps list lines.
+        The convert_endnotes param is kept for backward compatibility.
         """
-        Normalize the source text structure BEFORE translation.
-        Converts generic trailing endnote indices in text to standard Markdown footnotes,
-        and adapts numbering configurations to custom publishing house styles.
-        """
-        text = raw_markdown
+        text, report = self._renumber_footnotes(raw_markdown)
+        self.last_footnote_report = report
 
-        # 0. Convert bare-digit footnote markers ("terrain.31" → "terrain.[^N]")
-        #    to markdown footnote refs. PyMuPDF strips superscript formatting,
-        #    so the original "terrain³¹" comes through as plain "terrain.31".
-        #    We renumber sequentially per chapter so ref order aligns with the
-        #    parsed footnote-definition order in the back-matter notes — Word's
-        #    `numRestart="eachSect"` then displays per-chapter numbering.
-        text = self._convert_bare_footnote_refs(text)
-
-        # 1. Convert standard inline endnote indices (e.g., "[1]" or "[i]") to Markdown footnotes (e.g. "[^1]")
-        # Find references in body and normalize them to standard Markdown footnote markers
-        # Skip when the VL pipeline already emitted correct [^N] markers.
-        if convert_endnotes:
-            text = re.sub(r"\[(\d+)\]", r"[^\1]", text)
-
-        # Legacy "N. text → [^N]: text" promotion path. Only safe for the
-        # MarkItDown ingestion path: the VL parser already extracts every
-        # footnote into a [^N]: def line BEFORE preprocess runs and
-        # _convert_bare_footnote_refs has already renumbered both refs and
-        # defs sequentially. Running the legacy logic here would re-mark
-        # them with their original (per-chapter restart) numbers and
-        # undo the renumbering.
-        if convert_endnotes:
-            lines = text.splitlines()
-            normalized_lines = []
-            in_notes_section = False
-            for line in lines:
-                if re.match(
-                    r"^(Notes|Opombe|Bibliography|Viri|Reference):?\s*$",
-                    line,
-                    re.IGNORECASE,
-                ):
-                    in_notes_section = True
-                    normalized_lines.append(line)
-                    continue
-                if in_notes_section:
-                    note_match = re.match(r"^(\d+)\.?\s+(.*)$", line)
-                    if note_match:
-                        num, content = note_match.groups()
-                        normalized_lines.append(f"[^{num}]: {content}")
-                        continue
-                if remap_lists:
-                    line = self._remap_list_line(line, list_style)
-                normalized_lines.append(line)
-            return "\n".join(normalized_lines)
-
-        # VL path: only remap lists; refs/defs were already renumbered above.
         if remap_lists:
             text = "\n".join(
                 self._remap_list_line(line, list_style)
@@ -201,111 +221,168 @@ class DocumentParser:
             )
         return text
 
-    # Bare-digit footnote markers PyMuPDF leaves in body text. Matches a
-    # digit run (1-3 digits) immediately following a word character or
-    # close-punctuation, with no preceding space — that's how PyMuPDF
-    # renders superscript footnote numerals. The 1-3 digit cap rules out
-    # 4-digit years like "1995".
-    # A true footnote marker is: preceded by a word-char or sentence-ending
-    # punctuation (no preceding space — superscript glues to the prior token),
-    # AND followed by whitespace or sentence punctuation that is itself
-    # followed by whitespace/end-of-string. This rules out:
-    #   • "Z39.48"      (39 followed by "." then digit, not space)
-    #   • "800-842"     (800 followed by "-", which isn't in our trailing class)
-    #   • "ISBN-978-0"  (each digit run followed by "-", excluded)
-    #   • "Smith 2005"  (2005 preceded by space — lookbehind fails)
-    _BARE_FN_REF_RE = re.compile(
-        # Exclude index "page–note" references: "214n100" (Kafer's index uses
-        # this format heavily). A "100" preceded by "n" preceded by a digit
-        # is a note-cross-reference, not a body footnote marker.
-        r"(?<!\dn)"
-        r"(?<=[a-zA-Z\".,;:!?\)\]”’»])"
-        r"(\d{1,3})"
-        r"(?=\s|[.,;:!?\"\)\]”’»](?:\s|$)|$)"
-    )
-    # Page-reference contexts where a digit run is NOT a footnote.
-    _PAGE_REF_PREFIX_RE = re.compile(r"\b[pP]p?\.\s*$")
-    # Year/century/decade contexts where 1-3 digit clusters appear with
-    # surrounding digits — also excluded by lookbehind on word char already.
+    def _renumber_footnotes(self, text: str) -> tuple:
+        """Renumber footnote refs/defs with sequence-expectation validation.
 
-    def _convert_bare_footnote_refs(self, text: str) -> str:
-        """Renumber footnote refs (body) and definitions (notes section)
-        sequentially across the whole document.
+        Three input classes:
+          (a) Book with per-chapter endnote/notes sections: promote + renumber.
+          (b) Markdown already carrying [^N]/[^N]: markers: validated renumbering.
+          (c) Neither notes section nor markers: convert nothing.
 
-        Why both: the source book restarts footnote numbering per chapter
-        ("1, 2, ..., 100" then "1, 2, ..., 100" again). The N-th body ref
-        in document order corresponds to the N-th def in the notes section.
-        We assign them matching sequential IDs; Word's
-        ``<w:numRestart w:val="eachSect"/>`` per chapter section then
-        displays them as 1-N per chapter at output time.
-
-        For each line:
-          • If it's a ``[^N]: text`` definition line, replace N with
-            ``def_counter`` and increment.
-          • Otherwise, in body text:
-              - replace existing ``[^N]`` inline refs with body_counter, AND
-              - convert bare-digit footnote markers ("terrain.31") with
-                body_counter, AND
-              - leave endnote rows (`  17. Author…`) untouched (the parser
-                already converted them to ``[^N]:`` defs upstream).
+        Returns (processed_text, report_dict).
         """
-        body_counter = [0]
-        def_counter = [0]
-        def_line_re = re.compile(r"^(\s*)\[\^([^\]]+)\]:\s*(.*)$")
-        inline_ref_re = re.compile(r"\[\^([^\]]+)\]")
-        endnote_row_re = re.compile(r"^\s*\d{1,3}\.\s+[A-Z]")
+        lines = text.splitlines()
+        rejected_def_rows = 0
 
-        def _convert_line(line: str) -> str:
+        in_notes = False
+        expected_def = 1
+        current_block_count = 0
+        chapter_blocks: List[int] = []
+
+        # Pass 1: notes-section detection and def promotion
+        processed_lines: List[str] = []
+        for line in lines:
+            if _NOTES_SECTION_RE.match(line):
+                in_notes = True
+                processed_lines.append(line)
+                continue
+
+            if in_notes:
+                existing_def = re.match(r"^(\s*)\[\^(\w+)\]:\s+(.*)$", line)
+                if existing_def:
+                    num_str = existing_def.group(2)
+                    if num_str.isdigit() and int(num_str) == expected_def:
+                        expected_def += 1
+                        current_block_count += 1
+                        processed_lines.append(line)
+                        continue
+                    if num_str.isdigit() and int(num_str) == 1:
+                        if current_block_count > 0:
+                            chapter_blocks.append(current_block_count)
+                        current_block_count = 1
+                        expected_def = 2
+                        processed_lines.append(line)
+                        continue
+                    if not num_str.isdigit():
+                        expected_def += 1
+                        current_block_count += 1
+                        processed_lines.append(line)
+                        continue
+                    rejected_def_rows += 1
+                    processed_lines.append(line)
+                    continue
+
+                bare_def = re.match(r"^(\d{1,3})\.?\s+(.*)$", line)
+                if bare_def:
+                    num = int(bare_def.group(1))
+                    content = bare_def.group(2)
+                    if num == expected_def:
+                        processed_lines.append(f"[^{expected_def}]: {content}")
+                        expected_def += 1
+                        current_block_count += 1
+                        continue
+                    elif num == 1:
+                        if current_block_count > 0:
+                            chapter_blocks.append(current_block_count)
+                        current_block_count = 1
+                        processed_lines.append("[^1]: " + content)
+                        expected_def = 2
+                        continue
+                    else:
+                        rejected_def_rows += 1
+                        processed_lines.append(line)
+                        continue
+
+                if not line.strip():
+                    in_notes = False
+                    processed_lines.append(line)
+                    continue
+
+                processed_lines.append(line)
+                continue
+
+            processed_lines.append(line)
+
+        if current_block_count > 0:
+            chapter_blocks.append(current_block_count)
+
+        # Check if defs exist at all
+        has_defs = bool(re.search(r"^\[\^(\w+)\]:", text, re.MULTILINE))
+        total_defs = sum(chapter_blocks) if chapter_blocks else 0
+
+        # Class (c): no notes section and no existing defs — nothing to convert
+        if total_defs == 0 and not has_defs:
+            result = "\n".join(processed_lines)
+            return result, {
+                "defs": 0, "refs": 0, "blocks": [],
+                "aligned": True,
+                "rejected_def_rows": rejected_def_rows,
+                "rejected_body_candidates": 0,
+            }
+
+        # Pass 2: global sequential renumbering of defs and refs
+        def_line_re = re.compile(r"^(\s*)\[\^(\w+)\]:\s+(.*)$")
+        inline_ref_re = re.compile(r"\[\^(\w+)\]")
+        output_lines: List[str] = []
+        rejected_body_candidates = [0]
+
+        global_counter = 0
+        def_map: Dict[str, str] = {}
+
+        for line in processed_lines:
             m = def_line_re.match(line)
             if m:
-                def_counter[0] += 1
-                return f"{m.group(1)}[^{def_counter[0]}]: {m.group(3)}"
-            # Untouched: legacy endnote rows (parser already lifted these
-            # into [^N]: defs further down the document; mutating them
-            # here would re-mark them as body refs).
-            if endnote_row_re.match(line):
-                return line
+                global_counter += 1
+                old_label = m.group(2)
+                new_label = str(global_counter)
+                def_map[old_label] = new_label
+                output_lines.append(f"[^{new_label}]: {m.group(3)}")
+            else:
+                output_lines.append(line)
 
-            # Renumber existing inline refs first.
-            def _inline_repl(m: re.Match) -> str:
-                body_counter[0] += 1
-                return f"[^{body_counter[0]}]"
-            line = inline_ref_re.sub(_inline_repl, line)
+        final_lines: List[str] = []
+        for line in output_lines:
+            if def_line_re.match(line):
+                final_lines.append(line)
+                continue
 
-            # Convert bare-digit markers ("terrain.31" → "terrain.[^N]").
-            def _bare_repl(m: re.Match) -> str:
-                before = line[max(0, m.start() - 6):m.start()]
-                if self._PAGE_REF_PREFIX_RE.search(before):
-                    return m.group(0)
-                body_counter[0] += 1
-                return f"[^{body_counter[0]}]"
-            line = self._BARE_FN_REF_RE.sub(_bare_repl, line)
-            return line
+            def _ref_replace(m: re.Match) -> str:
+                old = m.group(1)
+                if old in def_map:
+                    return f"[^{def_map[old]}]"
+                rejected_body_candidates[0] += 1
+                return m.group(0)
+            line = inline_ref_re.sub(_ref_replace, line)
+            final_lines.append(line)
 
-        return "\n".join(_convert_line(l) for l in text.splitlines())
+        total_ref_count = 0
+        for line in final_lines:
+            if not def_line_re.match(line):
+                total_ref_count += len(inline_ref_re.findall(line))
+
+        result = "\n".join(final_lines)
+        return result, {
+            "defs": global_counter,
+            "refs": total_ref_count,
+            "blocks": chapter_blocks,
+            "aligned": global_counter == total_ref_count,
+            "rejected_def_rows": rejected_def_rows,
+            "rejected_body_candidates": rejected_body_candidates[0],
+        }
 
     def _remap_list_line(self, line: str, target_style: str) -> str:
-        """
-        Detects standard hierarchical outline enumerations (e.g. '1.1.1')
-        and maps them to preferred house styles (e.g. 'a)').
-        """
-        # Match leading outline numbers: e.g. "1.1.1 First Section"
+        """Detects standard hierarchical outline enumerations and
+        maps them to preferred house styles."""
         match = re.match(r"^(\s*)(\d+(\.\d+)+)\.?\s+(.*)$", line)
         if match:
             indent, outline, _, content = match.groups()
             depth = outline.count(".")
-
             if target_style == "alphabetical":
-                # Map deep levels to letters: level 2 -> 'a)', level 3 -> 'i)'
                 if depth == 1:
-                    letter = chr(96 + int(outline.split(".")[-1]))  # 97 is 'a'
+                    letter = chr(96 + int(outline.split(".")[-1]))
                     return f"{indent}{letter}) {content}"
                 elif depth >= 2:
                     return f"{indent}- {content}"
-            elif target_style == "roman":
-                # Map level 1 to Roman numerals (handled externally if headers, else standard list)
-                pass
-
         return line
 
     def to_markdown(
@@ -315,14 +392,9 @@ class DocumentParser:
         list_style: str = "alphabetical",
         use_vl: bool = False,
         vl_cache_dir: Path | None = None,
-        progress_callback: Callable[[str, int, int, bool], None] | None = None,
+        progress_callback=None,
     ) -> str:
-        """Convert a local book file to Markdown, automatically restructuring layout and styles.
-
-        ``use_vl`` / ``vl_cache_dir`` are accepted for backward compatibility
-        with editor call sites and are silently ignored — the VL pipeline was
-        retired in Phase 7. Only the MarkItDown text path runs.
-        """
+        """Convert a local book file to Markdown."""
         md, _ = self.to_markdown_with_meta(
             source,
             preprocess=preprocess,
@@ -340,16 +412,10 @@ class DocumentParser:
         list_style: str = "alphabetical",
         use_vl: bool = False,
         vl_cache_dir: Path | None = None,
-        progress_callback: Callable[[str, int, int, bool], None] | None = None,
+        progress_callback=None,
     ) -> Tuple[str, list]:
-        """Convert a local book file to Markdown, returning (markdown, segments_meta).
-
-        ``use_vl`` / ``vl_cache_dir`` / ``progress_callback`` are accepted for
-        backward compatibility with editor call sites and are silently ignored
-        — the VL pipeline was retired in Phase 7. segments_meta is always an
-        empty list (the MarkItDown text path emits no per-segment metadata).
-        """
-        del use_vl, vl_cache_dir, progress_callback  # retired; signature kept for compat
+        """Convert a local book file to Markdown, returning (markdown, segments_meta)."""
+        del use_vl, vl_cache_dir, progress_callback
         raw_text = self.md.convert(str(source)).text_content or ""
         if preprocess:
             raw_text = self.preprocess_source_style(
@@ -358,29 +424,184 @@ class DocumentParser:
         self._last_vl_result = None
         return raw_text, []
 
-    # =======================================================================
+    # ===================================================================
+    # STAGE 1b: Academic DOCX Parsing
+    # ===================================================================
+
+    def docx_to_markdown(self, source: Path) -> str:
+        """Parse an academic DOCX into markdown with [^N] footnote refs/defs.
+
+        Walks the DOCX XML body in order, extracting headings, bold/italic
+        runs, and footnote/endnote references. Endnotes become footnotes.
+        Defs are appended after the body. Does NOT run preprocess_source_style.
+        """
+        import zipfile as zf_module
+
+        with zf_module.ZipFile(source, "r") as zf:
+            names = zf.namelist()
+
+            fn_map: Dict[Tuple[str, str], str] = {}
+            for part_name, ns_prefix in [
+                ("word/footnotes.xml", "fn"),
+                ("word/endnotes.xml", "en"),
+            ]:
+                if part_name in names:
+                    tree = ET.parse(zf.open(part_name))
+                    root = tree.getroot()
+                    tag = f"{{{_W_NS}}}footnote" if "footnote" in part_name else f"{{{_W_NS}}}endnote"
+                    for fn_el in root.findall(tag):
+                        el_type = fn_el.get(f"{{{_W_NS}}}type")
+                        if el_type in ("separator", "continuationSeparator"):
+                            continue
+                        fn_id = fn_el.get(f"{{{_W_NS}}}id")
+                        if fn_id is None:
+                            continue
+                        text = " ".join(
+                            t.text for t in fn_el.iter(f"{{{_W_NS}}}t") if t.text
+                        ).strip()
+                        fn_map[(ns_prefix, fn_id)] = text
+
+            tree = ET.parse(zf.open("word/document.xml"))
+            root = tree.getroot()
+
+        body = root.find(f"{{{_W_NS}}}body")
+        if body is None:
+            return ""
+
+        paras = body.findall(f"{{{_W_NS}}}p")
+        ref_order: List[Tuple[str, str]] = []
+        note_counter = 0
+        ref_map: Dict[Tuple[str, str], str] = {}
+
+        md_lines: List[str] = []
+
+        for para in paras:
+            pPr = para.find(f"{{{_W_NS}}}pPr")
+            style_val = None
+            if pPr is not None:
+                pStyle = pPr.find(f"{{{_W_NS}}}pStyle")
+                if pStyle is not None:
+                    style_val = pStyle.get(f"{{{_W_NS}}}val", "")
+
+            heading_prefix = ""
+            if style_val:
+                sv_lower = style_val.lower()
+                if sv_lower in ("heading1", "heading 1"):
+                    heading_prefix = "# "
+                elif sv_lower in ("heading2", "heading 2"):
+                    heading_prefix = "## "
+                elif sv_lower.startswith("heading"):
+                    heading_prefix = "### "
+
+            runs = para.findall(f"{{{_W_NS}}}r")
+            para_text_parts: List[str] = []
+
+            for run in runs:
+                rPr = run.find(f"{{{_W_NS}}}rPr")
+                is_bold = rPr is not None and rPr.find(f"{{{_W_NS}}}b") is not None
+                is_italic = rPr is not None and rPr.find(f"{{{_W_NS}}}i") is not None
+
+                fn_ref = run.find(f"{{{_W_NS}}}footnoteReference")
+                en_ref = run.find(f"{{{_W_NS}}}endnoteReference")
+                if fn_ref is not None:
+                    oid = fn_ref.get(f"{{{_W_NS}}}id")
+                    if oid is not None:
+                        key = ("fn", oid)
+                        if key not in ref_map:
+                            note_counter += 1
+                            ref_map[key] = str(note_counter)
+                            ref_order.append(key)
+                        para_text_parts.append(f"[^{ref_map[key]}]")
+                    continue
+                if en_ref is not None:
+                    oid = en_ref.get(f"{{{_W_NS}}}id")
+                    if oid is not None:
+                        key = ("en", oid)
+                        if key not in ref_map:
+                            note_counter += 1
+                            ref_map[key] = str(note_counter)
+                            ref_order.append(key)
+                        para_text_parts.append(f"[^{ref_map[key]}]")
+                    continue
+
+                t_el = run.find(f"{{{_W_NS}}}t")
+                tab_el = run.find(f"{{{_W_NS}}}tab")
+                br_el = run.find(f"{{{_W_NS}}}br")
+
+                text = ""
+                if t_el is not None and t_el.text:
+                    text = t_el.text
+                if tab_el is not None:
+                    text += "\t"
+                if br_el is not None:
+                    text += " "
+
+                if not text:
+                    continue
+
+                if is_bold and is_italic:
+                    para_text_parts.append(f"***{text}***")
+                elif is_bold:
+                    para_text_parts.append(f"**{text}**")
+                elif is_italic:
+                    para_text_parts.append(f"*{text}*")
+                else:
+                    para_text_parts.append(text)
+
+            line = heading_prefix + "".join(para_text_parts)
+            if line.strip():
+                md_lines.append(line)
+
+        for key in ref_order:
+            g_num = ref_map[key]
+            text = fn_map.get(key, "[missing note]")
+            md_lines.append(f"[^{g_num}]: {text}")
+
+        return "\n\n".join(md_lines)
+
+    # ===================================================================
     # STAGE 2: Post-Translation Compilation (DOCX Exporting)
-    # =======================================================================
+    # ===================================================================
 
     def from_markdown(self, md_text: str, output_path: Path):
         """Standard plain text fallback."""
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(md_text, encoding="utf-8")
 
+    def _add_md_runs(self, paragraph, text: str) -> None:
+        """Split text on markdown emphasis markers and add runs with
+        italic/bold formatting. Plain spans get a normal run;
+        *x* -> italic, **x** -> bold, ***x*** -> both."""
+        if not HAS_DOCX:
+            return
+        assert docx is not None
+        spans = _MD_EMPHASIS_RE.split(text)
+        for span in spans:
+            if not span:
+                continue
+            if span.startswith("***") and span.endswith("***"):
+                run = paragraph.add_run(span[3:-3])
+                run.bold = True
+                run.italic = True
+            elif span.startswith("**") and span.endswith("**"):
+                run = paragraph.add_run(span[2:-2])
+                run.bold = True
+            elif span.startswith("*") and span.endswith("*") and not span.startswith("**"):
+                run = paragraph.add_run(span[1:-1])
+                run.italic = True
+            else:
+                paragraph.add_run(span)
+
     def compile_to_designed_docx(
         self, md_text: str, output_path: Path, house_font: str = "Georgia"
     ):
         """Compile markdown to a styled DOCX with true page-bottom Word footnotes.
 
-        Each `# Chapter` becomes its own section so footnote numbering can
-        restart per chapter (Word `<w:numRestart w:val="eachSect"/>`). The
-        footnotes part is injected into the .docx package after python-docx
-        saves the body — python-docx 1.x has no public API for footnotes.
+        Markdown emphasis *italic*, **bold**, ***both*** are rendered as real
+        Word italic/bold runs in both body text and footnotes.
         """
         if not HAS_DOCX:
-            print(
-                "[Parser Error] python-docx not installed. Writing plain text fallback."
-            )
+            print("[Parser Error] python-docx not installed. Writing plain text fallback.")
             self.from_markdown(md_text, output_path)
             return
         assert (
@@ -421,8 +642,7 @@ class DocumentParser:
         style_normal.paragraph_format.line_spacing = 1.25
         style_normal.paragraph_format.space_after = Pt(8)
 
-        # 3. Body. Track global footnote IDs (unique in footnotes.xml) and
-        #    accumulate the (id, text) pairs for the post-process step.
+        # 3. Body
         next_footnote_id = 1
         footnotes_to_add: List[Tuple[int, str]] = []
         is_first_chapter = True
@@ -432,7 +652,6 @@ class DocumentParser:
             if not line_str:
                 continue
 
-            # `# Chapter` → new section (so footnote numbering can restart).
             if line_str.startswith("# "):
                 if not is_first_chapter:
                     doc.add_section(WD_SECTION.NEW_PAGE)
@@ -464,7 +683,7 @@ class DocumentParser:
             for match in pattern.finditer(line_str):
                 start, end = match.span()
                 if start > last_idx:
-                    p.add_run(line_str[last_idx:start])
+                    self._add_md_runs(p, line_str[last_idx:start])
                 fn_id = match.group(1)
                 citation_text = footnote_defs.get(
                     fn_id, f"[missing footnote {fn_id}]"
@@ -475,14 +694,13 @@ class DocumentParser:
                 self._add_footnote_reference_run(p, fn_global_id)
                 last_idx = end
             if last_idx < len(line_str):
-                p.add_run(line_str[last_idx:])
+                self._add_md_runs(p, line_str[last_idx:])
 
-        # 4. Configure every section to restart footnote numbering at its
-        #    start — this is what makes per-chapter numbering work.
+        # 4. Configure per-section footnote restart.
         for section in doc.sections:
             self._set_section_footnote_restart(section)
 
-        # 5. Save and post-process the package.
+        # 5. Save and post-process.
         output_path.parent.mkdir(parents=True, exist_ok=True)
         doc.save(str(output_path))
         if footnotes_to_add:
@@ -497,22 +715,14 @@ class DocumentParser:
     ) -> None:
         """Compile a translated DOCX by cloning the original and replacing
         text in-place, preserving all paragraph styles, run formatting,
-        and document structure.
-
-        ``segments`` is a list of dicts with at least ``source``,
-        ``target``, ``status``, and ``docx_para_idx`` (the paragraph index
-        in the original document).  Only segments with a non-empty
-        ``target`` are written; others keep their original source text.
-        """
+        and document structure."""
         if not HAS_DOCX:
             raise RuntimeError("python-docx not installed")
         assert docx is not None
 
         doc = docx.Document(str(template_path))
 
-        # Build index: original paragraph position → segments (multi-map;
-        # after re-splitting, several children may share one docx_para_idx).
-        idx_to_segs: Dict[int, list[dict]] = {}
+        idx_to_segs: Dict[int, list] = {}
         for seg in segments:
             pi = seg.get("docx_para_idx")
             if pi is not None:
@@ -523,10 +733,8 @@ class DocumentParser:
             segs = idx_to_segs.get(para_idx)
             if segs is None:
                 continue
-            # If ALL segments for this paragraph have empty target, keep original.
             if all(not seg.get("target", "").strip() for seg in segs):
                 continue
-            # Join translated children; untranslated children fall back to source.
             replacement = " ".join(
                 seg.get("target", "").strip() or seg.get("source", "").strip()
                 for seg in segs
@@ -538,20 +746,7 @@ class DocumentParser:
 
     @staticmethod
     def _replace_paragraph_text(paragraph, new_text: str) -> None:
-        """Replace paragraph text preserving bold/italic/font at the
-        XML \u003cw:rPr\u003e level.
-
-        Works directly on the paragraph's lxml element tree:
-        1. Merge adjacent \u003cw:r\u003e elements whose \u003cw:rPr\u003e
-           carry the same bold/italic/underline state (Word splits runs
-           at spell-check boundaries etc.)
-        2. Redistribute the translation text proportionally into the
-           surviving \u003cw:t\u003e elements
-
-        The \u003cw:rPr\u003e subtrees are never touched — \u003cw:b\u003e,
-        \u003cw:i\u003e, font refs, sizes etc. survive exactly as the
-        author set them.
-        """
+        """Replace paragraph text preserving bold/italic/font at the XML level."""
         _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
         p_el = paragraph._element
         r_elements = list(p_el.findall(f"{_W}r"))
@@ -559,7 +754,6 @@ class DocumentParser:
             paragraph.add_run(new_text)
             return
 
-        # ── Merge adjacent same-format runs ──────────────────────────
         def _fmt_key(r_el):
             rPr = r_el.find(f"{_W}rPr")
             b = rPr is not None and rPr.find(f"{_W}b") is not None
@@ -579,7 +773,6 @@ class DocumentParser:
             else:
                 idx += 1
 
-        # ── Redistribute text proportionally ──────────────────────────
         t_els = [r.find(f"{_W}t") for r in r_elements if r.find(f"{_W}t") is not None]
         orig_lens = [max(len(t.text or ""), 1) for t in t_els]
         total = sum(orig_lens)
@@ -597,9 +790,7 @@ class DocumentParser:
             remaining = remaining[cut:]
 
     def _add_footnote_reference_run(self, paragraph, fn_global_id: int) -> None:
-        """Add a `<w:footnoteReference w:id="N"/>` inside a new superscript
-        run on the given paragraph. The actual footnote definition lives in
-        footnotes.xml (injected after save)."""
+        """Add a footnoteReference inside a new superscript run."""
         assert OxmlElement is not None and qn is not None
         run = paragraph.add_run()
         rPr = run._r.get_or_add_rPr()
@@ -611,12 +802,9 @@ class DocumentParser:
         run._r.append(ref)
 
     def _set_section_footnote_restart(self, section) -> None:
-        """Add `<w:footnotePr><w:numRestart w:val="eachSect"/></w:footnotePr>`
-        to a section's `sectPr`. With one section per chapter, this is what
-        makes Word restart footnote numbering at every chapter."""
+        """Add per-section footnote numbering restart."""
         assert OxmlElement is not None and qn is not None
         sectPr = section._sectPr
-        # Remove any pre-existing footnotePr to avoid duplicates.
         for existing in sectPr.findall(qn("w:footnotePr")):
             sectPr.remove(existing)
         footnote_pr = OxmlElement("w:footnotePr")
@@ -624,3 +812,41 @@ class DocumentParser:
         num_restart.set(qn("w:val"), "eachSect")
         footnote_pr.append(num_restart)
         sectPr.append(footnote_pr)
+
+    # ===================================================================
+    # STAGE 3: Para-index relinking (simple-pipeline export repair)
+    # ===================================================================
+
+    def relink_docx_para_idx(self, template_path: Path, segments: List[dict]) -> int:
+        """Re-assign docx_para_idx to segments that lack it by matching
+        normalized source text against the template DOCX paragraphs.
+
+        Returns the number of segments successfully assigned.
+        """
+        if not HAS_DOCX:
+            return 0
+        assert docx is not None
+        d = docx.Document(str(template_path))
+        paras = d.paragraphs
+
+        def _normalize(text: str) -> str:
+            return re.sub(r"\s+", " ", text.replace("\xa0", " ")).strip()
+
+        para_texts = [_normalize(p.text) for p in paras]
+
+        assigned = 0
+        cursor = 0
+        for seg in segments:
+            if seg.get("docx_para_idx") is not None:
+                continue
+            src = _normalize(seg.get("source", ""))
+            if not src:
+                continue
+            for pi in range(cursor, len(para_texts)):
+                pt = para_texts[pi]
+                if pt == src or src in pt:
+                    seg["docx_para_idx"] = pi
+                    cursor = pi
+                    assigned += 1
+                    break
+        return assigned

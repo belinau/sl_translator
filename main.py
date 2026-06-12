@@ -11,6 +11,8 @@ import logging
 import uuid
 from datetime import datetime
 from pathlib import Path
+import zipfile
+import xml.etree.ElementTree as ET
 from typing import Dict, Tuple
 
 
@@ -89,18 +91,8 @@ def list_projects() -> list:
 
 def save_project(ws: dict):
     validate_project_id(ws["project_id"])
-    segs = []
-    for s in ws["segments"]:
-        seg: dict = {
-            "id": s["id"],
-            "source": s["source"],
-            "target": s["target"],
-            "status": s["status"],
-        }
-        if "docx_para_idx" in s:
-            seg["docx_para_idx"] = s["docx_para_idx"]
-        segs.append(seg)
-    done = sum(1 for s in segs if s["status"] == "done")
+    segs = [dict(s) for s in ws["segments"]]
+    done = sum(1 for s in segs if s.get("status") == "done")
     data = {
         "id": ws["project_id"],
         "filename": ws["filename"],
@@ -111,6 +103,9 @@ def save_project(ws: dict):
         "done": done,
         "segments": segs,
     }
+    for k in ("pipeline", "project_type", "segments_meta"):
+        if ws.get(k):
+            data[k] = ws[k]
     path = PROJECTS_DIR / f"{ws['project_id']}.json"
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -466,21 +461,53 @@ async def handle_new_upload(e, lang_pair: str):
     except Exception as ex:
         return ui.notify(f"Error saving file: {ex}", type="negative")
 
-    # ── DOCX: direct python-docx paragraph extraction ────────────────────
-    if suffix == ".docx":
-        try:
-            segments = await run.io_bound(_parse_docx, saved_path)
-        except Exception as ex:
-            return ui.notify(f"DOCX parse error: {ex}", type="negative")
+    # ── Pipeline selection dialog ────────────────────────────────────────
+    detected = _detect_pipeline(saved_path, suffix)
+    default_ptype = "book_translation" if detected == "academic" else "article_translation"
 
-    # ── PDF: MarkItDown fallback ──────────────────────────────────────────
-    else:
-        if doc_parser is None:
-            return ui.notify("Document parser not initialized", type="negative")
-        try:
-            segments = await run.io_bound(_parse_pdf, doc_parser, saved_path)
-        except Exception as ex:
-            return ui.notify(f"PDF parsing error: {ex}", type="negative")
+    with ui.dialog() as dialog:
+        with ui.card().classes("min-w-[420px]"):
+            ui.label("Create Translation Project").classes("text-lg font-bold mb-2")
+            pipeline_radio = ui.radio(
+                {"academic": "Academic — book/article (footnote/endnote restructuring, restyled academic export)",
+                 "simple": "Short document (preserve original formatting on export)"},
+                value=detected,
+            ).classes("w-full")
+            ptype_select = ui.select(
+                ["book_translation", "article_translation", "festival_programme", "exhibition_catalogue"],
+                label="Project type (KG container)",
+                value=default_ptype,
+            ).classes("w-full mt-2")
+            with ui.row().classes("w-full justify-end mt-4"):
+                ui.button("Cancel", on_click=lambda: dialog.submit(None)).props("flat")
+                ui.button("Create project", on_click=lambda: dialog.submit(
+                    (pipeline_radio.value, ptype_select.value)
+                )).props("color=positive")
+    result = await dialog
+    if result is None:
+        saved_path.unlink(missing_ok=True)
+        ui.notify("Import cancelled", type="info")
+        return
+    pipeline, project_type = result
+
+    # ── Parse matrix: pipeline × suffix ──────────────────────────────────
+    try:
+        if pipeline == "simple" and suffix == ".docx":
+            segments = await run.io_bound(_parse_docx, saved_path)
+        elif pipeline == "simple" and suffix == ".pdf":
+            if doc_parser is None:
+                return ui.notify("Document parser not initialized", type="negative")
+            segments = await run.io_bound(_parse_pdf, doc_parser, saved_path, preprocess=False)
+        elif pipeline == "academic" and suffix == ".docx":
+            if doc_parser is None:
+                return ui.notify("Document parser not initialized", type="negative")
+            segments = await run.io_bound(_parse_academic_docx, doc_parser, saved_path)
+        else:  # academic + .pdf
+            if doc_parser is None:
+                return ui.notify("Document parser not initialized", type="negative")
+            segments = await run.io_bound(_parse_pdf, doc_parser, saved_path, preprocess=True)
+    except Exception as ex:
+        return ui.notify(f"Parse error: {ex}", type="negative")
 
     if not segments:
         return ui.notify("No text extracted from document", type="warning")
@@ -491,15 +518,58 @@ async def handle_new_upload(e, lang_pair: str):
         "lang_pair": lang_pair,
         "active_index": 0,
         "segments": segments,
+        "pipeline": pipeline,
+        "project_type": project_type,
     }
 
     await run.io_bound(save_project, ws)
-    ui.notify(f"Created: {len(segments)} segments", type="positive")
+    notify_msg = f"Created: {len(segments)} segments ({pipeline})"
+    if pipeline == "academic" and doc_parser is not None and doc_parser.last_footnote_report:
+        rpt = doc_parser.last_footnote_report
+        if rpt.get("aligned"):
+            notify_msg += f" — {rpt['defs']} footnotes, refs aligned"
+        else:
+            notify_msg += f" — {rpt['defs']} footnotes, {rpt['refs']} refs (misaligned)"
+    ui.notify(notify_msg, type="positive")
     ui.navigate.to(f"/translate/{project_id}")
 
 
+def _detect_pipeline(saved_path: Path, suffix: str) -> str:
+    """Pre-select a pipeline based on file content. Never authoritative —
+    the user confirms via the upload dialog."""
+    if suffix == ".pdf":
+        return "academic"
+    # .docx — inspect the zip for footnote/endnote parts
+    try:
+        with zipfile.ZipFile(saved_path, "r") as zf:
+            for part_name in ("word/footnotes.xml", "word/endnotes.xml"):
+                if part_name not in zf.namelist():
+                    continue
+                raw = zf.read(part_name)
+                root = ET.fromstring(raw)
+                ns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                # The tag name inside footnotes.xml is w:footnote,
+                # inside endnotes.xml is w:endnote.
+                local = "footnote" if "footnote" in part_name else "endnote"
+                for el in root.iter(f"{{{ns}}}{local}"):
+                    # Accept if w:type attribute is absent (real note, not separator)
+                    if el.get(f"{{{ns}}}type") is None:
+                        return "academic"
+    except Exception:
+        pass  # Corrupt zip or missing parts — fall through
+    # Paragraph count heuristic
+    try:
+        import docx as _docx
+        if len(_docx.Document(str(saved_path)).paragraphs) > 200:
+            return "academic"
+    except Exception:
+        pass
+    return "simple"
+
+
 def _parse_docx(path: Path) -> list[dict]:
-    """Extract paragraphs from a DOCX file. Runs in a thread pool."""
+    """Extract paragraphs from a DOCX file for the simple pipeline.
+    Preserves docx_para_idx for template-based export. Runs in a thread pool."""
     import docx as _docx
     from translate_core.book_outline import split_paragraphs
     doc = _docx.Document(str(path))
@@ -518,10 +588,23 @@ def _parse_docx(path: Path) -> list[dict]:
     return segments
 
 
-def _parse_pdf(parser: "DocumentParser", path: Path) -> list[dict]:
-    """Convert PDF to markdown and split into segments. Runs in a thread pool."""
+def _parse_academic_docx(parser: "DocumentParser", path: Path) -> list[dict]:
+    """Parse a DOCX via the academic pipeline (docx_to_markdown).
+    No docx_para_idx — segments are restyled on export. Runs in a thread pool."""
     from translate_core.book_outline import split_paragraphs
-    md_text, _ = parser.to_markdown_with_meta(path, preprocess=True)
+    md = parser.docx_to_markdown(path)
+    segments = []
+    for txt in split_paragraphs(md, max_chars=config.SEGMENT_MAX_CHARS):
+        segments.append({"id": len(segments), "source": txt, "target": "", "status": "pending"})
+    return segments
+
+
+def _parse_pdf(parser: "DocumentParser", path: Path, *, preprocess: bool = True) -> list[dict]:
+    """Convert PDF to markdown and split into segments. Runs in a thread pool.
+    preprocess=True applies endnote conversion + list remap (academic pipeline).
+    preprocess=False skips them (simple pipeline — short documents)."""
+    from translate_core.book_outline import split_paragraphs
+    md_text, _ = parser.to_markdown_with_meta(path, preprocess=preprocess)
     segments = []
     for txt in split_paragraphs(md_text, max_chars=config.SEGMENT_MAX_CHARS):
         segments.append({"id": len(segments), "source": txt, "target": "", "status": "pending"})

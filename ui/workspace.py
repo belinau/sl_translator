@@ -20,6 +20,7 @@ from nicegui import background_tasks, ui
 from . import intel_panel, kg_search, predictions, segment_editor, segment_navigator, settings as ui_settings
 from .state import WorkspaceState, request_kg_save
 
+from translate_core.entity_extraction.ingest_helpers import ensure_agent
 
 # SHARED_CSS (in ui/settings.py) already contains all structural styling.
 # No duplicate page-style block here.
@@ -118,7 +119,7 @@ def page_translate(project_id: str):
                 ui.label(state.lang_pair).classes("text-[10px] opacity-60")
             ui.button(
                 icon="menu_book",
-                on_click=lambda: _open_glossary(state, glossary, config, parse_lang_pair, kg),
+                on_click=lambda: _open_glossary(state, glossary, config, parse_lang_pair, kg, qa_engine, _slugify_project(state)),
             ).props("flat round dense size=sm color=grey-6").tooltip("Add Glossary Term")
 
         with ui.column().classes("w-44 items-center gap-0.5"):
@@ -289,27 +290,27 @@ def page_translate(project_id: str):
             # For chapter_title segments, use the title itself as domain
             if seg_meta.get("type") == "chapter_title" and not domain:
                 domain = seg["source"].strip().lstrip("# ").strip()
-
-        # Project container slug — same slugification as the glossary
-        # dialog (see _kg_add): NFKD-ish collapse of filename or
-        # project_id into a "source:<slug>" id.
-        import re as _re
-        _base = (state.filename or state.project_id or "project").lower()
-        _proj_slug = (_re.sub(r"[^a-z0-9]+", "-", _base).strip("-")[:80]) or "project"
+        # Project container slug — hoisted so _ensure_project_container
+        # always has it before promote_pair.
+        _proj_slug = _slugify_project(state)
         try:
             if kg is not None:
                 # Pick up any external KG edits (maintenance scripts) before we
                 # promote + save, so the editor's save merges on top instead of
-                # clobbering them.
+                # clobbering them. Also ensure the project container exists with
+                # correct project_type and translated_by edge (O-20).
                 await loop.run_in_executor(None, kg.reload_if_changed)
                 await loop.run_in_executor(
                     None,
-                    lambda: kg.promote_pair(
-                        seg["source"], seg["target"], src, tgt,
-                        verified=True, domain=domain, context=context_text,
-                        source_text_id=_proj_slug,
-                        agent_id="urban-belina",
-                    ),
+                    lambda: (
+                        _ensure_project_container(kg, _proj_slug, state.filename or _proj_slug, state.project_type),
+                        kg.promote_pair(
+                            seg["source"], seg["target"], src, tgt,
+                            verified=True, domain=domain, context=context_text,
+                            source_text_id=_proj_slug,
+                            agent_id="urban-belina",
+                        ),
+                    )[-1],  # promote_pair return value is what callers expect
                 )
 
             await loop.run_in_executor(
@@ -369,35 +370,87 @@ def page_translate(project_id: str):
         return "\n\n".join(lines)
 
     def _export_target_docx():
-        # Template-based export: clone original DOCX, replace translated
-        # segments in-place to preserve all formatting and structure.
-        template = PROJECTS_DIR / f"{state.project_id}.docx"
-        if template.exists() and any(
-            "docx_para_idx" in s for s in state.segments
-        ):
-            out = PROJECTS_DIR / f"compiled_target_{state.project_id}.docx"
-            try:
-                doc_parser.compile_from_template(
-                    template, out, state.segments,
+        if state.pipeline == "simple":
+            # Simple pipeline: preserve original formatting via template
+            template = PROJECTS_DIR / f"{state.project_id}.docx"
+            if template.exists():
+                # Re-link paragraph indices if autosave stripped them
+                if not any("docx_para_idx" in s for s in state.segments):
+                    n_linked = doc_parser.relink_docx_para_idx(
+                        template, state.segments
+                    )
+                    n_translated = sum(
+                        1 for s in state.segments if s.get("target", "").strip()
+                    )
+                    msg = f"Re-linked {n_linked}/{n_translated} segments to original layout"
+                    if n_linked < n_translated:
+                        ui.notify(msg, type="warning")
+                    else:
+                        ui.notify(msg)
+                    state.request_autosave()
+                out = PROJECTS_DIR / f"compiled_target_{state.project_id}.docx"
+                try:
+                    doc_parser.compile_from_template(
+                        template, out, state.segments,
+                    )
+                    if out.exists():
+                        ui.download(out.read_bytes(), f"translated_{state.filename}")
+                        out.unlink(missing_ok=True)
+                        return
+                except Exception as e:
+                    log.error(f"template export: {e}")
+            else:
+                ui.notify(
+                    "No original DOCX — exporting with generic styling",
+                    type="warning",
                 )
-                if out.exists():
-                    ui.download(out.read_bytes(), f"translated_{state.filename}")
-                    out.unlink(missing_ok=True)
+            # Fallback: academic-style DOCX compilation
+            md = _compile_md(use_target=True)
+            path = PROJECTS_DIR / f"compiled_target_{state.project_id}.docx"
+            try:
+                doc_parser.compile_to_designed_docx(md, path)
+                if path.exists():
+                    ui.download(path.read_bytes(), f"translated_{state.filename}")
+                    path.unlink(missing_ok=True)
                     return
             except Exception as e:
-                log.error(f"template export: {e}")
-        # Fallback: markdown compilation (no paragraph index mapping).
-        md = _compile_md(use_target=True)
-        path = PROJECTS_DIR / f"compiled_target_{state.project_id}.docx"
-        try:
-            doc_parser.compile_to_designed_docx(md, path)
-            if path.exists():
-                ui.download(path.read_bytes(), f"translated_{state.filename}")
-                path.unlink(missing_ok=True)
-                return
-        except Exception as e:
-            log.error(f"export target: {e}")
-        ui.notify("Export failed", type="negative")
+                log.error(f"export target: {e}")
+            ui.notify("Export failed", type="negative")
+        elif state.pipeline == "academic":
+            # Academic pipeline: always restyled DOCX with real footnotes
+            from translate_core.doc_parser import footnote_alignment_report
+            report = footnote_alignment_report(state.segments)
+            if not report["aligned"]:
+                ui.notify(
+                    f"{report['refs']} footnote refs vs {report['defs']} definitions — "
+                    "misnumbered footnotes will be wrong in the DOCX; "
+                    "run scripts/repair_book_footnotes.py",
+                    type="warning",
+                )
+            md = _compile_md(use_target=True)
+            path = PROJECTS_DIR / f"compiled_target_{state.project_id}.docx"
+            try:
+                doc_parser.compile_to_designed_docx(md, path)
+                if path.exists():
+                    ui.download(path.read_bytes(), f"translated_{state.filename}")
+                    path.unlink(missing_ok=True)
+                    return
+            except Exception as e:
+                log.error(f"export target: {e}")
+            ui.notify("Export failed", type="negative")
+        else:
+            # Unknown pipeline — same as simple fallback
+            md = _compile_md(use_target=True)
+            path = PROJECTS_DIR / f"compiled_target_{state.project_id}.docx"
+            try:
+                doc_parser.compile_to_designed_docx(md, path)
+                if path.exists():
+                    ui.download(path.read_bytes(), f"translated_{state.filename}")
+                    path.unlink(missing_ok=True)
+                    return
+            except Exception as e:
+                log.error(f"export target: {e}")
+            ui.notify("Export failed", type="negative")
 
     def _export_source_docx():
         md = _compile_md(use_target=False)
@@ -437,10 +490,25 @@ def page_translate(project_id: str):
     ui.keyboard(on_key=_on_key, ignore=["input", "select", "button"])
 
 
+def _slugify_project(state) -> str:
+    """Derive a project slug from filename or project_id — used by both
+    glossary dialog and promote_pair to form source:<slug> container ids."""
+    import re as _re
+    base = (state.filename or state.project_id or "project").lower()
+    return (_re.sub(r"[^a-z0-9]+", "-", base).strip("-")[:80]) or "project"
+
+def _ensure_project_container(kg, slug: str, title: str, project_type: str) -> None:
+    """Create the source-text container node and translated_by edge if absent."""
+    if not kg.G.has_node(f"source:{slug}"):
+        kg.add_source_text_node(slug, title=title, project_type=project_type)
+    ensure_agent(kg, "Urban Belina", role="translator")
+    kg.link_translated_by(slug, "urban-belina")
+
+
 # ---------------------------------------------------------------------------
 # Glossary dialog (module-level for cleanliness; called from top bar)
 # ---------------------------------------------------------------------------
-def _open_glossary(state: WorkspaceState, glossary, config, parse_lang_pair, kg=None):
+def _open_glossary(state, glossary, config, parse_lang_pair, kg=None, qa_engine=None, proj_slug=""):
     with ui.dialog() as dialog, ui.card().classes("min-w-[400px]"):
         ui.label("Add to Glossary").classes("text-lg font-bold mb-2")
         src_lang, tgt_lang = parse_lang_pair(state.lang_pair)
@@ -460,62 +528,68 @@ def _open_glossary(state: WorkspaceState, glossary, config, parse_lang_pair, kg=
             new_value_mode="add-unique",
         ).classes("w-full")
 
-        def _save():
+        def _do_save() -> bool:
+            """Core save logic; returns True on success so callers decide UI."""
             s = (src_input.value or "").strip()
             t = (tgt_input.value or "").strip()
             if not (s and t):
                 ui.notify("Both terms are required", type="negative")
-                return
-            try:
-                config.GLOSSARY_DIR.mkdir(parents=True, exist_ok=True)
-                custom_path = config.GLOSSARY_DIR / "custom.tsv"
-                line = f"{s}\t{t}\t{note_input.value or ''}\n"
-                with open(custom_path, "a", encoding="utf-8") as f:
-                    f.write(line)
-                if glossary is not None:
-                    glossary._add_simple_entry(
-                        s, t, src_lang, tgt_lang, "custom.tsv", note_input.value or ""
-                    )
-                    glossary._build_indices()
-                # Also push the term to the KG, tagged with the current project
-                # (instantiated_in -> project source_text) so the mapping carries
-                # "made while translating this book" provenance. Done off the UI
-                # thread; reload_if_changed keeps it from clobbering external edits.
-                if kg is not None:
-                    import re as _re
-                    note_val = note_input.value or ""
-                    lineage_val = (lineage_input.value or "").strip() or "general"
-                    proj_title = state.filename or "current project"
-                    base = (state.filename or state.project_id or "project").lower()
-                    proj_slug = (_re.sub(r"[^a-z0-9]+", "-", base).strip("-")[:80]) or "project"
+                return False
+            config.GLOSSARY_DIR.mkdir(parents=True, exist_ok=True)
+            custom_path = config.GLOSSARY_DIR / "custom.tsv"
+            line = f"{s}\t{t}\t{note_input.value or ''}\n"
+            with open(custom_path, "a", encoding="utf-8") as f:
+                f.write(line)
+            if glossary is not None:
+                glossary.add_entry(s, t, src_lang, tgt_lang, note=note_input.value or "")
+            # Push the term to the KG, tagged with the current project so the
+            # mapping carries "made while translating this project" provenance.
+            # Done off the UI thread; debounced save avoids clobbering external edits.
+            if kg is not None:
+                note_val = note_input.value or ""
+                lineage_val = (lineage_input.value or "").strip() or "general"
+                slug = proj_slug or _slugify_project(state)
 
-                    async def _kg_add():
-                        loop = asyncio.get_running_loop()
-
+                async def _kg_add():
+                    loop = asyncio.get_running_loop()
+                    try:
                         def _do():
                             kg.reload_if_changed()
-                            if not kg.G.has_node(f"source:{proj_slug}"):
-                                kg.add_source_text_node(
-                                    proj_slug, title=proj_title,
-                                    project_type="book_translation",
-                                )
+                            _ensure_project_container(kg, slug, state.filename or "current project", state.project_type)
                             sid = kg.add_term_node(s, src_lang, is_phrase=" " in s)
                             tid = kg.add_term_node(t, tgt_lang, is_phrase=" " in t)
                             kg.link_translations_with_context(
                                 src_term_id=sid, tgt_term_id=tid, confidence=1.0,
                                 lineage=lineage_val, gloss=note_val, verified=True,
-                                source_text_id=proj_slug,
+                                source_text_id=slug,
                             )
-                            kg.save()
                         await loop.run_in_executor(None, _do)
+                        request_kg_save(kg.save, delay=1.0)
+                        if qa_engine is not None and glossary is not None:
+                            await loop.run_in_executor(None, lambda: qa_engine.build_lemma_index(glossary.entries))
+                        with state.client:
+                            ui.notify(f"'{s} → {t}' synced to KG", type="positive")
+                    except Exception as e:
+                        log.warning(f"glossary KG sync: {e}")
+                        with state.client:
+                            ui.notify("KG sync failed — term kept in glossary file; run scripts/ingest_glossary_to_kg.py --apply to re-sync", type="warning")
 
-                    background_tasks.create(_kg_add(), name="glossary_kg")
+                background_tasks.create(_kg_add(), name="glossary_kg")
+            return True
+
+        def _save():
+            if _do_save():
                 ui.notify("Term added to glossary", type="positive")
                 dialog.close()
-            except Exception as ex:
-                ui.notify(f"Error: {ex}", type="negative")
 
-        with ui.row().classes("w-full justify-end mt-4"):
+        def _save_and_add():
+            if _do_save():
+                src_input.set_value("")
+                tgt_input.set_value("")
+                note_input.set_value("")
+
+        with ui.row().classes("w-full justify-end mt-4 gap-2"):
             ui.button("Cancel", on_click=dialog.close).props("flat")
+            ui.button("Save & add another", on_click=_save_and_add).props("outline")
             ui.button("Save", on_click=_save).props("color=positive")
     dialog.open()

@@ -45,7 +45,7 @@ The knowledge graph is a **JSON-backed NetworkX directed graph** with six node t
 - Review queue is non-bypassable — low-confidence records go to `data/extraction_review.json` for curator approval
 - Bilingual-first — source_text nodes carry `title_orig` + `title_translation` with language codes
 - Rhizomatic concept network — concepts link via extends/critiques/redefines/reappropriates/related_to
-
+- **Live glossary→KG path** — terms added from the workspace are direct verified writes (confidence 1.0) with project provenance (`instantiated_in` → source container) and `translated_by` on containers; debounced saves prevent race conditions; on failure the term stays in `custom.tsv` and `scripts/ingest_glossary_to_kg.py --apply` re-syncs idempotently
 ### Entity Extraction Pipeline
 
 Extracts typed citation entities from book footnotes, bibliographies, and body text:
@@ -115,13 +115,36 @@ Lemma-aware quality assurance for translated segments:
 - Language-specific lemmatization via spacy (EN), classla (SL), or stanza (fallback)
 - Caches NLP pipelines per language
 - Returns per-lemma warnings with confidence scores
-
+- **Pipeline-aware hints**: academic pipeline adds citation-convention hints on footnote segments; both pipelines get orthography and integrity hints
+- **Integrity checks**: footnote marker presence (`[^N]:` prefix) and reference count matching; emphasis markup (`*…*`/`**…**`) span count matching
 ### Document Compilation
 
 - **DOCX export** — Compile translated segments back into a DOCX with proper formatting
+- **Two input pipelines** — Academic (book/article) and Simple (short document) control how documents are parsed, processed, and exported
 - **Footnote injection** — Rebuild Word-compatible `footnotes.xml` and inject into the DOCX package
 - **Endnote → footnote normalization** — Restructure source documents before translation (for books with endnotes we change to footnotes)
+- **Emphasis fidelity** — Markdown `*italic*`, `**bold**`, `***both***` in translated text render as real Word italic/bold runs in exported DOCX (including inside footnotes)
 
+## Two Input Pipelines
+
+Every project is assigned a **pipeline** at upload: **Academic** or **Simple**. This choice controls parsing, export, and QA behavior. Legacy projects are automatically inferred (footnote defs or 200+ segments → academic; otherwise simple).
+
+| | Academic (book/article) | Simple (short document) |
+|---|---|---|
+| **Purpose** | Books, academic papers, journal articles | Letters, reports, festival programmes, exhibition catalogues |
+| **Parsing — PDF** | MarkItDown + endnote→footnote conversion (sequence-validated) | MarkItDown only (no restructuring) |
+| **Parsing — DOCX** | `docx_to_markdown`: native footnote/endnote extraction as `[^N]` refs/defs; headings preserved; bold/italic runs as markdown markup | python-docx paragraph extraction; `docx_para_idx` preserved for in-place export |
+| **Export** | `compile_to_designed_docx`: restyled academic DOCX with true Word page-bottom footnotes, per-chapter restart, and `*…*`/`**…**` rendered as italic/bold (incl. inside footnotes) | `compile_from_template`: in-place replacement preserving fonts, sizes, bold, italic |
+| **QA ruleset** | Citation-convention + orthography + footnote/emphasis integrity hints | Orthography + integrity hints |
+| **Footnote handling** | **Conditional by input class**: (a) per-chapter endnote sections → promoted to footnotes with validated renumbering; (b) already `[^N]`-marked → validated renumbering only; (c) no notes section → no conversion. The import report shows defs/refs/aligned status. | No footnote processing |
+
+**Hints only — the editor never rewrites translated text.** All convention enforcement is QA messaging; translators keep `*…*` markers in targets and they become real italics at export.
+
+**Footnote round-trip contract:** Translators must keep the `[^N]:` prefix and inline `[^N]` markers in targets. Dropping them breaks export linkage (flagged as an error by `footnote_integrity`).
+
+**Emphasis contract:** Translators keep `*…*` markers in targets; they become real italic/bold at export. No literal asterisks appear in the final DOCX.
+
+**Page-bottom-footnote PDF limitation:** PDFs whose footnotes are natively page-bottom (no notes section header) yield 0 defs in the report; the import notify states "no notes section detected — footnotes left as-is". Import from DOCX instead for lossless footnote extraction.
 ---
 
 ## Project Structure
@@ -147,6 +170,7 @@ sl_translator/
 │   ├── tm_timecodes.py               # TMX with creationdate preservation
 │   ├── glossary.py                   # TBX/TSV/CSV glossary
 │   ├── qa.py                         # Lemma QA engine
+│   ├── style_rules.py               # QA hint rulesets (citation, orthography, integrity)
 │   ├── doc_parser.py                 # PDF/DOCX → markdown + DOCX compilation
 │   ├── document_pair_pipeline.py     # Bilingual citation matching
 │   ├── citation_collector.py         # Unified citation extraction
@@ -190,17 +214,15 @@ sl_translator/
 │
 ├── scripts/                          # One-off migration & utility scripts
 │   ├── ingest_personal_bibliography.py   # COBISS ingestion
-│   ├── ingest_curator_lineages.py        # Lineage ingestion
 │   ├── ingest_curator_citations.py      # Curator citation ingestion
 │   ├── ingest_curator_agent_mentions.py  # Agent mention ingestion
 │   ├── ingest_performances_artworks.py  # Performance/artwork ingestion
-│   ├── ingest_glossary_to_kg.py         # Glossary → KG term nodes
+│   ├── ingest_glossary_to_kg.py         # Glossary → KG term nodes (idempotent replay)
+│   ├── repair_book_footnotes.py          # Repair footnote alignment in live book projects
 │   ├── build_segment_attribution.py     # Build attribution JSON
 │   ├── harvest_boundary_anchors.py      # Boundary anchor harvesting
 │   ├── harvest_title_anchors.py         # Title anchor harvesting
 │   ├── drop_broken_anchors.py            # Drop broken anchors
-│   ├── verify_container_spans.py         # Verify container spans
-│   ├── drain_noise_concepts.py          # Remove noise concepts
 │   ├── validate_kg.py                   # KG validation script
 │   ├── forensic_audit.py               # KG forensic audit
 │   ├── normalize_lineages.py            # Lineage normalization
@@ -241,9 +263,10 @@ pip install -r requirements.txt
 ```
 
 ### Run the Translation Workspace
-
 ```bash
-python main.py
+python import_book.py data/books/book.pdf
+python import_book.py data/books/book.docx --lang-pair sl->en
+python import_book.py data/books/book.docx --pipeline simple --project-type article_translation
 ```
 
 Opens at `http://localhost:8080`. Upload a PDF or DOCX, translate segment by segment.
@@ -350,17 +373,18 @@ See `ontology.md` for the complete specification.
 
 ---
 
-## Data Format
-
-### Knowledge Graph (`data/knowledge.db`)
-
-JSON file with two top-level arrays:
-
 ```json
 {
-  "nodes": [
-    {"id": "term:en:photographs", "type": "term", "term": "photographs", "lang": "en", ...},
-    {"id": "concept:kasimir_family", "type": "concept", "label": "Kasimir family", ...},
+  "project_id": "a2aee457",
+  "pipeline": "academic",
+  "project_type": "book_translation",
+  "lang_pair": "en->sl",
+  "segments": [
+    {"id": 0, "source": "Source text...", "target": "", "status": "pending"},
+    {"id": 1, "source": "...", "target": "Translated text", "status": "confirmed", "docx_para_idx": 3}
+  ]
+}
+```
     {"id": "source:feminist-queer-crip-kafer", "type": "source_text", "title": "Feminist, Queer, Crip", ...}
   ],
   "edges": [

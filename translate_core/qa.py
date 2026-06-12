@@ -1,9 +1,9 @@
 # translate_core/qa.py
-
 import logging
 import re
 from collections import Counter
 from typing import Any, Dict, List, Optional, Tuple
+from .style_rules import citation_hints, emphasis_integrity, footnote_integrity, orthography_hints
 
 # ---------------------------------------------------------------------------
 # Optional NLP dependencies
@@ -270,6 +270,8 @@ class QAEngine:
         glossary_hits: Optional[List[Dict]] = None,
         src_lang: str = "en",
         tgt_lang: str = "sl",
+        *,
+        pipeline: str = "simple",
     ) -> List[Dict]:
         """
         Runs multiple QA checks on a segment.
@@ -339,5 +341,12 @@ class QAEngine:
             warnings.append({"type": "warning", "message": "Source ends with punctuation, target does not."})
         elif not source.endswith(('.', '!', '?')) and target.endswith(('.', '!', '?')):
             warnings.append({"type": "warning", "message": "Target ends with punctuation, source does not."})
+        # 4. Integrity & style-rule hints
+        warnings.extend(footnote_integrity(source, target))
+        warnings.extend(emphasis_integrity(source, target))
+        is_footnote = source.lstrip().startswith("[^")
+        if pipeline == "academic" and is_footnote:
+            warnings.extend(citation_hints(target, tgt_lang))
+        warnings.extend(orthography_hints(target, tgt_lang))
 
         return warnings
