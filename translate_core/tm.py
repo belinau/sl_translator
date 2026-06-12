@@ -317,10 +317,13 @@ class TranslationMemory:
         for entry in bucket:
             if entry.get("source") == source and entry.get("origin") == origin:
                 entry["target"] = target
-                # Mirror into self.entries if present there
-                for ce in self.entries:
+                # Mirror into self.entries if present there, and refresh
+                # the search-index mirrors for those entry ids (in-place
+                # updates bypass the lazy length-based _sync_index).
+                for ci, ce in enumerate(self.entries):
                     if ce.get("source") == source and ce.get("origin") == origin:
                         ce["target"] = target
+                        self._reindex_entry(ci)
                 return
 
         # Compute next raw_index / t_index (highest + 1)

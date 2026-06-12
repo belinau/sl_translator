@@ -57,6 +57,18 @@ class TestIndexSync:
         )
         assert fuzzy and "Plesalke" in fuzzy[0]["target"]
 
+    def test_in_place_update_after_index_built(self, tm):
+        # Force the index to exist BEFORE the in-place update so the
+        # lazy length check cannot mask a stale mirror.
+        tm._sync_index()
+        tm.upsert_runtime_pair(
+            "A short note on choreography and dramaturgy",
+            "Povsem nova opomba o koreografiji",  # new target
+            "en", "sl",
+        )
+        hits = tm.search_concordance("povsem nova opomba", top_n=5)
+        assert hits and hits[0]["target"] == "Povsem nova opomba o koreografiji"
+
 
 class TestIndexStructures:
     """Direct assertions on the index internals — query methods are not
