@@ -11,10 +11,9 @@ segments — translation flow needs fresh hits each time.
 """
 from __future__ import annotations
 
-import asyncio
 import json
 
-from nicegui import background_tasks, ui
+from nicegui import background_tasks, run, ui
 
 from .state import WorkspaceState
 
@@ -467,11 +466,10 @@ def build(
         if seg is None or kg is None:
             return
         idx = state.active_index
-        loop = asyncio.get_running_loop()
         src_lang, tgt_lang = parse_lang_pair(state.lang_pair)
         try:
-            hits = await loop.run_in_executor(
-                None, _kg_query, seg["source"], src_lang, tgt_lang, kg,
+            hits = await run.io_bound(
+                _kg_query, seg["source"], src_lang, tgt_lang, kg,
             )
         except Exception as e:
             print(f"[intel KG] {e}")
@@ -555,55 +553,82 @@ def build(
         if seg is None or tm is None:
             return
         idx = state.active_index
-        loop = asyncio.get_running_loop()
         try:
-            fuzzy = await loop.run_in_executor(
-                None,
-                lambda: (
-                    # 95% threshold so only near-exact matches surface as
-                    # actionable suggestions; lower-scoring hits clutter the
-                    # translation flow without adding value.
-                    tm.lookup_fuzzy(seg["source"], threshold=95.0, limit=5) or []
-                ),
-            )
+            # Canonical CAT-tool lookup: whole-segment fuzzy + concordance.
+            # Both calls hop to NiceGUI's thread pool via run.io_bound (the
+            # high-level API) — main event loop stays responsive.
+            fuzzy = await run.io_bound(
+                tm.lookup_fuzzy, seg["source"], threshold=95.0, limit=5
+            ) or []
+            concord = await run.io_bound(
+                tm.search_concordance, seg["source"], top_n=5
+            ) or []
         except Exception as e:
             print(f"[intel TM] {e}")
             return
         if state.active_index != idx or tm_container.is_deleted:
             return
+        # Dedup: a fuzzy hit shouldn't also appear in concordance.
+        fuzzy_keys = {(m.get("source", ""), m.get("target", "")) for m in fuzzy}
+        concord = [
+            c for c in concord
+            if (c.get("source", ""), c.get("target", "")) not in fuzzy_keys
+        ]
         tm_container.clear()
         with tm_container:
             if not fuzzy:
                 ui.label("No near-exact matches (≥95%).").classes(
                     "text-xs italic opacity-90"
                 )
-                return
-            ui.label("NEAR-EXACT MATCHES").classes(
-                "text-[9px] font-black tracking-[.2em] opacity-90"
-            )
-            for m in fuzzy:
-                score = int(m.get("score") or 0)
-                badge_color = "positive" if score >= 100 else "primary"
-                with (
-                    ui.card()
-                    .props("flat bordered")
-                    .classes(
-                        "w-full rounded-xl p-3 cursor-pointer "
-                        "flex-row items-center gap-3 hover:bg-primary/5"
-                    )
-                    .on("click", lambda _e, t=m.get("target", ""): _insert(t))
-                ):
-                    ui.badge(f"{score}%", color=badge_color).classes(
-                        "text-[10px] font-black px-2 py-1 rounded-lg shrink-0"
-                    )
-                    with ui.column().classes("gap-0.5 flex-1 min-w-0"):
-                        ui.label(m.get("source", "")).classes(
-                            "text-[11px] italic leading-snug opacity-60"
-                        ).style("white-space:normal;word-break:break-word")
-                        ui.label(m.get("target", "")).classes(
-                            "text-[13px] font-bold leading-snug"
-                        ).style("white-space:normal;word-break:break-word")
-                    ui.icon("content_paste", size="18px").props("color=grey-5")
+            else:
+                ui.label("NEAR-EXACT MATCHES").classes(
+                    "text-[9px] font-black tracking-[.2em] opacity-90"
+                )
+                for m in fuzzy:
+                    score = int(m.get("score") or 0)
+                    badge_color = "positive" if score >= 100 else "primary"
+                    with (
+                        ui.card()
+                        .props("flat bordered")
+                        .classes(
+                            "w-full rounded-xl p-3 cursor-pointer "
+                            "flex-row items-center gap-3 hover:bg-primary/5"
+                        )
+                        .on("click", lambda _e, t=m.get("target", ""): _insert(t))
+                    ):
+                        ui.badge(f"{score}%", color=badge_color).classes(
+                            "text-[10px] font-black px-2 py-1 rounded-lg shrink-0"
+                        )
+                        with ui.column().classes("gap-0.5 flex-1 min-w-0"):
+                            ui.label(m.get("source", "")).classes(
+                                "text-[11px] italic leading-snug opacity-60"
+                            ).style("white-space:normal;word-break:break-word")
+                            ui.label(m.get("target", "")).classes(
+                                "text-[13px] font-bold leading-snug"
+                            ).style("white-space:normal;word-break:break-word")
+                        ui.icon("content_paste", size="18px").props("color=grey-5")
+            if concord:
+                ui.label("CONCORDANCE").classes(
+                    "text-[9px] font-black tracking-[.2em] opacity-90 mt-2"
+                )
+                for c in concord:
+                    with (
+                        ui.card()
+                        .props("flat bordered")
+                        .classes(
+                            "w-full rounded-xl p-3 cursor-pointer "
+                            "flex-row items-center gap-3 hover:bg-primary/5"
+                        )
+                        .on("click", lambda _e, t=c.get("target", ""): _insert(t))
+                    ):
+                        with ui.column().classes("gap-0.5 flex-1 min-w-0"):
+                            ui.label(c.get("kwic_source") or c.get("source", "")).classes(
+                                "text-[11px] italic leading-snug opacity-60"
+                            ).style("white-space:normal;word-break:break-word")
+                            ui.label(c.get("kwic_target") or c.get("target", "")).classes(
+                                "text-[13px] font-bold leading-snug"
+                            ).style("white-space:normal;word-break:break-word")
+                        ui.icon("content_paste", size="18px").props("color=grey-5")
 
     # ------------------------------------------------------------------
     # Glossary: tagged terms found in the source
@@ -613,13 +638,11 @@ def build(
         if seg is None or glossary is None:
             return
         idx = state.active_index
-        loop = asyncio.get_running_loop()
         src, tgt = parse_lang_pair(state.lang_pair)
         try:
-            hits = await loop.run_in_executor(
-                None,
-                lambda: glossary.lookup_terms(seg["source"], src, tgt) or [],
-            )
+            hits = await run.io_bound(
+                glossary.lookup_terms, seg["source"], src, tgt,
+            ) or []
         except Exception as e:
             print(f"[intel glossary] {e}")
             return

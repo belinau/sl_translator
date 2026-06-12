@@ -63,7 +63,7 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
         with ui.column().classes("w-full px-4 pt-3 pb-1 gap-1 shrink-0 no-wrap"):
             ui.label("SOURCE").classes("text-[9px] font-black tracking-[0.2em] uppercase opacity-50")
             with ui.card().props("flat bordered").classes(
-                "w-full rounded-xl p-4 max-h-[16vh] overflow-y-auto"
+                "w-full rounded-xl p-4"
             ):
                 source_label = ui.label(seg["source"]).classes(
                     "leading-relaxed"
@@ -76,9 +76,9 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
         with ui.column().classes("w-full px-4 pt-2 pb-1 gap-1 shrink-0 no-wrap"):
             ui.label("TARGET").classes("text-[9px] font-black tracking-[0.2em] uppercase opacity-50")
             with ui.card().props("flat bordered").classes(
-                "target-zone w-full rounded-xl p-0 min-h-[16vh] max-h-[24vh] overflow-y-auto"
+                "target-zone w-full rounded-xl p-0"
             ):
-                with ui.element("div").classes("relative w-full min-h-full"):
+                with ui.element("div").classes("relative w-full"):
                     ghost_overlay = (
                         ui.html(f"<span>{html_lib.escape(seg['target'])}</span>")
                         .classes("absolute inset-0 pointer-events-none overflow-hidden z-10 ghost-prediction-overlay")
@@ -90,12 +90,12 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
                     target_textarea = (
                         ui.textarea(value=seg["target"])
                         .bind_value(state.current, "target")
-                        .props("borderless dense autogrow")
-                        .classes("w-full h-full z-20 prediction-textarea")
+                        .props('borderless dense autogrow rows="5"')
+                        .classes("w-full z-20 prediction-textarea")
                     )
 
         # --- QA zone (below target so warnings don't shift the focal field) ---
-        qa_row = ui.column().classes("w-full px-4 gap-1 shrink-0 max-h-[8vh] overflow-y-auto")
+        qa_row = ui.column().classes("w-full px-4 gap-1 shrink-0")
 
         # --- Footer (confirm bar) ---
         with ui.row().classes("w-full px-4 py-2 justify-between items-center shrink-0"):

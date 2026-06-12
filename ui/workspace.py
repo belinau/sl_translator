@@ -72,7 +72,7 @@ def page_translate(project_id: str):
     # is NiceGUI components letting Quasar handle dark/light styling natively.
     ui.add_head_html(f"<style>{ui_settings.SHARED_CSS}</style>")
     predictions.inject_runtime()
-    ui.query(".nicegui-content").classes("p-0 gap-0 h-screen flex flex-col no-wrap")
+    ui.query(".nicegui-content").classes("p-0 gap-0")
 
     dm = ui_settings.install_dark_mode()
 
@@ -213,19 +213,19 @@ def page_translate(project_id: str):
             segment_navigator.build(state)
             kg_search.build(state, deps)
 
-    with ui.column().classes("w-full flex-1 min-h-0 items-center gap-0 no-wrap"):
-        with ui.column().classes("w-full max-w-4xl flex-1 min-h-0 px-4 pt-2 pb-2 gap-2 no-wrap"):
+    with ui.column().classes("w-full items-center gap-0"):
+        with ui.column().classes("w-full max-w-4xl px-4 pt-2 pb-2 gap-2"):
             def _trigger_confirm() -> None:
                 background_tasks.create(_confirm_segment(), name="confirm_btn")
 
             # TM + Glossary band — fixed height above the editor so the
             # target field anchors at ~2/3 viewport on portrait screens.
-            tm_gl_zone = ui.scroll_area().classes("w-full h-[28vh] shrink-0")
+            tm_gl_zone = ui.column().classes("w-full")
 
             segment_editor.build(state, deps, on_confirm=_trigger_confirm)
 
             # KG zone — fills all remaining viewport below the editor.
-            kg_zone = ui.scroll_area().classes("w-full flex-1 min-h-0")
+            kg_zone = ui.column().classes("w-full")
 
             intel_panel.build(state, deps, tm_gl_slot=tm_gl_zone, kg_slot=kg_zone)
 

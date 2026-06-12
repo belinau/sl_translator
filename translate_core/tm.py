@@ -19,6 +19,48 @@ def clean_xml(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def _kwic_at(text: str, pos: int, window: int = 90) -> str:
+    """Excerpt of ``text`` centered on ``pos`` (start index of the matched
+    word), snapped to word boundaries, with ``…`` prefixed/suffixed where
+    the excerpt is truncated. Returns the full text unchanged when it
+    already fits inside ``window``. Caller must ensure ``pos`` is valid."""
+    if not text:
+        return ""
+    n = len(text)
+    if n <= window:
+        return text
+    half = window // 2
+    start = max(0, pos - half)
+    end = min(n, start + window)
+    if end == n:
+        start = max(0, n - window)
+    # Snap inward to the next word boundary so we never cut a word in half.
+    if start > 0:
+        sp = text.find(" ", start)
+        if 0 <= sp < pos:
+            start = sp + 1
+    if end < n:
+        sp = text.rfind(" ", pos, end)
+        if sp > pos:
+            end = sp
+    return (
+        ("…" if start > 0 else "")
+        + text[start:end].strip()
+        + ("…" if end < n else "")
+    )
+
+
+def _kwic_head(text: str, window: int = 90) -> str:
+    """Head excerpt with trailing ``…`` on truncation; word-boundary snapped.
+    Used as the fallback when no query word matched on a given side
+    (e.g. matched in source but not target)."""
+    if not text or len(text) <= window:
+        return text
+    sp = text.rfind(" ", 0, window)
+    end = sp if sp > window // 2 else window - 1
+    return text[:end].strip() + "…"
+
+
 class TranslationMemory:
     def __init__(self, tm_dir: Path = config.TM_DIR):
         self.tm_dir = Path(tm_dir)
@@ -236,7 +278,7 @@ class TranslationMemory:
         if not sources:
             return []
 
-        matches = process.extract(text, sources, scorer=fuzz.partial_ratio, limit=limit * 5)
+        matches = process.extract(text, sources, scorer=fuzz.ratio, limit=limit * 5)
         results = []
 
         for src, score, _ in matches:
@@ -254,8 +296,13 @@ class TranslationMemory:
         Concordance search: return all segments containing any of the query words.
         Ranked by word coverage (more query words matched = higher rank), then
         by segment length ascending (shorter = more precise match).
-        No length penalty — concordance must return full sentences regardless of
-        how short the query is.
+
+        Each hit carries ``kwic_source`` and ``kwic_target`` — an excerpt
+        centered on the earliest matched word on each side, snapped to word
+        boundaries, with ``…`` marking truncated edges. The UI renders these
+        directly so the translator sees the *matched* sentence, not whatever
+        happened to lead the TM unit. The full ``source``/``target`` keys
+        are preserved alongside for any caller that wants the raw segment.
         """
         words = [w for w in text.split() if len(w) >= 2]
         if not words:
@@ -265,17 +312,46 @@ class TranslationMemory:
         for entry in self.entries:
             src_text = entry["source"]
             tgt_text = entry["target"]
-            count = sum(
-                1
-                for w in words
-                if w.lower() in src_text.lower() or w.lower() in tgt_text.lower()
+            src_low = src_text.lower()
+            tgt_low = tgt_text.lower()
+
+            # Track earliest match position on each side; an entry counts as
+            # a hit if at least one query word lands on either side.
+            src_match_pos = -1
+            tgt_match_pos = -1
+            matched = 0
+            for w in words:
+                wl = w.lower()
+                si = src_low.find(wl)
+                ti = tgt_low.find(wl)
+                if si < 0 and ti < 0:
+                    continue
+                matched += 1
+                if si >= 0 and (src_match_pos < 0 or si < src_match_pos):
+                    src_match_pos = si
+                if ti >= 0 and (tgt_match_pos < 0 or ti < tgt_match_pos):
+                    tgt_match_pos = ti
+
+            if matched == 0:
+                continue
+
+            kwic_src = (
+                _kwic_at(src_text, src_match_pos)
+                if src_match_pos >= 0
+                else _kwic_head(src_text)
             )
-            if count > 0:
-                scored_entries.append({
-                    **entry,
-                    "relevance": count / len(words),
-                    "_seg_len": len(src_text),
-                })
+            kwic_tgt = (
+                _kwic_at(tgt_text, tgt_match_pos)
+                if tgt_match_pos >= 0
+                else _kwic_head(tgt_text)
+            )
+            scored_entries.append({
+                **entry,
+                "relevance": matched / len(words),
+                "_seg_len": len(src_text),
+                "kwic_source": kwic_src,
+                "kwic_target": kwic_tgt,
+            })
 
         scored_entries.sort(key=lambda x: (-x["relevance"], x["_seg_len"]))
         return scored_entries[:top_n]

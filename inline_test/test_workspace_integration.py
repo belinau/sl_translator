@@ -902,24 +902,25 @@ async def test_intel_card_renders_bilingual_header(user):
 
 
 # ---------------------------------------------------------------------------
-# TDD: Intel panel UI — concordance removed (Phase 2)
+# Intel panel UI — concordance lives inside the TM panel
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_intel_concordance_is_not_shown_by_default(user):
-    """Concordance section is removed from the default intel surface. Even
-    when concordance data exists, the CONCORDANCE header must not appear."""
+async def test_intel_concordance_section_renders_when_data_available(user):
+    """Canonical CAT-tool TM layout: fuzzy match + concordance, two slots
+    in the same TM card. When concordance data exists, the CONCORDANCE
+    header and the hits surface below the fuzzy section."""
     state = _make_state()
     tm = StubTM(conc=[{"source": "some concordance line", "target": "nek tekst"}])
 
-    @ui.page("/intel_no_conc")
+    @ui.page("/intel_conc")
     def page():
         intel_panel.build(state, _deps(tm=tm))
 
-    await user.open("/intel_no_conc")
+    await user.open("/intel_conc")
     await asyncio.sleep(0.5)
-    # Concordance data exists but must not be rendered
-    await user.should_not_see("CONCORDANCE")
+    await user.should_see("CONCORDANCE")
+    await user.should_see("some concordance line")
 
 
 # ---------------------------------------------------------------------------
