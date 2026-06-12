@@ -617,10 +617,20 @@ class DocumentParser:
         del use_vl, vl_cache_dir, progress_callback
         raw_text = self.md.convert(str(source)).text_content or ""
         if source.suffix.lower() == ".pdf":
-            # Sentence-preserving reflow: PDF extraction splits wrapped
-            # lines (often blank-separated); without this, segmentation
-            # hands the translator sentence fragments. Applies to both
-            # pipelines — it repairs extraction, it does not restructure.
+            # MarkItDown's PDF backend (pdfplumber/pdfminer) loses
+            # sentence-initial capitals and the pronoun "I" — the PDF
+            # text layer encodes them as lowercase glyphs. PyMuPDF maps
+            # character codes to visual glyphs, preserving case.
+            try:
+                import fitz
+                doc = fitz.open(str(source))
+                raw_text = "\n\n".join(
+                    doc[i].get_text() for i in range(len(doc))
+                )
+                doc.close()
+            except ImportError:
+                pass  # fallback: MarkItDown (case may be imperfect)
+            # Sentence-preserving reflow
             raw_text = self._reflow_pdf_text(raw_text)
         if preprocess:
             raw_text = self.preprocess_source_style(

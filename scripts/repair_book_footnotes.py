@@ -226,20 +226,25 @@ def main(argv=None) -> int:
                 len(cur_run),
             ))
 
+        stage_a_spans = list(spans)  # snapshot before Stage B
         for src, tgt, cnt in runs:
             old_key = _normalise(src)
             if not old_key:
                 continue
-            # Try full ratio first (works for most runs); fall back to
-            # partial_ratio only for mid-sentence fragments that need it.
-            result = _find_span(old_key, constrain=False, partial=False)
+            # Constrained search first. If that fails, unconstrained
+            # with partial_ratio for mid-sentence fragments — but
+            # reject any span that overlaps a Stage A match.
+            result = _find_span(old_key, constrain=True, partial=False)
+            if result is None or result[0] < 85.0:
+                result = _find_span(old_key, constrain=False, partial=False)
             if result is None or result[0] < 85.0:
                 result = _find_span(old_key, constrain=False, partial=True)
+                if result is not None:
+                    _, bj, bk = result
+                    if any(not (sk < bj or sj > bk) for sj, sk, _, _ in stage_a_spans):
+                        result = None
             if result is not None and result[0] >= 85.0:
                 score, j, k = result
-                overlap = [s for s in spans if not (s[1] < j or s[0] > k)]
-                for ov in overlap:
-                    spans.remove(ov)
                 for x in range(j, k + 1):
                     claimed[x] = True
                 spans.append((j, k, tgt, cnt))
