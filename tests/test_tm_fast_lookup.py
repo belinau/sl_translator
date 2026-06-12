@@ -144,7 +144,12 @@ class TestConcordance:
         assert tm.search_concordance("qqqqxyzzy", top_n=5) == []
 
     def test_long_query_capped_by_rarity(self, tm):
-        # 60-word query must not blow up; rarest words still drive hits.
-        noise = " ".join(["the of and in on at to for with from"] * 6)
+        # >12 unique words forces the max_words rarity trim; the rare
+        # word 'choreography' must survive the cap and drive hits.
+        noise = (
+            "the of and in on at to for with from by as is was were be "
+            "been about into over under"
+        )
+        assert len(set(noise.split())) > 12  # guard: branch actually taken
         hits = tm.search_concordance(noise + " choreography", top_n=5)
         assert any("choreography" in h["source"] for h in hits)

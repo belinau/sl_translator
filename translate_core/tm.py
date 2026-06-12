@@ -265,24 +265,27 @@ class TranslationMemory:
             if new_tokens:
                 self._inv_tokens = sorted(self._inv)
 
+    def _prefix_postings(self, w: str) -> List[int]:
+        """Posting ids for ``w`` expanded over token PREFIXES (at most 50
+        vocabulary tokens scanned). Shared by candidate generation and
+        the rarity trim so both rank words by the same notion of
+        document frequency."""
+        ids: List[int] = []
+        lo = bisect.bisect_left(self._inv_tokens, w)
+        for tok in self._inv_tokens[lo : lo + 50]:
+            if not tok.startswith(w):
+                break
+            ids.extend(self._inv[tok])
+        return ids
+
     def _candidates_for(self, words: List[str], cap: int = 20000) -> set:
         """Union of posting lists for each query word, prefix-expanded.
 
-        Each query word matches indexed tokens by PREFIX (query 'dance'
-        hits entries containing 'dancers'), expanding at most 50 vocabulary
-        tokens per word. Rarest words are unioned first so that when the
-        cap trips on stop-word-frequency tokens, the informative words have
-        already contributed their postings.
+        Rarest words are unioned first so that when the cap trips on
+        stop-word-frequency tokens, the informative words have already
+        contributed their postings.
         """
-        postings: List[List[int]] = []
-        for w in words:
-            ids: List[int] = []
-            lo = bisect.bisect_left(self._inv_tokens, w)
-            for tok in self._inv_tokens[lo : lo + 50]:
-                if not tok.startswith(w):
-                    break
-                ids.extend(self._inv[tok])
-            postings.append(ids)
+        postings = [self._prefix_postings(w) for w in words]
         cand: set = set()
         for ids in sorted(postings, key=len):
             cand.update(ids)
@@ -421,8 +424,18 @@ class TranslationMemory:
             return []
         uniq = list(dict.fromkeys(words))
         if len(uniq) > max_words:
-            uniq = sorted(uniq, key=lambda w: len(self._inv.get(w, ())))[:max_words]
+            # Prefix-aware document frequency: a word that expands to no
+            # corpus token can never produce a candidate — drop it rather
+            # than let df=0 masquerade as "rarest" and displace real rare
+            # words. Keep the max_words rarest of the remainder.
+            dfs = {w: len(self._prefix_postings(w)) for w in uniq}
+            uniq = sorted(
+                (w for w in uniq if dfs[w] > 0),
+                key=lambda w: dfs[w],
+            )[:max_words]
         words = uniq
+        if not words:
+            return []
 
         scored: List[tuple] = []
         for i in self._candidates_for(words):
