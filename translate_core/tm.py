@@ -399,70 +399,67 @@ class TranslationMemory:
                 break
         return results
 
-    def search_concordance(self, text: str, top_n: int = 5) -> List[Dict]:
-        """
-        Concordance search: return all segments containing any of the query words.
-        Ranked by word coverage (more query words matched = higher rank), then
-        by segment length ascending (shorter = more precise match).
+    def search_concordance(
+        self, text: str, top_n: int = 5, max_words: int = 12
+    ) -> List[Dict]:
+        """Concordance search over the inverted index.
 
-        Each hit carries ``kwic_source`` and ``kwic_target`` — an excerpt
-        centered on the earliest matched word on each side, snapped to word
-        boundaries, with ``…`` marking truncated edges. The UI renders these
-        directly so the translator sees the *matched* sentence, not whatever
-        happened to lead the TM unit. The full ``source``/``target`` keys
-        are preserved alongside for any caller that wants the raw segment.
+        Candidate generation: token-PREFIX lookup per query word (>=2
+        chars) via ``_candidates_for``. Scoring: word coverage descending,
+        then segment length ascending (shorter = more precise). KWIC
+        excerpts (``kwic_source``/``kwic_target``) are built ONLY for the
+        final ``top_n`` — the old implementation built them for every
+        matching entry, which together with per-query ``.lower()`` over
+        the whole corpus made long queries take seconds.
+
+        Queries longer than ``max_words`` keep their rarest (most
+        informative) words, by document frequency.
         """
-        words = [w for w in text.split() if len(w) >= 2]
+        self._sync_index()
+        words = [w.lower() for w in _TOKEN_RE.findall(text) if len(w) >= 2]
         if not words:
             return []
+        uniq = list(dict.fromkeys(words))
+        if len(uniq) > max_words:
+            uniq = sorted(uniq, key=lambda w: len(self._inv.get(w, ())))[:max_words]
+        words = uniq
 
-        scored_entries = []
-        for entry in self.entries:
-            src_text = entry["source"]
-            tgt_text = entry["target"]
-            src_low = src_text.lower()
-            tgt_low = tgt_text.lower()
-
-            # Track earliest match position on each side; an entry counts as
-            # a hit if at least one query word lands on either side.
-            src_match_pos = -1
-            tgt_match_pos = -1
+        scored: List[tuple] = []
+        for i in self._candidates_for(words):
+            sl, tl = self._src_low[i], self._tgt_low[i]
+            sp = tp = -1
             matched = 0
             for w in words:
-                wl = w.lower()
-                si = src_low.find(wl)
-                ti = tgt_low.find(wl)
+                si = sl.find(w)
+                ti = tl.find(w)
                 if si < 0 and ti < 0:
                     continue
                 matched += 1
-                if si >= 0 and (src_match_pos < 0 or si < src_match_pos):
-                    src_match_pos = si
-                if ti >= 0 and (tgt_match_pos < 0 or ti < tgt_match_pos):
-                    tgt_match_pos = ti
+                if si >= 0 and (sp < 0 or si < sp):
+                    sp = si
+                if ti >= 0 and (tp < 0 or ti < tp):
+                    tp = ti
+            if matched:
+                scored.append((
+                    -matched / len(words),
+                    len(self.entries[i]["source"]),
+                    i, sp, tp,
+                ))
 
-            if matched == 0:
-                continue
-
-            kwic_src = (
-                _kwic_at(src_text, src_match_pos)
-                if src_match_pos >= 0
-                else _kwic_head(src_text)
-            )
-            kwic_tgt = (
-                _kwic_at(tgt_text, tgt_match_pos)
-                if tgt_match_pos >= 0
-                else _kwic_head(tgt_text)
-            )
-            scored_entries.append({
-                **entry,
-                "relevance": matched / len(words),
-                "_seg_len": len(src_text),
-                "kwic_source": kwic_src,
-                "kwic_target": kwic_tgt,
+        scored.sort()
+        results: List[Dict] = []
+        for neg_rel, seg_len, i, sp, tp in scored[:top_n]:
+            e = self.entries[i]
+            results.append({
+                **e,
+                "relevance": -neg_rel,
+                "_seg_len": seg_len,
+                "kwic_source": _kwic_at(e["source"], sp) if sp >= 0
+                               else _kwic_head(e["source"]),
+                "kwic_target": _kwic_at(e["target"], tp) if tp >= 0
+                               else _kwic_head(e["target"]),
             })
-
-        scored_entries.sort(key=lambda x: (-x["relevance"], x["_seg_len"]))
-        return scored_entries[:top_n]
+        return results
 
     def search_prefix(self, prefix: str) -> List[str]:
         """

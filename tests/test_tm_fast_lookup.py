@@ -114,3 +114,37 @@ class TestIndexStructures:
         tm._reindex_entry(i)
         assert tm._tgt_low[i] == "plesalke so se premikale po odru"
         assert i in tm._inv["plesalke"]
+
+
+class TestConcordance:
+    def test_prefix_match(self, tm):
+        # 'dance' must hit the entry containing 'dancers' (token prefix).
+        hits = tm.search_concordance("dance", top_n=5)
+        assert any("dancers" in h["source"] for h in hits)
+
+    def test_result_shape_unchanged(self, tm):
+        hits = tm.search_concordance("choreography dramaturgy", top_n=5)
+        assert hits
+        h = hits[0]
+        for key in ("source", "target", "relevance", "_seg_len",
+                    "kwic_source", "kwic_target"):
+            assert key in h, f"missing key {key!r} — UI contract broken"
+        assert h["relevance"] == 1.0  # both words matched
+
+    def test_full_coverage_ranks_first(self, tm):
+        tm.upsert_runtime_pair(
+            "Only choreography here", "Samo koreografija tukaj", "en", "sl"
+        )
+        hits = tm.search_concordance("choreography dramaturgy", top_n=5)
+        rels = [h["relevance"] for h in hits]
+        assert rels == sorted(rels, reverse=True)
+        assert "dramaturgy" in hits[0]["source"]
+
+    def test_no_index_tokens_returns_empty(self, tm):
+        assert tm.search_concordance("qqqqxyzzy", top_n=5) == []
+
+    def test_long_query_capped_by_rarity(self, tm):
+        # 60-word query must not blow up; rarest words still drive hits.
+        noise = " ".join(["the of and in on at to for with from"] * 6)
+        hits = tm.search_concordance(noise + " choreography", top_n=5)
+        assert any("choreography" in h["source"] for h in hits)
