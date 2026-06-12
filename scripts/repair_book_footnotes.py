@@ -134,22 +134,35 @@ def main(argv=None) -> int:
             }
         ]
         new_keys = [_normalise(s["source"]) for s in new_segments]
+        fuzzy_pairs: list[tuple[str, str]] = []
         for old_seg in unattached_done:
             old_key = _normalise(old_seg["source"])
             if not old_key:
                 continue
+            # fuzz.ratio (full-string) — token_set_ratio is subset-friendly
+            # and happily attaches a short TOC line to an unrelated long
+            # segment. A wrong attachment is worse than none.
             best = rf_process.extractOne(
-                old_key, new_keys, scorer=fuzz.token_set_ratio, score_cutoff=90,
+                old_key, new_keys, scorer=fuzz.ratio, score_cutoff=88,
             )
             if best is None:
                 continue
             _, score, idx = best
             tgt_seg = new_segments[idx]
+            cand_key = new_keys[idx]
+            # Length guard: similar strings must be similar lengths.
+            if not (0.5 <= len(old_key) / max(len(cand_key), 1) <= 2.0):
+                continue
             if tgt_seg["status"] == "done":
                 continue  # already claimed by an exact or earlier fuzzy match
             tgt_seg["target"] = old_seg["target"]
             tgt_seg["status"] = "done"
             fuzzy_attached += 1
+            fuzzy_pairs.append((old_key[:60], cand_key[:60]))
+        if fuzzy_pairs:
+            print("\n  Fuzzy matches (old -> new), audit:")
+            for ok, nk in fuzzy_pairs:
+                print(f"    {ok!r} -> {nk!r}")
 
     total_done = sum(1 for s in new_segments if s.get("status") == "done")
     print(f"\n  New segments: {len(new_segments)}")
@@ -174,11 +187,20 @@ def main(argv=None) -> int:
 
     # ── Apply: backup + write ────────────────────────────────────────────
     backup_path = PROJECTS_DIR / f"{project_id}.json.bak"
+    if backup_path.exists():
+        # Never clobber the first backup — it is the pre-repair original.
+        n = 2
+        while (PROJECTS_DIR / f"{project_id}.json.bak{n}").exists():
+            n += 1
+        backup_path = PROJECTS_DIR / f"{project_id}.json.bak{n}"
     backup_path.write_text(
         json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     print(f"\nBackup written to: {backup_path}")
 
+    # Exact save_project schema: the home-page project list hard-indexes
+    # saved_at/total/done and silently drops projects missing them.
+    from datetime import datetime
     ws = {
         "id": project_id,
         "filename": filename,
@@ -186,6 +208,9 @@ def main(argv=None) -> int:
         "pipeline": "academic",
         "project_type": data.get("project_type", "book_translation"),
         "active_index": 0,
+        "saved_at": datetime.now().isoformat(timespec="seconds"),
+        "total": len(new_segments),
+        "done": total_done,
         "segments": new_segments,
     }
     # Preserve segments_meta if present

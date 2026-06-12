@@ -188,10 +188,97 @@ class DocumentParser:
         self.md = MarkItDown(enable_plugins=enable_plugins)
         self._last_vl_result = None
         self.last_footnote_report: dict | None = None
+        self.last_reflow_report: dict | None = None
 
     # ===================================================================
     # STAGE 1: Pre-Translation Normalization (Ingestion)
     # ===================================================================
+
+    # ── PDF line reflow ────────────────────────────────────────────────
+    # PDF extraction emits each visual line separately, frequently with a
+    # blank line between wrapped lines of ONE sentence. Downstream
+    # segmentation treats blank lines as paragraph breaks, so without
+    # reflow a translator gets sentence fragments as segments. Reflow
+    # rejoins wrapped lines into sentence units and drops page-layout
+    # debris (bare page numbers, running headers) that publishers
+    # regenerate anyway.
+
+    # Bare page number: "179"
+    _PAGE_NUM_LINE_RE = re.compile(r"^\s*\d{1,4}\s*$")
+    # Running header: "180  |  Notes to Pages 4-7"  /  "Notes ...  |  181"
+    _RUNNING_HEADER_RE = re.compile(
+        r"^\s*\d{1,4}\s*\|.{0,80}$|^.{0,80}\|\s*\d{1,4}\s*$"
+    )
+    # Lines that must always start their own unit.
+    _STRUCTURAL_LINE_RE = re.compile(
+        r"^\s*(?:#+\s|>\s|[-*+]\s|\d{1,3}[.)]\s|\[\^\w+\]:)"
+    )
+    # Footnote-marker digits glued after terminal punctuation ("future.\u201d1")
+    _TRAILING_FN_DIGITS_RE = re.compile(
+        r"([.!?:;\"\u201d\u00bb\u2019\u2026])\d{1,3}$"
+    )
+    _TERMINAL_CHARS = ".!?:;\"\u201d\u00bb\u2019\u2026"
+
+    def _reflow_pdf_text(self, text: str) -> str:
+        """Rejoin PDF-wrapped lines into sentence units.
+
+        Join rule (conservative): a content line joins the previous unit
+        when the previous unit ends mid-sentence (no terminal punctuation
+        after stripping glued footnote digits) OR the line starts with a
+        lowercase letter. Structural lines (headings, note rows, [^N]:
+        defs, list items) always start a new unit. Hyphenated word splits
+        are repaired. Page numbers and running headers are dropped and
+        counted in ``last_reflow_report``.
+        """
+        dropped = 0
+        units: List[str] = []
+
+        def _ends_sentence(s: str) -> bool:
+            s = self._TRAILING_FN_DIGITS_RE.sub(r"\1", s.rstrip())
+            return bool(s) and s[-1] in self._TERMINAL_CHARS
+
+        # TOC / index rows: short lines ending in a page locator (arabic
+        # digits or roman numerals). Self-terminated — never joined onto,
+        # so the TOC and index keep one row per entry.
+        _locator_tail = re.compile(
+            r"\s(?:\d{1,4}|[ivxlcdm]{1,7})\s*$", re.IGNORECASE
+        )
+
+        def _self_terminated(s: str) -> bool:
+            return len(s) < 90 and bool(_locator_tail.search(s))
+
+        for raw in text.splitlines():
+            s = raw.strip()
+            if not s:
+                continue
+            if self._PAGE_NUM_LINE_RE.match(s) or self._RUNNING_HEADER_RE.match(s):
+                dropped += 1
+                continue
+            if self._STRUCTURAL_LINE_RE.match(raw) or not units:
+                units.append(s)
+                continue
+            prev = units[-1]
+            if _self_terminated(prev):
+                units.append(s)
+                continue
+            # Join only from lines that are demonstrably mid-paragraph:
+            # hyphen/comma continuations always; otherwise the previous
+            # unit must be a full-width prose line (short lines are
+            # headings, title-page art, TOC rows — each its own unit).
+            if prev.endswith("-") and prev[-2:-1].isalpha() and s[:1].isalpha():
+                units[-1] = prev[:-1] + s  # "medi-" + "cal" -> "medical"
+            elif prev.endswith((",", ";")):
+                units[-1] = prev + " " + s
+            elif len(prev) >= 60 and (not _ends_sentence(prev) or s[:1].islower()):
+                units[-1] = prev + " " + s
+            else:
+                units.append(s)
+
+        self.last_reflow_report = {
+            "dropped_page_artifacts": dropped,
+            "units": len(units),
+        }
+        return "\n\n".join(units)
 
     def preprocess_source_style(
         self,
@@ -522,6 +609,12 @@ class DocumentParser:
         """Convert a local book file to Markdown, returning (markdown, segments_meta)."""
         del use_vl, vl_cache_dir, progress_callback
         raw_text = self.md.convert(str(source)).text_content or ""
+        if source.suffix.lower() == ".pdf":
+            # Sentence-preserving reflow: PDF extraction splits wrapped
+            # lines (often blank-separated); without this, segmentation
+            # hands the translator sentence fragments. Applies to both
+            # pipelines — it repairs extraction, it does not restructure.
+            raw_text = self._reflow_pdf_text(raw_text)
         if preprocess:
             raw_text = self.preprocess_source_style(
                 raw_text, remap_lists=True, list_style=list_style, convert_endnotes=True
