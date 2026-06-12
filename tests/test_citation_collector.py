@@ -417,3 +417,57 @@ class TestExtractAndIngestWiring:
         )
         assert calls == []
         assert report.dropped == 1
+    def test_successive_confirms_accumulate_review_queue(self, kg, tmp_path):
+        """Records from the first editor confirm must survive after the second confirm.
+
+        This is the literal user-reported bug: re-confirming a segment used to
+        overwrite data/extraction_review.json so only the last confirm's entities
+        survived. The fix merges rather than replaces.
+        """
+        from translate_core.citation_collector import extract_and_ingest
+
+        review_path = str(tmp_path / "review.json")
+        dropped_path = str(tmp_path / "dropped.jsonl")
+
+        entities_call_1 = [{"kind": "agent_person", "name": "Donna Haraway", "role": "author"}]
+        entities_call_2 = [{"kind": "agent_person", "name": "Rosi Braidotti", "role": "author"}]
+
+        r1 = extract_and_ingest(
+            [self._snippet(text="Haraway, Donna. A Cyborg Manifesto. Routledge, 1991.")],
+            kg,
+            review_path=review_path,
+            dropped_path=dropped_path,
+            extractor=lambda **kw: entities_call_1,
+        )
+        r2 = extract_and_ingest(
+            [self._snippet(text="Braidotti, Rosi. The Posthuman. Polity Press, 2013.")],
+            kg,
+            review_path=review_path,
+            dropped_path=dropped_path,
+            extractor=lambda **kw: entities_call_2,
+        )
+        # Both entities must be accounted for.
+        total_accounted = (r1.written + r1.queued + r1.dropped) + (r2.written + r2.queued + r2.dropped)
+        assert total_accounted >= 2, f"expected both entities accounted for, got r1={r1} r2={r2}"
+
+        # All queued records from both runs must be present in the file
+        # (the bug was that run 2 would clobber run 1's records).
+        import json
+        from pathlib import Path
+        queued_total = r1.queued + r2.queued
+        if queued_total >= 2:
+            assert Path(review_path).exists(), "review file must exist when records were queued"
+            queue = json.loads(Path(review_path).read_text(encoding="utf-8"))
+            names_in_queue = {(r.get("payload") or {}).get("name") for r in queue}
+            assert len(queue) >= 2, (
+                f"Both entities were queued ({queued_total} total) but only "
+                f"{len(queue)} record(s) in the file — run 2 clobbered run 1. "
+                f"Names found: {names_in_queue}"
+            )
+        elif queued_total == 1:
+            # One entity queued, one written directly — queue must have exactly 1 record
+            # and the file must exist.
+            assert Path(review_path).exists(), "review file must exist for the 1 queued record"
+            queue = json.loads(Path(review_path).read_text(encoding="utf-8"))
+            assert len(queue) >= 1, "queued record must appear in the file"
+        # queued_total == 0 means both went direct-write — file may not exist, which is fine.

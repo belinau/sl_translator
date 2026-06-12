@@ -538,3 +538,147 @@ def test_i_agent_person_unknown_source_routes_review(
     review = _load_review(review_path)
     reasons = _route_reasons_for(review, "agent_person")
     assert "provenance_missing_or_unknown" in reasons
+
+# ---------------------------------------------------------------------------
+# Review queue accumulation across successive write_to_kg calls
+# ---------------------------------------------------------------------------
+
+def test_review_queue_accumulates_across_runs(
+    kg: KnowledgeGraph, review_path: Path, dropped_path: Path
+) -> None:
+    """Two different entities from two successive confirms both survive."""
+    r1 = _rec("agent_person", _agent_payload(name="Anton Novak", dedup_group="a.novak"))
+    r1["tier"] = "review"
+    r1["confidence"] = 0.6
+    r2 = _rec("cited_work", _cited_payload(cited_id="cited-hr-sl"))
+    r2["tier"] = "review"
+    r2["confidence"] = 0.65
+
+    _run(kg, [r1], review_path, dropped_path)
+    _run(kg, [r2], review_path, dropped_path)
+
+    queue = _load_review(review_path)
+    assert len(queue) == 2
+    kinds = {r["kind"] for r in queue}
+    assert "agent_person" in kinds
+    assert "cited_work" in kinds
+
+
+def test_review_queue_replaces_same_identity(
+    kg: KnowledgeGraph, review_path: Path, dropped_path: Path
+) -> None:
+    """Re-confirming the same logical entity updates the queued record (newest wins
+    for confidence / signals) while merging bilingual fields."""
+    r1 = _rec(
+        "agent_person",
+        _agent_payload(name="Anton Novak", dedup_group="a.novak"),
+    )
+    r1["tier"] = "review"
+    r1["confidence"] = 0.6
+
+    r2 = _rec(
+        "agent_person",
+        _agent_payload(name="A. Novak", dedup_group="a.novak"),
+    )
+    r2["tier"] = "review"
+    r2["confidence"] = 0.65
+
+    _run(kg, [r1], review_path, dropped_path)
+    _run(kg, [r2], review_path, dropped_path)
+
+    queue = _load_review(review_path)
+    assert len(queue) == 1, f"expected 1 record, got {len(queue)}"
+    # Higher-confidence record's name survives; identity stayed the same.
+    assert queue[0]["payload"]["dedup_group"] == "a.novak"
+
+
+def test_review_queue_corrupt_file_preserved(
+    kg: KnowledgeGraph, review_path: Path, dropped_path: Path
+) -> None:
+    """A corrupt existing queue is renamed to .corrupt and a fresh queue starts."""
+    corrupt_bytes = b"{not valid json"
+    review_path.write_bytes(corrupt_bytes)
+
+    r = _rec("agent_person", _agent_payload(name="Petra Hribar", dedup_group="p.hribar"))
+    r["tier"] = "review"
+    r["confidence"] = 0.6
+
+    _run(kg, [r], review_path, dropped_path)
+
+    queue = _load_review(review_path)
+    assert len(queue) == 1
+    corrupt_path = review_path.with_name(review_path.name + ".corrupt")
+    assert corrupt_path.exists(), ".corrupt sidecar must be created"
+    assert corrupt_path.read_bytes() == corrupt_bytes
+
+
+def test_dropped_jsonl_appends_across_runs(
+    kg: KnowledgeGraph, review_path: Path, dropped_path: Path
+) -> None:
+    """Two dropped records from two runs both appear as valid JSONL lines."""
+    r1 = _rec("agent_person", _agent_payload(name="First Drop", dedup_group="f.drop"))
+    r1["tier"] = "drop"
+    r1["confidence"] = 0.3
+    r2 = _rec("agent_person", _agent_payload(name="Second Drop", dedup_group="s.drop"))
+    r2["tier"] = "drop"
+    r2["confidence"] = 0.3
+
+    _run(kg, [r1], review_path, dropped_path)
+    _run(kg, [r2], review_path, dropped_path)
+
+    lines = [ln for ln in dropped_path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    assert len(lines) == 2, f"expected 2 JSONL lines, got {len(lines)}: {lines}"
+    for line in lines:
+        parsed = json.loads(line)
+        assert "kind" in parsed
+
+
+def test_review_queue_bilingual_merge_across_runs(
+    kg: KnowledgeGraph, review_path: Path, dropped_path: Path
+) -> None:
+    """Two confirms that each carry one language's half of a cited_work merge
+    into one complete bilingual record — neither title is lost."""
+    # First confirm: source language title only
+    r1 = _rec(
+        "cited_work",
+        {
+            "cited_id": "cited-test-bilin",
+            "title_orig": "Povratak Filipa Latinovicza",
+            "title_translation": "",
+            "orig_lang": "hr",
+            "translation_lang": "sl",
+            "author": "Krleža",
+            "project_type": "book",
+        },
+    )
+    r1["tier"] = "review"
+    r1["confidence"] = 0.6
+
+    # Second confirm: translation title only
+    r2 = _rec(
+        "cited_work",
+        {
+            "cited_id": "cited-test-bilin",
+            "title_orig": "",
+            "title_translation": "Vrnitev Filipa Latinovicza",
+            "orig_lang": "hr",
+            "translation_lang": "sl",
+            "author": "Krleža",
+            "project_type": "book",
+        },
+    )
+    r2["tier"] = "review"
+    r2["confidence"] = 0.62
+
+    _run(kg, [r1], review_path, dropped_path)
+    _run(kg, [r2], review_path, dropped_path)
+
+    queue = _load_review(review_path)
+    assert len(queue) == 1, f"same entity must not duplicate, got {len(queue)} records"
+    merged_payload = queue[0]["payload"]
+    assert merged_payload["title_orig"] == "Povratak Filipa Latinovicza", (
+        "title_orig from first confirm must survive after second confirm"
+    )
+    assert merged_payload["title_translation"] == "Vrnitev Filipa Latinovicza", (
+        "title_translation from second confirm must be present"
+    )

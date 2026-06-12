@@ -13,6 +13,7 @@ carry accurate multi_mention / multi_origin signals before scoring.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from collections import defaultdict
@@ -293,6 +294,34 @@ def _augment_typed_signals(record: dict, scoring_kind: str) -> dict:
 
     return base
 
+def _record_identity(r: dict) -> str:
+    """Stable cross-process identity for a record.
+
+    Used to dedupe non-agent records in dedup_records and to merge the review
+    queue file across successive editor confirms. Must be deterministic and
+    process-independent (no builtin hash()).
+    """
+    kind = r["kind"]
+    p = r["payload"]
+    if kind == "agent_person":
+        return f"agent:{p.get('dedup_group') or _slugify(p.get('name', ''))}"
+    if kind == "translated_work":
+        return f"work:{p['work_id']}"
+    if kind == "cited_work":
+        return f"cited:{p['cited_id']}"
+    if kind == "artwork":
+        return f"art:{p.get('work_id') or _slugify(p.get('title_orig') or p.get('title_translation') or '')}"
+    if kind == "institution":
+        return f"inst:{_slugify(p['name'])}::{p.get('kind', 'other')}"
+    if kind == "concept":
+        raw_cid = p.get("concept_id") or f"concept:{_slugify(p.get('label', ''))}"
+        return raw_cid if raw_cid.startswith("concept:") else f"concept:{raw_cid}"
+    if kind == "performance":
+        return f"perf:{p.get('work_id') or _slugify(p.get('title_orig', ''))}"
+    # Fallback: deterministic hash of the payload (sha1 — process-stable).
+    return f"misc:{kind}:{hashlib.sha1(json.dumps(p, sort_keys=True, default=str).encode()).hexdigest()}"
+
+
 
 def dedup_records(records: List[dict]) -> List[dict]:
     """Collapse exact duplicates and merge agents within the same dedup_group.
@@ -368,27 +397,7 @@ def dedup_records(records: List[dict]) -> List[dict]:
     id_groups: Dict[str, List[dict]] = defaultdict(list)
     for r in others:
         kind = r["kind"]
-        if kind == "translated_work":
-            rid = f"work:{r['payload']['work_id']}"
-        elif kind == "cited_work":
-            rid = f"cited:{r['payload']['cited_id']}"
-        elif kind == "artwork":
-            # Use title_orig/title_translation
-            # for non-EN-original artworks (per ontology §2.4.2 canonical fields).
-            rid = f"art:{r['payload'].get('work_id') or _slugify(r['payload'].get('title_orig') or r['payload'].get('title_translation') or '')}"
-        elif kind == "institution":
-            # Use slugified name + kind so institutions of the same name but
-            # different kind (e.g. theatre vs venue) stay distinct.
-            rid = f"inst:{_slugify(r['payload']['name'])}::{r['payload'].get('kind', 'other')}"
-        elif kind == "concept":
-            # Concepts dedupe on the canonical concept_id (which already
-            # starts with 'concept:' from _build_concept) or slugify(label).
-            raw_cid = r["payload"].get("concept_id") or f"concept:{_slugify(r['payload'].get('label', ''))}"
-            rid = raw_cid if raw_cid.startswith("concept:") else f"concept:{raw_cid}"
-        elif kind == "performance":
-            rid = f"perf:{r['payload'].get('work_id') or _slugify(r['payload'].get('title_orig', ''))}"
-        else:
-            rid = f"misc:{r['kind']}:{hash(json.dumps(r['payload'], sort_keys=True, default=str))}"
+        rid = _record_identity(r)
 
         id_groups[rid].append(r)
         if rid in seen_ids:
@@ -488,6 +497,61 @@ def _merge_bilingual_payload(dst: dict, src: dict) -> None:
                 seen.add(key)
         if dst_list:
             dst[list_fld] = dst_list
+
+
+def _merge_review_queue(review_path: Path, new_records: List[dict]) -> List[dict]:
+    """Merge new review-tier records into the existing queue file.
+
+    Existing entries keep their position. When a new record shares the same
+    identity as an existing entry the two are bilingual-merged in place
+    (newer non-empty fields win for scalars; bilingual text fields are
+    combined so neither confirm loses its half). Novel records append.
+    A corrupt or non-list existing file is renamed to <name>.corrupt and
+    treated as empty — the sidecar is the evidence trail.
+    """
+    merged: List[dict] = []
+    if review_path.exists():
+        try:
+            existing = json.loads(review_path.read_text(encoding="utf-8"))
+            if not isinstance(existing, list):
+                raise ValueError("not a list")
+            merged = existing
+        except (json.JSONDecodeError, ValueError):
+            corrupt = review_path.with_name(review_path.name + ".corrupt")
+            review_path.replace(corrupt)
+
+    # Build position index from the loaded existing entries.
+    by_id: Dict[str, int] = {}
+    for idx, rec in enumerate(merged):
+        try:
+            by_id[_record_identity(rec)] = idx
+        except Exception:
+            pass  # malformed existing entry — keep it, skip indexing
+
+    for new_rec in new_records:
+        try:
+            identity = _record_identity(new_rec)
+        except Exception:
+            merged.append(new_rec)
+            continue
+
+        if identity in by_id:
+            existing_rec = merged[by_id[identity]]
+            # Merge bilingual payload fields so two confirms that each carry
+            # one language's half combine into a complete bilingual record.
+            _merge_bilingual_payload(existing_rec["payload"], new_rec["payload"])
+            # Update confidence and signals from the newer extraction.
+            if new_rec.get("confidence", 0) >= existing_rec.get("confidence", 0):
+                existing_rec["confidence"] = new_rec["confidence"]
+                existing_rec["tier"] = new_rec.get("tier", existing_rec.get("tier"))
+            for sig_key, sig_val in new_rec.get("signals", {}).items():
+                if sig_val:
+                    existing_rec.setdefault("signals", {})[sig_key] = sig_val
+        else:
+            by_id[identity] = len(merged)
+            merged.append(new_rec)
+
+    return merged
 
 
 def write_to_kg(
@@ -1068,16 +1132,19 @@ def write_to_kg(
                     if cid and cid != sw_id:
                         kg.link_cited_in(sw_id, cid)
 
-    # Write review and dropped sinks
+    # Write review and dropped sinks (review merges with any existing queue so
+    # successive editor confirms accumulate instead of clobbering — O-10).
     review_path.parent.mkdir(parents=True, exist_ok=True)
     if review:
+        merged = _merge_review_queue(review_path, review)
         review_path.write_text(
-            json.dumps(review, ensure_ascii=False, indent=2, default=str),
+            json.dumps(merged, ensure_ascii=False, indent=2, default=str),
             encoding="utf-8",
         )
     if dropped_lines:
-        with open(dropped_path, "w", encoding="utf-8") as f:
-            f.write("\n".join(dropped_lines))
+        with open(dropped_path, "a", encoding="utf-8") as f:
+            for line in dropped_lines:
+                f.write(line + "\n")
 
     if not dry_run and stats.direct_write > 0:
         kg.save()
