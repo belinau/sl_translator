@@ -928,7 +928,7 @@ async def test_intel_concordance_section_renders_when_data_available(user):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_tm_threshold_95_excludes_low_matches(user):
+async def test_tm_threshold_excludes_low_matches(user):
     """TM section only shows fuzzy matches (≥75%). A 70% match must
     result in the 'no matches' empty state."""
     state = _make_state()
