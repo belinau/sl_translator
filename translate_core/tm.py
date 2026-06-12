@@ -1,7 +1,9 @@
 # translate_core/tm.py
 
+import bisect
 import html
 import re
+import threading
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
@@ -17,6 +19,9 @@ def clean_xml(text: str) -> str:
     text = re.sub(r"<[^>]+>", "", text)  # Strip tags
     text = html.unescape(text)  # Convert &amp; to &
     return re.sub(r"\s+", " ", text).strip()
+
+
+_TOKEN_RE = re.compile(r"\w+", re.UNICODE)
 
 
 def _kwic_at(text: str, pos: int, window: int = 90) -> str:
@@ -72,6 +77,15 @@ class TranslationMemory:
         self._entries_by_pair: Dict[Tuple[Optional[str], Optional[str]], List[Dict[str, Any]]] = {}
         self.entries: List[Dict[str, Any]] = []
         self._load_all()
+        # Lazy search index over ``self.entries`` (see _sync_index).
+        self._index_lock = threading.Lock()
+        self._src_low: List[str] = []
+        self._tgt_low: List[str] = []
+        self._inv: Dict[str, List[int]] = {}
+        self._inv_tokens: List[str] = []
+        self._fuzzy_sources: List[str] = []
+        self._fuzzy_ids: List[int] = []
+        self._indexed_len = 0
 
     def _load_all(self):
         if not self.tm_dir.exists():
@@ -181,6 +195,100 @@ class TranslationMemory:
             entry["raw_index"] = i
 
         self.entries = merged
+
+    def _sync_index(self) -> None:
+        """Index any ``self.entries`` tail not yet covered.
+
+        Structures (all parallel to ``self.entries`` by integer id):
+        - ``_src_low`` / ``_tgt_low``: lowercase mirrors (built once, not
+          per query — the old per-query ``.lower()`` over ~10MB of text
+          was the single biggest concordance cost).
+        - ``_inv``: token (>=2 chars, both sides) -> posting list of ids.
+        - ``_inv_tokens``: sorted vocabulary for prefix range scans.
+        - ``_fuzzy_sources`` / ``_fuzzy_ids``: prebuilt rapidfuzz choices
+          (every non-empty source) and their entry ids.
+
+        Lazy + incremental: called at the top of every query method, so
+        entries appended at runtime (``upsert_runtime_pair`` or direct
+        ``tm.entries.append``) become searchable with no explicit hook.
+        Guarded by a lock — queries run on NiceGUI's thread pool and a
+        double-append would break the parallel-list alignment.
+        """
+        if self._indexed_len == len(self.entries):
+            return
+        with self._index_lock:
+            n = len(self.entries)
+            new_tokens = False
+            for i in range(self._indexed_len, n):
+                e = self.entries[i]
+                src = e.get("source") or ""
+                tgt = e.get("target") or ""
+                sl, tl = src.lower(), tgt.lower()
+                self._src_low.append(sl)
+                self._tgt_low.append(tl)
+                for w in set(_TOKEN_RE.findall(sl)) | set(_TOKEN_RE.findall(tl)):
+                    if len(w) >= 2:
+                        if w not in self._inv:
+                            new_tokens = True
+                        self._inv.setdefault(w, []).append(i)
+                if src:
+                    self._fuzzy_sources.append(src)
+                    self._fuzzy_ids.append(i)
+            self._indexed_len = n
+            if new_tokens:
+                self._inv_tokens = sorted(self._inv)
+
+    def _reindex_entry(self, i: int) -> None:
+        """Refresh mirrors/postings after an in-place target update.
+
+        Stale postings (tokens the old target had) are left in ``_inv`` —
+        they only produce false candidates, and the scoring pass re-checks
+        every candidate with ``find()`` so correctness is unaffected.
+        """
+        if i >= self._indexed_len:
+            return  # tail not indexed yet; _sync_index will cover it
+        with self._index_lock:
+            e = self.entries[i]
+            sl = (e.get("source") or "").lower()
+            tl = (e.get("target") or "").lower()
+            self._src_low[i] = sl
+            self._tgt_low[i] = tl
+            new_tokens = False
+            for w in set(_TOKEN_RE.findall(sl)) | set(_TOKEN_RE.findall(tl)):
+                if len(w) >= 2:
+                    ids = self._inv.get(w)
+                    if ids is None:
+                        self._inv[w] = [i]
+                        new_tokens = True
+                    elif ids[-1] != i and i not in ids:
+                        ids.append(i)
+            if new_tokens:
+                self._inv_tokens = sorted(self._inv)
+
+    def _candidates_for(self, words: List[str], cap: int = 20000) -> set:
+        """Union of posting lists for each query word, prefix-expanded.
+
+        Each query word matches indexed tokens by PREFIX (query 'dance'
+        hits entries containing 'dancers'), expanding at most 50 vocabulary
+        tokens per word. Rarest words are unioned first so that when the
+        cap trips on stop-word-frequency tokens, the informative words have
+        already contributed their postings.
+        """
+        postings: List[List[int]] = []
+        for w in words:
+            ids: List[int] = []
+            lo = bisect.bisect_left(self._inv_tokens, w)
+            for tok in self._inv_tokens[lo : lo + 50]:
+                if not tok.startswith(w):
+                    break
+                ids.extend(self._inv[tok])
+            postings.append(ids)
+        cand: set = set()
+        for ids in sorted(postings, key=len):
+            cand.update(ids)
+            if len(cand) >= cap:
+                break
+        return cand
 
     def upsert_runtime_pair(
         self,
