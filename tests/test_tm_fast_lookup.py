@@ -153,3 +153,35 @@ class TestConcordance:
         assert len(set(noise.split())) > 12  # guard: branch actually taken
         hits = tm.search_concordance(noise + " choreography", top_n=5)
         assert any("choreography" in h["source"] for h in hits)
+
+
+class TestFuzzy:
+    def test_exact_hit_carries_score_and_entry_keys(self, tm):
+        hits = tm.lookup_fuzzy(
+            "The dancers moved across the stage in silence", threshold=95.0
+        )
+        assert hits
+        assert hits[0]["score"] >= 95.0
+        assert hits[0]["target"].startswith("Plesalci") or \
+               hits[0]["target"].startswith("Plesalke")
+
+    def test_short_segment_recall(self, tm):
+        # Headings/titles: the old dynamic min_src_len allowed short
+        # sources for short queries; the prebuilt list must too.
+        hits = tm.lookup_fuzzy("Uvod", threshold=90.0)
+        assert hits, "short TM entries must remain fuzzy-matchable"
+
+    def test_threshold_prunes(self, tm):
+        assert tm.lookup_fuzzy("completely unrelated quantum text",
+                               threshold=90.0) == []
+
+    def test_limit_respected(self, tm):
+        for k in range(6):
+            tm.upsert_runtime_pair(
+                f"Repeated sentence about dancers number {k}",
+                f"Ponovljen stavek o plesalcih številka {k}",
+                "en", "sl",
+            )
+        hits = tm.lookup_fuzzy("Repeated sentence about dancers number 0",
+                               threshold=75.0, limit=3)
+        assert len(hits) == 3

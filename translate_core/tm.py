@@ -370,37 +370,33 @@ class TranslationMemory:
     def lookup_fuzzy(
         self, text: str, threshold: float = 90.0, limit: int = 3
     ) -> List[Dict]:
+        """Whole-segment fuzzy lookup via rapidfuzz ``fuzz.ratio``.
+
+        Uses the prebuilt ``_fuzzy_sources`` choice list and rapidfuzz's
+        ``score_cutoff`` pruning (massively faster than post-filtering),
+        and recovers the matched entry through ``_fuzzy_ids`` using the
+        index rapidfuzz returns — the old implementation re-scanned all
+        of ``self.entries`` per match.
+
+        No minimum-source-length prefilter: with ``fuzz.ratio`` a short
+        entry cannot spuriously score high against a long query (length
+        mismatch tanks the ratio), and filtering would drop legitimate
+        short segments such as headings.
         """
-        Fuzzy lookup in TM using partial_ratio.
-        partial_ratio finds the best matching substring of the longer
-        string that matches the shorter one, so a short query against a
-        large TM entry (e.g. a small re-segmented paragraph inside a
-        previously committed large span) still scores well.
-        """
-        input_len = len(text)
-        # Filter out trivially short entries that would match any query
-        # as a substring (e.g. "of", "e"). Minimum: 20 chars or 30% of
-        # query length, whichever is lower.
-        min_src_len = min(20, max(3, int(input_len * 0.3)))
-        sources = [
-            e["source"] for e in self.entries
-            if e["source"] and len(e["source"]) >= min_src_len
-        ]
-        if not sources:
+        self._sync_index()
+        if not text or not self._fuzzy_sources:
             return []
-
-        matches = process.extract(text, sources, scorer=fuzz.ratio, limit=limit * 5)
-        results = []
-
-        for src, score, _ in matches:
-            if score >= threshold:
-                for e in self.entries:
-                    if e["source"] == src:
-                        results.append({**e, "score": score})
-                        break
-            if len(results) >= limit:
-                break
-        return results
+        matches = process.extract(
+            text,
+            self._fuzzy_sources,
+            scorer=fuzz.ratio,
+            limit=limit,
+            score_cutoff=threshold,
+        )
+        return [
+            {**self.entries[self._fuzzy_ids[idx]], "score": score}
+            for _src, score, idx in matches
+        ]
 
     def search_concordance(
         self, text: str, top_n: int = 5, max_words: int = 12
