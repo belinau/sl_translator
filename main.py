@@ -651,10 +651,11 @@ if __name__ in {"__main__", "__mp_main__"}:
         port=8080,
         show=True,
         storage_secret="zen-translator-local-storage",
-        # The KG (97MB on disk) and TM (40k+ entries with partial_ratio) can
-        # legitimately block a worker thread for 1–3 s during a confirm.
-        # NiceGUI's default ping_timeout = max(reconnect_timeout * 0.4, 2)
-        # = 2 s, which drops the page on any such call. Widen the window so
-        # the editor survives a slow lookup_fuzzy or kg.save.
+        # kg.save on the 97MB KG can legitimately block a worker thread
+        # for 1-3 s during a confirm. NiceGUI's default ping_timeout =
+        # max(reconnect_timeout * 0.4, 2) = 2 s, which drops the page on
+        # any such call. Widen the window so the editor survives it.
+        # (TM lookups are index-backed since feat/tm-fast-lookup and run
+        # in ~1-130 ms — they no longer factor into this timeout.)
         reconnect_timeout=30.0,
     )

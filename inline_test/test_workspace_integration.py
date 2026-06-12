@@ -385,7 +385,8 @@ async def test_push_bundle_uses_client_when_provided():
 
 @pytest.mark.asyncio
 async def test_intel_panel_paints_tm_on_initial_load(user):
-    """TM section renders near-exact matches (≥95%) on initial paint."""
+    """TM section renders the NEAR-EXACT tier (score ≥95, panel floor is
+    ≥75%) on initial paint — the score-98 stub lands in NEAR-EXACT."""
     state = _make_state()
     tm = StubTM(fuzzy=[
         {"source": "Hello world.", "target": "Pozdrav svet.", "score": 98},

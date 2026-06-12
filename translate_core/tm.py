@@ -283,7 +283,9 @@ class TranslationMemory:
 
         Rarest words are unioned first so that when the cap trips on
         stop-word-frequency tokens, the informative words have already
-        contributed their postings.
+        contributed their postings. Tradeoff: with many rare words of
+        ~cap/N postings each, later rare words may be cut off — recall
+        bounded by ``cap``, never latency.
         """
         postings = [self._prefix_postings(w) for w in words]
         cand: set = set()
