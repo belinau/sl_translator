@@ -558,7 +558,7 @@ def build(
             # Both calls hop to NiceGUI's thread pool via run.io_bound (the
             # high-level API) — main event loop stays responsive.
             fuzzy = await run.io_bound(
-                tm.lookup_fuzzy, seg["source"], threshold=95.0, limit=5
+                tm.lookup_fuzzy, seg["source"], threshold=75.0, limit=5
             ) or []
             concord = await run.io_bound(
                 tm.search_concordance, seg["source"], top_n=5
@@ -574,39 +574,55 @@ def build(
             c for c in concord
             if (c.get("source", ""), c.get("target", "")) not in fuzzy_keys
         ]
+        near = [m for m in fuzzy if (m.get("score") or 0) >= 95]
+        partial = [m for m in fuzzy if (m.get("score") or 0) < 95]
+
+        def _render_tm_match(m: dict) -> None:
+            score = int(m.get("score") or 0)
+            badge_color = (
+                "positive" if score >= 100
+                else "primary" if score >= 95
+                else "warning"
+            )
+            with (
+                ui.card()
+                .props("flat bordered")
+                .classes(
+                    "w-full rounded-xl p-3 cursor-pointer "
+                    "flex-row items-center gap-3 hover:bg-primary/5"
+                )
+                .on("click", lambda _e, t=m.get("target", ""): _insert(t))
+            ):
+                ui.badge(f"{score}%", color=badge_color).classes(
+                    "text-[10px] font-black px-2 py-1 rounded-lg shrink-0"
+                )
+                with ui.column().classes("gap-0.5 flex-1 min-w-0"):
+                    ui.label(m.get("source", "")).classes(
+                        "text-[11px] italic leading-snug opacity-60"
+                    ).style("white-space:normal;word-break:break-word")
+                    ui.label(m.get("target", "")).classes(
+                        "text-[13px] font-bold leading-snug"
+                    ).style("white-space:normal;word-break:break-word")
+                ui.icon("content_paste", size="18px").props("color=grey-5")
+
         tm_container.clear()
         with tm_container:
             if not fuzzy:
-                ui.label("No near-exact matches (≥95%).").classes(
+                ui.label("No fuzzy matches (≥75%).").classes(
                     "text-xs italic opacity-90"
                 )
-            else:
+            if near:
                 ui.label("NEAR-EXACT MATCHES").classes(
                     "text-[9px] font-black tracking-[.2em] opacity-90"
                 )
-                for m in fuzzy:
-                    score = int(m.get("score") or 0)
-                    badge_color = "positive" if score >= 100 else "primary"
-                    with (
-                        ui.card()
-                        .props("flat bordered")
-                        .classes(
-                            "w-full rounded-xl p-3 cursor-pointer "
-                            "flex-row items-center gap-3 hover:bg-primary/5"
-                        )
-                        .on("click", lambda _e, t=m.get("target", ""): _insert(t))
-                    ):
-                        ui.badge(f"{score}%", color=badge_color).classes(
-                            "text-[10px] font-black px-2 py-1 rounded-lg shrink-0"
-                        )
-                        with ui.column().classes("gap-0.5 flex-1 min-w-0"):
-                            ui.label(m.get("source", "")).classes(
-                                "text-[11px] italic leading-snug opacity-60"
-                            ).style("white-space:normal;word-break:break-word")
-                            ui.label(m.get("target", "")).classes(
-                                "text-[13px] font-bold leading-snug"
-                            ).style("white-space:normal;word-break:break-word")
-                        ui.icon("content_paste", size="18px").props("color=grey-5")
+                for m in near:
+                    _render_tm_match(m)
+            if partial:
+                ui.label("FUZZY MATCHES").classes(
+                    "text-[9px] font-black tracking-[.2em] opacity-90 mt-2"
+                )
+                for m in partial:
+                    _render_tm_match(m)
             if concord:
                 ui.label("CONCORDANCE").classes(
                     "text-[9px] font-black tracking-[.2em] opacity-90 mt-2"
@@ -673,9 +689,14 @@ def build(
     # Refresh all sections on segment change
     # ------------------------------------------------------------------
     def _refresh_all():
-        background_tasks.create(_refresh_kg(), name="intel_kg_refresh")
-        background_tasks.create(_refresh_tm(), name="intel_tm_refresh")
-        background_tasks.create(_refresh_gl(), name="intel_gl_refresh")
+        # create_lazy (NiceGUI documented API) coalesces refresh storms:
+        # while one refresh runs, only the newest queued one survives.
+        # Task names are global per process, so suffix with the state id —
+        # two open workspaces must not cancel each other's refreshes.
+        sid = id(state)
+        background_tasks.create_lazy(_refresh_kg(), name=f"intel_kg_refresh_{sid}")
+        background_tasks.create_lazy(_refresh_tm(), name=f"intel_tm_refresh_{sid}")
+        background_tasks.create_lazy(_refresh_gl(), name=f"intel_gl_refresh_{sid}")
 
     state.subscribe("active_index", _refresh_all)
 

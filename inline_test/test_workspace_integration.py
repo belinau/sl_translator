@@ -411,7 +411,7 @@ async def test_intel_panel_shows_no_match_label_for_empty_tm(user):
 
     await user.open("/intel_empty")
     await asyncio.sleep(0.3)
-    await user.should_see("No near-exact matches")
+    await user.should_see("No fuzzy matches")
 
 
 @pytest.mark.asyncio
@@ -432,7 +432,7 @@ async def test_intel_panel_repaints_on_segment_switch(user):
 
     await user.open("/intel_switch")
     await asyncio.sleep(0.3)
-    await user.should_see("No near-exact matches")
+    await user.should_see("No fuzzy matches")
 
     state.set_active(1)  # segment 1: "How are you?"
     await asyncio.sleep(0.3)
@@ -924,16 +924,16 @@ async def test_intel_concordance_section_renders_when_data_available(user):
 
 
 # ---------------------------------------------------------------------------
-# TDD: Intel panel UI — TM 95% threshold (Phase 2)
+# TDD: Intel panel UI — TM 75% threshold (Phase 2)
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
 async def test_tm_threshold_95_excludes_low_matches(user):
-    """TM section only shows near-exact matches (≥95%). A 90% match must
+    """TM section only shows fuzzy matches (≥75%). A 70% match must
     result in the 'no matches' empty state."""
     state = _make_state()
     tm = ThresholdRespectingTM(
-        fuzzy=[{"source": "Hello world.", "target": "Pozdrav.", "score": 90}],
+        fuzzy=[{"source": "Hello world.", "target": "Pozdrav.", "score": 70}],
     )
 
     @ui.page("/intel_tm_threshold")
@@ -942,7 +942,7 @@ async def test_tm_threshold_95_excludes_low_matches(user):
 
     await user.open("/intel_tm_threshold")
     await asyncio.sleep(0.5)
-    await user.should_see("No near-exact matches")
+    await user.should_see("No fuzzy matches")
 
 
 # ---------------------------------------------------------------------------
