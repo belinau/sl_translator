@@ -132,7 +132,7 @@ Every project is assigned a **pipeline** at upload: **Academic** or **Simple**. 
 | | Academic (book/article) | Simple (short document) |
 |---|---|---|
 | **Purpose** | Books, academic papers, journal articles | Letters, reports, festival programmes, exhibition catalogues |
-| **Parsing — PDF** | MarkItDown + endnote→footnote conversion (sequence-validated) | MarkItDown only (no restructuring) |
+| **Parsing — PDF** | MarkItDown extraction → sentence-preserving reflow (rejoins PDF-wrapped lines, drops bare page numbers and running headers; counts reported in import report) → numeric-ladder footnote detection (notes sections recognised as ascending numbered-row ladders, header-language independent: "Notes", "Endnotes", "Opombe", and headerless all work identically) → citation-shape classification via the segment classifier with the live smol model as referee for ambiguous numbered blocks (Ollama down → block left unconverted and counted in the report, never guessed) → global `[^N]` renumbering with per-chapter sequence validation | MarkItDown only (no restructuring) |
 | **Parsing — DOCX** | `docx_to_markdown`: native footnote/endnote extraction as `[^N]` refs/defs; headings preserved; bold/italic runs as markdown markup | python-docx paragraph extraction; `docx_para_idx` preserved for in-place export |
 | **Export** | `compile_to_designed_docx`: restyled academic DOCX with true Word page-bottom footnotes, per-chapter restart, and `*…*`/`**…**` rendered as italic/bold (incl. inside footnotes) | `compile_from_template`: in-place replacement preserving fonts, sizes, bold, italic |
 | **QA ruleset** | Citation-convention + orthography + footnote/emphasis integrity hints | Orthography + integrity hints |
@@ -145,6 +145,8 @@ Every project is assigned a **pipeline** at upload: **Academic** or **Simple**. 
 **Emphasis contract:** Translators keep `*…*` markers in targets; they become real italic/bold at export. No literal asterisks appear in the final DOCX.
 
 **Page-bottom-footnote PDF limitation:** PDFs whose footnotes are natively page-bottom (no notes section header) yield 0 defs in the report; the import notify states "no notes section detected — footnotes left as-is". Import from DOCX instead for lossless footnote extraction.
+
+**Book-agnostic design:** The PDF import chain makes no header-language assumptions. Ladder detection finds notes sections by their numeric structure (ascending 1,2,3… rows with bounded gaps), not by matching words like "Notes" or "Bibliography". Ambiguous numbered blocks are decided by the segment classifier voting with the live smol model as referee; when Ollama is unavailable the block is left unconverted and surfaced in the import report rather than guessed. Every uncertain decision is reported; no header word-lists are used.
 ---
 
 ## Project Structure
@@ -218,7 +220,7 @@ sl_translator/
 │   ├── ingest_curator_agent_mentions.py  # Agent mention ingestion
 │   ├── ingest_performances_artworks.py  # Performance/artwork ingestion
 │   ├── ingest_glossary_to_kg.py         # Glossary → KG term nodes (idempotent replay)
-│   ├── repair_book_footnotes.py          # Repair footnote alignment in live book projects
+│   ├── repair_book_footnotes.py          # Re-parse book PDF; re-attach translations (exact → per-segment span → run fallback); refuses --apply unless 100% translations carried
 │   ├── build_segment_attribution.py     # Build attribution JSON
 │   ├── harvest_boundary_anchors.py      # Boundary anchor harvesting
 │   ├── harvest_title_anchors.py         # Title anchor harvesting

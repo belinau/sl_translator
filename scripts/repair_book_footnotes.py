@@ -36,9 +36,16 @@ _FN_MARKER_RE = re.compile(r"\[\^\w+\]")
 
 
 def _normalise(source: str) -> str:
-    """Strip footnote markers and collapse whitespace for matching."""
+    """Matching-only normalisation: strip footnote markers / md heading
+    prefixes, drop TOC locator tails (" — ix"), collapse letter-spaced
+    titles ("F e m i n i s t" -> "feminist"), collapse whitespace,
+    casefold (extraction backends disagree on capitalisation)."""
     text = _FN_MARKER_RE.sub("", source)
-    return re.sub(r"\s+", " ", text).strip()
+    text = re.sub(r"^[#>\s]+", "", text)
+    text = re.sub(r"\s*[—–-]\s*(?:\d{1,4}|[ivxlcdmIVXLCDM]{1,7})\s*$", "", text)
+    # collapse single-letter spacing runs (title-page typography)
+    text = re.sub(r"(?<=\b\w)\s+(?=\w\b)", "", text)
+    return re.sub(r"\s+", " ", text).strip().casefold()
 
 
 def main(argv=None) -> int:
@@ -117,59 +124,191 @@ def main(argv=None) -> int:
         else:
             lost += 1
 
-    # Pass 2 — fuzzy: re-home DONE translations whose old segmentation no
-    # longer exists verbatim (e.g. VL-era paragraph joins, editorial em-dash
-    # TOC shaping). Uses rapidfuzz — the same matcher the TM relies on.
-    fuzzy_attached = 0
+    # Pass 2 — span consolidation: every remaining DONE translation is
+    # carried over verbatim. Two stages:
+    #   A) Per-segment: each old done paragraph matches its own span of
+    #      new segments — keeps per-paragraph granularity for the translator.
+    #   B) Run fallback: only fragments that failed alone (mid-sentence
+    #      splits from the legacy importer) are merged with their consecutive
+    #      neighbours and retried with an UNCONSTRAINED search (ignoring
+    #      claimed segments) because the span must grow through segments
+    #      that Stage A already claimed. Overlapping Stage A spans are
+    #      evicted in favour of the run — the run is the authoritative
+    #      mapping for mid-sentence fragments.
+    consolidated = 0
+    unrecovered: list[str] = []
     try:
-        from rapidfuzz import fuzz, process as rf_process
+        from rapidfuzz import fuzz
     except ImportError:
-        rf_process = None
-    if rf_process is not None:
-        unattached_done = [
-            s for s in old_segments
+        fuzz = None
+    if fuzz is not None:
+        already_done = {
+            _normalise(n["source"]) for n in new_segments if n["status"] == "done"
+        }
+        already_idx = {
+            i for i, s in enumerate(old_segments)
             if s.get("status") == "done" and s.get("target", "").strip()
-            and _normalise(s.get("source", "")) not in {
-                _normalise(n["source"]) for n in new_segments if n["status"] == "done"
-            }
+            and _normalise(s.get("source", "")) in already_done
+        }
+        pending_indices = [
+            i for i, s in enumerate(old_segments)
+            if s.get("status") == "done" and s.get("target", "").strip()
+            and i not in already_idx
         ]
+
         new_keys = [_normalise(s["source"]) for s in new_segments]
-        fuzzy_pairs: list[tuple[str, str]] = []
-        for old_seg in unattached_done:
-            old_key = _normalise(old_seg["source"])
+        claimed = [s["status"] == "done" for s in new_segments]
+        spans: list[tuple[int, int, str, int]] = []  # (start, end, target, count)
+        audit: list[tuple[str, int, int, float, int]] = []
+        matched_indices: set[int] = set()
+
+        def _find_span(old_key: str, constrain: bool = True, partial: bool = False) -> tuple[float, int, int] | None:
+            best: tuple[float, int, int] | None = None
+            for j in range(len(new_segments)):
+                if constrain and claimed[j]:
+                    continue
+                if not new_keys[j]:
+                    continue
+                if fuzz.ratio(old_key[:40], new_keys[j][:40]) < 40:
+                    continue
+                span_text = new_keys[j]
+                score = fuzz.partial_ratio(old_key, span_text) if partial else fuzz.ratio(old_key, span_text)
+                k = j
+                while (
+                    k + 1 < len(new_segments)
+                    and (not constrain or not claimed[k + 1])
+                    and len(span_text) < len(old_key) * 2
+                ):
+                    cand = span_text + " " + new_keys[k + 1]
+                    cand_score = fuzz.partial_ratio(old_key, cand) if partial else fuzz.ratio(old_key, cand)
+                    if cand_score >= score:
+                        span_text, score, k = cand, cand_score, k + 1
+                    else:
+                        break
+                if best is None or score > best[0]:
+                    best = (score, j, k)
+            return best
+
+        # ── Stage A: per-segment (constrained) ─────────────────────────
+        for idx in pending_indices:
+            old_seg = old_segments[idx]
+            old_key = _normalise(old_seg.get("source", ""))
             if not old_key:
                 continue
-            # fuzz.ratio (full-string) — token_set_ratio is subset-friendly
-            # and happily attaches a short TOC line to an unrelated long
-            # segment. A wrong attachment is worse than none.
-            best = rf_process.extractOne(
-                old_key, new_keys, scorer=fuzz.ratio, score_cutoff=88,
-            )
-            if best is None:
+            result = _find_span(old_key, constrain=True)
+            if result is not None and result[0] >= 85.0:
+                score, j, k = result
+                for x in range(j, k + 1):
+                    claimed[x] = True
+                spans.append((j, k, old_seg["target"], 1))
+                audit.append((old_key[:60], j, k, score, 1))
+                matched_indices.add(idx)
+
+        # ── Stage B: run fallback (unconstrained, evicts overlaps) ──────
+        failures = [i for i in pending_indices if i not in matched_indices]
+        runs: list[tuple[str, str, int]] = []
+        cur_run: list[int] = []
+        for fi, idx in enumerate(failures):
+            if cur_run and idx == failures[fi - 1] + 1:
+                cur_run.append(idx)
+            else:
+                if cur_run:
+                    runs.append((
+                        " ".join(old_segments[i].get("source", "") for i in cur_run),
+                        " ".join(old_segments[i]["target"] for i in cur_run),
+                        len(cur_run),
+                    ))
+                cur_run = [idx]
+        if cur_run:
+            runs.append((
+                " ".join(old_segments[i].get("source", "") for i in cur_run),
+                " ".join(old_segments[i]["target"] for i in cur_run),
+                len(cur_run),
+            ))
+
+        for src, tgt, cnt in runs:
+            old_key = _normalise(src)
+            if not old_key:
                 continue
-            _, score, idx = best
-            tgt_seg = new_segments[idx]
-            cand_key = new_keys[idx]
-            # Length guard: similar strings must be similar lengths.
-            if not (0.5 <= len(old_key) / max(len(cand_key), 1) <= 2.0):
-                continue
-            if tgt_seg["status"] == "done":
-                continue  # already claimed by an exact or earlier fuzzy match
-            tgt_seg["target"] = old_seg["target"]
-            tgt_seg["status"] = "done"
-            fuzzy_attached += 1
-            fuzzy_pairs.append((old_key[:60], cand_key[:60]))
-        if fuzzy_pairs:
-            print("\n  Fuzzy matches (old -> new), audit:")
-            for ok, nk in fuzzy_pairs:
-                print(f"    {ok!r} -> {nk!r}")
+            # Try full ratio first (works for most runs); fall back to
+            # partial_ratio only for mid-sentence fragments that need it.
+            result = _find_span(old_key, constrain=False, partial=False)
+            if result is None or result[0] < 85.0:
+                result = _find_span(old_key, constrain=False, partial=True)
+            if result is not None and result[0] >= 85.0:
+                score, j, k = result
+                overlap = [s for s in spans if not (s[1] < j or s[0] > k)]
+                for ov in overlap:
+                    spans.remove(ov)
+                for x in range(j, k + 1):
+                    claimed[x] = True
+                spans.append((j, k, tgt, cnt))
+                audit.append((old_key[:60], j, k, score, cnt))
+            else:
+                unrecovered.append(src[:70])
+        if spans:
+            span_start = {j: (k, tgt, cnt) for j, k, tgt, cnt in spans}
+            span_member = {x for j, k, _, _ in spans for x in range(j, k + 1)}
+            rebuilt: list[dict] = []
+            i = 0
+            while i < len(new_segments):
+                if i in span_start:
+                    k, tgt, _ = span_start[i]
+                    rebuilt.append({
+                        "id": 0,
+                        "source": " ".join(
+                            new_segments[x]["source"] for x in range(i, k + 1)
+                        ),
+                        "target": tgt,
+                        "status": "done",
+                    })
+                    i = k + 1
+                elif i in span_member:
+                    i += 1
+                else:
+                    rebuilt.append(new_segments[i])
+                    i += 1
+            for n, seg in enumerate(rebuilt):
+                seg["id"] = n
+            new_segments = rebuilt
+            consolidated = len(spans)
+
+        if audit:
+            print("\n  Consolidated done spans (old -> new segs), audit:")
+            for ok, j, k, sc, cnt in audit:
+                frag = f" ({cnt} old fragments)" if cnt > 1 else ""
+                print(f"    [{j}..{k}] {sc:.0f}%{frag}  {ok!r}")
+        if unrecovered:
+            print("\n  UNRECOVERED done translations (no span >= 85%):")
+            for u in unrecovered:
+                print(f"    {u!r}")
 
     total_done = sum(1 for s in new_segments if s.get("status") == "done")
     print(f"\n  New segments: {len(new_segments)}")
-    print(f"  Fuzzy re-homed done segments: {fuzzy_attached}")
-    print(f"  Re-attached translations: {attached}")
-    print(f"  Unmatched (no prior translation): {lost}")
-    print(f"  Done after attach: {total_done}")
+    print(f"  Exact re-attached: {attached}")
+    print(f"  Consolidated done spans: {consolidated}")
+    print(f"  Done after attach: {total_done} (old project had "
+          f"{sum(1 for s in old_segments if s.get('status') == 'done')})")
+
+    # ── Completeness gate: EVERY old translation must be present ────────
+    # Each old done target must appear verbatim inside some new done
+    # target (runs concatenate fragment targets, so substring check).
+    new_done_targets = [s["target"] for s in new_segments if s.get("status") == "done"]
+    missing_targets: list[str] = []
+    old_done_count = 0
+    for s in old_segments:
+        tgt = s.get("target", "").strip()
+        if s.get("status") != "done" or not tgt:
+            continue
+        old_done_count += 1
+        if not any(tgt in nt for nt in new_done_targets):
+            missing_targets.append(tgt[:70])
+    print(f"\n  Translation completeness: "
+          f"{old_done_count - len(missing_targets)}/{old_done_count} present verbatim")
+    if missing_targets:
+        print("  MISSING translations:")
+        for m in missing_targets:
+            print(f"    {m!r}")
 
     # Alignment check on the new segments
     alignment = footnote_alignment_report(new_segments)
@@ -184,6 +323,12 @@ def main(argv=None) -> int:
     if not args.apply:
         print("\n(dry-run — no changes written. Re-run with --apply to persist.)")
         return 0
+
+    if missing_targets:
+        print("\nERROR: refusing to apply — not every translation could be "
+              "carried over. Fix matching (or re-run dry-run) first; the "
+              "project on disk is untouched.")
+        return 1
 
     # ── Apply: backup + write ────────────────────────────────────────────
     backup_path = PROJECTS_DIR / f"{project_id}.json.bak"

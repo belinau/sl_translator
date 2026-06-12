@@ -222,16 +222,20 @@ class DocumentParser:
     def _reflow_pdf_text(self, text: str) -> str:
         """Rejoin PDF-wrapped lines into sentence units.
 
-        Join rule (conservative): a content line joins the previous unit
-        when the previous unit ends mid-sentence (no terminal punctuation
-        after stripping glued footnote digits) OR the line starts with a
-        lowercase letter. Structural lines (headings, note rows, [^N]:
-        defs, list items) always start a new unit. Hyphenated word splits
-        are repaired. Page numbers and running headers are dropped and
-        counted in ``last_reflow_report``.
+        Join decisions are made against the LAST PHYSICAL LINE appended to
+        a unit, never the accreted unit — otherwise one join makes the
+        unit "long" and it greedily swallows whole regions (copyright
+        pages, TOCs) that have no terminal punctuation. Prose wraps are
+        full-width lines; title/TOC/copyright rows are short lines, and a
+        short line never continues into the next one unless it ends with
+        an explicit continuation mark (hyphen, comma, semicolon).
+        Structural lines (headings, note rows, [^N]: defs, list items)
+        always start a new unit; page numbers and running headers are
+        dropped and counted in ``last_reflow_report``.
         """
         dropped = 0
         units: List[str] = []
+        last_line = ""  # last physical line appended to units[-1]
 
         def _ends_sentence(s: str) -> bool:
             s = self._TRAILING_FN_DIGITS_RE.sub(r"\1", s.rstrip())
@@ -256,23 +260,26 @@ class DocumentParser:
                 continue
             if self._STRUCTURAL_LINE_RE.match(raw) or not units:
                 units.append(s)
+                last_line = s
                 continue
-            prev = units[-1]
-            if _self_terminated(prev):
+            if _self_terminated(last_line):
                 units.append(s)
+                last_line = s
                 continue
-            # Join only from lines that are demonstrably mid-paragraph:
-            # hyphen/comma continuations always; otherwise the previous
-            # unit must be a full-width prose line (short lines are
-            # headings, title-page art, TOC rows — each its own unit).
-            if prev.endswith("-") and prev[-2:-1].isalpha() and s[:1].isalpha():
-                units[-1] = prev[:-1] + s  # "medi-" + "cal" -> "medical"
-            elif prev.endswith((",", ";")):
-                units[-1] = prev + " " + s
-            elif len(prev) >= 60 and (not _ends_sentence(prev) or s[:1].islower()):
-                units[-1] = prev + " " + s
+            # Continuation marks join regardless of line width.
+            if last_line.endswith("-") and last_line[-2:-1].isalpha() and s[:1].isalpha():
+                units[-1] = units[-1][:-1] + s  # "medi-" + "cal" -> "medical"
+            elif last_line.endswith((",", ";")):
+                units[-1] = units[-1] + " " + s
+            # Otherwise only a full-width line that ends mid-sentence
+            # continues — short lines are headings/TOC/title rows.
+            elif len(last_line) >= 60 and not _ends_sentence(last_line):
+                units[-1] = units[-1] + " " + s
             else:
                 units.append(s)
+                last_line = s
+                continue
+            last_line = s
 
         self.last_reflow_report = {
             "dropped_page_artifacts": dropped,
