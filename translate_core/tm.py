@@ -218,33 +218,29 @@ class TranslationMemory:
         self, text: str, threshold: float = 90.0, limit: int = 3
     ) -> List[Dict]:
         """
-        Fuzzy lookup in TM.
-        Enforces a high threshold (default 90%) and penalizes extreme length differences.
+        Fuzzy lookup in TM using partial_ratio.
+        partial_ratio finds the best matching substring of the longer
+        string that matches the shorter one, so a short query against a
+        large TM entry (e.g. a small re-segmented paragraph inside a
+        previously committed large span) still scores well.
         """
-        sources = [e["source"] for e in self.entries if e["source"]]
+        input_len = len(text)
+        # Filter out trivially short entries that would match any query
+        # as a substring (e.g. "of", "e"). Minimum: 20 chars or 30% of
+        # query length, whichever is lower.
+        min_src_len = min(20, max(3, int(input_len * 0.3)))
+        sources = [
+            e["source"] for e in self.entries
+            if e["source"] and len(e["source"]) >= min_src_len
+        ]
         if not sources:
             return []
 
-        # We use a slightly lower initial limit for process.extract to filter ourselves later
-        matches = process.extract(text, sources, scorer=fuzz.ratio, limit=limit * 5)
+        matches = process.extract(text, sources, scorer=fuzz.partial_ratio, limit=limit * 5)
         results = []
-        input_len = len(text)
 
         for src, score, _ in matches:
             if score >= threshold:
-                # Length check: avoid segments that are vastly different in length
-                src_len = len(src)
-                len_ratio = (
-                    max(src_len, input_len) / min(src_len, input_len)
-                    if min(src_len, input_len) > 0
-                    else 10
-                )
-
-                if (
-                    len_ratio > 2.5
-                ):  # If one is more than 2.5x longer than the other, skip
-                    continue
-
                 for e in self.entries:
                     if e["source"] == src:
                         results.append({**e, "score": score})
