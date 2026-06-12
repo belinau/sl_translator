@@ -44,12 +44,6 @@ _MD_EMPHASIS_RE = re.compile(
     r"(\*\*\*[^*\n]+\*\*\*|\*\*[^*\n]+\*\*|\*[^*\n]+\*)"
 )
 
-# Notes-section header patterns (case-insensitive)
-_NOTES_SECTION_RE = re.compile(
-    r"^(?:#{1,3}\s*)?(?:Notes|Opombe|Bibliography|Viri|Reference):?\s*$",
-    re.IGNORECASE,
-)
-
 
 def _xml_escape(s: str) -> str:
     return (
@@ -221,153 +215,264 @@ class DocumentParser:
             )
         return text
 
+    # Candidate body markers, tried left-to-right on each line:
+    #   1. existing inline [^N] refs
+    #   2. bracketed [N]
+    #   3. bare digits PyMuPDF leaves where superscripts were (no preceding
+    #      space; attached to a word or closing-punctuation character).
+    # The superscript-flattening artifact is specific to PDF text extraction,
+    # so its shape lives here; citation-content decisions are delegated to
+    # entity_extraction.segment_classifier below.
+    _BODY_CAND_RE = re.compile(
+        r"\[\^(\d{1,3})\]"
+        r"|\[(\d{1,3})\]"
+        r"|(?<!\dn)(?<=[a-zA-Z\".,;:!?)\]\u201d\u2019\u00bb])(\d{1,3})"
+        r"(?=\s|[.,;:!?\"\)\]\u201d\u2019\u00bb](?:\s|$)|$)"
+    )
+
     def _renumber_footnotes(self, text: str) -> tuple:
-        """Renumber footnote refs/defs with sequence-expectation validation.
+        """Renumber footnote refs/defs via numeric-ladder detection.
+
+        No header lexicon: a notes section is recognised as a *ladder* — a
+        maximal run of number-prefixed rows whose numbers ascend 1, 2, 3, …
+        within a bounded line-gap. That signal is arithmetic and language-
+        independent ("Notes", "Endnotes", "Opombe", "Anmerkungen" all look
+        identical to it). Content classification is delegated to the
+        existing citation pipeline (segment_classifier shape detectors),
+        and genuinely ambiguous ladders are referred to the live smol
+        model; when smol is unavailable they are left unconverted and
+        surfaced in the report — never silently guessed.
 
         Three input classes:
-          (a) Book with per-chapter endnote/notes sections: promote + renumber.
-          (b) Markdown already carrying [^N]/[^N]: markers: validated renumbering.
-          (c) Neither notes section nor markers: convert nothing.
+          (a) ladders found: promote rows to [^G]: with global numbering,
+              then accept body markers (bare digits / [N] / [^N]) by
+              per-chapter sequence expectation;
+          (b) [^N]:-marked defs, no ladders: validated label-map
+              renumbering only;
+          (c) neither: convert nothing.
 
         Returns (processed_text, report_dict).
         """
+        from .entity_extraction.segment_classifier import (
+            ANY_YEAR_RE,
+            PAGE_REF_RE,
+            _looks_like_bibliography,
+            _looks_like_footnote,
+        )
+
         lines = text.splitlines()
         rejected_def_rows = 0
+        rejected_body_candidates = 0
+        ambiguous_blocks = 0
 
-        in_notes = False
-        expected_def = 1
-        current_block_count = 0
-        chapter_blocks: List[int] = []
+        # ── Tokenize: number-prefixed rows anywhere in the document ──
+        row_re = re.compile(r"^\s*(\d{1,3})[.)]?\s+(\S.*)$")
+        numbered: List[Tuple[int, int, str]] = []  # (line_idx, num, content)
+        for i, line in enumerate(lines):
+            m = row_re.match(line)
+            if m:
+                numbered.append((i, int(m.group(1)), m.group(2)))
 
-        # Pass 1: notes-section detection and def promotion
-        processed_lines: List[str] = []
-        for line in lines:
-            if _NOTES_SECTION_RE.match(line):
-                in_notes = True
-                processed_lines.append(line)
+        # ── Build ladders: chains of ascending numbers with bounded gaps ──
+        # A ladder starts at an unclaimed row numbered 1 and greedily
+        # consumes the next row equal to its expectation. The gap bound
+        # tolerates multi-line note continuations and running headers but
+        # stops a ladder from chaining across unrelated document regions.
+        MAX_GAP_LINES = 80
+        claimed: set = set()
+        ladders: List[List[Tuple[int, int, str]]] = []
+        for k, (i, num, content) in enumerate(numbered):
+            if i in claimed or num != 1:
                 continue
-
-            if in_notes:
-                existing_def = re.match(r"^(\s*)\[\^(\w+)\]:\s+(.*)$", line)
-                if existing_def:
-                    num_str = existing_def.group(2)
-                    if num_str.isdigit() and int(num_str) == expected_def:
-                        expected_def += 1
-                        current_block_count += 1
-                        processed_lines.append(line)
-                        continue
-                    if num_str.isdigit() and int(num_str) == 1:
-                        if current_block_count > 0:
-                            chapter_blocks.append(current_block_count)
-                        current_block_count = 1
-                        expected_def = 2
-                        processed_lines.append(line)
-                        continue
-                    if not num_str.isdigit():
-                        expected_def += 1
-                        current_block_count += 1
-                        processed_lines.append(line)
-                        continue
-                    rejected_def_rows += 1
-                    processed_lines.append(line)
+            ladder = [(i, num, content)]
+            claimed.add(i)
+            expected = 2
+            last_line = i
+            for j in range(k + 1, len(numbered)):
+                ij, nj, cj = numbered[j]
+                if ij in claimed:
                     continue
+                if ij - last_line > MAX_GAP_LINES:
+                    break
+                if nj == expected:
+                    ladder.append((ij, nj, cj))
+                    claimed.add(ij)
+                    expected += 1
+                    last_line = ij
+            ladders.append(ladder)
 
-                bare_def = re.match(r"^(\d{1,3})\.?\s+(.*)$", line)
-                if bare_def:
-                    num = int(bare_def.group(1))
-                    content = bare_def.group(2)
-                    if num == expected_def:
-                        processed_lines.append(f"[^{expected_def}]: {content}")
-                        expected_def += 1
-                        current_block_count += 1
-                        continue
-                    elif num == 1:
-                        if current_block_count > 0:
-                            chapter_blocks.append(current_block_count)
-                        current_block_count = 1
-                        processed_lines.append("[^1]: " + content)
-                        expected_def = 2
-                        continue
-                    else:
-                        rejected_def_rows += 1
-                        processed_lines.append(line)
-                        continue
+        # ── Classify ladders: citation pipeline first, smol for doubt ──
+        numbered_lines = {li for li, _, _ in numbered}
 
-                if not line.strip():
-                    in_notes = False
-                    processed_lines.append(line)
-                    continue
+        def _full_row(li: int, content: str) -> str:
+            """Row text including wrapped continuation lines — years and
+            page refs usually sit on the continuation, not the first line."""
+            parts = [content]
+            for j in range(li + 1, min(li + 6, len(lines))):
+                if j in numbered_lines:
+                    break
+                s = lines[j].strip()
+                if s:
+                    parts.append(s)
+            return " ".join(parts)
 
-                processed_lines.append(line)
+        def _citation_vote(ld: List[Tuple[int, int, str]]) -> float:
+            hits = 0
+            for li, _, c in ld:
+                fc = _full_row(li, c)
+                if (
+                    _looks_like_bibliography(fc)
+                    or _looks_like_footnote(fc)
+                    or ANY_YEAR_RE.search(fc)
+                    or PAGE_REF_RE.search(fc)
+                ):
+                    hits += 1
+            return hits / len(ld)
+
+        accepted_ladders: List[List[Tuple[int, int, str]]] = []
+        for ld in ladders:
+            if len(ld) == 1:
+                # isolated "1." rows: wrapped bibliography volume numbers,
+                # single-item lists — never notes; drop without ceremony.
+                for (li, _, _) in ld:
+                    claimed.discard(li)
                 continue
+            v = _citation_vote(ld)
+            if len(ld) >= 4 and v >= 0.3:
+                accepted_ladders.append(ld)
+                continue
+            if len(ld) >= 4 and v < 0.1:
+                # long ladder, clearly not citations: a real numbered list
+                # (checklists, TOC debris). Deterministic reject.
+                for (li, _, _) in ld:
+                    claimed.discard(li)
+                continue
+            # Ambiguous: short ladder, or mid-range vote. Ask smol.
+            from .entity_extraction.smol_client import classify_numbered_block
+            verdict = classify_numbered_block(
+                [f"{n}. {_full_row(li, c)}" for li, n, c in ld[:3]]
+            )
+            if verdict == "footnotes":
+                accepted_ladders.append(ld)
+            else:
+                ambiguous_blocks += 1
+                for (li, _, _) in ld:
+                    claimed.discard(li)
 
-            processed_lines.append(line)
+        chapter_blocks = [len(ld) for ld in accepted_ladders]
+        total_defs = sum(chapter_blocks)
+        has_defs = bool(re.search(r"^\s*\[\^(\w+)\]:", text, re.MULTILINE))
 
-        if current_block_count > 0:
-            chapter_blocks.append(current_block_count)
-
-        # Check if defs exist at all
-        has_defs = bool(re.search(r"^\[\^(\w+)\]:", text, re.MULTILINE))
-        total_defs = sum(chapter_blocks) if chapter_blocks else 0
-
-        # Class (c): no notes section and no existing defs — nothing to convert
+        # ── Class (c): no ladders and no existing defs ──
         if total_defs == 0 and not has_defs:
-            result = "\n".join(processed_lines)
-            return result, {
+            return text, {
                 "defs": 0, "refs": 0, "blocks": [],
                 "aligned": True,
                 "rejected_def_rows": rejected_def_rows,
                 "rejected_body_candidates": 0,
+                "ambiguous_blocks": ambiguous_blocks,
             }
 
-        # Pass 2: global sequential renumbering of defs and refs
-        def_line_re = re.compile(r"^(\s*)\[\^(\w+)\]:\s+(.*)$")
+        processed_lines: List[str] = list(lines)
         inline_ref_re = re.compile(r"\[\^(\w+)\]")
-        output_lines: List[str] = []
-        rejected_body_candidates = [0]
 
-        global_counter = 0
-        def_map: Dict[str, str] = {}
+        if total_defs > 0:
+            # ── Class (a): promote ladder rows with global numbering ──
+            notes_line = [False] * len(lines)
+            global_def = 0
+            for ld in accepted_ladders:
+                first, last = ld[0][0], ld[-1][0]
+                for li in range(first, min(last + 1, len(lines))):
+                    notes_line[li] = True
+                for (li, _, content) in ld:
+                    global_def += 1
+                    processed_lines[li] = f"[^{global_def}]: {content}"
+            # Number-prefixed rows inside ladder spans that did not chain
+            # (running headers, page artifacts) are the rejected def rows.
+            for (li, _, _) in numbered:
+                if notes_line[li] and li not in claimed:
+                    rejected_def_rows += 1
 
-        for line in processed_lines:
-            m = def_line_re.match(line)
-            if m:
-                global_counter += 1
-                old_label = m.group(2)
-                new_label = str(global_counter)
-                def_map[old_label] = new_label
-                output_lines.append(f"[^{new_label}]: {m.group(3)}")
-            else:
-                output_lines.append(line)
+            # ── Body acceptance by per-chapter expectation ──
+            expected_ref = 1
+            block_idx = 0
+            offset = 0
+            for i, line in enumerate(processed_lines):
+                if notes_line[i] or block_idx >= len(chapter_blocks):
+                    continue
+                out = []
+                last = 0
+                for cm in self._BODY_CAND_RE.finditer(line):
+                    if block_idx >= len(chapter_blocks):
+                        break
+                    num_str = cm.group(1) or cm.group(2) or cm.group(3)
+                    # canonical page-ref shapes (p./pp./str./n.) are never markers
+                    if cm.group(3) and PAGE_REF_RE.search(
+                        line[max(0, cm.start() - 8): cm.end()]
+                    ):
+                        continue
+                    if int(num_str) == expected_ref:
+                        out.append(line[last:cm.start()])
+                        out.append(f"[^{offset + expected_ref}]")
+                        last = cm.end()
+                        expected_ref += 1
+                        if expected_ref > chapter_blocks[block_idx]:
+                            offset += chapter_blocks[block_idx]
+                            block_idx += 1
+                            expected_ref = 1
+                    else:
+                        rejected_body_candidates += 1
+                if out:
+                    out.append(line[last:])
+                    processed_lines[i] = "".join(out)
 
-        final_lines: List[str] = []
-        for line in output_lines:
-            if def_line_re.match(line):
-                final_lines.append(line)
-                continue
+            final_lines = processed_lines
+            global_counter = global_def
+        else:
+            # ── Class (b): label-map renumbering of existing defs/refs ──
+            def_line_re = re.compile(r"^(\s*)\[\^(\w+)\]:\s+(.*)$")
+            global_counter = 0
+            def_map: Dict[str, str] = {}
+            output_lines: List[str] = []
+            for line in processed_lines:
+                m = def_line_re.match(line)
+                if m:
+                    global_counter += 1
+                    def_map[m.group(2)] = str(global_counter)
+                    output_lines.append(f"[^{global_counter}]: {m.group(3)}")
+                else:
+                    output_lines.append(line)
 
-            def _ref_replace(m: re.Match) -> str:
-                old = m.group(1)
-                if old in def_map:
-                    return f"[^{def_map[old]}]"
-                rejected_body_candidates[0] += 1
-                return m.group(0)
-            line = inline_ref_re.sub(_ref_replace, line)
-            final_lines.append(line)
+            unknown_refs = [0]
+            final_lines = []
+            for line in output_lines:
+                if def_line_re.match(line):
+                    final_lines.append(line)
+                    continue
 
+                def _ref_replace(m: re.Match) -> str:
+                    old = m.group(1)
+                    if old in def_map:
+                        return f"[^{def_map[old]}]"
+                    unknown_refs[0] += 1
+                    return m.group(0)
+                final_lines.append(inline_ref_re.sub(_ref_replace, line))
+            rejected_body_candidates += unknown_refs[0]
+
+        def_line_check = re.compile(r"^\s*\[\^(\w+)\]:")
         total_ref_count = 0
         for line in final_lines:
-            if not def_line_re.match(line):
+            if not def_line_check.match(line):
                 total_ref_count += len(inline_ref_re.findall(line))
 
-        result = "\n".join(final_lines)
-        return result, {
+        return "\n".join(final_lines), {
             "defs": global_counter,
             "refs": total_ref_count,
             "blocks": chapter_blocks,
             "aligned": global_counter == total_ref_count,
             "rejected_def_rows": rejected_def_rows,
-            "rejected_body_candidates": rejected_body_candidates[0],
+            "rejected_body_candidates": rejected_body_candidates,
+            "ambiguous_blocks": ambiguous_blocks,
         }
 
     def _remap_list_line(self, line: str, target_style: str) -> str:

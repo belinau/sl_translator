@@ -98,7 +98,7 @@ def main(argv=None) -> int:
     ]
 
     # ── Re-attach translations ────────────────────────────────────────────
-    # Key: normalised source text → (target, status), first occurrence wins
+    # Pass 1 — exact: normalised source text → (target, status), first wins.
     old_by_key: dict[str, tuple[str, str]] = {}
     for seg in old_segments:
         key = _normalise(seg.get("source", ""))
@@ -117,8 +117,43 @@ def main(argv=None) -> int:
         else:
             lost += 1
 
+    # Pass 2 — fuzzy: re-home DONE translations whose old segmentation no
+    # longer exists verbatim (e.g. VL-era paragraph joins, editorial em-dash
+    # TOC shaping). Uses rapidfuzz — the same matcher the TM relies on.
+    fuzzy_attached = 0
+    try:
+        from rapidfuzz import fuzz, process as rf_process
+    except ImportError:
+        rf_process = None
+    if rf_process is not None:
+        unattached_done = [
+            s for s in old_segments
+            if s.get("status") == "done" and s.get("target", "").strip()
+            and _normalise(s.get("source", "")) not in {
+                _normalise(n["source"]) for n in new_segments if n["status"] == "done"
+            }
+        ]
+        new_keys = [_normalise(s["source"]) for s in new_segments]
+        for old_seg in unattached_done:
+            old_key = _normalise(old_seg["source"])
+            if not old_key:
+                continue
+            best = rf_process.extractOne(
+                old_key, new_keys, scorer=fuzz.token_set_ratio, score_cutoff=90,
+            )
+            if best is None:
+                continue
+            _, score, idx = best
+            tgt_seg = new_segments[idx]
+            if tgt_seg["status"] == "done":
+                continue  # already claimed by an exact or earlier fuzzy match
+            tgt_seg["target"] = old_seg["target"]
+            tgt_seg["status"] = "done"
+            fuzzy_attached += 1
+
     total_done = sum(1 for s in new_segments if s.get("status") == "done")
     print(f"\n  New segments: {len(new_segments)}")
+    print(f"  Fuzzy re-homed done segments: {fuzzy_attached}")
     print(f"  Re-attached translations: {attached}")
     print(f"  Unmatched (no prior translation): {lost}")
     print(f"  Done after attach: {total_done}")

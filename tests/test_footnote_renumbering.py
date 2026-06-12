@@ -14,9 +14,16 @@ from translate_core.doc_parser import DocumentParser, footnote_alignment_report
 
 class TestRenumbersTwoChapterNotes:
     """Two-chapter text: notes rows restart at 1 per chapter,
-    body [^N] refs → global sequential renumbering."""
+    body [^N] refs → global sequential renumbering.
 
-    def test_global_sequential_defs(self):
+    Short ladders (< 4 rows) are referred to smol; tests pin the verdict
+    so they stay deterministic and network-free."""
+
+    def test_global_sequential_defs(self, monkeypatch):
+        from translate_core.entity_extraction import smol_client
+        monkeypatch.setattr(
+            smol_client, "classify_numbered_block", lambda rows, **kw: "footnotes"
+        )
         text = """Chapter one
 
 Some text [^1] and more [^2].
@@ -38,30 +45,56 @@ Notes
         # 4 defs total (2 per chapter), globally renumbered [^1]..[^4]
         assert report["defs"] == 4
         assert report["blocks"] == [2, 2]
-        # Body refs should be remapped globally
-        # ch1 [^1] → mapped via def_map, ch2 [^1] → mapped via def_map (last-wins)
         assert report["refs"] >= 2
 
-    def test_single_note_body_ref(self):
+    def test_single_bare_row_never_promoted(self, monkeypatch):
+        """An isolated '1.' row is the bibliography false-positive shape
+        (wrapped journal volume numbers) — never auto-promoted, smol is
+        not even consulted."""
+        from translate_core.entity_extraction import smol_client
+        monkeypatch.setattr(
+            smol_client, "classify_numbered_block",
+            lambda rows, **kw: (_ for _ in ()).throw(AssertionError("smol must not be called")),
+        )
         text = """Intro text.
 
 Notes
 1. Only note
 
-Body text [^1] here.
+Body text here.
 """
         parser = DocumentParser()
         result, report = parser._renumber_footnotes(text)
-        # One def promoted from bare row, one inline [^1] ref remapped
-        assert report["defs"] == 1
-        assert "[^1]" in result
+        assert report["defs"] == 0
+        assert "1. Only note" in result
+
+    def test_ambiguous_ladder_left_unconverted_when_smol_down(self, monkeypatch):
+        """Ollama unavailable → ambiguous short ladders stay unconverted
+        and are surfaced in the report; nothing is silently guessed."""
+        from translate_core.entity_extraction import smol_client
+        monkeypatch.setattr(
+            smol_client, "classify_numbered_block", lambda rows, **kw: None
+        )
+        text = """Notes
+1. First short note
+2. Second short note
+"""
+        parser = DocumentParser()
+        result, report = parser._renumber_footnotes(text)
+        assert report["defs"] == 0
+        assert report["ambiguous_blocks"] == 1
+        assert "1. First short note" in result
 
 
 class TestFalsePositiveRejection:
     """A notes-section row with unexpected number stays as plain text."""
 
-    def test_false_positive_def_row_rejected(self):
+    def test_false_positive_def_row_rejected(self, monkeypatch):
         """A '210.' row mid-block (when expected is e.g. 3) is rejected."""
+        from translate_core.entity_extraction import smol_client
+        monkeypatch.setattr(
+            smol_client, "classify_numbered_block", lambda rows, **kw: "footnotes"
+        )
         text = """Notes
 1. First note
 2. Second note
