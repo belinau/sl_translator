@@ -1,0 +1,7352 @@
+[
+  {
+    "id": "agent:samo-simcic",
+    "name": "Samo Simčič",
+    "citations": 20
+  },
+  {
+    "id": "agent:felix-beltran",
+    "name": "Félix Beltrán",
+    "citations": 10
+  },
+  {
+    "id": "agent:jasa-zlobec",
+    "name": "Jaša Zlobec",
+    "citations": 9
+  },
+  {
+    "id": "agent:branislav-milosevic",
+    "name": "Branislav Milošević",
+    "citations": 8
+  },
+  {
+    "id": "agent:miha-perne",
+    "name": "MIHA PERNE",
+    "citations": 8
+  },
+  {
+    "id": "agent:kari-ka-cha-seid-ou",
+    "name": "kąrî’ka· chä seid’ōu",
+    "citations": 8
+  },
+  {
+    "id": "agent:breda-skrjanec",
+    "name": "Breda Škrjanec",
+    "citations": 7
+  },
+  {
+    "id": "agent:mateja-bucar",
+    "name": "Mateja Bučar",
+    "citations": 7
+  },
+  {
+    "id": "agent:johann-sebastian-bach",
+    "name": "Johann Sebastian Bach",
+    "citations": 7
+  },
+  {
+    "id": "agent:decaci",
+    "name": "Dečaci",
+    "citations": 7
+  },
+  {
+    "id": "agent:primoz-jesenko",
+    "name": "Primož Jesenko",
+    "citations": 6
+  },
+  {
+    "id": "agent:jirmanus-saba",
+    "name": "Jirmanus Saba",
+    "citations": 6
+  },
+  {
+    "id": "agent:mary-jirmanus-saba",
+    "name": "Mary Jirmanus Saba",
+    "citations": 6
+  },
+  {
+    "id": "agent:zala-dobovsek",
+    "name": "Zala Dobovšek",
+    "citations": 6
+  },
+  {
+    "id": "agent:robin-riskin",
+    "name": "Robin Riskin",
+    "citations": 6
+  },
+  {
+    "id": "agent:bozidar-zecevic",
+    "name": "Božidar Zečević",
+    "citations": 6
+  },
+  {
+    "id": "agent:blaz-bajic",
+    "name": "Blaž Bajič",
+    "citations": 6
+  },
+  {
+    "id": "agent:vujica-rasin-tucic",
+    "name": "Vujica Rašin Tucić",
+    "citations": 6
+  },
+  {
+    "id": "agent:john-martin",
+    "name": "John Martin",
+    "citations": 5
+  },
+  {
+    "id": "agent:darko-dragicevic",
+    "name": "Darko Dragičević",
+    "citations": 5
+  },
+  {
+    "id": "agent:marek-sindelka",
+    "name": "Marek Šindelka",
+    "citations": 5
+  },
+  {
+    "id": "agent:rudolf-m-rizman",
+    "name": "Rudolf M. Rizman",
+    "citations": 5
+  },
+  {
+    "id": "agent:milena-usenik",
+    "name": "Milena Usenik",
+    "citations": 5
+  },
+  {
+    "id": "agent:kino-siska",
+    "name": "Kino Šiška",
+    "citations": 5
+  },
+  {
+    "id": "agent:caterina-niklaus",
+    "name": "Caterina Niklaus",
+    "citations": 5
+  },
+  {
+    "id": "agent:denis-poniz",
+    "name": "Denis Poniž",
+    "citations": 5
+  },
+  {
+    "id": "agent:lilijana-stepancic",
+    "name": "Lilijana Stepančič",
+    "citations": 5
+  },
+  {
+    "id": "agent:dubravka-sekulic",
+    "name": "Dubravka Sekulić",
+    "citations": 5
+  },
+  {
+    "id": "agent:tery-zezelj",
+    "name": "Tery Žeželj",
+    "citations": 5
+  },
+  {
+    "id": "agent:rudi-rizman",
+    "name": "Rudi Rizman",
+    "citations": 5
+  },
+  {
+    "id": "agent:slobodan-milovanovic",
+    "name": "Slobodan Milovanović",
+    "citations": 5
+  },
+  {
+    "id": "agent:lauri-siisiainen",
+    "name": "Lauri Siisiäinen",
+    "citations": 4
+  },
+  {
+    "id": "agent:jule-flierl",
+    "name": "Jule Flierl",
+    "citations": 4
+  },
+  {
+    "id": "agent:dragoslav-djordjevic",
+    "name": "Dragoslav Djordjević",
+    "citations": 4
+  },
+  {
+    "id": "agent:veronica-gago",
+    "name": "Verónica Gago",
+    "citations": 4
+  },
+  {
+    "id": "agent:floyd-kathryn-m",
+    "name": "Floyd, Kathryn M.",
+    "citations": 4
+  },
+  {
+    "id": "agent:vili-ravnjak",
+    "name": "Vili Ravnjak",
+    "citations": 4
+  },
+  {
+    "id": "agent:autopsia",
+    "name": "Autopsia",
+    "citations": 4
+  },
+  {
+    "id": "agent:adolf-hitler",
+    "name": "Adolf Hitler",
+    "citations": 4
+  },
+  {
+    "id": "agent:cerwinka-gunter",
+    "name": "Cerwinka, Günter",
+    "citations": 4
+  },
+  {
+    "id": "agent:anthony-gardner-and-charles-green",
+    "name": "Anthony Gardner and Charles Green",
+    "citations": 4
+  },
+  {
+    "id": "agent:iztok-geister",
+    "name": "Iztok Geister",
+    "citations": 4
+  },
+  {
+    "id": "agent:sonja-pregrad",
+    "name": "Sonja Pregrad",
+    "citations": 4
+  },
+  {
+    "id": "agent:christian-juri",
+    "name": "Christian Juri",
+    "citations": 4
+  },
+  {
+    "id": "agent:bojan-an-elkovic",
+    "name": "Bojan Anđelković",
+    "citations": 4
+  },
+  {
+    "id": "agent:dimitrij-rupel",
+    "name": "Dimitrij Rupel",
+    "citations": 4
+  },
+  {
+    "id": "agent:aina-smid",
+    "name": "Aina Šmid",
+    "citations": 4
+  },
+  {
+    "id": "agent:helke-sander",
+    "name": "Helke Sander",
+    "citations": 4
+  },
+  {
+    "id": "agent:allan-sekula-and-noel-burch",
+    "name": "Allan Sekula and Noël Burch",
+    "citations": 4
+  },
+  {
+    "id": "agent:kevin-jon-heller",
+    "name": "Kevin Jon Heller",
+    "citations": 4
+  },
+  {
+    "id": "agent:seid-ou",
+    "name": "seid’ōu",
+    "citations": 4
+  },
+  {
+    "id": "agent:chekhov",
+    "name": "Chekhov",
+    "citations": 4
+  },
+  {
+    "id": "agent:ivo-svetina",
+    "name": "Ivo Svetina",
+    "citations": 4
+  },
+  {
+    "id": "agent:stane-jagodic",
+    "name": "Stane Jagodič",
+    "citations": 4
+  },
+  {
+    "id": "agent:tobias-bartsch",
+    "name": "Tobias Bärtsch",
+    "citations": 4
+  },
+  {
+    "id": "agent:franco-bifo-berardi",
+    "name": "Franco “Bifo” Berardi",
+    "citations": 4
+  },
+  {
+    "id": "agent:damir-zlatar-frey",
+    "name": "Damir Zlatar Frey",
+    "citations": 4
+  },
+  {
+    "id": "agent:dusan-pirih-hup",
+    "name": "Dušan Pirih Hup",
+    "citations": 4
+  },
+  {
+    "id": "agent:diogenes-laertius",
+    "name": "Diogenes Laertius",
+    "citations": 4
+  },
+  {
+    "id": "agent:susanne-leeb",
+    "name": "Susanne Leeb",
+    "citations": 4
+  },
+  {
+    "id": "agent:pj-harvey",
+    "name": "PJ Harvey",
+    "citations": 4
+  },
+  {
+    "id": "agent:katalin-ladik",
+    "name": "Katalin Ladik",
+    "citations": 4
+  },
+  {
+    "id": "agent:stanek-ukasz",
+    "name": "Łukasz Stanek",
+    "citations": 4
+  },
+  {
+    "id": "agent:vesna-raus",
+    "name": "Vesna Raus",
+    "citations": 4
+  },
+  {
+    "id": "agent:andreja-rauch-podrzavnik",
+    "name": "Andreja Rauch Podrzavnik",
+    "citations": 4
+  },
+  {
+    "id": "agent:zico",
+    "name": "Zico",
+    "citations": 4
+  },
+  {
+    "id": "agent:irit-rogoff",
+    "name": "Irit Rogoff",
+    "citations": 4
+  },
+  {
+    "id": "agent:bajic",
+    "name": "Bajič",
+    "citations": 4
+  },
+  {
+    "id": "agent:erik-lovro",
+    "name": "Erik Lovro",
+    "citations": 4
+  },
+  {
+    "id": "agent:fiskin",
+    "name": "Fiškin",
+    "citations": 4
+  },
+  {
+    "id": "agent:dobrivoje-petrovic",
+    "name": "Dobrivoje Petrović",
+    "citations": 4
+  },
+  {
+    "id": "agent:ron-athey",
+    "name": "Ron Athey",
+    "citations": 4
+  },
+  {
+    "id": "agent:ilija-moljkovic",
+    "name": "Ilija Moljković",
+    "citations": 4
+  },
+  {
+    "id": "agent:gregor-tomc",
+    "name": "Gregor Tomc",
+    "citations": 4
+  },
+  {
+    "id": "agent:tomislav-gotovac",
+    "name": "Tomislav Gotovac",
+    "citations": 4
+  },
+  {
+    "id": "agent:geoffrey-bindman",
+    "name": "Geoffrey Bindman",
+    "citations": 4
+  },
+  {
+    "id": "agent:putrih",
+    "name": "Putrih",
+    "citations": 4
+  },
+  {
+    "id": "agent:andreas-spengler",
+    "name": "Andreas Spengler",
+    "citations": 4
+  },
+  {
+    "id": "agent:vera-mantero",
+    "name": "Vera Mantero",
+    "citations": 4
+  },
+  {
+    "id": "agent:editorial-board",
+    "name": "Editorial board",
+    "citations": 4
+  },
+  {
+    "id": "agent:simona-semenic",
+    "name": "Simona Semenič",
+    "citations": 4
+  },
+  {
+    "id": "agent:marina-garces",
+    "name": "Marina Garcés",
+    "citations": 4
+  },
+  {
+    "id": "agent:jernej-novak",
+    "name": "Jernej Novak",
+    "citations": 4
+  },
+  {
+    "id": "agent:tobias-bartsch-daniel-drognitz-sarah-echenmoser",
+    "name": "Tobias Bärtsch, Daniel Drognitz, Sarah Echenmoser",
+    "citations": 3
+  },
+  {
+    "id": "agent:paul-stubbs",
+    "name": "Paul Stubbs",
+    "citations": 3
+  },
+  {
+    "id": "agent:ejmi-hadrovic",
+    "name": "Đejmi Hadrović",
+    "citations": 3
+  },
+  {
+    "id": "agent:bonaventure-soh-bejeng-ndikung",
+    "name": "Bonaventure Soh Bejeng Ndikung",
+    "citations": 3
+  },
+  {
+    "id": "agent:branko-andric",
+    "name": "Branko Andrić",
+    "citations": 3
+  },
+  {
+    "id": "agent:marija-vogelnik",
+    "name": "Marija Vogelnik",
+    "citations": 3
+  },
+  {
+    "id": "agent:magdalena-reiter",
+    "name": "Magdalena Reiter",
+    "citations": 3
+  },
+  {
+    "id": "agent:ann-cvetkovich",
+    "name": "Ann Cvetkovich",
+    "citations": 3
+  },
+  {
+    "id": "agent:piny",
+    "name": "Piny",
+    "citations": 3
+  },
+  {
+    "id": "agent:frenk-mils",
+    "name": "Frenk Mils",
+    "citations": 3
+  },
+  {
+    "id": "agent:zlatko-setinc",
+    "name": "Zlatko Šetinc",
+    "citations": 3
+  },
+  {
+    "id": "agent:christopher-clark",
+    "name": "Christopher Clark",
+    "citations": 3
+  },
+  {
+    "id": "agent:steven-majstorovic",
+    "name": "Steven Majstorović",
+    "citations": 3
+  },
+  {
+    "id": "agent:maja-breznik",
+    "name": "Maja Breznik",
+    "citations": 3
+  },
+  {
+    "id": "agent:borka-pavicevic",
+    "name": "Borka Pavičević",
+    "citations": 3
+  },
+  {
+    "id": "agent:mojca-dobnikar",
+    "name": "Mojca Dobnikar",
+    "citations": 3
+  },
+  {
+    "id": "agent:samuel-beckett",
+    "name": "Samuel Beckett",
+    "citations": 3
+  },
+  {
+    "id": "agent:ciril-ribicic",
+    "name": "Ciril Ribičič",
+    "citations": 3
+  },
+  {
+    "id": "agent:jan-rozman",
+    "name": "Jan Rozman",
+    "citations": 3
+  },
+  {
+    "id": "agent:matko-mestrovic",
+    "name": "Matko Meštrović",
+    "citations": 3
+  },
+  {
+    "id": "agent:mate-dolenc",
+    "name": "Mate Dolenc",
+    "citations": 3
+  },
+  {
+    "id": "agent:boccioni",
+    "name": "Boccioni",
+    "citations": 3
+  },
+  {
+    "id": "agent:lovrenc-foglar",
+    "name": "Lovrenc Foglar",
+    "citations": 3
+  },
+  {
+    "id": "agent:ivica-bizovicar",
+    "name": "Ivica Bizovičar",
+    "citations": 3
+  },
+  {
+    "id": "agent:gilles-clement",
+    "name": "Gilles Clement",
+    "citations": 3
+  },
+  {
+    "id": "agent:polonca-lovsin",
+    "name": "Polonca Lovšin",
+    "citations": 3
+  },
+  {
+    "id": "agent:atoui",
+    "name": "Atoui",
+    "citations": 3
+  },
+  {
+    "id": "agent:kunst-laibach",
+    "name": "Laibach Kunst",
+    "citations": 3
+  },
+  {
+    "id": "agent:franjo-cibej",
+    "name": "Franjo Čibej",
+    "citations": 3
+  },
+  {
+    "id": "agent:catherine-millet",
+    "name": "Catherine Millet",
+    "citations": 3
+  },
+  {
+    "id": "agent:marjan-rozanc",
+    "name": "Marjan Rožanc",
+    "citations": 3
+  },
+  {
+    "id": "agent:ziga-divjak",
+    "name": "Žiga Divjak",
+    "citations": 3
+  },
+  {
+    "id": "agent:irena-z-tomazin",
+    "name": "Irena Z Tomažin",
+    "citations": 3
+  },
+  {
+    "id": "agent:marwa-arsanios",
+    "name": "Marwa Arsanios",
+    "citations": 3
+  },
+  {
+    "id": "agent:mignolo-walter-d-and-walsh-katherine-e",
+    "name": "Mignolo, Walter D. and Walsh, Katherine E.",
+    "citations": 3
+  },
+  {
+    "id": "agent:becker-fornet-betancourt-gomez-muller",
+    "name": "Becker, Fornet-Betancourt, Gómez-Müller",
+    "citations": 3
+  },
+  {
+    "id": "agent:konstantina-georgelou",
+    "name": "Konstantina Georgelou",
+    "citations": 3
+  },
+  {
+    "id": "agent:andrew-rigby",
+    "name": "Andrew Rigby",
+    "citations": 3
+  },
+  {
+    "id": "agent:tomaz-kralj",
+    "name": "Tomaž Kralj",
+    "citations": 3
+  },
+  {
+    "id": "agent:aleksander-bassin",
+    "name": "Aleksander Bassin",
+    "citations": 3
+  },
+  {
+    "id": "agent:ales-kermauner",
+    "name": "Aleš Kermauner",
+    "citations": 3
+  },
+  {
+    "id": "agent:joan-c-tronto",
+    "name": "Joan C. Tronto",
+    "citations": 3
+  },
+  {
+    "id": "agent:paul-betts-radina-vucetic",
+    "name": "Paul Betts, Radina Vučetić",
+    "citations": 3
+  },
+  {
+    "id": "agent:george-kennan",
+    "name": "George Kennan",
+    "citations": 3
+  },
+  {
+    "id": "agent:rosetta-brooks",
+    "name": "Rosetta Brooks",
+    "citations": 3
+  },
+  {
+    "id": "agent:vinciane-despret",
+    "name": "Vinciane Despret",
+    "citations": 3
+  },
+  {
+    "id": "agent:chandler-mielle-and-neimanis-astrida",
+    "name": "Chandler, Mielle and Neimanis, Astrida",
+    "citations": 3
+  },
+  {
+    "id": "agent:justin-hogg",
+    "name": "Justin Hogg",
+    "citations": 3
+  },
+  {
+    "id": "agent:natalija-vagapova",
+    "name": "Natalija Vagapova",
+    "citations": 3
+  },
+  {
+    "id": "agent:bogdan-lesnik",
+    "name": "Bogdan Lešnik",
+    "citations": 3
+  },
+  {
+    "id": "agent:leonid-sejka",
+    "name": "Leonid Šejka",
+    "citations": 3
+  },
+  {
+    "id": "agent:maaike-bleeker",
+    "name": "Maaike Bleeker",
+    "citations": 3
+  },
+  {
+    "id": "agent:andrej-trupej",
+    "name": "Andrej Trupej",
+    "citations": 3
+  },
+  {
+    "id": "agent:david-horn",
+    "name": "David Horn",
+    "citations": 3
+  },
+  {
+    "id": "agent:shakespeare",
+    "name": "Shakespeare",
+    "citations": 3
+  },
+  {
+    "id": "agent:adin-sidney-walker",
+    "name": "Adin Sidney Walker",
+    "citations": 3
+  },
+  {
+    "id": "agent:polona-tratnik",
+    "name": "Polona Tratnik",
+    "citations": 3
+  },
+  {
+    "id": "agent:jefta-van-dinther",
+    "name": "Jefta van Dinther",
+    "citations": 3
+  },
+  {
+    "id": "agent:boris-cizej",
+    "name": "Boris Cizej",
+    "citations": 3
+  },
+  {
+    "id": "agent:gregor-drazil",
+    "name": "Gregor Dražil",
+    "citations": 3
+  },
+  {
+    "id": "agent:matic-kos",
+    "name": "Matic Kos",
+    "citations": 3
+  },
+  {
+    "id": "agent:sanja-radovic",
+    "name": "Sanja Radović",
+    "citations": 3
+  },
+  {
+    "id": "agent:kreso-petrovic",
+    "name": "Krešo Petrović",
+    "citations": 3
+  },
+  {
+    "id": "agent:ferreira-da-silva",
+    "name": "Ferreira da Silva",
+    "citations": 3
+  },
+  {
+    "id": "agent:ljiljana-kolesnik",
+    "name": "Ljiljana Kolešnik",
+    "citations": 3
+  },
+  {
+    "id": "agent:slobodan-novakovic",
+    "name": "Slobodan Novaković",
+    "citations": 3
+  },
+  {
+    "id": "agent:ante-beg",
+    "name": "Ante Beg",
+    "citations": 3
+  },
+  {
+    "id": "agent:dr-nkrumah",
+    "name": "Dr. Nkrumah",
+    "citations": 3
+  },
+  {
+    "id": "agent:petar-zubac",
+    "name": "Petar Zubac",
+    "citations": 3
+  },
+  {
+    "id": "agent:tomaz-grom",
+    "name": "Tomaž Grom",
+    "citations": 3
+  },
+  {
+    "id": "agent:susan-l-foster",
+    "name": "Susan L. Foster",
+    "citations": 3
+  },
+  {
+    "id": "agent:gal-kirn",
+    "name": "Gal Kirn",
+    "citations": 3
+  },
+  {
+    "id": "agent:ksenija-xenia-hribar",
+    "name": "Ksenija (Xenia) Hribar",
+    "citations": 3
+  },
+  {
+    "id": "agent:jovita-pristovsek",
+    "name": "Jovita Pristovšek",
+    "citations": 3
+  },
+  {
+    "id": "agent:milan-jesih",
+    "name": "Milan Jesih",
+    "citations": 3
+  },
+  {
+    "id": "agent:bosch-bosch-group",
+    "name": "Bosch+Bosch Group",
+    "citations": 3
+  },
+  {
+    "id": "agent:pogacar-tadej",
+    "name": "Tadej Pogačar",
+    "citations": 3
+  },
+  {
+    "id": "agent:nelson-maldonado-torres",
+    "name": "Nelson Maldonado-Torres",
+    "citations": 3
+  },
+  {
+    "id": "agent:matteo-fargion",
+    "name": "Matteo Fargion",
+    "citations": 3
+  },
+  {
+    "id": "agent:ana-vujanovic-and-bojana-cvejic",
+    "name": "Ana Vujanovic and Bojana Cvejic",
+    "citations": 3
+  },
+  {
+    "id": "agent:ivan-mrak",
+    "name": "Ivan Mrak",
+    "citations": 3
+  },
+  {
+    "id": "agent:daniel-grun",
+    "name": "Daniel Grúň",
+    "citations": 3
+  },
+  {
+    "id": "agent:tuck-yang",
+    "name": "Tuck, Yang",
+    "citations": 3
+  },
+  {
+    "id": "agent:pavlov",
+    "name": "Pavlov",
+    "citations": 3
+  },
+  {
+    "id": "agent:w-e-b-du-bois",
+    "name": "W.E.B. Du Bois",
+    "citations": 3
+  },
+  {
+    "id": "agent:michael-turinsky",
+    "name": "Michael Turinsky",
+    "citations": 3
+  },
+  {
+    "id": "agent:izak-kosir",
+    "name": "Izak Košir",
+    "citations": 3
+  },
+  {
+    "id": "agent:tracy-thompson",
+    "name": "Tracy Thompson",
+    "citations": 3
+  },
+  {
+    "id": "agent:foglar",
+    "name": "Foglar",
+    "citations": 3
+  },
+  {
+    "id": "agent:jerry-rubin",
+    "name": "Jerry Rubin",
+    "citations": 3
+  },
+  {
+    "id": "agent:dunja-blazevic",
+    "name": "Dunja Blažević",
+    "citations": 3
+  },
+  {
+    "id": "agent:pregl",
+    "name": "Pregl",
+    "citations": 3
+  },
+  {
+    "id": "agent:oho-group",
+    "name": "OHO Group",
+    "citations": 3
+  },
+  {
+    "id": "agent:chris-cuomo",
+    "name": "Chris Cuomo",
+    "citations": 3
+  },
+  {
+    "id": "agent:vladimir-maksimovic",
+    "name": "Vladimir Maksimović",
+    "citations": 3
+  },
+  {
+    "id": "agent:giulia-palladini",
+    "name": "Giulia Palladini",
+    "citations": 3
+  },
+  {
+    "id": "agent:angela-y-davis",
+    "name": "Angela Y. Davis",
+    "citations": 3
+  },
+  {
+    "id": "agent:dorothy-roberts",
+    "name": "Dorothy Roberts",
+    "citations": 3
+  },
+  {
+    "id": "agent:radina-vucetic",
+    "name": "Radina Vučetić",
+    "citations": 3
+  },
+  {
+    "id": "agent:pascal-gielen",
+    "name": "Pascal Gielen",
+    "citations": 3
+  },
+  {
+    "id": "agent:dragan-zivadinov",
+    "name": "Dragan Živadinov",
+    "citations": 3
+  },
+  {
+    "id": "agent:miroslav-mandic",
+    "name": "Miroslav Mandić",
+    "citations": 3
+  },
+  {
+    "id": "agent:slobodan-skerovic",
+    "name": "Slobodan Škerović",
+    "citations": 3
+  },
+  {
+    "id": "agent:nasko-kriznar-and-oho",
+    "name": "Naško Križnar and OHO",
+    "citations": 3
+  },
+  {
+    "id": "agent:nell-irvin-painter",
+    "name": "Nell Irvin Painter",
+    "citations": 3
+  },
+  {
+    "id": "agent:anna-jug-olip",
+    "name": "Anna Jug-Olip",
+    "citations": 2
+  },
+  {
+    "id": "agent:nathalie-ritter",
+    "name": "Nathalie Ritter",
+    "citations": 2
+  },
+  {
+    "id": "agent:aleksandar-georgiev-dario-barreto-damas-zhana-pencheva",
+    "name": "Aleksandar Georgiev, Darío Barreto Damas, Zhana Pencheva",
+    "citations": 2
+  },
+  {
+    "id": "agent:cockerill-et-al",
+    "name": "Cockerill et.al.",
+    "citations": 2
+  },
+  {
+    "id": "agent:isabelle-schad",
+    "name": "Isabelle Schad",
+    "citations": 2
+  },
+  {
+    "id": "agent:broadwayworld",
+    "name": "BroadwayWorld",
+    "citations": 2
+  },
+  {
+    "id": "agent:dejan-oric",
+    "name": "Dejan Đorić",
+    "citations": 2
+  },
+  {
+    "id": "agent:michael-blundell",
+    "name": "Michael Blundell",
+    "citations": 2
+  },
+  {
+    "id": "agent:stakemeier-and-leeb",
+    "name": "Stakemeier and Leeb",
+    "citations": 2
+  },
+  {
+    "id": "agent:irena-sentevska",
+    "name": "Irena Šentevska",
+    "citations": 2
+  },
+  {
+    "id": "agent:albert-o-hirschman",
+    "name": "Albert O. Hirschman",
+    "citations": 2
+  },
+  {
+    "id": "agent:uros-weinberger",
+    "name": "UROŠ WEINBERGER",
+    "citations": 2
+  },
+  {
+    "id": "agent:srdja-m-popovic",
+    "name": "Srdja M. Popović",
+    "citations": 2
+  },
+  {
+    "id": "agent:etceteral",
+    "name": "Etceteral",
+    "citations": 2
+  },
+  {
+    "id": "agent:vidici",
+    "name": "Vidici",
+    "citations": 2
+  },
+  {
+    "id": "agent:maja-delak",
+    "name": "Maja Delak",
+    "citations": 2
+  },
+  {
+    "id": "agent:sejla-kameric",
+    "name": "Šejla Kamerić",
+    "citations": 2
+  },
+  {
+    "id": "agent:ritter",
+    "name": "Ritter",
+    "citations": 2
+  },
+  {
+    "id": "agent:tronto",
+    "name": "Tronto",
+    "citations": 2
+  },
+  {
+    "id": "agent:cia",
+    "name": "CIA",
+    "citations": 2
+  },
+  {
+    "id": "agent:irena-pivka",
+    "name": "Irena Pivka",
+    "citations": 2
+  },
+  {
+    "id": "agent:janez-polajnar",
+    "name": "Janez Polajnar",
+    "citations": 2
+  },
+  {
+    "id": "agent:john-david-ebert",
+    "name": "John David Ebert",
+    "citations": 2
+  },
+  {
+    "id": "agent:zinka-zorko",
+    "name": "Zinka Zorko",
+    "citations": 2
+  },
+  {
+    "id": "agent:m-nourbese-philip",
+    "name": "M. NourbeSe Philip",
+    "citations": 2
+  },
+  {
+    "id": "agent:aileen-derieg",
+    "name": "Aileen Derieg",
+    "citations": 2
+  },
+  {
+    "id": "agent:drake",
+    "name": "Drake",
+    "citations": 2
+  },
+  {
+    "id": "agent:luka-novak",
+    "name": "Luka Novak",
+    "citations": 2
+  },
+  {
+    "id": "agent:batchen-geoffrey",
+    "name": "Batchen, Geoffrey",
+    "citations": 2
+  },
+  {
+    "id": "agent:martin-brenner",
+    "name": "Martin Brenner",
+    "citations": 2
+  },
+  {
+    "id": "agent:tadej-zupancic",
+    "name": "Tadej Zupančič",
+    "citations": 2
+  },
+  {
+    "id": "agent:ana-vilenica",
+    "name": "Ana Vilenica",
+    "citations": 2
+  },
+  {
+    "id": "agent:dejan-sretanovic",
+    "name": "Dejan Sretanović",
+    "citations": 2
+  },
+  {
+    "id": "agent:ovid",
+    "name": "Ovid",
+    "citations": 2
+  },
+  {
+    "id": "agent:sasa-radojevic",
+    "name": "Saša Radojević",
+    "citations": 2
+  },
+  {
+    "id": "agent:ana-jug-olip",
+    "name": "Ana Jug-Olip",
+    "citations": 2
+  },
+  {
+    "id": "agent:uros-komlenovic",
+    "name": "Uroš Komlenović",
+    "citations": 2
+  },
+  {
+    "id": "agent:jennifer-michalowski",
+    "name": "Jennifer Michalowski",
+    "citations": 2
+  },
+  {
+    "id": "agent:frano-cetinic",
+    "name": "Frano Cetinić",
+    "citations": 2
+  },
+  {
+    "id": "agent:blu-oltremare",
+    "name": "Blu Oltremare",
+    "citations": 2
+  },
+  {
+    "id": "agent:marina-abramovic-and-james-westcott",
+    "name": "Marina Abramović and James Westcott",
+    "citations": 2
+  },
+  {
+    "id": "agent:gago",
+    "name": "Gago",
+    "citations": 2
+  },
+  {
+    "id": "agent:unsigned-author",
+    "name": "unsigned author",
+    "citations": 2
+  },
+  {
+    "id": "agent:walter-roberts",
+    "name": "Walter Roberts",
+    "citations": 2
+  },
+  {
+    "id": "agent:kuda-org",
+    "name": "Kuda.org",
+    "citations": 2
+  },
+  {
+    "id": "agent:teresa-de-lauretis",
+    "name": "Teresa de Lauretis",
+    "citations": 2
+  },
+  {
+    "id": "agent:zsofia-lorand",
+    "name": "Zsófia Lóránd",
+    "citations": 2
+  },
+  {
+    "id": "agent:neven-korda",
+    "name": "Neven Korda",
+    "citations": 2
+  },
+  {
+    "id": "agent:v-u",
+    "name": "V. U.",
+    "citations": 2
+  },
+  {
+    "id": "agent:vujica-resin-tucic",
+    "name": "Vujica Rešin Tucić",
+    "citations": 2
+  },
+  {
+    "id": "agent:pavlov-and-shaposhnikov",
+    "name": "Pavlov and Shaposhnikov",
+    "citations": 2
+  },
+  {
+    "id": "agent:hribar-xenia",
+    "name": "Xenia Hribar",
+    "citations": 2
+  },
+  {
+    "id": "agent:bojana-piskur",
+    "name": "Bojana Piškur",
+    "citations": 2
+  },
+  {
+    "id": "agent:skerovic",
+    "name": "Škerovič",
+    "citations": 2
+  },
+  {
+    "id": "agent:alice-walker",
+    "name": "Alice Walker",
+    "citations": 2
+  },
+  {
+    "id": "agent:vito-weis",
+    "name": "Vito Weis",
+    "citations": 2
+  },
+  {
+    "id": "agent:tobias-putrih",
+    "name": "Tobias Putrih",
+    "citations": 2
+  },
+  {
+    "id": "agent:vilma-stritof-cretnik",
+    "name": "Vilma Štritof Čretnik",
+    "citations": 2
+  },
+  {
+    "id": "agent:spielberg",
+    "name": "Spielberg",
+    "citations": 2
+  },
+  {
+    "id": "agent:jadran-boban",
+    "name": "Jadran Boban",
+    "citations": 2
+  },
+  {
+    "id": "agent:susan-sonntag",
+    "name": "Susan Sonntag",
+    "citations": 2
+  },
+  {
+    "id": "agent:jelena-vesic-rachel-o-reilly",
+    "name": "Jelena Vesić, Rachel O'Reilly",
+    "citations": 2
+  },
+  {
+    "id": "agent:michiel-vandevelde",
+    "name": "Michiel Vandevelde",
+    "citations": 2
+  },
+  {
+    "id": "agent:mabel-e-todd",
+    "name": "Mabel E. Todd",
+    "citations": 2
+  },
+  {
+    "id": "agent:leah-barclay",
+    "name": "Leah Barclay",
+    "citations": 2
+  },
+  {
+    "id": "agent:josip-broz-tito",
+    "name": "Josip Broz Tito",
+    "citations": 2
+  },
+  {
+    "id": "agent:louise-toupin",
+    "name": "Louise Toupin",
+    "citations": 2
+  },
+  {
+    "id": "agent:savo-popovic",
+    "name": "Savo Popović",
+    "citations": 2
+  },
+  {
+    "id": "agent:elina-drake",
+    "name": "Elīna Drāke",
+    "citations": 2
+  },
+  {
+    "id": "agent:joze-drev",
+    "name": "Jože Drev",
+    "citations": 2
+  },
+  {
+    "id": "agent:polona-lovsin",
+    "name": "Polona Lovšin",
+    "citations": 2
+  },
+  {
+    "id": "agent:vera-ondrasikova",
+    "name": "Vera Ondrasikova",
+    "citations": 2
+  },
+  {
+    "id": "agent:eva-meyer-keller",
+    "name": "Eva Meyer-Keller",
+    "citations": 2
+  },
+  {
+    "id": "agent:strukelj",
+    "name": "Štrukelj",
+    "citations": 2
+  },
+  {
+    "id": "agent:schuh-a",
+    "name": "Schuh, A",
+    "citations": 2
+  },
+  {
+    "id": "agent:catherine-baker",
+    "name": "Catherine Baker",
+    "citations": 2
+  },
+  {
+    "id": "agent:tomi-janezic",
+    "name": "Tomi Janežič",
+    "citations": 2
+  },
+  {
+    "id": "agent:puig-de-la-bellacasa",
+    "name": "Puig de la Bellacasa",
+    "citations": 2
+  },
+  {
+    "id": "agent:petersen-wolfgang",
+    "name": "Wolfgang Petersen",
+    "citations": 2
+  },
+  {
+    "id": "agent:sally-banes",
+    "name": "Sally Banes",
+    "citations": 2
+  },
+  {
+    "id": "agent:ingrid-vranken",
+    "name": "Ingrid Vranken",
+    "citations": 2
+  },
+  {
+    "id": "agent:alenka-pirman",
+    "name": "Alenka Pirman",
+    "citations": 2
+  },
+  {
+    "id": "agent:krunoslav-stojakovic",
+    "name": "Krunoslav Stojaković",
+    "citations": 2
+  },
+  {
+    "id": "agent:milica-tomic",
+    "name": "Milica Tomić",
+    "citations": 2
+  },
+  {
+    "id": "agent:ana-janevski",
+    "name": "Ana Janevski",
+    "citations": 2
+  },
+  {
+    "id": "agent:slobodan-tisma",
+    "name": "Slobodan Tišma",
+    "citations": 2
+  },
+  {
+    "id": "agent:petra-bakos",
+    "name": "Petra Bakos",
+    "citations": 2
+  },
+  {
+    "id": "agent:jonathan-crary-sanford-kwinter",
+    "name": "Jonathan Crary, Sanford Kwinter",
+    "citations": 2
+  },
+  {
+    "id": "agent:anna-teresa-de-keersmaeker",
+    "name": "Anna-Teresa de Keersmaeker",
+    "citations": 2
+  },
+  {
+    "id": "agent:milena-droumeva-randolph-jordan",
+    "name": "Milena Droumeva, Randolph Jordan",
+    "citations": 2
+  },
+  {
+    "id": "agent:brian-carr",
+    "name": "Brian Carr",
+    "citations": 2
+  },
+  {
+    "id": "agent:david-crowley",
+    "name": "David Crowley",
+    "citations": 2
+  },
+  {
+    "id": "agent:katja-legin",
+    "name": "Katja Legin",
+    "citations": 2
+  },
+  {
+    "id": "agent:andrej-luksic",
+    "name": "Andrej Lukšič",
+    "citations": 2
+  },
+  {
+    "id": "agent:momcilo-baljak",
+    "name": "Momčilo Baljak",
+    "citations": 2
+  },
+  {
+    "id": "agent:nikolai-jeffs",
+    "name": "Nikolai Jeffs",
+    "citations": 2
+  },
+  {
+    "id": "agent:guillaume-marie",
+    "name": "Guillaume Marie",
+    "citations": 2
+  },
+  {
+    "id": "agent:dusan-boskovic-and-aleksandar-petrovic",
+    "name": "Dušan Bošković and Aleksandar Petrović",
+    "citations": 2
+  },
+  {
+    "id": "agent:ana-sladojevic",
+    "name": "Ana Sladojević",
+    "citations": 2
+  },
+  {
+    "id": "agent:jevgenij-zamjatin",
+    "name": "Jevgenij Zamjatin",
+    "citations": 2
+  },
+  {
+    "id": "agent:hot-art",
+    "name": "Hot Art",
+    "citations": 2
+  },
+  {
+    "id": "agent:thomas-hanna",
+    "name": "Thomas Hanna",
+    "citations": 2
+  },
+  {
+    "id": "agent:tony-kushner",
+    "name": "Tony Kushner",
+    "citations": 2
+  },
+  {
+    "id": "agent:erwin-posarnig",
+    "name": "Erwin Posarnig",
+    "citations": 2
+  },
+  {
+    "id": "agent:lordan-zafranovic",
+    "name": "Lordan Zafranović",
+    "citations": 2
+  },
+  {
+    "id": "agent:cerovic-drago",
+    "name": "Drago Čerović",
+    "citations": 2
+  },
+  {
+    "id": "agent:deleuze-g-and-guattari-f",
+    "name": "Deleuze, G. and Guattari, F.",
+    "citations": 2
+  },
+  {
+    "id": "agent:tirdad-zolghadr",
+    "name": "Tirdad Zolghadr",
+    "citations": 2
+  },
+  {
+    "id": "agent:eva-kokalj",
+    "name": "Eva Kokalj",
+    "citations": 2
+  },
+  {
+    "id": "agent:michel-senellart",
+    "name": "Michel Senellart",
+    "citations": 2
+  },
+  {
+    "id": "agent:jure-pengov-and-laibach-kunst",
+    "name": "Jure Pengov and Laibach Kunst",
+    "citations": 2
+  },
+  {
+    "id": "agent:august-pavel",
+    "name": "August Pavel",
+    "citations": 2
+  },
+  {
+    "id": "agent:vladimir-kavcic",
+    "name": "Vladimir Kavčič",
+    "citations": 2
+  },
+  {
+    "id": "agent:zilka-spahic-siljak",
+    "name": "Zilka Spahić Šiljak",
+    "citations": 2
+  },
+  {
+    "id": "agent:lev-mastnak-trobentar",
+    "name": "Lev Mastnak Trobentar",
+    "citations": 2
+  },
+  {
+    "id": "agent:mitja-lovse",
+    "name": "Mitja Lovše",
+    "citations": 2
+  },
+  {
+    "id": "agent:avendano",
+    "name": "Avendaño",
+    "citations": 2
+  },
+  {
+    "id": "agent:mateja-pezdirc-bartol",
+    "name": "Mateja Pezdirc Bartol",
+    "citations": 2
+  },
+  {
+    "id": "agent:madina-tlotsanova",
+    "name": "Madina Tlotsanova",
+    "citations": 2
+  },
+  {
+    "id": "agent:christine-bonansea",
+    "name": "Christine Bonansea",
+    "citations": 2
+  },
+  {
+    "id": "agent:jure-gasparic",
+    "name": "Jure Gašparič",
+    "citations": 2
+  },
+  {
+    "id": "agent:michel-foucault-gilles-deleuze",
+    "name": "Michel Foucault, Gilles Deleuze",
+    "citations": 2
+  },
+  {
+    "id": "agent:novi-sad",
+    "name": "Novi Sad",
+    "citations": 2
+  },
+  {
+    "id": "agent:nikica-kurko",
+    "name": "Nikica Kurko",
+    "citations": 2
+  },
+  {
+    "id": "agent:marusa-sustar",
+    "name": "Maruša Šuštar",
+    "citations": 2
+  },
+  {
+    "id": "agent:jasmina-jerant",
+    "name": "Jasmina Jerant",
+    "citations": 2
+  },
+  {
+    "id": "agent:zarko-petan",
+    "name": "Žarko Petan",
+    "citations": 2
+  },
+  {
+    "id": "agent:josip-depolo",
+    "name": "Josip Depolo",
+    "citations": 2
+  },
+  {
+    "id": "agent:marija-dragisic-and-zorana-or-evic",
+    "name": "Marija Dragišić and Zorana Đorđević",
+    "citations": 2
+  },
+  {
+    "id": "agent:tracey-warr-ed",
+    "name": "Tracey Warr (ed.)",
+    "citations": 2
+  },
+  {
+    "id": "agent:slavko-matkovic",
+    "name": "Slavko Matković",
+    "citations": 2
+  },
+  {
+    "id": "agent:arnold-i-davidson",
+    "name": "Arnold I. Davidson",
+    "citations": 2
+  },
+  {
+    "id": "agent:darja-zavirsek",
+    "name": "Darja Zaviršek",
+    "citations": 2
+  },
+  {
+    "id": "agent:mark-durden",
+    "name": "Mark Durden",
+    "citations": 2
+  },
+  {
+    "id": "agent:peter-mlakar",
+    "name": "Peter Mlakar",
+    "citations": 2
+  },
+  {
+    "id": "agent:slobodan-stankovic",
+    "name": "Slobodan Stanković",
+    "citations": 2
+  },
+  {
+    "id": "agent:oho",
+    "name": "OHO",
+    "citations": 2
+  },
+  {
+    "id": "agent:barbara-orel",
+    "name": "Barbara Orel",
+    "citations": 2
+  },
+  {
+    "id": "agent:j-l-thompson",
+    "name": "J. L. Thompson",
+    "citations": 2
+  },
+  {
+    "id": "agent:matjaz-hanzek",
+    "name": "Matjaž Hanžek",
+    "citations": 2
+  },
+  {
+    "id": "agent:eszter-m-polonyi",
+    "name": "Eszter M. Polonyi",
+    "citations": 2
+  },
+  {
+    "id": "agent:kozsdi-t",
+    "name": "Kozsdi, T.",
+    "citations": 2
+  },
+  {
+    "id": "agent:neva-zver",
+    "name": "Neva Zver",
+    "citations": 2
+  },
+  {
+    "id": "agent:tomaz-salamun",
+    "name": "Tomaž Šalamun",
+    "citations": 2
+  },
+  {
+    "id": "agent:daniel-arasso",
+    "name": "Daniel Arasso",
+    "citations": 2
+  },
+  {
+    "id": "agent:suzana-merjanic",
+    "name": "Suzana Merjanić",
+    "citations": 2
+  },
+  {
+    "id": "agent:darko-dragicevic-and-martin-sonderkamp",
+    "name": "Darko Dragičević and Martin Sonderkamp",
+    "citations": 2
+  },
+  {
+    "id": "agent:february",
+    "name": "February",
+    "citations": 2
+  },
+  {
+    "id": "agent:trisha-brown",
+    "name": "Trisha Brown",
+    "citations": 2
+  },
+  {
+    "id": "agent:raw-material-sovereignty",
+    "name": "Raw Material Sovereignty",
+    "citations": 2
+  },
+  {
+    "id": "agent:alexander-fried",
+    "name": "Alexander Fried",
+    "citations": 2
+  },
+  {
+    "id": "agent:alois-hergouth",
+    "name": "Alois Hergouth",
+    "citations": 2
+  },
+  {
+    "id": "agent:aleksandra-schuller",
+    "name": "Aleksandra Schuller",
+    "citations": 2
+  },
+  {
+    "id": "agent:daniel-jakopovic",
+    "name": "Daniel Jakopović",
+    "citations": 2
+  },
+  {
+    "id": "agent:peter-bozic",
+    "name": "Peter Božič",
+    "citations": 2
+  },
+  {
+    "id": "agent:matt-colquhoun",
+    "name": "Matt Colquhoun",
+    "citations": 2
+  },
+  {
+    "id": "agent:stevan-vukovic",
+    "name": "Stevan Vuković",
+    "citations": 2
+  },
+  {
+    "id": "agent:nicolas-royle",
+    "name": "Nicolas Royle",
+    "citations": 2
+  },
+  {
+    "id": "agent:ernst-lubitsch",
+    "name": "Ernst Lubitsch",
+    "citations": 2
+  },
+  {
+    "id": "agent:william-m-ivins-jr",
+    "name": "William M. Ivins Jr.",
+    "citations": 2
+  },
+  {
+    "id": "agent:peter-willetts",
+    "name": "Peter Willetts",
+    "citations": 2
+  },
+  {
+    "id": "agent:barbara-sterle-vurnik",
+    "name": "Barbara Sterle Vurnik",
+    "citations": 2
+  },
+  {
+    "id": "agent:blaz-vurnik",
+    "name": "Blaž Vurnik",
+    "citations": 2
+  },
+  {
+    "id": "agent:matjaz-zupancic",
+    "name": "Matjaž Zupančič",
+    "citations": 2
+  },
+  {
+    "id": "agent:adam-franko",
+    "name": "Adam Franko",
+    "citations": 2
+  },
+  {
+    "id": "agent:djokic-stefana",
+    "name": "Stefana DJOKIC",
+    "citations": 2
+  },
+  {
+    "id": "agent:jean-paul-martinon",
+    "name": "Jean-Paul Martinon",
+    "citations": 2
+  },
+  {
+    "id": "agent:kristina-aleksova",
+    "name": "Kristina Aleksova",
+    "citations": 2
+  },
+  {
+    "id": "agent:kerstin-stakemeier",
+    "name": "Kerstin Stakemeier",
+    "citations": 2
+  },
+  {
+    "id": "agent:ales-jelenko",
+    "name": "Aleš Jelenko",
+    "citations": 2
+  },
+  {
+    "id": "agent:vanessa-schwartz",
+    "name": "Vanessa Schwartz",
+    "citations": 2
+  },
+  {
+    "id": "agent:svetlana-boyme",
+    "name": "Svetlana Boyme",
+    "citations": 2
+  },
+  {
+    "id": "agent:masa-jazbec",
+    "name": "MAŠA JAZBEC",
+    "citations": 2
+  },
+  {
+    "id": "agent:herbert-kickl",
+    "name": "Herbert Kickl",
+    "citations": 2
+  },
+  {
+    "id": "agent:milan-dekleva",
+    "name": "Milan Dekleva",
+    "citations": 2
+  },
+  {
+    "id": "agent:judith-butler-athena-athanasiou",
+    "name": "Judith Butler, Athena Athanasiou",
+    "citations": 2
+  },
+  {
+    "id": "agent:weitlaner-susanne-hirnok-katalin",
+    "name": "Weitlaner Susanne, Hirnök Katalin",
+    "citations": 2
+  },
+  {
+    "id": "agent:pero-zubac",
+    "name": "Pero Zubac",
+    "citations": 2
+  },
+  {
+    "id": "agent:peter-mlakar-gregor-tomc-igor-vidmar",
+    "name": "Peter Mlakar, Gregor Tomc, Igor Vidmar",
+    "citations": 2
+  },
+  {
+    "id": "agent:jelena-vesic-and-dusan-grlja",
+    "name": "Jelena Vesić and Dušan Grlja",
+    "citations": 2
+  },
+  {
+    "id": "agent:eda-cufer",
+    "name": "Eda Čufer",
+    "citations": 2
+  },
+  {
+    "id": "agent:nebojsa-pakic",
+    "name": "Nebojša Pakić",
+    "citations": 2
+  },
+  {
+    "id": "agent:pe-a-ristic",
+    "name": "Peđa Ristić",
+    "citations": 2
+  },
+  {
+    "id": "agent:muanis-sinanovic",
+    "name": "Muanis Sinanović",
+    "citations": 2
+  },
+  {
+    "id": "agent:judita-salgo",
+    "name": "Judita Šalgo",
+    "citations": 2
+  },
+  {
+    "id": "agent:arci-skit",
+    "name": "Arči Skit",
+    "citations": 2
+  },
+  {
+    "id": "agent:gradimir-gojer",
+    "name": "Gradimir Gojer",
+    "citations": 2
+  },
+  {
+    "id": "agent:miodrag-b-protic",
+    "name": "Miodrag B. Protić",
+    "citations": 2
+  },
+  {
+    "id": "agent:andras-borbely",
+    "name": "András Borbély",
+    "citations": 2
+  },
+  {
+    "id": "agent:carlo-mazzone-clementi",
+    "name": "Carlo Mazzone-Clementi",
+    "citations": 2
+  },
+  {
+    "id": "agent:goran-vojnovic",
+    "name": "Goran Vojnović",
+    "citations": 2
+  },
+  {
+    "id": "agent:kaja-nakani",
+    "name": "Kaja Nakani",
+    "citations": 2
+  },
+  {
+    "id": "agent:jasna-novakov-jasmina-alibegovic-eds",
+    "name": "Jasna Novakov, Jasmina Alibegović (eds.)",
+    "citations": 2
+  },
+  {
+    "id": "agent:world-health-organization",
+    "name": "World Health Organization",
+    "citations": 2
+  },
+  {
+    "id": "agent:tao-g-vrhovec-sambolec",
+    "name": "TAO G. VRHOVEC SAMBOLEC",
+    "citations": 2
+  },
+  {
+    "id": "agent:lukas-avendano",
+    "name": "Lukas Avendaño",
+    "citations": 2
+  },
+  {
+    "id": "agent:conceptual-art",
+    "name": "Conceptual Art",
+    "citations": 2
+  },
+  {
+    "id": "agent:ashley-tamara",
+    "name": "Tamara Ashley",
+    "citations": 2
+  },
+  {
+    "id": "agent:manja-bojanic",
+    "name": "Manja Bojanić",
+    "citations": 2
+  },
+  {
+    "id": "agent:alice-marwick-rebecca-lewis",
+    "name": "Alice Marwick, Rebecca Lewis",
+    "citations": 2
+  },
+  {
+    "id": "agent:eveline-wollner",
+    "name": "Eveline Wollner",
+    "citations": 2
+  },
+  {
+    "id": "agent:julieta-aranda-anton-vidokle-brian-kuan-wood",
+    "name": "Julieta Aranda, Anton Vidokle, Brian Kuan Wood",
+    "citations": 2
+  },
+  {
+    "id": "agent:stanica",
+    "name": "Stanica",
+    "citations": 2
+  },
+  {
+    "id": "agent:zdenka-badovinac-ed",
+    "name": "Zdenka Badovinac (ed.)",
+    "citations": 2
+  },
+  {
+    "id": "agent:maria-grazia-chinese",
+    "name": "Maria Grazia Chinese",
+    "citations": 2
+  },
+  {
+    "id": "agent:matjaz-zajec-tomaz-kralj",
+    "name": "Matjaž Zajec, Tomaž Kralj",
+    "citations": 2
+  },
+  {
+    "id": "agent:charlie-chaplin",
+    "name": "Charlie Chaplin",
+    "citations": 2
+  },
+  {
+    "id": "agent:bojan-stih",
+    "name": "Bojan Štih",
+    "citations": 2
+  },
+  {
+    "id": "agent:sean-kohingarara-sturn",
+    "name": "Sean Kohingarara Sturn",
+    "citations": 2
+  },
+  {
+    "id": "agent:jela-krecic",
+    "name": "Jela Krečič",
+    "citations": 2
+  },
+  {
+    "id": "agent:robin-cook",
+    "name": "Robin Cook",
+    "citations": 2
+  },
+  {
+    "id": "agent:ad-ada",
+    "name": "aD ada",
+    "citations": 2
+  },
+  {
+    "id": "agent:carmen-zimmermann-roland-horvath-david-kranzelbinder",
+    "name": "Carmen Zimmermann, Roland Horvath, David Kranzelbinder",
+    "citations": 2
+  },
+  {
+    "id": "agent:bozidar-lakota",
+    "name": "Božidar Lakota",
+    "citations": 2
+  },
+  {
+    "id": "agent:branko-aleksic",
+    "name": "Branko Alekšić",
+    "citations": 2
+  },
+  {
+    "id": "agent:richard-wright",
+    "name": "Richard Wright",
+    "citations": 2
+  },
+  {
+    "id": "agent:sava-tubic",
+    "name": "Sava Tubić",
+    "citations": 2
+  },
+  {
+    "id": "agent:porodica-bistrih-potoka",
+    "name": "Porodica bistrih potoka",
+    "citations": 2
+  },
+  {
+    "id": "agent:lisa-jevbratt",
+    "name": "Lisa Jevbratt",
+    "citations": 2
+  },
+  {
+    "id": "agent:tlostanova",
+    "name": "Tlostanova",
+    "citations": 2
+  },
+  {
+    "id": "agent:david-fromkin",
+    "name": "David Fromkin",
+    "citations": 2
+  },
+  {
+    "id": "agent:alexandra-baybutt",
+    "name": "Alexandra Baybutt",
+    "citations": 2
+  },
+  {
+    "id": "agent:travelling-communique-group",
+    "name": "Travelling Communiqué Group",
+    "citations": 2
+  },
+  {
+    "id": "agent:hasana-sharp",
+    "name": "Hasana Sharp",
+    "citations": 2
+  },
+  {
+    "id": "agent:elizabeth-wilson",
+    "name": "Elizabeth Wilson",
+    "citations": 2
+  },
+  {
+    "id": "agent:wim-vandekeybus",
+    "name": "Wim Vandekeybus",
+    "citations": 2
+  },
+  {
+    "id": "agent:simona-semenic-nada-zgank",
+    "name": "Simona Semenič, Nada Žgank",
+    "citations": 2
+  },
+  {
+    "id": "agent:nikola-j-pesic",
+    "name": "Nikola J. Pešić",
+    "citations": 2
+  },
+  {
+    "id": "agent:lazar-trifunovic",
+    "name": "Lazar Trifunović",
+    "citations": 2
+  },
+  {
+    "id": "agent:beyer-christian",
+    "name": "Beyer, Christian",
+    "citations": 2
+  },
+  {
+    "id": "agent:maldonado-torres",
+    "name": "Maldonado-Torres",
+    "citations": 2
+  },
+  {
+    "id": "agent:vadim-fiskin",
+    "name": "Vadim Fiškin",
+    "citations": 2
+  },
+  {
+    "id": "agent:rebecca-jagoe-sharon-kivland",
+    "name": "Rebecca Jagoe, Sharon Kivland",
+    "citations": 2
+  },
+  {
+    "id": "agent:jan-st-werner",
+    "name": "Jan St. Werner",
+    "citations": 2
+  },
+  {
+    "id": "agent:hladno-pivo",
+    "name": "Hladno pivo",
+    "citations": 2
+  },
+  {
+    "id": "agent:ngugi-wa-thiong-o",
+    "name": "Ngũgĩ wa Thiong'o",
+    "citations": 2
+  },
+  {
+    "id": "agent:andrej-ule",
+    "name": "Andrej Ule",
+    "citations": 2
+  },
+  {
+    "id": "agent:milena-dragicevic-sesic",
+    "name": "Milena Dragićević Šešić",
+    "citations": 2
+  },
+  {
+    "id": "agent:riskin",
+    "name": "Riskin",
+    "citations": 2
+  },
+  {
+    "id": "agent:jefte-van-dienther",
+    "name": "Jefte van Dienther",
+    "citations": 2
+  },
+  {
+    "id": "agent:boris-cizej-marko-pungartnik",
+    "name": "Boris Cizej, Marko Pungartnik",
+    "citations": 2
+  },
+  {
+    "id": "agent:katherine-verdery",
+    "name": "Katherine Verdery",
+    "citations": 2
+  },
+  {
+    "id": "agent:thomas-lawson",
+    "name": "Thomas Lawson",
+    "citations": 2
+  },
+  {
+    "id": "agent:nguyen-tan-hoang",
+    "name": "Tan Hoang Nguyen",
+    "citations": 2
+  },
+  {
+    "id": "agent:patrick-lynch",
+    "name": "Patrick Lynch",
+    "citations": 2
+  },
+  {
+    "id": "agent:peter-humble-and-david-young",
+    "name": "Peter Humble and David Young",
+    "citations": 2
+  },
+  {
+    "id": "agent:zoran-pavlovic",
+    "name": "Zoran Pavlović",
+    "citations": 2
+  },
+  {
+    "id": "agent:agoston-pavel",
+    "name": "Ágoston Pável",
+    "citations": 2
+  },
+  {
+    "id": "agent:ali-zerdin",
+    "name": "Ali Žerdin",
+    "citations": 2
+  },
+  {
+    "id": "agent:karel-prusnik-gasper",
+    "name": "Karel Prušnik-Gašper",
+    "citations": 2
+  },
+  {
+    "id": "agent:marina-ludemann",
+    "name": "Marina Ludemann",
+    "citations": 2
+  },
+  {
+    "id": "agent:octavia-e-butler",
+    "name": "Octavia E. Butler",
+    "citations": 2
+  },
+  {
+    "id": "agent:dragojevic-drazen",
+    "name": "Dražen Dragojević",
+    "citations": 2
+  },
+  {
+    "id": "agent:currie-janus-c",
+    "name": "Janus C. Currie",
+    "citations": 2
+  },
+  {
+    "id": "agent:bardet",
+    "name": "Bardet",
+    "citations": 2
+  },
+  {
+    "id": "agent:donna-harraway",
+    "name": "Donna Harraway",
+    "citations": 2
+  },
+  {
+    "id": "agent:lev-kreft-pavle-luzan-david-b-vodusek-jure-blaz-ogorevc-ivo-svetina",
+    "name": "Lev Kreft, Pavle Lužan, David B. Vodušek, Jure Blaž Ogorevc, Ivo Svetina",
+    "citations": 2
+  },
+  {
+    "id": "agent:sophie-thun",
+    "name": "Sophie Thun",
+    "citations": 2
+  },
+  {
+    "id": "agent:irina-subotic",
+    "name": "Irina Subotić",
+    "citations": 2
+  },
+  {
+    "id": "agent:dota-franko",
+    "name": "Franko Dota",
+    "citations": 2
+  },
+  {
+    "id": "agent:vinko-moderndorfer",
+    "name": "Vinko Moderndorfer",
+    "citations": 2
+  },
+  {
+    "id": "agent:dominic-eichler",
+    "name": "Dominic Eichler",
+    "citations": 2
+  },
+  {
+    "id": "agent:balazs-apor-peter-apor-sandor-horvath",
+    "name": "Balázs Apor, Péter Apor, Sándor Horváth",
+    "citations": 2
+  },
+  {
+    "id": "agent:daniela-perazzo-domm",
+    "name": "Daniela Perazzo Domm",
+    "citations": 2
+  },
+  {
+    "id": "agent:philippe-sollers",
+    "name": "Philippe Sollers",
+    "citations": 2
+  },
+  {
+    "id": "agent:vesna-terzan",
+    "name": "Vesna Teržan",
+    "citations": 2
+  },
+  {
+    "id": "agent:bogdanka-poznanovic",
+    "name": "Bogdanka Poznanović",
+    "citations": 2
+  },
+  {
+    "id": "agent:valeria-graziano-marcell-mars-tomislav-medak",
+    "name": "Valeria Graziano, Marcell Mars, Tomislav Medak",
+    "citations": 2
+  },
+  {
+    "id": "agent:elizabeth-a-povinelli-rex-edmunds",
+    "name": "Elizabeth A. Povinelli, Rex Edmunds",
+    "citations": 2
+  },
+  {
+    "id": "agent:eve-tuck-k-wayne-yang",
+    "name": "Eve Tuck, K. Wayne Yang",
+    "citations": 2
+  },
+  {
+    "id": "agent:dusan-mandic",
+    "name": "Dušan Mandič",
+    "citations": 2
+  },
+  {
+    "id": "agent:janez-vrecko",
+    "name": "Janez Vrečko",
+    "citations": 2
+  },
+  {
+    "id": "agent:carlos-pascual",
+    "name": "Carlos Pascual",
+    "citations": 2
+  },
+  {
+    "id": "agent:misko-suvakovic-jesa-denegri-nikola-dedic",
+    "name": "Miško Šuvaković, Ješa Denegri, Nikola Dedić",
+    "citations": 2
+  },
+  {
+    "id": "agent:grupa-galerija",
+    "name": "Grupa Galerija",
+    "citations": 2
+  },
+  {
+    "id": "agent:k-r",
+    "name": "K.R.",
+    "citations": 2
+  },
+  {
+    "id": "agent:tomaz-grom-irena-z-tomazin-duplo-nista",
+    "name": "Tomaž Grom, Irena Z. Tomažin, Duplo Ništa",
+    "citations": 2
+  },
+  {
+    "id": "agent:b-v-borjan",
+    "name": "B. V. Borjan",
+    "citations": 2
+  },
+  {
+    "id": "agent:majstorovic-stevan",
+    "name": "Stevan Majstorović",
+    "citations": 2
+  },
+  {
+    "id": "agent:gorazd-s",
+    "name": "Gorazd S.",
+    "citations": 2
+  },
+  {
+    "id": "agent:giuseppe-chico",
+    "name": "Giuseppe Chico",
+    "citations": 2
+  },
+  {
+    "id": "agent:marijan-dovic",
+    "name": "Marijan Dović",
+    "citations": 2
+  },
+  {
+    "id": "agent:tobias-bartsch-daniel-drognitz-sarah-echenmoser-et-al",
+    "name": "Tobias Bärtsch, Daniel Drognitz, Sarah Echenmoser et al.",
+    "citations": 2
+  },
+  {
+    "id": "agent:zdenko-cepic",
+    "name": "Zdenko Čepič",
+    "citations": 2
+  },
+  {
+    "id": "agent:diehl-gaston",
+    "name": "Gaston Diehl",
+    "citations": 2
+  },
+  {
+    "id": "agent:hrvoje-klasic",
+    "name": "Hrvoje Klasić",
+    "citations": 2
+  },
+  {
+    "id": "agent:bozo-repe",
+    "name": "Božo Repe",
+    "citations": 2
+  },
+  {
+    "id": "agent:pa-l-z",
+    "name": "Pa.l, Z.",
+    "citations": 2
+  },
+  {
+    "id": "agent:grupa-za-nove-umetnosti-februar",
+    "name": "Grupa za nove umetnosti 'Februar'",
+    "citations": 2
+  },
+  {
+    "id": "agent:bojana-cveijc",
+    "name": "Bojana Cveijć",
+    "citations": 2
+  },
+  {
+    "id": "agent:marko-zubak",
+    "name": "Marko Zubak",
+    "citations": 2
+  },
+  {
+    "id": "agent:hitler",
+    "name": "Hitler",
+    "citations": 2
+  },
+  {
+    "id": "agent:lynne-walker",
+    "name": "Lynne Walker",
+    "citations": 2
+  },
+  {
+    "id": "agent:kate-hudson",
+    "name": "Kate Hudson",
+    "citations": 2
+  },
+  {
+    "id": "agent:cotten-seiler",
+    "name": "Cotten Seiler",
+    "citations": 2
+  },
+  {
+    "id": "agent:bernard-henri-levy",
+    "name": "Bernard – Henri Levy",
+    "citations": 2
+  },
+  {
+    "id": "agent:experimental-group-windmill",
+    "name": "Experimental Group Windmill",
+    "citations": 2
+  },
+  {
+    "id": "agent:antonia-rohwetter",
+    "name": "Antonia Rohwetter",
+    "citations": 2
+  },
+  {
+    "id": "agent:hrastar-mateja",
+    "name": "Mateja Hrastar",
+    "citations": 2
+  },
+  {
+    "id": "agent:miha-kosak",
+    "name": "Miha Košak",
+    "citations": 2
+  },
+  {
+    "id": "agent:hribar-ksenija",
+    "name": "Ksenija Hribar",
+    "citations": 2
+  },
+  {
+    "id": "agent:kostana-banovic",
+    "name": "Koštana Banović",
+    "citations": 2
+  },
+  {
+    "id": "agent:jim-aulich-and-mary-ikoniadou",
+    "name": "Jim Aulich and Mary Ikoniadou",
+    "citations": 2
+  },
+  {
+    "id": "agent:st-hafner",
+    "name": "St. Hafner",
+    "citations": 2
+  },
+  {
+    "id": "agent:danilo-balestra-pierluigi-cazzavillan",
+    "name": "Danilo Balestra, Pierluigi Cazzavillan",
+    "citations": 2
+  },
+  {
+    "id": "agent:siisiainen",
+    "name": "Siisiäinen",
+    "citations": 2
+  },
+  {
+    "id": "agent:oksana-timofeeva",
+    "name": "Oksana Timofeeva",
+    "citations": 2
+  },
+  {
+    "id": "agent:ninoslava-vicentic",
+    "name": "Ninoslava Vićentić",
+    "citations": 2
+  },
+  {
+    "id": "agent:katja-gorecan",
+    "name": "Katja Gorečan",
+    "citations": 2
+  },
+  {
+    "id": "agent:zerovc",
+    "name": "Žerovc",
+    "citations": 2
+  },
+  {
+    "id": "agent:iztok-geister-i-g-plamen",
+    "name": "Iztok Geister (I. G. Plamen)",
+    "citations": 2
+  },
+  {
+    "id": "agent:cecilia-chen-et-al",
+    "name": "Cecilia Chen et al.",
+    "citations": 2
+  },
+  {
+    "id": "agent:liljana-bacevic",
+    "name": "Liljana Bačević",
+    "citations": 2
+  },
+  {
+    "id": "agent:tomislav-z-loginovic",
+    "name": "Tomislav Z. Loginović",
+    "citations": 2
+  },
+  {
+    "id": "agent:igor-kavcic",
+    "name": "Igor Kavčič",
+    "citations": 2
+  },
+  {
+    "id": "agent:adler",
+    "name": "Adler",
+    "citations": 2
+  },
+  {
+    "id": "agent:lado-kralj-and-zdravko-dusa",
+    "name": "Lado Kralj and Zdravko Duša",
+    "citations": 2
+  },
+  {
+    "id": "agent:branislav-dimitrijevic",
+    "name": "Branislav Dimitrijević",
+    "citations": 2
+  },
+  {
+    "id": "agent:terry-gilliam",
+    "name": "Terry Gilliam",
+    "citations": 2
+  },
+  {
+    "id": "agent:tjasa-pogacar",
+    "name": "Tjaša Pogačar",
+    "citations": 2
+  },
+  {
+    "id": "agent:bobby-seale",
+    "name": "Bobby Seale",
+    "citations": 2
+  },
+  {
+    "id": "agent:branko-plesa",
+    "name": "Branko Pleša",
+    "citations": 2
+  },
+  {
+    "id": "agent:ankrah-et-al",
+    "name": "Ankrah et al.",
+    "citations": 2
+  },
+  {
+    "id": "agent:petar-milosavljevic",
+    "name": "Petar Milosavljević",
+    "citations": 2
+  },
+  {
+    "id": "agent:joseph-beuys",
+    "name": "Joseph Beuys",
+    "citations": 2
+  },
+  {
+    "id": "agent:riva-castleman",
+    "name": "Riva Castleman",
+    "citations": 2
+  },
+  {
+    "id": "agent:didi-huberman",
+    "name": "Didi-Huberman",
+    "citations": 2
+  },
+  {
+    "id": "agent:michel-chion",
+    "name": "Michel Chion",
+    "citations": 2
+  },
+  {
+    "id": "agent:dragan-petrovic",
+    "name": "Dragan Petrović",
+    "citations": 2
+  },
+  {
+    "id": "agent:tomo-virk",
+    "name": "Tomo Virk",
+    "citations": 2
+  },
+  {
+    "id": "agent:osvaldo-cavandoli-and-franco-godi",
+    "name": "Osvaldo Cavandoli and Franco Godi",
+    "citations": 2
+  },
+  {
+    "id": "agent:anne-boyer",
+    "name": "Anne Boyer",
+    "citations": 2
+  },
+  {
+    "id": "agent:niko-sturm",
+    "name": "Niko Sturm",
+    "citations": 2
+  },
+  {
+    "id": "agent:bojan-or-ev",
+    "name": "Bojan Đorđev",
+    "citations": 2
+  },
+  {
+    "id": "agent:stakemeier-leeb",
+    "name": "Stakemeier, Leeb",
+    "citations": 2
+  },
+  {
+    "id": "agent:hamja-ahsan",
+    "name": "Hamja Ahsan",
+    "citations": 2
+  },
+  {
+    "id": "agent:danijel-dragojevic",
+    "name": "Danijel Dragojević",
+    "citations": 2
+  },
+  {
+    "id": "agent:j-ranciere",
+    "name": "J. Rancière",
+    "citations": 2
+  },
+  {
+    "id": "agent:kerstin-pinther-and-ugochukwu-smooth-c-nzewi",
+    "name": "Kerstin Pinther and Ugochukwu-Smooth C. Nzewi",
+    "citations": 2
+  },
+  {
+    "id": "agent:moritz-ostruschnjak",
+    "name": "Moritz Ostruschnjak",
+    "citations": 2
+  },
+  {
+    "id": "agent:radmila-radosavljevic",
+    "name": "Radmila Radosavljević",
+    "citations": 2
+  },
+  {
+    "id": "agent:sandra-noeth",
+    "name": "Sandra Noeth",
+    "citations": 2
+  },
+  {
+    "id": "agent:dejan-sretenovic",
+    "name": "Dejan Sretenović",
+    "citations": 2
+  },
+  {
+    "id": "agent:masa-radi-buh",
+    "name": "Maša Radi Buh",
+    "citations": 2
+  },
+  {
+    "id": "agent:neimanis",
+    "name": "Neimanis",
+    "citations": 2
+  },
+  {
+    "id": "agent:miha-kovac",
+    "name": "Miha Kovač",
+    "citations": 2
+  },
+  {
+    "id": "agent:monoskop",
+    "name": "Monoskop",
+    "citations": 2
+  },
+  {
+    "id": "agent:nijinsky-vaslav",
+    "name": "Vaslav Nijinsky",
+    "citations": 2
+  },
+  {
+    "id": "agent:day-thomas",
+    "name": "Thomas Day",
+    "citations": 2
+  },
+  {
+    "id": "agent:dore-hoyer",
+    "name": "Dore Hoyer",
+    "citations": 2
+  },
+  {
+    "id": "agent:rudi-laermans",
+    "name": "Rudi Laermans",
+    "citations": 2
+  },
+  {
+    "id": "agent:andrej-luksic-mojca-luksic",
+    "name": "Andrej Lukšič, Mojca Lukšič",
+    "citations": 2
+  },
+  {
+    "id": "agent:mladenovic",
+    "name": "Mladenović",
+    "citations": 2
+  },
+  {
+    "id": "agent:i-g-plamen",
+    "name": "I. G. Plamen",
+    "citations": 2
+  },
+  {
+    "id": "agent:brane-mozetic",
+    "name": "Brane Mozetič",
+    "citations": 2
+  },
+  {
+    "id": "agent:petar-volk",
+    "name": "Petar Volk",
+    "citations": 2
+  },
+  {
+    "id": "agent:faiza-tamaiko",
+    "name": "Faiza Tamaiko",
+    "citations": 2
+  },
+  {
+    "id": "agent:anastasius-grun",
+    "name": "Anastasius Grün",
+    "citations": 2
+  },
+  {
+    "id": "agent:goll",
+    "name": "Goll",
+    "citations": 2
+  },
+  {
+    "id": "agent:donson-jerome-a",
+    "name": "Donson, Jerome A.",
+    "citations": 2
+  },
+  {
+    "id": "agent:petrol-girls",
+    "name": "Petrol Girls",
+    "citations": 2
+  },
+  {
+    "id": "agent:zemira-alajbegovic-and-neven-korda",
+    "name": "Zemira Alajbegović and Neven Korda",
+    "citations": 2
+  },
+  {
+    "id": "agent:kimble-lindsay",
+    "name": "Lindsay Kimble",
+    "citations": 2
+  },
+  {
+    "id": "agent:james-boggs",
+    "name": "James Boggs",
+    "citations": 2
+  },
+  {
+    "id": "agent:claudia-hopkins-and-iain-boyd-whyte",
+    "name": "Claudia Hopkins and Iain Boyd Whyte",
+    "citations": 2
+  },
+  {
+    "id": "agent:vera-rendic",
+    "name": "Vera Rendić",
+    "citations": 2
+  },
+  {
+    "id": "agent:ales-gabric",
+    "name": "Aleš Gabrič",
+    "citations": 2
+  },
+  {
+    "id": "agent:ivan-hocht",
+    "name": "Ivan Hocht",
+    "citations": 2
+  },
+  {
+    "id": "agent:dominic-johnson-ed",
+    "name": "Dominic Johnson (ed.)",
+    "citations": 2
+  },
+  {
+    "id": "agent:beckett",
+    "name": "Beckett",
+    "citations": 2
+  },
+  {
+    "id": "agent:adolphs-stephan",
+    "name": "Adolphs, Stephan",
+    "citations": 2
+  },
+  {
+    "id": "agent:caroline-a-jones",
+    "name": "Caroline A. Jones",
+    "citations": 2
+  },
+  {
+    "id": "agent:germano-olivotto",
+    "name": "Germano Olivotto",
+    "citations": 2
+  },
+  {
+    "id": "agent:vlado-sav",
+    "name": "Vlado Šav",
+    "citations": 2
+  },
+  {
+    "id": "agent:siisainen",
+    "name": "Siisäinen",
+    "citations": 2
+  },
+  {
+    "id": "agent:sandi-jesenik",
+    "name": "Sandi Jesenik",
+    "citations": 2
+  },
+  {
+    "id": "agent:john-nosta",
+    "name": "John Nosta",
+    "citations": 2
+  },
+  {
+    "id": "agent:barbara-matijevic",
+    "name": "Barbara Matijević",
+    "citations": 2
+  },
+  {
+    "id": "agent:beatrix-ruf-hans-peter-von-daniken",
+    "name": "Beatrix Ruf, Hans-Peter von Däniken",
+    "citations": 2
+  },
+  {
+    "id": "agent:okwui-enwezor",
+    "name": "Okwui Enwezor",
+    "citations": 2
+  },
+  {
+    "id": "agent:manca-kosir",
+    "name": "Manca Košir",
+    "citations": 2
+  },
+  {
+    "id": "agent:jane-rendell",
+    "name": "Jane Rendell",
+    "citations": 2
+  },
+  {
+    "id": "agent:snjezana-premus-and-anja-bornsek",
+    "name": "Snježana Premuš and Anja Bornšek",
+    "citations": 2
+  },
+  {
+    "id": "agent:kickl",
+    "name": "Kickl",
+    "citations": 2
+  },
+  {
+    "id": "agent:jovan-mitrovic",
+    "name": "Jovan Mitrović",
+    "citations": 2
+  },
+  {
+    "id": "agent:class-gender",
+    "name": "Class Gender",
+    "citations": 2
+  },
+  {
+    "id": "agent:ales-erjavec-and-marina-grzinic",
+    "name": "Aleš Erjavec and Marina Gržinić",
+    "citations": 2
+  },
+  {
+    "id": "agent:marjan-pungrtnik",
+    "name": "Marjan Pungrtnik",
+    "citations": 2
+  },
+  {
+    "id": "agent:gerhard-m-dienes",
+    "name": "Gerhard M. Dienes",
+    "citations": 2
+  },
+  {
+    "id": "agent:zelim-kesetovic",
+    "name": "Želim Kesetović",
+    "citations": 2
+  },
+  {
+    "id": "agent:nada-rakic",
+    "name": "Nada Rakić",
+    "citations": 2
+  },
+  {
+    "id": "agent:feri-lainscek",
+    "name": "Feri Lainšček",
+    "citations": 2
+  },
+  {
+    "id": "agent:fritz-lang",
+    "name": "Fritz Lang",
+    "citations": 2
+  },
+  {
+    "id": "agent:ulla-zibert",
+    "name": "Ulla Žibert",
+    "citations": 2
+  },
+  {
+    "id": "agent:jerzy-grotowski",
+    "name": "Jerzy Grotowski",
+    "citations": 2
+  },
+  {
+    "id": "agent:zivotin-pavlovic",
+    "name": "Životin Pavlović",
+    "citations": 2
+  },
+  {
+    "id": "agent:sharad-chari-and-katherine-verdery",
+    "name": "Sharad Chari and Katherine Verdery",
+    "citations": 2
+  },
+  {
+    "id": "agent:anita-wach",
+    "name": "Anita Wach",
+    "citations": 2
+  },
+  {
+    "id": "agent:ziva-kraigher",
+    "name": "Živa Kraigher",
+    "citations": 2
+  },
+  {
+    "id": "agent:lawrence-w-martin",
+    "name": "Lawrence W. Martin",
+    "citations": 2
+  },
+  {
+    "id": "agent:boris-pintar",
+    "name": "Boris Pintar",
+    "citations": 2
+  },
+  {
+    "id": "agent:gisa-bogunovic",
+    "name": "Giša Bogunović",
+    "citations": 2
+  },
+  {
+    "id": "agent:hasana-sharp-chloe-taylor-eds",
+    "name": "Hasana Sharp, Chloë Taylor (eds.)",
+    "citations": 2
+  },
+  {
+    "id": "agent:andraz-salamun",
+    "name": "Andraž Šalamun",
+    "citations": 2
+  },
+  {
+    "id": "agent:bernard-akoi-jackson",
+    "name": "Bernard Akoi-Jackson",
+    "citations": 2
+  },
+  {
+    "id": "agent:nevenka-sivavec",
+    "name": "Nevenka Šivavec",
+    "citations": 2
+  },
+  {
+    "id": "agent:kod-group",
+    "name": "KÔD Group",
+    "citations": 2
+  },
+  {
+    "id": "agent:palgrave-macmillan",
+    "name": "Palgrave Macmillan",
+    "citations": 2
+  },
+  {
+    "id": "agent:ferdinand-penker",
+    "name": "Ferdinand Penker",
+    "citations": 2
+  },
+  {
+    "id": "agent:oxford-university-press",
+    "name": "Oxford University Press",
+    "citations": 1
+  },
+  {
+    "id": "agent:franc-mesaric",
+    "name": "Franc Mesarič",
+    "citations": 1
+  },
+  {
+    "id": "agent:bojana-piskur-and-or-e-balmazovic",
+    "name": "Bojana Piškur and Đorđe Balmazović",
+    "citations": 1
+  },
+  {
+    "id": "agent:andreas-kaucic",
+    "name": "Andreas Kaučič",
+    "citations": 1
+  },
+  {
+    "id": "agent:urska-jurman-christiane-erharter-rawley-grau",
+    "name": "Urška Jurman, Christiane Erharter, Rawley Grau",
+    "citations": 1
+  },
+  {
+    "id": "agent:de-certeau",
+    "name": "De Certeau",
+    "citations": 1
+  },
+  {
+    "id": "agent:t-e-lawrence",
+    "name": "T.E. Lawrence",
+    "citations": 1
+  },
+  {
+    "id": "agent:schloss-wolfsberg",
+    "name": "Schloss Wolfsberg",
+    "citations": 1
+  },
+  {
+    "id": "agent:hi-ilei-julia-kawehipuaakahaopulani-hobart-and-tamara-kneese",
+    "name": "Hi‘ilei Julia Kawehipuaakahaopulani Hobart and Tamara Kneese",
+    "citations": 1
+  },
+  {
+    "id": "agent:pavel-medvescek",
+    "name": "Pavel Medvešček",
+    "citations": 1
+  },
+  {
+    "id": "agent:protopapa-georgelou",
+    "name": "Protopapa Georgelou",
+    "citations": 1
+  },
+  {
+    "id": "agent:carl-lavery",
+    "name": "Carl Lavery",
+    "citations": 1
+  },
+  {
+    "id": "agent:springer-international-publishing",
+    "name": "Springer International Publishing",
+    "citations": 1
+  },
+  {
+    "id": "agent:t-dvorak-j-parikka",
+    "name": "T. Dvorak, J. Parikka",
+    "citations": 1
+  },
+  {
+    "id": "agent:abloh-virgil",
+    "name": "Virgil Abloh",
+    "citations": 1
+  },
+  {
+    "id": "agent:ruyters-m",
+    "name": "Ruyters, M",
+    "citations": 1
+  },
+  {
+    "id": "agent:seid-ou-et-al",
+    "name": "seid’ōu et al.",
+    "citations": 1
+  },
+  {
+    "id": "agent:pavao-pavlicic",
+    "name": "Pavao Pavličić",
+    "citations": 1
+  },
+  {
+    "id": "agent:joachim-neugroschal",
+    "name": "Joachim Neugroschal",
+    "citations": 1
+  },
+  {
+    "id": "agent:peter-stih",
+    "name": "Peter Štih",
+    "citations": 1
+  },
+  {
+    "id": "agent:mugo-and-ngugi-wa-thiong-o",
+    "name": "Mugo and Ngũgĩ wa Thiong'o",
+    "citations": 1
+  },
+  {
+    "id": "agent:donato-canosa",
+    "name": "Donato Canosa",
+    "citations": 1
+  },
+  {
+    "id": "agent:april-meetings",
+    "name": "April Meetings",
+    "citations": 1
+  },
+  {
+    "id": "agent:aleksandar-nejgebauer",
+    "name": "Aleksandar Nejgebauer",
+    "citations": 1
+  },
+  {
+    "id": "agent:francoise-verges",
+    "name": "Françoise Vergès",
+    "citations": 1
+  },
+  {
+    "id": "agent:von-osten",
+    "name": "Von Osten",
+    "citations": 1
+  },
+  {
+    "id": "agent:styria-regional-employment-service-agency",
+    "name": "Styria Regional Employment Service Agency",
+    "citations": 1
+  },
+  {
+    "id": "agent:benjamin-novak",
+    "name": "Benjamin Novak",
+    "citations": 1
+  },
+  {
+    "id": "agent:proletariat-of-university",
+    "name": "Proletariat of University",
+    "citations": 1
+  },
+  {
+    "id": "agent:flusser-vilem",
+    "name": "Vilém Flusser",
+    "citations": 1
+  },
+  {
+    "id": "agent:boris-pintar-and-jana-pavlic",
+    "name": "Boris Pintar and Jana Pavlič",
+    "citations": 1
+  },
+  {
+    "id": "agent:boris-jausovec",
+    "name": "Boris Jaušovec",
+    "citations": 1
+  },
+  {
+    "id": "agent:taja-vidmar",
+    "name": "Taja Vidmar",
+    "citations": 1
+  },
+  {
+    "id": "agent:zeljka-oparnica",
+    "name": "Zeljka Oparnica",
+    "citations": 1
+  },
+  {
+    "id": "agent:michael-buselmeier",
+    "name": "Michael Buselmeier",
+    "citations": 1
+  },
+  {
+    "id": "agent:jesa-denegri-biljana-tomic-vesna-mirosevic",
+    "name": "Ješa Denegri, Biljana Tomić, Vesna Mirošević",
+    "citations": 1
+  },
+  {
+    "id": "agent:r-story",
+    "name": "R. Story",
+    "citations": 1
+  },
+  {
+    "id": "agent:keersmaeker",
+    "name": "Keersmaeker",
+    "citations": 1
+  },
+  {
+    "id": "agent:wislava-szymborska",
+    "name": "Wislava Szymborska",
+    "citations": 1
+  },
+  {
+    "id": "agent:precarias-a-la-deriva",
+    "name": "Precarias a la Deriva",
+    "citations": 1
+  },
+  {
+    "id": "agent:pollen-annebella",
+    "name": "Pollen, Annebella",
+    "citations": 1
+  },
+  {
+    "id": "agent:igor-spanjol-igor-zabel",
+    "name": "Igor Španjol, Igor Zabel",
+    "citations": 1
+  },
+  {
+    "id": "agent:olivier-hadouchi",
+    "name": "Olivier Hadouchi",
+    "citations": 1
+  },
+  {
+    "id": "agent:dusan-bozic",
+    "name": "Dušan Božič",
+    "citations": 1
+  },
+  {
+    "id": "agent:vera-milosavljevic",
+    "name": "Vera Milosavljević",
+    "citations": 1
+  },
+  {
+    "id": "agent:bernhard-perchinig",
+    "name": "Bernhard Perchinig",
+    "citations": 1
+  },
+  {
+    "id": "agent:sharon-sliwinski",
+    "name": "Sharon Sliwinski",
+    "citations": 1
+  },
+  {
+    "id": "agent:jeanette-winterson",
+    "name": "Jeanette Winterson",
+    "citations": 1
+  },
+  {
+    "id": "agent:school-of-mutants",
+    "name": "School of Mutants",
+    "citations": 1
+  },
+  {
+    "id": "agent:irena-mila",
+    "name": "Irena Mila",
+    "citations": 1
+  },
+  {
+    "id": "agent:bude",
+    "name": "Bude",
+    "citations": 1
+  },
+  {
+    "id": "agent:vera-yvonne",
+    "name": "Yvonne Vera",
+    "citations": 1
+  },
+  {
+    "id": "agent:joyce-m-hawkins-and-robert-edward-allen",
+    "name": "Joyce M Hawkins and Robert Edward Allen",
+    "citations": 1
+  },
+  {
+    "id": "agent:franz-xaver-hasler",
+    "name": "Franz Xaver Hasler",
+    "citations": 1
+  },
+  {
+    "id": "agent:van-den-heuvel",
+    "name": "van den Heuvel",
+    "citations": 1
+  },
+  {
+    "id": "agent:janko-kos",
+    "name": "Janko Kos",
+    "citations": 1
+  },
+  {
+    "id": "agent:dusan-makavejev",
+    "name": "Dušan Makavejev",
+    "citations": 1
+  },
+  {
+    "id": "agent:johan-sebastian-bach",
+    "name": "Johan Sebastian Bach",
+    "citations": 1
+  },
+  {
+    "id": "agent:mauricio-kagel",
+    "name": "Mauricio Kagel",
+    "citations": 1
+  },
+  {
+    "id": "agent:pirman-and-pirnat",
+    "name": "Pirman and Pirnat",
+    "citations": 1
+  },
+  {
+    "id": "agent:jean-dominique-brierre",
+    "name": "Jean Dominique Brierre",
+    "citations": 1
+  },
+  {
+    "id": "agent:sara-arrhenius-steven-rand-heather-kouris",
+    "name": "Sara Arrhenius, Steven Rand, Heather Kouris",
+    "citations": 1
+  },
+  {
+    "id": "agent:kostja-gatnik",
+    "name": "Kostja Gatnik",
+    "citations": 1
+  },
+  {
+    "id": "agent:helena-jericek-klanscek-et-al",
+    "name": "Helena Jeriček Klanšček et al.",
+    "citations": 1
+  },
+  {
+    "id": "agent:hanna-boyko",
+    "name": "Hanna Boyko",
+    "citations": 1
+  },
+  {
+    "id": "agent:tanja-zimmerman",
+    "name": "Tanja Zimmerman",
+    "citations": 1
+  },
+  {
+    "id": "agent:chris-ziegler-and-christine-bonansea",
+    "name": "Chris Ziegler and Christine Bonansea",
+    "citations": 1
+  },
+  {
+    "id": "agent:edition-keiper",
+    "name": "Edition Keiper",
+    "citations": 1
+  },
+  {
+    "id": "agent:c-a-reich",
+    "name": "C. A. Reich",
+    "citations": 1
+  },
+  {
+    "id": "agent:wiener-secession",
+    "name": "Wiener Secession",
+    "citations": 1
+  },
+  {
+    "id": "agent:marina-ludemann-luchezar-boyadjiev-eds",
+    "name": "Marina Ludemann, Luchezar Boyadjiev (eds.)",
+    "citations": 1
+  },
+  {
+    "id": "agent:roel-van-duyn",
+    "name": "Roel van Duyn",
+    "citations": 1
+  },
+  {
+    "id": "agent:jurij-bon",
+    "name": "Jurij Bon",
+    "citations": 1
+  },
+  {
+    "id": "agent:jadran-sterle",
+    "name": "Jadran Sterle",
+    "citations": 1
+  },
+  {
+    "id": "agent:sanja-neskovic-persin",
+    "name": "Sanja Nešković Peršin",
+    "citations": 1
+  },
+  {
+    "id": "agent:martin-joughin",
+    "name": "Martin Joughin",
+    "citations": 1
+  },
+  {
+    "id": "agent:marcel-stefancic-jr",
+    "name": "Marcel Štefančič jr.",
+    "citations": 1
+  },
+  {
+    "id": "agent:anselm-franke",
+    "name": "Anselm Franke",
+    "citations": 1
+  },
+  {
+    "id": "agent:andrei-amarfoaie",
+    "name": "Andrei Amărfoaie",
+    "citations": 1
+  },
+  {
+    "id": "agent:gerk-egert-martina-ruhsam-maximilian-haas",
+    "name": "Gerk Egert, Martina Ruhsam, Maximilian Haas",
+    "citations": 1
+  },
+  {
+    "id": "agent:unica-zurn",
+    "name": "Unica Zürn",
+    "citations": 1
+  },
+  {
+    "id": "agent:dusan-rogelj",
+    "name": "Dušan Rogelj",
+    "citations": 1
+  },
+  {
+    "id": "agent:grafenauer-p",
+    "name": "Grafenauer, P.",
+    "citations": 1
+  },
+  {
+    "id": "agent:zorman-brane",
+    "name": "Brane ZORMAN",
+    "citations": 1
+  },
+  {
+    "id": "agent:hatem-el-mekki",
+    "name": "Hatem el Mekki",
+    "citations": 1
+  },
+  {
+    "id": "agent:dorota-ko-odziejczyk-cristina-sandru",
+    "name": "Dorota Kołodziejczyk, Cristina Şandru",
+    "citations": 1
+  },
+  {
+    "id": "agent:laslo-sekelj-singer",
+    "name": "Laslo Sekelj-Singer",
+    "citations": 1
+  },
+  {
+    "id": "agent:barbara-predan-and-dasa-tepina",
+    "name": "Barbara Predan and Daša Tepina",
+    "citations": 1
+  },
+  {
+    "id": "agent:martin-sonderkamp",
+    "name": "Martin Sonderkamp",
+    "citations": 1
+  },
+  {
+    "id": "agent:knorr-cetina-k-schatzki-t-r-von-savigny-e",
+    "name": "Knorr Cetina, K., Schatzki, T.R., & von Savigny, E.",
+    "citations": 1
+  },
+  {
+    "id": "agent:dario-barreto-damas",
+    "name": "Darío Barreto Damas",
+    "citations": 1
+  },
+  {
+    "id": "agent:eeo-stubblefield",
+    "name": "Eeo Stubblefield",
+    "citations": 1
+  },
+  {
+    "id": "agent:keil-m",
+    "name": "Keil, M",
+    "citations": 1
+  },
+  {
+    "id": "agent:jeronim-perovic",
+    "name": "Jeronim Perović",
+    "citations": 1
+  },
+  {
+    "id": "agent:pierre-restany",
+    "name": "Pierre Restany",
+    "citations": 1
+  },
+  {
+    "id": "agent:peter-kisin",
+    "name": "Peter Kisin",
+    "citations": 1
+  },
+  {
+    "id": "agent:ahacij-strzinar",
+    "name": "Ahacij Stržinar",
+    "citations": 1
+  },
+  {
+    "id": "agent:sonderkamp",
+    "name": "Sonderkamp",
+    "citations": 1
+  },
+  {
+    "id": "agent:hal-foster",
+    "name": "Hal Foster",
+    "citations": 1
+  },
+  {
+    "id": "agent:paja-stankovic",
+    "name": "Paja Stanković",
+    "citations": 1
+  },
+  {
+    "id": "agent:dusan-bijelic",
+    "name": "Dušan Bijelić",
+    "citations": 1
+  },
+  {
+    "id": "agent:khalid-ali",
+    "name": "Khalid Ali",
+    "citations": 1
+  },
+  {
+    "id": "agent:varja-hrvatin",
+    "name": "Varja Hrvatin",
+    "citations": 1
+  },
+  {
+    "id": "agent:frederick-oko-martey",
+    "name": "Frederick Oko-Martey",
+    "citations": 1
+  },
+  {
+    "id": "agent:herve-hinopay",
+    "name": "Hervé Hinopay",
+    "citations": 1
+  },
+  {
+    "id": "agent:tine-fetz",
+    "name": "Tine Fetz",
+    "citations": 1
+  },
+  {
+    "id": "agent:dexter-sinister",
+    "name": "Dexter Sinister",
+    "citations": 1
+  },
+  {
+    "id": "agent:jorge-luis-borges",
+    "name": "Jorge Luis Borges",
+    "citations": 1
+  },
+  {
+    "id": "agent:zavod-projekt-atol",
+    "name": "Zavod Projekt Atol",
+    "citations": 1
+  },
+  {
+    "id": "agent:peter-kozler",
+    "name": "Peter Kozler",
+    "citations": 1
+  },
+  {
+    "id": "agent:serhat-karakayal",
+    "name": "Serhat Karakayalı",
+    "citations": 1
+  },
+  {
+    "id": "agent:camila-mejia-and-erik-walz",
+    "name": "Camila Mejía and Erik Wälz",
+    "citations": 1
+  },
+  {
+    "id": "agent:mira-worker",
+    "name": "Mira Worker",
+    "citations": 1
+  },
+  {
+    "id": "agent:michele-vasarely",
+    "name": "Michèle Vasarely",
+    "citations": 1
+  },
+  {
+    "id": "agent:hopkins-and-whyte",
+    "name": "Hopkins and Whyte",
+    "citations": 1
+  },
+  {
+    "id": "agent:lake-ohrid-struga",
+    "name": "Lake Ohrid Struga",
+    "citations": 1
+  },
+  {
+    "id": "agent:vajd-aleksandra",
+    "name": "Aleksandra VAJD",
+    "citations": 1
+  },
+  {
+    "id": "agent:claudia-hopkins-iain-boyd-whyte",
+    "name": "Claudia Hopkins, Iain Boyd Whyte",
+    "citations": 1
+  },
+  {
+    "id": "agent:pupuchevska-marija",
+    "name": "Marija Pupuchevska",
+    "citations": 1
+  },
+  {
+    "id": "agent:jean-louis-ferrier",
+    "name": "Jean-Louis Ferrier",
+    "citations": 1
+  },
+  {
+    "id": "agent:johannes-lenhard-and-rebecca-liu",
+    "name": "Johannes Lenhard and Rebecca Liu",
+    "citations": 1
+  },
+  {
+    "id": "agent:verena-billinger",
+    "name": "Verena Billinger",
+    "citations": 1
+  },
+  {
+    "id": "agent:dylan-clark",
+    "name": "Dylan Clark",
+    "citations": 1
+  },
+  {
+    "id": "agent:miroljub-stojanovic",
+    "name": "Miroljub Stojanović",
+    "citations": 1
+  },
+  {
+    "id": "agent:christine-de-pizan",
+    "name": "Christine de Pizan",
+    "citations": 1
+  },
+  {
+    "id": "agent:the-otolith-group",
+    "name": "The Otolith Group",
+    "citations": 1
+  },
+  {
+    "id": "agent:zvone-filipovic",
+    "name": "Zvone Filipović",
+    "citations": 1
+  },
+  {
+    "id": "agent:danilo-balestro-and-pierluigi-cazzavillan",
+    "name": "Danilo Balestro and Pierluigi Cazzavillan",
+    "citations": 1
+  },
+  {
+    "id": "agent:aleksandar-petrovic",
+    "name": "Aleksandar Petrović",
+    "citations": 1
+  },
+  {
+    "id": "agent:krzisnik",
+    "name": "Kržišnik",
+    "citations": 1
+  },
+  {
+    "id": "agent:marko-ilic",
+    "name": "Marko Ilić",
+    "citations": 1
+  },
+  {
+    "id": "agent:kwasi-ohene-ayeh-and-blaxtarlines-curating-team",
+    "name": "Kwasi Ohene-Ayeh and blaxTARLINES curating team",
+    "citations": 1
+  },
+  {
+    "id": "agent:shukarova",
+    "name": "Shukarova",
+    "citations": 1
+  },
+  {
+    "id": "agent:or-e-tomic",
+    "name": "Đorđe Tomić",
+    "citations": 1
+  },
+  {
+    "id": "agent:opus-international",
+    "name": "Opus International",
+    "citations": 1
+  },
+  {
+    "id": "agent:lemke",
+    "name": "Lemke",
+    "citations": 1
+  },
+  {
+    "id": "agent:jasna-tijardovic-popovic",
+    "name": "Jasna Tijardović-Popović",
+    "citations": 1
+  },
+  {
+    "id": "agent:graficki-kolektiv",
+    "name": "Grafički kolektiv",
+    "citations": 1
+  },
+  {
+    "id": "agent:georg-lukacs",
+    "name": "Georg Lukács",
+    "citations": 1
+  },
+  {
+    "id": "agent:joke-brouwer-sjoerd-van-tuinen",
+    "name": "Joke Brouwer, Sjoerd van Tuinen",
+    "citations": 1
+  },
+  {
+    "id": "agent:danko-grlic",
+    "name": "Danko Grlić",
+    "citations": 1
+  },
+  {
+    "id": "agent:rainer-marie-rilke",
+    "name": "Rainer Marie Rilke",
+    "citations": 1
+  },
+  {
+    "id": "agent:christoph-binder",
+    "name": "Christoph Binder",
+    "citations": 1
+  },
+  {
+    "id": "agent:tomaz-wraber",
+    "name": "Tomaž Wraber",
+    "citations": 1
+  },
+  {
+    "id": "agent:matjaz-berger",
+    "name": "Matjaž Berger",
+    "citations": 1
+  },
+  {
+    "id": "agent:daniel-zimmerman",
+    "name": "Daniel Zimmerman",
+    "citations": 1
+  },
+  {
+    "id": "agent:vijay-prashad",
+    "name": "Vijay Prashad",
+    "citations": 1
+  },
+  {
+    "id": "agent:mojca-dobnikar-bob-black-gregor-tomc",
+    "name": "Mojca Dobnikar, Bob Black, Gregor Tomc",
+    "citations": 1
+  },
+  {
+    "id": "agent:anne-szefer-karlsen-helga-nyman",
+    "name": "Anne Szefer Karlsen, Helga Nyman",
+    "citations": 1
+  },
+  {
+    "id": "agent:georges-polti",
+    "name": "Georges Polti",
+    "citations": 1
+  },
+  {
+    "id": "agent:sabina-krnc",
+    "name": "Sabina Krnc",
+    "citations": 1
+  },
+  {
+    "id": "agent:gunther-cerwinka",
+    "name": "Günther Cerwinka",
+    "citations": 1
+  },
+  {
+    "id": "agent:la-monte-young",
+    "name": "La Monte Young",
+    "citations": 1
+  },
+  {
+    "id": "agent:salamun",
+    "name": "Šalamun",
+    "citations": 1
+  },
+  {
+    "id": "agent:fear-health",
+    "name": "Fear Health",
+    "citations": 1
+  },
+  {
+    "id": "agent:novica-petkovic",
+    "name": "Novica Petković",
+    "citations": 1
+  },
+  {
+    "id": "agent:martin-sherman",
+    "name": "Martin Sherman",
+    "citations": 1
+  },
+  {
+    "id": "agent:rita-kalman-and-katarina",
+    "name": "Rita Kálmán and Katarina",
+    "citations": 1
+  },
+  {
+    "id": "agent:natasa-zivkovic",
+    "name": "Nataša Živković",
+    "citations": 1
+  },
+  {
+    "id": "agent:krishna-menon",
+    "name": "Krishna Menon",
+    "citations": 1
+  },
+  {
+    "id": "agent:jeanne-claire-van-ryzin",
+    "name": "Jeanne Claire van Ryzin",
+    "citations": 1
+  },
+  {
+    "id": "agent:eduardo-prato-moros",
+    "name": "Eduardo Prato Moros",
+    "citations": 1
+  },
+  {
+    "id": "agent:arts-international-centre-of-graphic",
+    "name": "International Centre of Graphic Arts",
+    "citations": 1
+  },
+  {
+    "id": "agent:vladimir-shaposhnikov",
+    "name": "Vladimir Shaposhnikov",
+    "citations": 1
+  },
+  {
+    "id": "agent:manuela-boatca",
+    "name": "Manuela Boatcă",
+    "citations": 1
+  },
+  {
+    "id": "agent:ross-brown",
+    "name": "Ross Brown",
+    "citations": 1
+  },
+  {
+    "id": "agent:s-kracauer-and-t-y-levin",
+    "name": "S. Kracauer and T. Y. Levin",
+    "citations": 1
+  },
+  {
+    "id": "agent:alejandro-alonso-diaz",
+    "name": "Alejandro Alonso Diaz",
+    "citations": 1
+  },
+  {
+    "id": "agent:guy-cools",
+    "name": "Guy Cools",
+    "citations": 1
+  },
+  {
+    "id": "agent:mogobe-b-ramose",
+    "name": "Mogobe B. Ramose",
+    "citations": 1
+  },
+  {
+    "id": "agent:janez-nepomuk-primic",
+    "name": "Janez Nepomuk Primic",
+    "citations": 1
+  },
+  {
+    "id": "agent:dubravka-djuric-misko-suvakovic",
+    "name": "Dubravka Djurić, Miško Šuvaković",
+    "citations": 1
+  },
+  {
+    "id": "agent:stephen-coleman-and-paddy-o-sullivan",
+    "name": "Stephen Coleman and Paddy O'Sullivan",
+    "citations": 1
+  },
+  {
+    "id": "agent:papadopoulos-d-stephenson-n-and-tsianos-v",
+    "name": "Papadopoulos, D., Stephenson, N., and Tsianos, V.",
+    "citations": 1
+  },
+  {
+    "id": "agent:rainer-munz-peter-zuser-josef-kytir",
+    "name": "Rainer Münz, Peter Zuser, Josef Kytir",
+    "citations": 1
+  },
+  {
+    "id": "agent:jo-anna-isaak",
+    "name": "Jo Anna Isaak",
+    "citations": 1
+  },
+  {
+    "id": "agent:kobina-ankomah-graham-and-joseph-oduro-frimpong",
+    "name": "Kobina Ankomah-Graham and Joseph Oduro-Frimpong",
+    "citations": 1
+  },
+  {
+    "id": "agent:pomoc-decaci",
+    "name": "Pomoč Dečaci",
+    "citations": 1
+  },
+  {
+    "id": "agent:osi-kuci",
+    "name": "Osi Kuci",
+    "citations": 1
+  },
+  {
+    "id": "agent:bernard-akoi-jackson-ibrahim-mahama",
+    "name": "Bernard Akoi-Jackson, Ibrahim Mahama",
+    "citations": 1
+  },
+  {
+    "id": "agent:bozic-jana",
+    "name": "Jana Božič",
+    "citations": 1
+  },
+  {
+    "id": "agent:aleksandra-kolaric",
+    "name": "Aleksandra Kolarić",
+    "citations": 1
+  },
+  {
+    "id": "agent:vitomil-vuletic",
+    "name": "Vitomil Vuletić",
+    "citations": 1
+  },
+  {
+    "id": "agent:kerc-patricija",
+    "name": "Patricija Kerč",
+    "citations": 1
+  },
+  {
+    "id": "agent:joanna-szymajda",
+    "name": "Joanna Szymajda",
+    "citations": 1
+  },
+  {
+    "id": "agent:mesko-hlacnik",
+    "name": "Mesko Hlačnik",
+    "citations": 1
+  },
+  {
+    "id": "agent:alan-kaprow",
+    "name": "Alan Kaprow",
+    "citations": 1
+  },
+  {
+    "id": "agent:miroslav-radojicic",
+    "name": "Miroslav Radojičić",
+    "citations": 1
+  },
+  {
+    "id": "agent:thomas-edward-lawrence",
+    "name": "Thomas Edward Lawrence",
+    "citations": 1
+  },
+  {
+    "id": "agent:martin-falck",
+    "name": "Martin Falck",
+    "citations": 1
+  },
+  {
+    "id": "agent:nemo",
+    "name": "Nemo",
+    "citations": 1
+  },
+  {
+    "id": "agent:sasa-spacal",
+    "name": "Saša Spačal",
+    "citations": 1
+  },
+  {
+    "id": "agent:sanja-kojic-mladenov",
+    "name": "Sanja Kojić Mladenov",
+    "citations": 1
+  },
+  {
+    "id": "agent:noordung",
+    "name": "Noordung",
+    "citations": 1
+  },
+  {
+    "id": "agent:iza-strehar",
+    "name": "Iza Strehar",
+    "citations": 1
+  },
+  {
+    "id": "agent:miro-me-imorac",
+    "name": "Miro Međimorac",
+    "citations": 1
+  },
+  {
+    "id": "agent:ariel-dorfman-armando-marmellart",
+    "name": "Ariel Dorfman, Armando Marmellart",
+    "citations": 1
+  },
+  {
+    "id": "agent:greenberg-c",
+    "name": "Greenberg, C.",
+    "citations": 1
+  },
+  {
+    "id": "agent:peter-klinar",
+    "name": "Peter Klinar",
+    "citations": 1
+  },
+  {
+    "id": "agent:valeria-graziano",
+    "name": "Valeria Graziano",
+    "citations": 1
+  },
+  {
+    "id": "agent:josef-wurm",
+    "name": "Josef Wurm",
+    "citations": 1
+  },
+  {
+    "id": "agent:andrea-haberl-zemljic",
+    "name": "Andrea Haberl Žemljič",
+    "citations": 1
+  },
+  {
+    "id": "agent:terry-smith",
+    "name": "Terry Smith",
+    "citations": 1
+  },
+  {
+    "id": "agent:robert-hurley",
+    "name": "Robert Hurley",
+    "citations": 1
+  },
+  {
+    "id": "agent:vlado-kreslin",
+    "name": "Vlado Kreslin",
+    "citations": 1
+  },
+  {
+    "id": "agent:galerie-denise-rene",
+    "name": "Galerie Denise René",
+    "citations": 1
+  },
+  {
+    "id": "agent:sebastian-schulz",
+    "name": "Sebastian Schulz",
+    "citations": 1
+  },
+  {
+    "id": "agent:giulia-carla-argana",
+    "name": "Giulia Carla Argana",
+    "citations": 1
+  },
+  {
+    "id": "agent:zeljko-sabol",
+    "name": "Željko Sabol",
+    "citations": 1
+  },
+  {
+    "id": "agent:barbara-borcic-and-marina-grzinic",
+    "name": "Barbara Borčič and Marina Gržinić",
+    "citations": 1
+  },
+  {
+    "id": "agent:nathalie-ritter-and-thomas-schmutz",
+    "name": "Nathalie Ritter and Thomas Schmutz",
+    "citations": 1
+  },
+  {
+    "id": "agent:nonaligned-modernism",
+    "name": "Nonaligned Modernism",
+    "citations": 1
+  },
+  {
+    "id": "agent:eric-gyamfi-and-robin-riskin",
+    "name": "Eric Gyamfi and Robin Riskin",
+    "citations": 1
+  },
+  {
+    "id": "agent:lydia-mischkulnig",
+    "name": "Lydia Mischkulnig",
+    "citations": 1
+  },
+  {
+    "id": "agent:karin-almasy",
+    "name": "Karin Almasy",
+    "citations": 1
+  },
+  {
+    "id": "agent:tomaz-mastnak",
+    "name": "Tomaž Mastnak",
+    "citations": 1
+  },
+  {
+    "id": "agent:marina-grzinic-tanja-velagic",
+    "name": "Marina Gržinić, Tanja Velagić",
+    "citations": 1
+  },
+  {
+    "id": "agent:taja-kramberger-sabina-mihelj-drago-b-rotar",
+    "name": "Taja Kramberger, Sabina Mihelj, Drago B. Rotar",
+    "citations": 1
+  },
+  {
+    "id": "agent:chang-and-rucker-chang",
+    "name": "Chang and Rucker-Chang",
+    "citations": 1
+  },
+  {
+    "id": "agent:varja-hrvatin-masa-radi-buh-jakob-ribic",
+    "name": "Varja Hrvatin, Maša Radi Buh, Jakob Ribič",
+    "citations": 1
+  },
+  {
+    "id": "agent:gertrude-j-robinson",
+    "name": "Gertrude J. Robinson",
+    "citations": 1
+  },
+  {
+    "id": "agent:minna-tiikkainen",
+    "name": "Minna Tiikkainen",
+    "citations": 1
+  },
+  {
+    "id": "agent:irena-tomazin-zagoricnik",
+    "name": "Irena Tomažin Zagoričnik",
+    "citations": 1
+  },
+  {
+    "id": "agent:mateja-rezek",
+    "name": "Mateja Režek",
+    "citations": 1
+  },
+  {
+    "id": "agent:falassi-a",
+    "name": "Falassi, A.",
+    "citations": 1
+  },
+  {
+    "id": "agent:mislej-tjasa",
+    "name": "Tjaša Mislej",
+    "citations": 1
+  },
+  {
+    "id": "agent:bergh-laura-van-den",
+    "name": "Laura van den Bergh",
+    "citations": 1
+  },
+  {
+    "id": "agent:christof-panreiter",
+    "name": "Christof Panreiter",
+    "citations": 1
+  },
+  {
+    "id": "agent:marko-peljhan",
+    "name": "Marko Peljhan",
+    "citations": 1
+  },
+  {
+    "id": "agent:balint-szombathy",
+    "name": "Bálint Szombathy",
+    "citations": 1
+  },
+  {
+    "id": "agent:tanja-tisu",
+    "name": "Tanja Tisu",
+    "citations": 1
+  },
+  {
+    "id": "agent:bozo-skerlj",
+    "name": "Božo Škerlj",
+    "citations": 1
+  },
+  {
+    "id": "agent:josefa-prelog",
+    "name": "Josefa Prelog",
+    "citations": 1
+  },
+  {
+    "id": "agent:karl-marx-and-friedrich-engels",
+    "name": "Karl Marx and Friedrich Engels",
+    "citations": 1
+  },
+  {
+    "id": "agent:joze-princic",
+    "name": "Jože Prinčič",
+    "citations": 1
+  },
+  {
+    "id": "agent:vanda-velagic",
+    "name": "Vanda Velagić",
+    "citations": 1
+  },
+  {
+    "id": "agent:noah-charney",
+    "name": "Noah Charney",
+    "citations": 1
+  },
+  {
+    "id": "agent:peter-johnson",
+    "name": "Peter Johnson",
+    "citations": 1
+  },
+  {
+    "id": "agent:david-burrows-and-simon-o-sullivan",
+    "name": "David Burrows and Simon O'Sullivan",
+    "citations": 1
+  },
+  {
+    "id": "agent:rachmaninov",
+    "name": "Rachmaninov",
+    "citations": 1
+  },
+  {
+    "id": "agent:dragan-todorovic",
+    "name": "Dragan Todorović",
+    "citations": 1
+  },
+  {
+    "id": "agent:dalija-acin-thelander",
+    "name": "Dalija Aćin Thelander",
+    "citations": 1
+  },
+  {
+    "id": "agent:stanley-kubrick",
+    "name": "Stanley Kubrick",
+    "citations": 1
+  },
+  {
+    "id": "agent:feldman-morton",
+    "name": "Morton Feldman",
+    "citations": 1
+  },
+  {
+    "id": "agent:jagodic",
+    "name": "Jagodič",
+    "citations": 1
+  },
+  {
+    "id": "agent:wilfried-priet",
+    "name": "Wilfried Priet",
+    "citations": 1
+  },
+  {
+    "id": "agent:felix-b-rucker-chang-and-sunnie-t-rucker-chang",
+    "name": "Felix B. Rucker-Chang and Sunnie T. Rucker-Chang",
+    "citations": 1
+  },
+  {
+    "id": "agent:nebojsa-milenkovic",
+    "name": "Nebojša Milenković",
+    "citations": 1
+  },
+  {
+    "id": "agent:l-grespik",
+    "name": "L. Grespik",
+    "citations": 1
+  },
+  {
+    "id": "agent:gabrijel-stupica",
+    "name": "Gabrijel Stupica",
+    "citations": 1
+  },
+  {
+    "id": "agent:trevor-sutton",
+    "name": "Trevor Sutton",
+    "citations": 1
+  },
+  {
+    "id": "agent:miha-strukelj",
+    "name": "MIHA ŠTRUKELJ",
+    "citations": 1
+  },
+  {
+    "id": "agent:maintenance-art",
+    "name": "Maintenance Art",
+    "citations": 1
+  },
+  {
+    "id": "agent:boris-beja",
+    "name": "Boris Beja",
+    "citations": 1
+  },
+  {
+    "id": "agent:german-greer",
+    "name": "German Greer",
+    "citations": 1
+  },
+  {
+    "id": "agent:esanu-octavian",
+    "name": "Octavian Eşanu",
+    "citations": 1
+  },
+  {
+    "id": "agent:tinguely",
+    "name": "Tinguely",
+    "citations": 1
+  },
+  {
+    "id": "agent:william-edward-burghardt-du-bois",
+    "name": "William Edward Burghardt Du Bois",
+    "citations": 1
+  },
+  {
+    "id": "agent:laura-stellacci",
+    "name": "Laura Stellacci",
+    "citations": 1
+  },
+  {
+    "id": "agent:andrej-gutman",
+    "name": "Andrej Gutman",
+    "citations": 1
+  },
+  {
+    "id": "agent:hruscov",
+    "name": "Hruščov",
+    "citations": 1
+  },
+  {
+    "id": "agent:jozef-grebelnik",
+    "name": "Jožef Grebelnik",
+    "citations": 1
+  },
+  {
+    "id": "agent:dusan-brocic-bojan-or-ev-sinisa-ilic-jana-jevtovic-dragana-jovovic-maja-mirkovic",
+    "name": "Dušan Broćić, Bojan Đorđev, Siniša Ilić, Jana Jevtović, Dragana Jovović, Maja Mirković, Katarina Popović, Ljiljana Tasić in collaboration with Jana Božič, Iva Tratnik, Simon Macuh, Ines Šimunić, Jasmina Založnik",
+    "citations": 1
+  },
+  {
+    "id": "agent:aleksander-georgiev",
+    "name": "Aleksander Georgiev",
+    "citations": 1
+  },
+  {
+    "id": "agent:mirko-krizman",
+    "name": "Mirko Križman",
+    "citations": 1
+  },
+  {
+    "id": "agent:elisabeth-pagnoux",
+    "name": "Elisabeth Pagnoux",
+    "citations": 1
+  },
+  {
+    "id": "agent:april-carter",
+    "name": "April Carter",
+    "citations": 1
+  },
+  {
+    "id": "agent:miklosvolgyi-zsolt",
+    "name": "Zsolt MIKLÓSVÖLGYI",
+    "citations": 1
+  },
+  {
+    "id": "agent:mudekereza-patrick-bulonza",
+    "name": "Patrick Bulonza Mudekereza",
+    "citations": 1
+  },
+  {
+    "id": "agent:denegri-jerko",
+    "name": "Jerko Denegri",
+    "citations": 1
+  },
+  {
+    "id": "agent:armin-medosch",
+    "name": "Armin Medosch",
+    "citations": 1
+  },
+  {
+    "id": "agent:karl-heinz-menzen",
+    "name": "Karl-Heinz Menzen",
+    "citations": 1
+  },
+  {
+    "id": "agent:frampton-h",
+    "name": "Frampton, H.",
+    "citations": 1
+  },
+  {
+    "id": "agent:joanna-stone",
+    "name": "Joanna Stone",
+    "citations": 1
+  },
+  {
+    "id": "agent:obren-milicevic",
+    "name": "Obren Miličević",
+    "citations": 1
+  },
+  {
+    "id": "agent:nelson",
+    "name": "Nelson",
+    "citations": 1
+  },
+  {
+    "id": "agent:richard-howard",
+    "name": "Richard Howard",
+    "citations": 1
+  },
+  {
+    "id": "agent:sonja-savic",
+    "name": "Sonja Savić",
+    "citations": 1
+  },
+  {
+    "id": "agent:belgrade-vienna",
+    "name": "Belgrade Vienna",
+    "citations": 1
+  },
+  {
+    "id": "agent:predrag-radenovic",
+    "name": "Predrag Radenović",
+    "citations": 1
+  },
+  {
+    "id": "agent:hazoume-romuald",
+    "name": "Romuald Hazoumè",
+    "citations": 1
+  },
+  {
+    "id": "agent:hazoume",
+    "name": "Hazoumè",
+    "citations": 1
+  },
+  {
+    "id": "agent:orlin-spasov",
+    "name": "Orlin Spasov",
+    "citations": 1
+  },
+  {
+    "id": "agent:dzyuban-nastya",
+    "name": "Nastya Dzyuban",
+    "citations": 1
+  },
+  {
+    "id": "agent:bor-matej",
+    "name": "Matej Bor",
+    "citations": 1
+  },
+  {
+    "id": "agent:tanzquartier-wien",
+    "name": "Tanzquartier Wien",
+    "citations": 1
+  },
+  {
+    "id": "agent:alan-sheridan",
+    "name": "Alan Sheridan",
+    "citations": 1
+  },
+  {
+    "id": "agent:tomas-h-dirk-schwarz-nicola-setari",
+    "name": "Tomas H., Dirk Schwarz, Nicola Setari",
+    "citations": 1
+  },
+  {
+    "id": "agent:apostol-corina",
+    "name": "Corina Apostol",
+    "citations": 1
+  },
+  {
+    "id": "agent:barbara-borcic",
+    "name": "Barbara Borčić",
+    "citations": 1
+  },
+  {
+    "id": "agent:marjetica-potrc",
+    "name": "Marjetica Potrč",
+    "citations": 1
+  },
+  {
+    "id": "agent:sergiu-matis",
+    "name": "Sergiu Matis",
+    "citations": 1
+  },
+  {
+    "id": "agent:douglas-crimp-leo-bersani",
+    "name": "Douglas Crimp, Leo Bersani",
+    "citations": 1
+  },
+  {
+    "id": "agent:anna-biczok",
+    "name": "Anna Biczók",
+    "citations": 1
+  },
+  {
+    "id": "agent:rebecca-jagoe",
+    "name": "Rebecca Jagoe",
+    "citations": 1
+  },
+  {
+    "id": "agent:illya-pavlov",
+    "name": "Illya Pavlov",
+    "citations": 1
+  },
+  {
+    "id": "agent:tlostsanova",
+    "name": "Tlostsanova",
+    "citations": 1
+  },
+  {
+    "id": "agent:vita-osojnik",
+    "name": "Vita Osojnik",
+    "citations": 1
+  },
+  {
+    "id": "agent:flaka-haliti",
+    "name": "Flaka Haliti",
+    "citations": 1
+  },
+  {
+    "id": "agent:sukhovo-kobylin",
+    "name": "Sukhovo-Kobylin",
+    "citations": 1
+  },
+  {
+    "id": "agent:janez-knez",
+    "name": "Janez Knez",
+    "citations": 1
+  },
+  {
+    "id": "agent:tomasz-stanko",
+    "name": "Tomasz Stańko",
+    "citations": 1
+  },
+  {
+    "id": "agent:sven-augustijnen",
+    "name": "Sven Augustijnen",
+    "citations": 1
+  },
+  {
+    "id": "agent:papadopoulos",
+    "name": "Papadopoulos",
+    "citations": 1
+  },
+  {
+    "id": "agent:rasa-todosijevic",
+    "name": "Raša Todosijević",
+    "citations": 1
+  },
+  {
+    "id": "agent:richard-west",
+    "name": "Richard West",
+    "citations": 1
+  },
+  {
+    "id": "agent:zvone-sedlbauer",
+    "name": "Zvone Šedlbauer",
+    "citations": 1
+  },
+  {
+    "id": "agent:tanja-prusnik",
+    "name": "Tanja Prušnik",
+    "citations": 1
+  },
+  {
+    "id": "agent:friedlander",
+    "name": "Friedlander",
+    "citations": 1
+  },
+  {
+    "id": "agent:beer-oliver",
+    "name": "Oliver Beer",
+    "citations": 1
+  },
+  {
+    "id": "agent:raymond-auger",
+    "name": "Raymond Auger",
+    "citations": 1
+  },
+  {
+    "id": "agent:ankrah-patrick-nii-okanta",
+    "name": "Patrick Nii Okanta Ankrah",
+    "citations": 1
+  },
+  {
+    "id": "agent:matic-or-e",
+    "name": "Đorđe Matić",
+    "citations": 1
+  },
+  {
+    "id": "agent:g-m-s-leader",
+    "name": "G.M.S. Leader",
+    "citations": 1
+  },
+  {
+    "id": "agent:dominic-johnson",
+    "name": "Dominic Johnson",
+    "citations": 1
+  },
+  {
+    "id": "agent:nyornuwofia-agorsor",
+    "name": "Nyornuwofia Agorsor",
+    "citations": 1
+  },
+  {
+    "id": "agent:radojicic-mirko",
+    "name": "Mirko Radojičić",
+    "citations": 1
+  },
+  {
+    "id": "agent:barclay",
+    "name": "Barclay",
+    "citations": 1
+  },
+  {
+    "id": "agent:haarer-johanna",
+    "name": "Johanna Haarer",
+    "citations": 1
+  },
+  {
+    "id": "agent:acs-jozsef",
+    "name": "József Ács",
+    "citations": 1
+  },
+  {
+    "id": "agent:barnard-dahhan-victor-vasarely",
+    "name": "Barnard Dahhan, Victor Vasarely",
+    "citations": 1
+  },
+  {
+    "id": "agent:christian-promitzer-marija-makarovic-mirko-ramovs",
+    "name": "Christian Promitzer, Marija Makarovič, Mirko Ramovš",
+    "citations": 1
+  },
+  {
+    "id": "agent:alenka-blazina",
+    "name": "Alenka Blažina",
+    "citations": 1
+  },
+  {
+    "id": "agent:vito-weiss",
+    "name": "Vito Weiss",
+    "citations": 1
+  },
+  {
+    "id": "agent:group-of-students-of-psychology-and-pedagogics-at-faculty-of-arts-in-ljubljana",
+    "name": "Group of Students of Psychology and Pedagogics at Faculty of Arts in Ljubljana",
+    "citations": 1
+  },
+  {
+    "id": "agent:cernigoj",
+    "name": "Černigoj",
+    "citations": 1
+  },
+  {
+    "id": "agent:erica-powell",
+    "name": "Erica Powell",
+    "citations": 1
+  },
+  {
+    "id": "agent:kaja-lorenci",
+    "name": "Kaja Lorenci",
+    "citations": 1
+  },
+  {
+    "id": "agent:nina-mesko",
+    "name": "Nina Meško",
+    "citations": 1
+  },
+  {
+    "id": "agent:ana-schnabl",
+    "name": "Ana Schnabl",
+    "citations": 1
+  },
+  {
+    "id": "agent:inke-arns-sylvia-sasse",
+    "name": "Inke Arns, Sylvia Sasse",
+    "citations": 1
+  },
+  {
+    "id": "agent:andreas-weigl",
+    "name": "Andreas Weigl",
+    "citations": 1
+  },
+  {
+    "id": "agent:brothers-petrovic",
+    "name": "Petrović brothers",
+    "citations": 1
+  },
+  {
+    "id": "agent:fuad-muhic",
+    "name": "Fuad Muhić",
+    "citations": 1
+  },
+  {
+    "id": "agent:cetina-k-knorr",
+    "name": "K. Knorr Cetina",
+    "citations": 1
+  },
+  {
+    "id": "agent:dragan-m-or-evic",
+    "name": "Dragan M. Đorđević",
+    "citations": 1
+  },
+  {
+    "id": "agent:vestandpage",
+    "name": "VestAndPage",
+    "citations": 1
+  },
+  {
+    "id": "agent:photographer-simon-chang",
+    "name": "Photographer Simon Chang",
+    "citations": 1
+  },
+  {
+    "id": "agent:bora-draskovic",
+    "name": "Bora Drašković",
+    "citations": 1
+  },
+  {
+    "id": "agent:waters",
+    "name": "Waters",
+    "citations": 1
+  },
+  {
+    "id": "agent:volkmer",
+    "name": "Volkmer",
+    "citations": 1
+  },
+  {
+    "id": "agent:dragana-colic-biljanovski",
+    "name": "Dragana Čolić Biljanovski",
+    "citations": 1
+  },
+  {
+    "id": "agent:marijana-cunta",
+    "name": "Marijana Cunta",
+    "citations": 1
+  },
+  {
+    "id": "agent:franc-a-ksaver",
+    "name": "Franc A. Ksaver",
+    "citations": 1
+  },
+  {
+    "id": "agent:ana-hoffner",
+    "name": "Ana Hoffner",
+    "citations": 1
+  },
+  {
+    "id": "agent:piro-rexhepi",
+    "name": "Piro Rexhepi",
+    "citations": 1
+  },
+  {
+    "id": "agent:maurissen-michael",
+    "name": "Michael Maurissen",
+    "citations": 1
+  },
+  {
+    "id": "agent:sparrow-tom",
+    "name": "Tom Sparrow",
+    "citations": 1
+  },
+  {
+    "id": "agent:france-verbinc",
+    "name": "France Verbinc",
+    "citations": 1
+  },
+  {
+    "id": "agent:darko-strajn-ferdo-kavcnik",
+    "name": "Darko Štrajn, Ferdo Kavčnik",
+    "citations": 1
+  },
+  {
+    "id": "agent:oliver-sukrow-and-iain-boyd-whyte",
+    "name": "Oliver Sukrow and Iain Boyd Whyte",
+    "citations": 1
+  },
+  {
+    "id": "agent:dejan-srhoj",
+    "name": "Dejan Srhoj",
+    "citations": 1
+  },
+  {
+    "id": "agent:liam-stack-katherine-rosman-jan-ransom",
+    "name": "Liam Stack, Katherine Rosman, Jan Ransom",
+    "citations": 1
+  },
+  {
+    "id": "agent:ana-dubljevic",
+    "name": "Ana Dubljević",
+    "citations": 1
+  },
+  {
+    "id": "agent:height-age",
+    "name": "Height Age",
+    "citations": 1
+  },
+  {
+    "id": "agent:mladen-dolar-et-al",
+    "name": "Mladen Dolar et al.",
+    "citations": 1
+  },
+  {
+    "id": "agent:radoslav-okic",
+    "name": "Radoslav Đokić",
+    "citations": 1
+  },
+  {
+    "id": "agent:kari-kacha-seid-ou",
+    "name": "kari’kacha seid’ōu",
+    "citations": 1
+  },
+  {
+    "id": "agent:levi-r-bryant-nick-srnicek-and-graham-harman",
+    "name": "Levi R. Bryant, Nick Srnicek and Graham Harman",
+    "citations": 1
+  },
+  {
+    "id": "agent:amanda-pina",
+    "name": "Amanda Piña",
+    "citations": 1
+  },
+  {
+    "id": "agent:jelena-mihelcic",
+    "name": "Jelena Mihelčić",
+    "citations": 1
+  },
+  {
+    "id": "agent:andrej-pinter-and-igor-zagar",
+    "name": "Andrej Pinter and Igor Žagar",
+    "citations": 1
+  },
+  {
+    "id": "agent:jean-dewasne-vasarely",
+    "name": "Jean Dewasne, Vasarely",
+    "citations": 1
+  },
+  {
+    "id": "agent:risto-banic",
+    "name": "Risto Banič",
+    "citations": 1
+  },
+  {
+    "id": "agent:j-parikka-and-t-dvorak",
+    "name": "J. Parikka and T. Dvorak",
+    "citations": 1
+  },
+  {
+    "id": "agent:nikolas-rose",
+    "name": "Nikolas Rose",
+    "citations": 1
+  },
+  {
+    "id": "agent:october-salon",
+    "name": "October Salon",
+    "citations": 1
+  },
+  {
+    "id": "agent:stephan-adolphs-serhat-karakayal",
+    "name": "Stephan Adolphs, Serhat Karakayalı",
+    "citations": 1
+  },
+  {
+    "id": "agent:bruno-g",
+    "name": "Bruno, G.",
+    "citations": 1
+  },
+  {
+    "id": "agent:peter-krecic",
+    "name": "Peter Krečič",
+    "citations": 1
+  },
+  {
+    "id": "agent:merthe-wulf",
+    "name": "Merthe Wulf",
+    "citations": 1
+  },
+  {
+    "id": "agent:armando-marmellart",
+    "name": "Armando Marmellart",
+    "citations": 1
+  },
+  {
+    "id": "agent:georgelou-konstantina-efrosini-protopapa-and-danae-theodoridou",
+    "name": "Georgelou, Konstantina, Efrosini Protopapa, and Danae Theodoridou",
+    "citations": 1
+  },
+  {
+    "id": "agent:veronika-dintinjana",
+    "name": "Veronika Dintinjana",
+    "citations": 1
+  },
+  {
+    "id": "agent:jernej-potocan",
+    "name": "Jernej Potočan",
+    "citations": 1
+  },
+  {
+    "id": "agent:grespik-l",
+    "name": "Grespik, L.",
+    "citations": 1
+  },
+  {
+    "id": "agent:antubam-kofi",
+    "name": "Kofi Antubam",
+    "citations": 1
+  },
+  {
+    "id": "agent:christian-gert",
+    "name": "Gert Christian",
+    "citations": 1
+  },
+  {
+    "id": "agent:bister-feliks-j",
+    "name": "Bister Feliks J.",
+    "citations": 1
+  },
+  {
+    "id": "agent:tamas-g-m",
+    "name": "Tamás, G. M.",
+    "citations": 1
+  },
+  {
+    "id": "agent:iztok-sitar",
+    "name": "Iztok Sitar",
+    "citations": 1
+  },
+  {
+    "id": "agent:mateja-rebolj",
+    "name": "Mateja Rebolj",
+    "citations": 1
+  },
+  {
+    "id": "agent:johanna-heddva",
+    "name": "Johanna Heddva",
+    "citations": 1
+  },
+  {
+    "id": "agent:kate-fowle",
+    "name": "Kate Fowle",
+    "citations": 1
+  },
+  {
+    "id": "agent:d-papadopoulos",
+    "name": "D. Papadopoulos",
+    "citations": 1
+  },
+  {
+    "id": "agent:t-kozsdi",
+    "name": "T. Kozsdi",
+    "citations": 1
+  },
+  {
+    "id": "agent:iztok-jereb",
+    "name": "Iztok Jereb",
+    "citations": 1
+  },
+  {
+    "id": "agent:joanna-russ",
+    "name": "Joanna Russ",
+    "citations": 1
+  },
+  {
+    "id": "agent:kavitha-koshy",
+    "name": "Kavitha Koshy",
+    "citations": 1
+  },
+  {
+    "id": "agent:matjaz-kocbek-ferdinand-miklavc-tomaz-kralj",
+    "name": "Matjaž Kocbek, Ferdinand Miklavc, Tomaž Kralj",
+    "citations": 1
+  },
+  {
+    "id": "agent:milan-stepanovic",
+    "name": "Milan Stepanović",
+    "citations": 1
+  },
+  {
+    "id": "agent:morris-robert",
+    "name": "Robert Morris",
+    "citations": 1
+  },
+  {
+    "id": "agent:joan-fontcuberta-geoffrey-batchen",
+    "name": "Joan Fontcuberta, Geoffrey Batchen",
+    "citations": 1
+  },
+  {
+    "id": "agent:frank-baumann",
+    "name": "Frank Baumann",
+    "citations": 1
+  },
+  {
+    "id": "agent:pauline-hanson-geraldine-pratt",
+    "name": "Pauline Hanson, Geraldine Pratt",
+    "citations": 1
+  },
+  {
+    "id": "agent:christopher-r-w-dietrich",
+    "name": "Christopher R.W. Dietrich",
+    "citations": 1
+  },
+  {
+    "id": "agent:boris-mikos",
+    "name": "Boris Mikoš",
+    "citations": 1
+  },
+  {
+    "id": "agent:j-myers-szupinska",
+    "name": "J. Myers-Szupinska",
+    "citations": 1
+  },
+  {
+    "id": "agent:dimitrijevic-and-vesic",
+    "name": "Dimitrijević and Vesić",
+    "citations": 1
+  },
+  {
+    "id": "agent:tanja-radez",
+    "name": "Tanja Radež",
+    "citations": 1
+  },
+  {
+    "id": "agent:patrick-tresset",
+    "name": "Patrick Tresset",
+    "citations": 1
+  },
+  {
+    "id": "agent:mladina-supplement",
+    "name": "Mladina Supplement",
+    "citations": 1
+  },
+  {
+    "id": "agent:lacagnina-salvatore",
+    "name": "Salvatore Lacagnina",
+    "citations": 1
+  },
+  {
+    "id": "agent:free-dom",
+    "name": "Free Dom",
+    "citations": 1
+  },
+  {
+    "id": "agent:ljubica-spaskovska",
+    "name": "Ljubica Spaskovska",
+    "citations": 1
+  },
+  {
+    "id": "agent:hughes-ted",
+    "name": "Ted Hughes",
+    "citations": 1
+  },
+  {
+    "id": "agent:hans-dieter-schutt",
+    "name": "Hans-Dieter Schütt",
+    "citations": 1
+  },
+  {
+    "id": "agent:natasa-petresin-bachelez",
+    "name": "Nataša Petrešin Bachelez",
+    "citations": 1
+  },
+  {
+    "id": "agent:fraeed-zakaria",
+    "name": "Fraeed Zakaria",
+    "citations": 1
+  },
+  {
+    "id": "agent:furie-matt",
+    "name": "Matt Furie",
+    "citations": 1
+  },
+  {
+    "id": "agent:heinz-fassmann-rainer-munz",
+    "name": "Heinz Fassmann, Rainer Münz",
+    "citations": 1
+  },
+  {
+    "id": "agent:embodied-experience",
+    "name": "Embodied Experience",
+    "citations": 1
+  },
+  {
+    "id": "agent:todor-kuljic",
+    "name": "Todor Kuljić",
+    "citations": 1
+  },
+  {
+    "id": "agent:emese-kurti",
+    "name": "Emese Kürti",
+    "citations": 1
+  },
+  {
+    "id": "agent:james-marsh",
+    "name": "James Marsh",
+    "citations": 1
+  },
+  {
+    "id": "agent:sylvain-huc",
+    "name": "Sylvain Huc",
+    "citations": 1
+  },
+  {
+    "id": "agent:natalia-revoniuk",
+    "name": "Natalia Revoniuk",
+    "citations": 1
+  },
+  {
+    "id": "agent:erno-kiraly",
+    "name": "Ernő Király",
+    "citations": 1
+  },
+  {
+    "id": "agent:alexandar-ivanovic-vvedensky",
+    "name": "Alexandar Ivanović Vvedensky",
+    "citations": 1
+  },
+  {
+    "id": "agent:matijevic",
+    "name": "Matijević",
+    "citations": 1
+  },
+  {
+    "id": "agent:ljubisa-ristic-and-milomir-marinovic",
+    "name": "Ljubiša Ristić and Milomir Marinović",
+    "citations": 1
+  },
+  {
+    "id": "agent:elizabeth-a-povinelli",
+    "name": "Elizabeth A. Povinelli",
+    "citations": 1
+  },
+  {
+    "id": "agent:wehler-h-u",
+    "name": "Wehler, H.-U.",
+    "citations": 1
+  },
+  {
+    "id": "agent:velasquez",
+    "name": "Velasquez",
+    "citations": 1
+  },
+  {
+    "id": "agent:didier-fassin",
+    "name": "Didier Fassin",
+    "citations": 1
+  },
+  {
+    "id": "agent:theo-deutinger",
+    "name": "Theo Deutinger",
+    "citations": 1
+  },
+  {
+    "id": "agent:nina-rajic-kranjac",
+    "name": "Nina Rajić Kranjac",
+    "citations": 1
+  },
+  {
+    "id": "agent:tibor-hrs-pandur",
+    "name": "Tibor Hrs Pandur",
+    "citations": 1
+  },
+  {
+    "id": "agent:dunaj-vorwort",
+    "name": "Dunaj Vorwort",
+    "citations": 1
+  },
+  {
+    "id": "agent:selma-jeanne-cohen",
+    "name": "Selma Jeanne Cohen",
+    "citations": 1
+  },
+  {
+    "id": "agent:jorge-guevara-and-naoto-hieda",
+    "name": "Jorge Guevara and Naoto Hieda",
+    "citations": 1
+  },
+  {
+    "id": "agent:verlag-droschl",
+    "name": "Verlag Droschl",
+    "citations": 1
+  },
+  {
+    "id": "agent:srecko-polancic",
+    "name": "Srečko Polančič",
+    "citations": 1
+  },
+  {
+    "id": "agent:nils-olger",
+    "name": "Nils Olger",
+    "citations": 1
+  },
+  {
+    "id": "agent:nikolina-kujacha",
+    "name": "Nikolina Kujacha",
+    "citations": 1
+  },
+  {
+    "id": "agent:isidora-bjelica",
+    "name": "Isidora Bjelica",
+    "citations": 1
+  },
+  {
+    "id": "agent:alexander-verlag",
+    "name": "Alexander Verlag",
+    "citations": 1
+  },
+  {
+    "id": "agent:he",
+    "name": "he",
+    "citations": 1
+  },
+  {
+    "id": "agent:franci-pivec",
+    "name": "Franci Pivec",
+    "citations": 1
+  },
+  {
+    "id": "agent:david-muggleton-and-rupert-weinzierl",
+    "name": "David Muggleton and Rupert Weinzierl",
+    "citations": 1
+  },
+  {
+    "id": "agent:wendy-arons-and-theresa-j-may",
+    "name": "Wendy Arons and Theresa J. May",
+    "citations": 1
+  },
+  {
+    "id": "agent:kraftwerk",
+    "name": "Kraftwerk",
+    "citations": 1
+  },
+  {
+    "id": "agent:drugs-sex",
+    "name": "Drugs Sex",
+    "citations": 1
+  },
+  {
+    "id": "agent:tatjana-vucajnk",
+    "name": "Tatjana Vučajnk",
+    "citations": 1
+  },
+  {
+    "id": "agent:liam-stack",
+    "name": "Liam Stack",
+    "citations": 1
+  },
+  {
+    "id": "agent:jelena-juresa",
+    "name": "Jelena Jureša",
+    "citations": 1
+  },
+  {
+    "id": "agent:kacem-sonia",
+    "name": "Sonia Kacem",
+    "citations": 1
+  },
+  {
+    "id": "agent:marko-a-kovacic",
+    "name": "Marko A. Kovačič",
+    "citations": 1
+  },
+  {
+    "id": "agent:gould-and-lewontin",
+    "name": "Gould and Lewontin",
+    "citations": 1
+  },
+  {
+    "id": "agent:karntner-landesgalerie",
+    "name": "Kärntner Landesgalerie",
+    "citations": 1
+  },
+  {
+    "id": "agent:leopold-volkmer",
+    "name": "Leopold Volkmer",
+    "citations": 1
+  },
+  {
+    "id": "agent:jure-vuga",
+    "name": "Jure Vuga",
+    "citations": 1
+  },
+  {
+    "id": "agent:heinz-bude",
+    "name": "Heinz Bude",
+    "citations": 1
+  },
+  {
+    "id": "agent:florentina-holzinger",
+    "name": "Florentina Holzinger",
+    "citations": 1
+  },
+  {
+    "id": "agent:friedrich-ruckert",
+    "name": "friedrich rückert",
+    "citations": 1
+  },
+  {
+    "id": "agent:mccray-porter",
+    "name": "Porter McCray",
+    "citations": 1
+  },
+  {
+    "id": "agent:david-attenborough",
+    "name": "David Attenborough",
+    "citations": 1
+  },
+  {
+    "id": "agent:andrea-bozic-and-julia-willms",
+    "name": "Andrea Božić and Julia Willms",
+    "citations": 1
+  },
+  {
+    "id": "agent:issiakhem-m-hamed",
+    "name": "M'hamed Issiakhem",
+    "citations": 1
+  },
+  {
+    "id": "agent:felix-b-rucker-chang",
+    "name": "Felix B. Rucker-Chang",
+    "citations": 1
+  },
+  {
+    "id": "agent:carriers-cultures",
+    "name": "Carriers Cultures",
+    "citations": 1
+  },
+  {
+    "id": "agent:tabor-sports-hall",
+    "name": "Tabor Sports Hall",
+    "citations": 1
+  },
+  {
+    "id": "agent:anja-pia-biscak",
+    "name": "Anja Pia Biščak",
+    "citations": 1
+  },
+  {
+    "id": "agent:linke",
+    "name": "Linke",
+    "citations": 1
+  },
+  {
+    "id": "agent:konstantina-georgelou-et-al",
+    "name": "Konstantina Georgelou et al.",
+    "citations": 1
+  },
+  {
+    "id": "agent:the-museum-of-modern-art",
+    "name": "The Museum of Modern Art",
+    "citations": 1
+  },
+  {
+    "id": "agent:david-gordon",
+    "name": "David Gordon",
+    "citations": 1
+  },
+  {
+    "id": "agent:pablo-garcia",
+    "name": "Pablo Garcia",
+    "citations": 1
+  },
+  {
+    "id": "agent:brazil-acre",
+    "name": "Brazil Acre",
+    "citations": 1
+  },
+  {
+    "id": "agent:butler-athanasiou",
+    "name": "Butler, Athanasiou",
+    "citations": 1
+  },
+  {
+    "id": "agent:lisa-long",
+    "name": "Lisa Long",
+    "citations": 1
+  },
+  {
+    "id": "agent:jokic-natasa",
+    "name": "Nataša Jokić",
+    "citations": 1
+  },
+  {
+    "id": "agent:rebecca-de-marchi",
+    "name": "Rebecca de Marchi",
+    "citations": 1
+  },
+  {
+    "id": "agent:esther-charlesworth",
+    "name": "Esther Charlesworth",
+    "citations": 1
+  },
+  {
+    "id": "agent:pia-vatovec",
+    "name": "Pia Vatovec",
+    "citations": 1
+  },
+  {
+    "id": "agent:nicolas-shilling",
+    "name": "Nicolas Shilling",
+    "citations": 1
+  },
+  {
+    "id": "agent:sevic-ed",
+    "name": "Šević (ed.)",
+    "citations": 1
+  },
+  {
+    "id": "agent:basko-ivakov",
+    "name": "Baško Ivakov",
+    "citations": 1
+  },
+  {
+    "id": "agent:luke",
+    "name": "Luke",
+    "citations": 1
+  },
+  {
+    "id": "agent:daniel-buren",
+    "name": "Daniel Buren",
+    "citations": 1
+  },
+  {
+    "id": "agent:paolo-zanni",
+    "name": "Paolo Zanni",
+    "citations": 1
+  },
+  {
+    "id": "agent:patrice-pavis",
+    "name": "Patrice Pavis",
+    "citations": 1
+  },
+  {
+    "id": "agent:bach",
+    "name": "Bach",
+    "citations": 1
+  },
+  {
+    "id": "agent:alice-marwick",
+    "name": "Alice Marwick",
+    "citations": 1
+  },
+  {
+    "id": "agent:karikacha-seid-ou",
+    "name": "karikacha seid’ou",
+    "citations": 1
+  },
+  {
+    "id": "agent:anica-ann-zagar",
+    "name": "Anica (Ann) Žagar",
+    "citations": 1
+  },
+  {
+    "id": "agent:sentjakobsko-stage",
+    "name": "Šentjakobsko Stage",
+    "citations": 1
+  },
+  {
+    "id": "agent:gledalisce-abaddon",
+    "name": "Gledališče Abaddon",
+    "citations": 1
+  },
+  {
+    "id": "agent:ama-barbara-biney",
+    "name": "Ama Barbara Biney",
+    "citations": 1
+  },
+  {
+    "id": "agent:madonna",
+    "name": "Madonna",
+    "citations": 1
+  },
+  {
+    "id": "agent:helena-jericek-klanscek-maja-zorko-maja-bajt-saska-roskar",
+    "name": "Helena Jeriček Klanšček, Maja Zorko, Maja Bajt, Saška Roškar",
+    "citations": 1
+  },
+  {
+    "id": "agent:jakob-rosolenz",
+    "name": "Jakob Rosolenz",
+    "citations": 1
+  },
+  {
+    "id": "agent:ivana-sidjimovska",
+    "name": "Ivana Sidjimovska",
+    "citations": 1
+  },
+  {
+    "id": "agent:william-rubin",
+    "name": "William Rubin",
+    "citations": 1
+  },
+  {
+    "id": "agent:lena-lekse",
+    "name": "Lena Lekše",
+    "citations": 1
+  },
+  {
+    "id": "agent:hans-ulrich-obrist",
+    "name": "Hans Ulrich Obrist",
+    "citations": 1
+  },
+  {
+    "id": "agent:labib-sahab",
+    "name": "Labib Sahab",
+    "citations": 1
+  },
+  {
+    "id": "agent:paal-zoltan",
+    "name": "Zoltán Paál",
+    "citations": 1
+  },
+  {
+    "id": "agent:david-chioni-moore",
+    "name": "David Chioni Moore",
+    "citations": 1
+  },
+  {
+    "id": "agent:sonja-balent",
+    "name": "Sonja Balent",
+    "citations": 1
+  },
+  {
+    "id": "agent:john-morgan",
+    "name": "John Morgan",
+    "citations": 1
+  },
+  {
+    "id": "agent:radina-vucetic-and-paul-betts",
+    "name": "Radina Vučetić and Paul Betts",
+    "citations": 1
+  },
+  {
+    "id": "agent:nora-tyeklar",
+    "name": "Nora Tyeklar",
+    "citations": 1
+  },
+  {
+    "id": "agent:mesaric",
+    "name": "Mesarić",
+    "citations": 1
+  },
+  {
+    "id": "agent:g-s-jones",
+    "name": "G. S. Jones",
+    "citations": 1
+  },
+  {
+    "id": "agent:jerome-allan-donson",
+    "name": "Jerome Allan Donson",
+    "citations": 1
+  },
+  {
+    "id": "agent:dzevad-hoza",
+    "name": "Dževad Hoza",
+    "citations": 1
+  },
+  {
+    "id": "agent:branislav-dimitrijevic-and-jelena-vesic",
+    "name": "Branislav Dimitrijević and Jelena Vesić",
+    "citations": 1
+  },
+  {
+    "id": "agent:veronica-gago-raquel-gutierrez-aguilar-susana-draper-mariana-menendez-diaz-marin",
+    "name": "Verónica Gago, Raquel Gutiérrez Aguilar, Susana Draper, Mariana Menéndez Díaz, Marina Montanelli, Marie Bardet, Suely Rolnik",
+    "citations": 1
+  },
+  {
+    "id": "agent:iskra-shukarova",
+    "name": "Iskra Shukarova",
+    "citations": 1
+  },
+  {
+    "id": "agent:v-despotov",
+    "name": "V. Despotov",
+    "citations": 1
+  },
+  {
+    "id": "agent:romana-weilguni",
+    "name": "Romana Weilguni",
+    "citations": 1
+  },
+  {
+    "id": "agent:people-dogs",
+    "name": "People Dogs",
+    "citations": 1
+  },
+  {
+    "id": "agent:bojana-videkanic",
+    "name": "Bojana Videkanić",
+    "citations": 1
+  },
+  {
+    "id": "agent:helena-jericek-klanscek-saska-roskar-matej-vinko-ada-hocevar-grom",
+    "name": "Helena Jeriček Klanšček, Saška Roškar, Matej Vinko, Ada Hočevar Grom",
+    "citations": 1
+  },
+  {
+    "id": "agent:yiannis-mylonas-panos-kompatsiaris",
+    "name": "Yiannis Mylonas, Panos Kompatsiaris",
+    "citations": 1
+  },
+  {
+    "id": "agent:vera-balind",
+    "name": "Vera Balind",
+    "citations": 1
+  },
+  {
+    "id": "agent:nicolas-lamas",
+    "name": "Nicolás Lamas",
+    "citations": 1
+  },
+  {
+    "id": "agent:kodwo-eshun",
+    "name": "Kodwo Eshun",
+    "citations": 1
+  },
+  {
+    "id": "agent:los-angeles-berkeley",
+    "name": "Los Angeles Berkeley",
+    "citations": 1
+  },
+  {
+    "id": "agent:potential-history",
+    "name": "Potential History",
+    "citations": 1
+  },
+  {
+    "id": "agent:franz-leopold-schmelzer",
+    "name": "Franz Leopold Schmelzer",
+    "citations": 1
+  },
+  {
+    "id": "agent:marko-jenko",
+    "name": "Marko Jenko",
+    "citations": 1
+  },
+  {
+    "id": "agent:yuske-taninaka",
+    "name": "Yuske Taninaka",
+    "citations": 1
+  },
+  {
+    "id": "agent:money-nature",
+    "name": "Money Nature",
+    "citations": 1
+  },
+  {
+    "id": "agent:philippe-soller",
+    "name": "Philippe Soller",
+    "citations": 1
+  },
+  {
+    "id": "agent:jenko",
+    "name": "Jenko",
+    "citations": 1
+  },
+  {
+    "id": "agent:groener",
+    "name": "Groener",
+    "citations": 1
+  },
+  {
+    "id": "agent:christopher-nolan",
+    "name": "Christopher Nolan",
+    "citations": 1
+  },
+  {
+    "id": "agent:story-r",
+    "name": "Story, R.",
+    "citations": 1
+  },
+  {
+    "id": "agent:aleksa-buha",
+    "name": "Aleksa Buha",
+    "citations": 1
+  },
+  {
+    "id": "agent:ferdinand-von-schirach",
+    "name": "Ferdinand von Schirach",
+    "citations": 1
+  },
+  {
+    "id": "agent:charles-lam-markmann",
+    "name": "Charles Lam Markmann",
+    "citations": 1
+  },
+  {
+    "id": "agent:adrian-paci",
+    "name": "Adrian Paci",
+    "citations": 1
+  },
+  {
+    "id": "agent:barbara-kapelj",
+    "name": "Barbara Kapelj",
+    "citations": 1
+  },
+  {
+    "id": "agent:acconci",
+    "name": "Acconci",
+    "citations": 1
+  },
+  {
+    "id": "agent:alma-soderberg",
+    "name": "Alma Söderberg",
+    "citations": 1
+  },
+  {
+    "id": "agent:frieze-magazine",
+    "name": "Frieze Magazine",
+    "citations": 1
+  },
+  {
+    "id": "agent:athey",
+    "name": "Athey",
+    "citations": 1
+  },
+  {
+    "id": "agent:robert-rauschenberg-foundation",
+    "name": "Robert Rauschenberg Foundation",
+    "citations": 1
+  },
+  {
+    "id": "agent:kerstin-stakemeier-and-susanne-leeb",
+    "name": "Kerstin Stakemeier and Susanne Leeb",
+    "citations": 1
+  },
+  {
+    "id": "agent:crespo-miguel-j",
+    "name": "Miguel J. Crespo",
+    "citations": 1
+  },
+  {
+    "id": "agent:lebaric-vasja",
+    "name": "Vasja Lebarič",
+    "citations": 1
+  },
+  {
+    "id": "agent:mitja-bravhar",
+    "name": "Mitja Bravhar",
+    "citations": 1
+  },
+  {
+    "id": "agent:dominik-mahnic",
+    "name": "Dominik Mahnič",
+    "citations": 1
+  },
+  {
+    "id": "agent:klemen-jelincic-boeta",
+    "name": "Klemen Jelinčič Boeta",
+    "citations": 1
+  },
+  {
+    "id": "agent:initiative-minderheiten",
+    "name": "Initiative Minderheiten",
+    "citations": 1
+  },
+  {
+    "id": "agent:jasen-vasilev",
+    "name": "Jasen Vasilev",
+    "citations": 1
+  },
+  {
+    "id": "agent:ankomah-graham-and-oduro-frimpong",
+    "name": "Ankomah-Graham and Oduro-Frimpong",
+    "citations": 1
+  },
+  {
+    "id": "agent:theodore-korner-louis-spohr",
+    "name": "Theodore Körner, Louis Spohr",
+    "citations": 1
+  },
+  {
+    "id": "agent:sladojevic",
+    "name": "Sladojević",
+    "citations": 1
+  },
+  {
+    "id": "agent:bifo",
+    "name": "Bifo",
+    "citations": 1
+  },
+  {
+    "id": "agent:gorazd-kovacic-ed",
+    "name": "Gorazd Kovačič (ed.)",
+    "citations": 1
+  },
+  {
+    "id": "agent:stephanie-endter",
+    "name": "Stephanie Endter",
+    "citations": 1
+  },
+  {
+    "id": "agent:boulder-lanham",
+    "name": "Boulder Lanham",
+    "citations": 1
+  },
+  {
+    "id": "agent:dietmar-kellermann",
+    "name": "Dietmar Kellermann",
+    "citations": 1
+  },
+  {
+    "id": "agent:fassmann-heinz",
+    "name": "Heinz Fassmann",
+    "citations": 1
+  },
+  {
+    "id": "agent:david-somlo",
+    "name": "David Somló",
+    "citations": 1
+  },
+  {
+    "id": "agent:nusin-arslan",
+    "name": "Nusin Arslan",
+    "citations": 1
+  },
+  {
+    "id": "agent:dragana-alfirevic",
+    "name": "Dragana Alfirević",
+    "citations": 1
+  },
+  {
+    "id": "agent:an-introduction",
+    "name": "An Introduction",
+    "citations": 1
+  },
+  {
+    "id": "agent:hans-ulrich-obrist-enzo-mari",
+    "name": "Hans Ulrich Obrist, Enzo Mari",
+    "citations": 1
+  },
+  {
+    "id": "agent:heinz-fassmann-irene-stacher",
+    "name": "Heinz Fassmann, Irene Stacher",
+    "citations": 1
+  },
+  {
+    "id": "agent:jelena-savic",
+    "name": "Jelena Savić",
+    "citations": 1
+  },
+  {
+    "id": "agent:kezia-ouomoye",
+    "name": "Kezia Ouomoye",
+    "citations": 1
+  },
+  {
+    "id": "agent:allan-sekula",
+    "name": "Allan Sekula",
+    "citations": 1
+  },
+  {
+    "id": "agent:alenka-trebusak",
+    "name": "Alenka Trebušak",
+    "citations": 1
+  },
+  {
+    "id": "agent:drs",
+    "name": "DRS",
+    "citations": 1
+  },
+  {
+    "id": "agent:bakotic-sendi",
+    "name": "Sendi Bakotić",
+    "citations": 1
+  },
+  {
+    "id": "agent:papic",
+    "name": "Papić",
+    "citations": 1
+  },
+  {
+    "id": "agent:nanne-buurman-and-dorothee-richter",
+    "name": "Nanne Buurman and Dorothee Richter",
+    "citations": 1
+  },
+  {
+    "id": "agent:herwig-ebner-gerhard-m-dienes",
+    "name": "Herwig Ebner, Gerhard M. Dienes",
+    "citations": 1
+  },
+  {
+    "id": "agent:heinz-trenczak",
+    "name": "Heinz Trenczak",
+    "citations": 1
+  },
+  {
+    "id": "agent:hartley-linda",
+    "name": "Hartley, Linda",
+    "citations": 1
+  },
+  {
+    "id": "agent:taja-kramberger-and-drago-braco-rotar",
+    "name": "Taja Kramberger and Drago Braco Rotar",
+    "citations": 1
+  },
+  {
+    "id": "agent:zsolt-miklosvolgyi-mario-z-nemes",
+    "name": "Zsolt Miklósvölgyi, Márió Z. Nemes",
+    "citations": 1
+  },
+  {
+    "id": "agent:rudolf-list",
+    "name": "Rudolf List",
+    "citations": 1
+  },
+  {
+    "id": "agent:leopold-schmelzer",
+    "name": "Leopold Schmelzer",
+    "citations": 1
+  },
+  {
+    "id": "agent:p-khalil-saucier-tryon-p-woods",
+    "name": "P. Khalil Saucier, Tryon P. Woods",
+    "citations": 1
+  },
+  {
+    "id": "agent:jasmina-zaloznik",
+    "name": "Jasmina Založnik",
+    "citations": 1
+  },
+  {
+    "id": "agent:samira-kentric",
+    "name": "Samira Kentrić",
+    "citations": 1
+  },
+  {
+    "id": "agent:tijana-todorovic",
+    "name": "Tijana Todorović",
+    "citations": 1
+  },
+  {
+    "id": "agent:danae-theodoridou",
+    "name": "Danae Theodoridou",
+    "citations": 1
+  },
+  {
+    "id": "agent:bulldozer",
+    "name": "Bulldozer",
+    "citations": 1
+  },
+  {
+    "id": "agent:botticelli",
+    "name": "Botticelli",
+    "citations": 1
+  },
+  {
+    "id": "agent:maja-savic",
+    "name": "Maja Savić",
+    "citations": 1
+  },
+  {
+    "id": "agent:zinzi-buchanan",
+    "name": "Zinzi Buchanan",
+    "citations": 1
+  },
+  {
+    "id": "agent:wittgenstein",
+    "name": "Wittgenstein",
+    "citations": 1
+  },
+  {
+    "id": "agent:paul-rabinow",
+    "name": "Paul Rabinow",
+    "citations": 1
+  },
+  {
+    "id": "agent:emanat",
+    "name": "Emanat",
+    "citations": 1
+  },
+  {
+    "id": "agent:objects-orientations",
+    "name": "Objects Orientations",
+    "citations": 1
+  },
+  {
+    "id": "agent:nadja-zgonik",
+    "name": "Nadja Zgonik",
+    "citations": 1
+  },
+  {
+    "id": "agent:ian-gichohi",
+    "name": "Ian Gichohi",
+    "citations": 1
+  },
+  {
+    "id": "agent:kaja-kraner",
+    "name": "Kaja Kraner",
+    "citations": 1
+  },
+  {
+    "id": "agent:steven-casey-and-jonathan-wright",
+    "name": "Steven Casey and Jonathan Wright",
+    "citations": 1
+  },
+  {
+    "id": "agent:janez-kos",
+    "name": "Janez Kos",
+    "citations": 1
+  },
+  {
+    "id": "agent:psychoanalysis-race",
+    "name": "Psychoanalysis Race",
+    "citations": 1
+  },
+  {
+    "id": "agent:martin-odei-ajei",
+    "name": "Martin Odei Ajei",
+    "citations": 1
+  },
+  {
+    "id": "agent:izvrsni-odbor-ss",
+    "name": "Izvršni odbor SŠ",
+    "citations": 1
+  },
+  {
+    "id": "agent:graham-burchell",
+    "name": "Graham Burchell",
+    "citations": 1
+  },
+  {
+    "id": "agent:kay-walkowiak",
+    "name": "Kay Walkowiak",
+    "citations": 1
+  },
+  {
+    "id": "agent:keren-levi",
+    "name": "Keren Levi",
+    "citations": 1
+  },
+  {
+    "id": "agent:bechtle-fabian",
+    "name": "Fabian Bechtle",
+    "citations": 1
+  },
+  {
+    "id": "agent:masa-pelko",
+    "name": "Maša Pelko",
+    "citations": 1
+  },
+  {
+    "id": "agent:milan-pintar",
+    "name": "Milan Pintar",
+    "citations": 1
+  },
+  {
+    "id": "agent:christina-ciupke",
+    "name": "Christina Ciupke",
+    "citations": 1
+  },
+  {
+    "id": "agent:book-ksenija",
+    "name": "Book Ksenija",
+    "citations": 1
+  },
+  {
+    "id": "agent:ksenia-hribar",
+    "name": "Ksenia Hribar",
+    "citations": 1
+  },
+  {
+    "id": "agent:bozidar-zrinski",
+    "name": "Božidar Zrinski",
+    "citations": 1
+  },
+  {
+    "id": "agent:aicha-diallo",
+    "name": "Aïcha Diallo",
+    "citations": 1
+  },
+  {
+    "id": "agent:kenneth-king",
+    "name": "Kenneth King",
+    "citations": 1
+  },
+  {
+    "id": "agent:wilhelm-ii",
+    "name": "wilhelm II.",
+    "citations": 1
+  },
+  {
+    "id": "agent:the-miha-artnak",
+    "name": "The Miha Artnak",
+    "citations": 1
+  },
+  {
+    "id": "agent:mateo-hocurscak",
+    "name": "Mateo Hočuršćak",
+    "citations": 1
+  },
+  {
+    "id": "agent:pavle-vasic",
+    "name": "Pavle Vasić",
+    "citations": 1
+  },
+  {
+    "id": "agent:mein-leben",
+    "name": "Mein Leben",
+    "citations": 1
+  },
+  {
+    "id": "agent:david-kiers",
+    "name": "David Kiers",
+    "citations": 1
+  },
+  {
+    "id": "agent:phillip-brook",
+    "name": "Phillip Brook",
+    "citations": 1
+  },
+  {
+    "id": "agent:ivana-bago",
+    "name": "Ivana Bago",
+    "citations": 1
+  },
+  {
+    "id": "agent:grafenauer-and-tepina",
+    "name": "Grafenauer and Tepina",
+    "citations": 1
+  },
+  {
+    "id": "agent:robert-cohan",
+    "name": "Robert Cohan",
+    "citations": 1
+  },
+  {
+    "id": "agent:seth-price-redistribution",
+    "name": "Seth Price Redistribution",
+    "citations": 1
+  },
+  {
+    "id": "agent:tobias-bartsch-daniel-drognitz-sarah-eschenmoser-et-al",
+    "name": "Tobias Bärtsch, Daniel Drognitz, Sarah Eschenmoser et al.",
+    "citations": 1
+  },
+  {
+    "id": "agent:nathan-ma",
+    "name": "Nathan Ma",
+    "citations": 1
+  },
+  {
+    "id": "agent:carstanjen-helmut",
+    "name": "Helmut Carstanjen",
+    "citations": 1
+  },
+  {
+    "id": "agent:minka-veselic-kolosa",
+    "name": "Minka Veselič Kološa",
+    "citations": 1
+  },
+  {
+    "id": "agent:alexander-dallin-and-george-breslauer",
+    "name": "Alexander Dallin and George Breslauer",
+    "citations": 1
+  },
+  {
+    "id": "agent:inke-arms",
+    "name": "Inke Arms",
+    "citations": 1
+  },
+  {
+    "id": "agent:alleyne-r-steward-s-joyner-s-and-whitehead-s",
+    "name": "Alleyne, R, Steward, S, Joyner, S, and Whitehead, S",
+    "citations": 1
+  },
+  {
+    "id": "agent:nace-bizilj",
+    "name": "Nace Bizilj",
+    "citations": 1
+  },
+  {
+    "id": "agent:selected-writings",
+    "name": "Selected Writings",
+    "citations": 1
+  },
+  {
+    "id": "agent:laderman-ukeles",
+    "name": "Laderman Ukeles",
+    "citations": 1
+  },
+  {
+    "id": "agent:daniel-r-wildcat",
+    "name": "Daniel R. Wildcat",
+    "citations": 1
+  },
+  {
+    "id": "agent:ludo-de-witte",
+    "name": "Ludo De Witte",
+    "citations": 1
+  },
+  {
+    "id": "agent:una-chaudhuri",
+    "name": "Una Chaudhuri",
+    "citations": 1
+  },
+  {
+    "id": "agent:hanspeter-neuhold",
+    "name": "Hanspeter Neuhold",
+    "citations": 1
+  },
+  {
+    "id": "agent:anna-halprin",
+    "name": "Anna Halprin",
+    "citations": 1
+  },
+  {
+    "id": "agent:vine-deloria-jr-daniel-r-wildcat",
+    "name": "Vine Deloria Jr., Daniel R. Wildcat",
+    "citations": 1
+  },
+  {
+    "id": "agent:ilir-krasnic",
+    "name": "Ilir Krasnić",
+    "citations": 1
+  },
+  {
+    "id": "agent:lisa-rosenblatt",
+    "name": "Lisa Rosenblatt",
+    "citations": 1
+  },
+  {
+    "id": "agent:bassin",
+    "name": "Bassin",
+    "citations": 1
+  },
+  {
+    "id": "agent:wagner-schwartz",
+    "name": "Wagner Schwartz",
+    "citations": 1
+  },
+  {
+    "id": "agent:hannes-priesch",
+    "name": "Hannes Priesch",
+    "citations": 1
+  },
+  {
+    "id": "agent:tatiana-kocmur",
+    "name": "Tatiana Kocmur",
+    "citations": 1
+  },
+  {
+    "id": "agent:david-kranzelbinder",
+    "name": "David Kranzelbinder",
+    "citations": 1
+  },
+  {
+    "id": "agent:ursula-k-le-guin",
+    "name": "Ursula K. Le Guin",
+    "citations": 1
+  },
+  {
+    "id": "agent:mateja-kurir",
+    "name": "Mateja Kurir",
+    "citations": 1
+  },
+  {
+    "id": "agent:kalas-b",
+    "name": "Kalaš, B.",
+    "citations": 1
+  },
+  {
+    "id": "agent:george-szirtes",
+    "name": "George Szirtes",
+    "citations": 1
+  },
+  {
+    "id": "agent:dalibor-misina",
+    "name": "Dalibor Mišina",
+    "citations": 1
+  },
+  {
+    "id": "agent:maks-veselko",
+    "name": "Maks Veselko",
+    "citations": 1
+  },
+  {
+    "id": "agent:benedicte-savoy-felicity-bodenstein-merten-lagatz",
+    "name": "Bénédicte Savoy, Felicity Bodenstein, Merten Lagatz",
+    "citations": 1
+  },
+  {
+    "id": "agent:kovacic",
+    "name": "Kovačič",
+    "citations": 1
+  },
+  {
+    "id": "agent:athey-and-dominic-johnson",
+    "name": "Athey and Dominic Johnson",
+    "citations": 1
+  },
+  {
+    "id": "agent:erik-kessel",
+    "name": "Erik Kessel",
+    "citations": 1
+  },
+  {
+    "id": "agent:anna-kreitmayer-and-sonja-pregrad",
+    "name": "Anna Kreitmayer and Sonja Pregrad",
+    "citations": 1
+  },
+  {
+    "id": "agent:barbara-gornik",
+    "name": "Barbara Gornik",
+    "citations": 1
+  },
+  {
+    "id": "agent:glaser",
+    "name": "Glaser",
+    "citations": 1
+  },
+  {
+    "id": "agent:wilhelm-groener",
+    "name": "Wilhelm & Groener",
+    "citations": 1
+  },
+  {
+    "id": "agent:krassimira-dimova",
+    "name": "Krassimira Dimova",
+    "citations": 1
+  },
+  {
+    "id": "agent:camera-austria",
+    "name": "Camera Austria",
+    "citations": 1
+  },
+  {
+    "id": "agent:akif-lina",
+    "name": "Lina Akif",
+    "citations": 1
+  },
+  {
+    "id": "agent:roberto-franceschini",
+    "name": "Roberto Franceschini",
+    "citations": 1
+  },
+  {
+    "id": "agent:alexander-danner-david-kranzelbinder",
+    "name": "Alexander Danner, David Kranzelbinder",
+    "citations": 1
+  },
+  {
+    "id": "agent:amankwah",
+    "name": "Amankwah",
+    "citations": 1
+  },
+  {
+    "id": "agent:rachaminiff",
+    "name": "Rachaminiff",
+    "citations": 1
+  },
+  {
+    "id": "agent:li-biney",
+    "name": "li Biney",
+    "citations": 1
+  },
+  {
+    "id": "agent:tjasa-crnigoj",
+    "name": "Tjaša Črnigoj",
+    "citations": 1
+  },
+  {
+    "id": "agent:jochen-volz",
+    "name": "Jochen Volz",
+    "citations": 1
+  },
+  {
+    "id": "agent:john-hoare",
+    "name": "John Hoare",
+    "citations": 1
+  },
+  {
+    "id": "agent:petja-grafenauer-and-dasa-tepina",
+    "name": "Petja Grafenauer and Daša Tepina",
+    "citations": 1
+  },
+  {
+    "id": "agent:zorica-milisavljevic",
+    "name": "Zorica Milisavljević",
+    "citations": 1
+  },
+  {
+    "id": "agent:nicole-beutler",
+    "name": "Nicole Beutler",
+    "citations": 1
+  },
+  {
+    "id": "agent:gwendolyn-brooks",
+    "name": "Gwendolyn Brooks",
+    "citations": 1
+  },
+  {
+    "id": "agent:giovanni-morbin",
+    "name": "Giovanni Morbin",
+    "citations": 1
+  },
+  {
+    "id": "agent:iztok-g-plamen-marko-pogacnik",
+    "name": "Iztok G. Plamen, Marko Pogačnik",
+    "citations": 1
+  },
+  {
+    "id": "agent:duchamps",
+    "name": "Duchamps",
+    "citations": 1
+  },
+  {
+    "id": "agent:motherhood-and-art-work",
+    "name": "Motherhood and Art Work",
+    "citations": 1
+  },
+  {
+    "id": "agent:knez-jasna",
+    "name": "Jasna Knez",
+    "citations": 1
+  },
+  {
+    "id": "agent:forum-stadtpark",
+    "name": "Forum Stadtpark",
+    "citations": 1
+  },
+  {
+    "id": "agent:h-becker",
+    "name": "H. Becker",
+    "citations": 1
+  },
+  {
+    "id": "agent:rosemary-candelario",
+    "name": "Rosemary Candelario",
+    "citations": 1
+  },
+  {
+    "id": "agent:gottfried-ritter-von-leitner",
+    "name": "Gottfried Ritter von Leitner",
+    "citations": 1
+  },
+  {
+    "id": "agent:elina-pirinen",
+    "name": "Elina Pirinen",
+    "citations": 1
+  },
+  {
+    "id": "agent:marta-popivoda",
+    "name": "Marta Popivoda",
+    "citations": 1
+  },
+  {
+    "id": "agent:andre-siegfried",
+    "name": "André Siegfried",
+    "citations": 1
+  },
+  {
+    "id": "agent:lovsin",
+    "name": "Lovšin",
+    "citations": 1
+  },
+  {
+    "id": "agent:alenka-gregoric",
+    "name": "Alenka Gregorič",
+    "citations": 1
+  },
+  {
+    "id": "agent:luce-irigaray-and-michael-marder",
+    "name": "Luce Irigaray and Michael Marder",
+    "citations": 1
+  },
+  {
+    "id": "agent:jozef-glaser",
+    "name": "Jožef Glaser",
+    "citations": 1
+  },
+  {
+    "id": "agent:maga-magazinovic",
+    "name": "Maga Magazinović",
+    "citations": 1
+  },
+  {
+    "id": "agent:belgrade-politika",
+    "name": "Belgrade Politika",
+    "citations": 1
+  },
+  {
+    "id": "agent:pepel-in-kri",
+    "name": "Pepel in kri",
+    "citations": 1
+  },
+  {
+    "id": "agent:rudi-seligo",
+    "name": "Rudi Šeligo",
+    "citations": 1
+  },
+  {
+    "id": "agent:inke-arns",
+    "name": "Inke Arns",
+    "citations": 1
+  },
+  {
+    "id": "agent:born-in-slovenj-gradec",
+    "name": "Born in Slovenj Gradec",
+    "citations": 1
+  },
+  {
+    "id": "agent:meta-grgurevic",
+    "name": "Meta Grgurevič",
+    "citations": 1
+  },
+  {
+    "id": "agent:anton-kadunc",
+    "name": "Anton Kadunc",
+    "citations": 1
+  },
+  {
+    "id": "agent:franz-joseph",
+    "name": "Franz Joseph",
+    "citations": 1
+  },
+  {
+    "id": "agent:tone-stojko",
+    "name": "Tone Stojko",
+    "citations": 1
+  },
+  {
+    "id": "agent:g-m-tamas",
+    "name": "G. M. Tamás",
+    "citations": 1
+  },
+  {
+    "id": "agent:anna-lowenhaupt-tsing-et-al",
+    "name": "Anna Lowenhaupt Tsing et al.",
+    "citations": 1
+  },
+  {
+    "id": "agent:gyorgyi-imre",
+    "name": "Györgyi Imre",
+    "citations": 1
+  },
+  {
+    "id": "agent:foster-h",
+    "name": "Foster, H.",
+    "citations": 1
+  },
+  {
+    "id": "agent:marjan-ciglic",
+    "name": "Marjan Ciglič",
+    "citations": 1
+  },
+  {
+    "id": "agent:james-batchelor",
+    "name": "James Batchelor",
+    "citations": 1
+  },
+  {
+    "id": "agent:jorge-ribalta",
+    "name": "Jorge Ribalta",
+    "citations": 1
+  },
+  {
+    "id": "agent:cukic-manojlovic-and-slavkovic",
+    "name": "Cukić, Manojlović, and Slavković",
+    "citations": 1
+  },
+  {
+    "id": "agent:arjan-pregl",
+    "name": "Arjan Pregl",
+    "citations": 1
+  },
+  {
+    "id": "agent:patricia-c-phillips",
+    "name": "Patricia C. Phillips",
+    "citations": 1
+  },
+  {
+    "id": "agent:marta-keil-joanna-lesnierowska",
+    "name": "Marta Keil, Joanna Leśnierowska",
+    "citations": 1
+  },
+  {
+    "id": "agent:william-forsythe",
+    "name": "William Forsythe",
+    "citations": 1
+  },
+  {
+    "id": "agent:jaka-gasar",
+    "name": "Jaka Gasar",
+    "citations": 1
+  },
+  {
+    "id": "agent:dijana-matkovic",
+    "name": "Dijana Matković",
+    "citations": 1
+  },
+  {
+    "id": "agent:gerald-raunig",
+    "name": "Gerald Raunig",
+    "citations": 1
+  },
+  {
+    "id": "agent:komorowski",
+    "name": "Komorowski",
+    "citations": 1
+  },
+  {
+    "id": "agent:hillis-k-paasonen-s-petit-m",
+    "name": "Hillis, K., Paasonen, S., Petit, M.",
+    "citations": 1
+  },
+  {
+    "id": "agent:rosa-barba",
+    "name": "Rosa Barba",
+    "citations": 1
+  },
+  {
+    "id": "agent:jacques-epissette",
+    "name": "Jacques Epissette",
+    "citations": 1
+  },
+  {
+    "id": "agent:ronald-kolb-shwetal-patel-dorothee-richter",
+    "name": "Ronald Kolb, Shwetal Patel, Dorothee Richter",
+    "citations": 1
+  },
+  {
+    "id": "agent:lumiere-brothers",
+    "name": "Lumière brothers",
+    "citations": 1
+  },
+  {
+    "id": "agent:jihan-el-tahri",
+    "name": "Jihan El Tahri",
+    "citations": 1
+  },
+  {
+    "id": "agent:birte-kleine-benne",
+    "name": "Birte Kleine-Benne",
+    "citations": 1
+  },
+  {
+    "id": "agent:gerhard-weilguni",
+    "name": "Gerhard Weilguni",
+    "citations": 1
+  },
+  {
+    "id": "agent:simon-critchely",
+    "name": "Simon Critchely",
+    "citations": 1
+  },
+  {
+    "id": "agent:karin-almasy-and-eva-tropper",
+    "name": "Karin Almasy and Eva Tropper",
+    "citations": 1
+  },
+  {
+    "id": "agent:wis-awa-szymborska",
+    "name": "Wisława Szymborska",
+    "citations": 1
+  },
+  {
+    "id": "agent:alston-richard",
+    "name": "Richard Alston",
+    "citations": 1
+  },
+  {
+    "id": "agent:ellen-kitonga",
+    "name": "Ellen Kitonga",
+    "citations": 1
+  },
+  {
+    "id": "agent:jaka-smerkolj",
+    "name": "Jaka Smerkolj",
+    "citations": 1
+  },
+  {
+    "id": "agent:patricija-malicev",
+    "name": "Patricija Maličev",
+    "citations": 1
+  },
+  {
+    "id": "agent:q-bajac",
+    "name": "Q. Bajac",
+    "citations": 1
+  },
+  {
+    "id": "agent:marek-cepak-maki",
+    "name": "Marek Čepak Maki",
+    "citations": 1
+  },
+  {
+    "id": "agent:christian-stenner",
+    "name": "Christian Stenner",
+    "citations": 1
+  },
+  {
+    "id": "agent:manfred-b-steger",
+    "name": "Manfred B. Steger",
+    "citations": 1
+  },
+  {
+    "id": "agent:ognjenka-milicevic",
+    "name": "Ognjenka Miličević",
+    "citations": 1
+  },
+  {
+    "id": "agent:alla-kovgan",
+    "name": "Alla Kovgan",
+    "citations": 1
+  },
+  {
+    "id": "agent:iztok-tory",
+    "name": "Iztok Tory",
+    "citations": 1
+  },
+  {
+    "id": "agent:mara-anjoli-vujic",
+    "name": "Mara Anjoli Vujić",
+    "citations": 1
+  },
+  {
+    "id": "agent:roni-chadash",
+    "name": "Roni Chadash",
+    "citations": 1
+  },
+  {
+    "id": "agent:nikola-vizner-jadranka-vinterhalter-jasna-tijardovic-slavko-timotijevic",
+    "name": "Nikola Vizner, Jadranka Vinterhalter, Jasna Tijardović, Slavko Timotijević",
+    "citations": 1
+  },
+  {
+    "id": "agent:environment-science",
+    "name": "Environment Science",
+    "citations": 1
+  },
+  {
+    "id": "agent:nada-kokotovic",
+    "name": "Nada Kokotović",
+    "citations": 1
+  },
+  {
+    "id": "agent:piskur",
+    "name": "Piškur",
+    "citations": 1
+  },
+  {
+    "id": "agent:andrej-mircev",
+    "name": "Andrej Mirčev",
+    "citations": 1
+  },
+  {
+    "id": "agent:joan-pinkham",
+    "name": "Joan Pinkham",
+    "citations": 1
+  },
+  {
+    "id": "agent:stubbs",
+    "name": "Stubbs",
+    "citations": 1
+  },
+  {
+    "id": "agent:badovinac",
+    "name": "Badovinac",
+    "citations": 1
+  },
+  {
+    "id": "agent:jenny-beyer",
+    "name": "Jenny Beyer",
+    "citations": 1
+  },
+  {
+    "id": "agent:niklaus",
+    "name": "Niklaus",
+    "citations": 1
+  },
+  {
+    "id": "agent:gurshtein-k",
+    "name": "Gurshtein, K.",
+    "citations": 1
+  },
+  {
+    "id": "agent:for-tomas-garrigue-masaryk",
+    "name": "For Tomáš Garrigue Masaryk",
+    "citations": 1
+  },
+  {
+    "id": "agent:darren-aronofsky",
+    "name": "Darren Aronofsky",
+    "citations": 1
+  },
+  {
+    "id": "agent:janez-erjavec",
+    "name": "Janez Erjavec",
+    "citations": 1
+  },
+  {
+    "id": "agent:february-group",
+    "name": "February Group",
+    "citations": 1
+  },
+  {
+    "id": "agent:j-m-w-turner",
+    "name": "J.M.W. Turner",
+    "citations": 1
+  },
+  {
+    "id": "agent:knez",
+    "name": "Knez",
+    "citations": 1
+  },
+  {
+    "id": "agent:greber-ruedi",
+    "name": "Ruedi Greber",
+    "citations": 1
+  },
+  {
+    "id": "agent:astrida-neimanis-et-al",
+    "name": "Astrida Neimanis et al.",
+    "citations": 1
+  },
+  {
+    "id": "agent:nina-bozic-yams-dejan-srhoj",
+    "name": "Nina Božič Yams & Dejan Srhoj",
+    "citations": 1
+  },
+  {
+    "id": "agent:pierre-rouve",
+    "name": "Pierre Rouve",
+    "citations": 1
+  },
+  {
+    "id": "agent:pagnoux",
+    "name": "Pagnoux",
+    "citations": 1
+  },
+  {
+    "id": "agent:kozler",
+    "name": "Kozler",
+    "citations": 1
+  },
+  {
+    "id": "agent:danilo-kis",
+    "name": "Danilo Kiš",
+    "citations": 1
+  },
+  {
+    "id": "agent:embodiment-notation",
+    "name": "Embodiment Notation",
+    "citations": 1
+  },
+  {
+    "id": "agent:jefta-van-dienther",
+    "name": "Jefta van Dienther",
+    "citations": 1
+  },
+  {
+    "id": "agent:klemen-kovacic",
+    "name": "Klemen Kovačič",
+    "citations": 1
+  },
+  {
+    "id": "agent:dorota-ko-odziejczyk-and-cristina-sandru",
+    "name": "Dorota Kołodziejczyk and Cristina Şandru",
+    "citations": 1
+  },
+  {
+    "id": "agent:christian-promitzer-michael-petrowitsch",
+    "name": "Christian Promitzer/Michael Petrowitsch",
+    "citations": 1
+  },
+  {
+    "id": "agent:simona-deaconescu-and-grigore-burloiu",
+    "name": "Simona Deaconescu and Grigore Burloiu",
+    "citations": 1
+  },
+  {
+    "id": "agent:slavery-terror",
+    "name": "Slavery Terror",
+    "citations": 1
+  },
+  {
+    "id": "agent:bojana-piskur-and-teja-merhar",
+    "name": "Bojana Piškur and Teja Merhar",
+    "citations": 1
+  },
+  {
+    "id": "agent:davison-patrick",
+    "name": "Patrick Davison",
+    "citations": 1
+  },
+  {
+    "id": "agent:mai-abu-eldahab",
+    "name": "Mai Abu ElDahab",
+    "citations": 1
+  },
+  {
+    "id": "agent:patrick-nii-okantah-ankrah",
+    "name": "Patrick Nii Okantah Ankrah",
+    "citations": 1
+  },
+  {
+    "id": "agent:deborah-wye",
+    "name": "Deborah Wye",
+    "citations": 1
+  },
+  {
+    "id": "agent:wilderson-iii",
+    "name": "Wilderson III",
+    "citations": 1
+  },
+  {
+    "id": "agent:ioanna-paraskevopoulou",
+    "name": "Ioanna Paraskevopoulou",
+    "citations": 1
+  },
+  {
+    "id": "agent:dragicevic",
+    "name": "Dragičević",
+    "citations": 1
+  },
+  {
+    "id": "agent:marta-vukotic-and-slobodanka-ilic",
+    "name": "Marta Vukotić and Slobodanka Ilić",
+    "citations": 1
+  },
+  {
+    "id": "agent:chekov",
+    "name": "Chekov",
+    "citations": 1
+  },
+  {
+    "id": "agent:roberta-milevoj",
+    "name": "Roberta Milevoj",
+    "citations": 1
+  },
+  {
+    "id": "agent:braco-rotar",
+    "name": "Braco Rotar",
+    "citations": 1
+  },
+  {
+    "id": "agent:jack-thompson-george-hawley",
+    "name": "Jack Thompson, George Hawley",
+    "citations": 1
+  },
+  {
+    "id": "agent:suzana-koncut",
+    "name": "Suzana Koncut",
+    "citations": 1
+  },
+  {
+    "id": "agent:miroslav-rankov",
+    "name": "Miroslav Rankov",
+    "citations": 1
+  },
+  {
+    "id": "agent:sunnie-t-rucker-chang",
+    "name": "Sunnie T. Rucker-Chang",
+    "citations": 1
+  },
+  {
+    "id": "agent:smiljana-mandukic",
+    "name": "Smiljana Mandukić",
+    "citations": 1
+  },
+  {
+    "id": "agent:lee-friedlander",
+    "name": "Lee Friedlander",
+    "citations": 1
+  },
+  {
+    "id": "agent:valentin-alfery",
+    "name": "Valentin Alfery",
+    "citations": 1
+  },
+  {
+    "id": "agent:urska-barut",
+    "name": "Urška Barut",
+    "citations": 1
+  },
+  {
+    "id": "agent:fabrizio-manco",
+    "name": "Fabrizio Manco",
+    "citations": 1
+  },
+  {
+    "id": "agent:anja-moric",
+    "name": "Anja Moric",
+    "citations": 1
+  },
+  {
+    "id": "agent:vladimir-rodozianko",
+    "name": "Vladimir Rodozianko",
+    "citations": 1
+  },
+  {
+    "id": "agent:el-hassan-roza",
+    "name": "Roza El-Hassan",
+    "citations": 1
+  },
+  {
+    "id": "agent:primoz-simoniti",
+    "name": "Primož Simoniti",
+    "citations": 1
+  },
+  {
+    "id": "agent:konstantina-georgelou-efrosini-protopapa-danae-theodoridou",
+    "name": "Konstantina Georgelou, Efrosini Protopapa, Danae Theodoridou",
+    "citations": 1
+  },
+  {
+    "id": "agent:chico",
+    "name": "Chico",
+    "citations": 1
+  },
+  {
+    "id": "agent:badco",
+    "name": "BADco.",
+    "citations": 1
+  },
+  {
+    "id": "agent:stefan-lozar",
+    "name": "Stefan Lozar",
+    "citations": 1
+  },
+  {
+    "id": "agent:wiktor-komorowski",
+    "name": "Wiktor Komorowski",
+    "citations": 1
+  },
+  {
+    "id": "agent:deloria-jr-wildcat",
+    "name": "Deloria Jr, Wildcat",
+    "citations": 1
+  },
+  {
+    "id": "agent:vojislav-despotov",
+    "name": "Vojislav Despotov",
+    "citations": 1
+  },
+  {
+    "id": "agent:brouwer-joke",
+    "name": "Joke Brouwer",
+    "citations": 1
+  },
+  {
+    "id": "agent:southern-constellations-piskur",
+    "name": "Southern Constellations Piškur",
+    "citations": 1
+  },
+  {
+    "id": "agent:human-rights-nationalism",
+    "name": "Human Rights Nationalism",
+    "citations": 1
+  },
+  {
+    "id": "agent:todosijevic",
+    "name": "Todosijević",
+    "citations": 1
+  },
+  {
+    "id": "agent:jackson-a-anna-m-f",
+    "name": "Jackson, A. (Anna M. F.)",
+    "citations": 1
+  },
+  {
+    "id": "agent:or-e-balmazovic",
+    "name": "Đorđe Balmazović",
+    "citations": 1
+  },
+  {
+    "id": "agent:inbal-fischer",
+    "name": "Inbal Fischer",
+    "citations": 1
+  },
+  {
+    "id": "agent:reproduction-race",
+    "name": "Reproduction Race",
+    "citations": 1
+  },
+  {
+    "id": "agent:nika-svab",
+    "name": "Nika Švab",
+    "citations": 1
+  },
+  {
+    "id": "agent:kosta-nikolic-sr-an-cvetkovic-and-oko-tripkovic",
+    "name": "Kosta Nikolić, Srđan Cvetković, and Đoko Tripković",
+    "citations": 1
+  },
+  {
+    "id": "agent:peter-wohlleben",
+    "name": "Peter Wohlleben",
+    "citations": 1
+  },
+  {
+    "id": "agent:lidija-merenik",
+    "name": "Lidija Merenik",
+    "citations": 1
+  },
+  {
+    "id": "agent:igor-sviderski",
+    "name": "Igor Sviderski",
+    "citations": 1
+  },
+  {
+    "id": "agent:ivanka-gruber",
+    "name": "Ivanka Gruber",
+    "citations": 1
+  },
+  {
+    "id": "agent:armen-avanessian-and-suhail-malik",
+    "name": "Armen Avanessian and Suhail Malik",
+    "citations": 1
+  },
+  {
+    "id": "agent:van-abbemuseum",
+    "name": "Van Abbemuseum",
+    "citations": 1
+  },
+  {
+    "id": "agent:k-l",
+    "name": "K.L.",
+    "citations": 1
+  },
+  {
+    "id": "agent:breton-a",
+    "name": "Breton, A.",
+    "citations": 1
+  },
+  {
+    "id": "agent:hafner",
+    "name": "Hafner",
+    "citations": 1
+  },
+  {
+    "id": "agent:performing-art",
+    "name": "Performing Art",
+    "citations": 1
+  },
+  {
+    "id": "agent:gilbert-again-presents",
+    "name": "Gilbert Again Presents",
+    "citations": 1
+  },
+  {
+    "id": "agent:ivo-dimchev",
+    "name": "Ivo Dimchev",
+    "citations": 1
+  },
+  {
+    "id": "agent:michelle-murphy",
+    "name": "Michelle Murphy",
+    "citations": 1
+  },
+  {
+    "id": "agent:ritter-verlag",
+    "name": "Ritter Verlag",
+    "citations": 1
+  },
+  {
+    "id": "agent:ama-ata-aidoo",
+    "name": "Ama Ata Aidoo",
+    "citations": 1
+  },
+  {
+    "id": "agent:san-francisco-examiner",
+    "name": "San Francisco Examiner",
+    "citations": 1
+  },
+  {
+    "id": "agent:alexa-wild",
+    "name": "Alexa Wild",
+    "citations": 1
+  },
+  {
+    "id": "agent:natalija-vojimirovic",
+    "name": "Natalija Vojimirović",
+    "citations": 1
+  },
+  {
+    "id": "agent:sonja-dular",
+    "name": "Sonja Dular",
+    "citations": 1
+  },
+  {
+    "id": "agent:darijan-bozic",
+    "name": "Darijan Božič",
+    "citations": 1
+  },
+  {
+    "id": "agent:vuk-cosic",
+    "name": "Vuk Ćosić",
+    "citations": 1
+  },
+  {
+    "id": "agent:ales-pulko",
+    "name": "Aleš Pulko",
+    "citations": 1
+  },
+  {
+    "id": "agent:jenny-mbaye-and-miranda-jeasnne-maries-iossifidis",
+    "name": "Jenny Mbaye and Miranda Jeasnne Maries Iossifidis",
+    "citations": 1
+  },
+  {
+    "id": "agent:hybrid-family",
+    "name": "Hybrid Family",
+    "citations": 1
+  },
+  {
+    "id": "agent:kathrin-rhomberg",
+    "name": "Kathrin Rhomberg",
+    "citations": 1
+  },
+  {
+    "id": "agent:adam-curtis",
+    "name": "Adam Curtis",
+    "citations": 1
+  },
+  {
+    "id": "agent:n-shilling",
+    "name": "N. Shilling",
+    "citations": 1
+  },
+  {
+    "id": "agent:lokomotivan-den-heuvel-nathanja",
+    "name": "Lokomotivan den Heuvel, Nathanja",
+    "citations": 1
+  },
+  {
+    "id": "agent:andrea-weilguni",
+    "name": "Andrea Weilguni",
+    "citations": 1
+  },
+  {
+    "id": "agent:gardner-and-green",
+    "name": "Gardner and Green",
+    "citations": 1
+  },
+  {
+    "id": "agent:jelena-vesic",
+    "name": "Jelena Vesić",
+    "citations": 1
+  },
+  {
+    "id": "agent:obrist",
+    "name": "Obrist",
+    "citations": 1
+  },
+  {
+    "id": "agent:rina-gosalci",
+    "name": "Rina Gosalci",
+    "citations": 1
+  },
+  {
+    "id": "agent:robertina-sebjanic",
+    "name": "Robertina Šebjanič",
+    "citations": 1
+  },
+  {
+    "id": "agent:urska-jurman",
+    "name": "Urška Jurman",
+    "citations": 1
+  },
+  {
+    "id": "agent:historische-migrationsmuster",
+    "name": "Historische Migrationsmuster",
+    "citations": 1
+  },
+  {
+    "id": "agent:eric-otieno",
+    "name": "Eric Otieno",
+    "citations": 1
+  },
+  {
+    "id": "agent:ann-cooper-albright-and-david-gere",
+    "name": "Ann Cooper Albright and David Gere",
+    "citations": 1
+  },
+  {
+    "id": "agent:warhol",
+    "name": "Warhol",
+    "citations": 1
+  },
+  {
+    "id": "agent:tanja-velagic",
+    "name": "Tanja Velagić",
+    "citations": 1
+  },
+  {
+    "id": "agent:posse-m",
+    "name": "Posse, M.",
+    "citations": 1
+  },
+  {
+    "id": "agent:statistical-office-of-the-republic-of-slovenia",
+    "name": "Statistical Office of the Republic of Slovenia",
+    "citations": 1
+  },
+  {
+    "id": "agent:zora-stancic",
+    "name": "Zora Stančič",
+    "citations": 1
+  },
+  {
+    "id": "agent:patrice-maniglier",
+    "name": "Patrice Maniglier",
+    "citations": 1
+  },
+  {
+    "id": "agent:anna-therese-de-kersmaeker",
+    "name": "Anna Therese de Kersmaeker",
+    "citations": 1
+  },
+  {
+    "id": "agent:de-veaux",
+    "name": "De Veaux",
+    "citations": 1
+  },
+  {
+    "id": "agent:simon-o-sullivan",
+    "name": "Simon O'Sullivan",
+    "citations": 1
+  },
+  {
+    "id": "agent:russell-hochschild",
+    "name": "Russell Hochschild",
+    "citations": 1
+  },
+  {
+    "id": "agent:wolfgang-muller",
+    "name": "Wolfgang Müller",
+    "citations": 1
+  },
+  {
+    "id": "agent:eszter-szakacs",
+    "name": "Eszter Szakács",
+    "citations": 1
+  },
+  {
+    "id": "agent:marie-rambert",
+    "name": "Marie Rambert",
+    "citations": 1
+  },
+  {
+    "id": "agent:arts-decoloniser-les",
+    "name": "Décoloniser les arts",
+    "citations": 1
+  },
+  {
+    "id": "agent:ana-vujanovic-bojana-cvejic",
+    "name": "Ana Vujanović, Bojana Cvejić",
+    "citations": 1
+  },
+  {
+    "id": "agent:hester",
+    "name": "Hester",
+    "citations": 1
+  },
+  {
+    "id": "agent:bunuel-luis",
+    "name": "Luis Buñuel",
+    "citations": 1
+  },
+  {
+    "id": "agent:richard-walsh",
+    "name": "Richard Walsh",
+    "citations": 1
+  },
+  {
+    "id": "agent:dusan-bjelic",
+    "name": "Dušan Bjelić",
+    "citations": 1
+  },
+  {
+    "id": "agent:andrea-weilguni-labib-sahab-romana-weilguni",
+    "name": "Andrea Weilguni, Labib Sahab, Romana Weilguni",
+    "citations": 1
+  },
+  {
+    "id": "agent:jelka-zorn",
+    "name": "Jelka Zorn",
+    "citations": 1
+  },
+  {
+    "id": "agent:paul-rabinow-ed",
+    "name": "Paul Rabinow (ed.)",
+    "citations": 1
+  }
+]
