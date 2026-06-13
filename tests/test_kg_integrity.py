@@ -175,28 +175,21 @@ class TestKGIntegrity(unittest.TestCase):
         self.assertAlmostEqual(fwd_conf, 0.85)
 
     # ------------------------------------------------------------------
-    # 4. promote_pair survives save / reload
+    # 4. promote_pair is a safe no-op (NLP extraction removed)
     # ------------------------------------------------------------------
 
     def test_promote_pair_roundtrip(self):
-        """A manually promoted pair is intact after save→load."""
+        """promote_pair returns the empty-delta shape and leaves the KG
+        unchanged — NLP term extraction was removed; concepts come from
+        the Ollama smol pipeline, terms from glossary entries."""
         kg = _fresh_kg(self.db_path)
-
-        kg.promote_pair("test", "testna", "en", "sl")
+        delta = kg.promote_pair("test", "testna", "en", "sl")
+        self.assertEqual(delta, {"src_terms": [], "tgt_terms": [], "verified": [], "created": []})
         kg.save()
-
         kg2 = _fresh_kg(self.db_path)
-
-        en_id = "term:en:test"
-        sl_id = "term:sl:testna"
-
-        self.assertTrue(kg2.G.has_node(en_id))
-        self.assertTrue(kg2.G.has_node(sl_id))
-        self.assertTrue(kg2.G.has_edge(en_id, sl_id))
-
-        edge = kg2.G.edges[en_id, sl_id]
-        self.assertTrue(edge.get("verified"), "promoted pair should be verified")
-        self.assertEqual(edge.get("provenance"), "manual")
+        # No term or concept nodes created by promote_pair.
+        term_nodes = [n for n in kg2.G.nodes if str(n).startswith("term:")]
+        self.assertEqual(term_nodes, [])
 
     # ------------------------------------------------------------------
     # 5. display_form and variants are preserved
