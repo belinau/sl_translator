@@ -16,9 +16,10 @@ import argparse
 import json
 import math
 import pathlib
+import re
 import sys
 from collections import Counter, defaultdict
-from typing import Dict, List, Tuple
+from typing import Dict, List, Set, Tuple
 
 log = logging.getLogger(__name__)
 
@@ -696,64 +697,73 @@ for e in v4_edges_pruned:
 log.info(f"  Result View 4: {len(d3_nodes_v4)} nodes, {len(d3_edges_v4)} edges.")
 # ===========================================================================
 # VIEW 5 PROCESSING: Lineage → Concepts (focused provenance)
-# ===========================================================================
-log.info("Processing View 5: Lineage \u2192 Concepts...")
-# Default / placeholder lineages excluded from this focused view.
-# Per ontology §2.3, translation_mapping nodes carry the `lineage` field —
-# that is the SOLE source of lineage information in the KG. There are NO
-# lineage node types and NO agent_in_lineage edges. Lineage hubs are
-# synthesized at view-time only.
-DEFAULT_LINEAGES = {"performance", "general", "manual", ""}
-# Aggregate: which concepts associate with which non-default lineages?
-# Walk mapping nodes; for each: src/tgt term → concept → lineage_vote
-concept_lineage_votes: Dict[str, Counter] = defaultdict(Counter)
-lineage_mapping_counts: Counter = Counter()
-for m_id, m_node in mapping_nodes.items():
-    lin = (m_node.get("lineage") or "").strip()
-    if lin in DEFAULT_LINEAGES:
-        continue
-    src_term = mapping_sources.get(m_id)
-    tgt_term = mapping_targets.get(m_id)
-    for term_id in (src_term, tgt_term):
-        if not term_id:
-            continue
-        cid = term_to_concept.get(term_id)
-        if cid:
-            concept_lineage_votes[cid][lin] += 1
-    lineage_mapping_counts[lin] += 1
-# Build node sets
-v5_concept_ids = set(concept_lineage_votes.keys())
-v5_lineage_names = set(lineage_mapping_counts.keys())
+log.info("Processing View 5: Lineage → Concepts...")
+# V5 shows ALL vetted concepts (those with attributed_to edges) grouped
+# by their theorist's school/tradition. Source: DBpedia schools + lineage
+# roster. Concepts without a school are excluded (no hub to attach to).
+RHIZOMATIC_V5 = {"extends", "critiques", "redefines", "reappropriates", "related_to"}
+
+# concept → agents (attributed_to)
+v5_concept_agents: Dict[str, Set[str]] = defaultdict(set)
+for e in ALL_EDGES:
+    if e.get("relation") == "attributed_to" and e["source"].startswith("concept:"):
+        v5_concept_agents[e["source"]].add(e["target"])
+
+# agent → school (from DBpedia matches + roster)
+v5_agent_school: Dict[str, str] = {}
+dbpedia_matches_path = kg_path.parent / "dbpedia_all_matches.json"
+if dbpedia_matches_path.exists():
+    import json as _json
+    _dbm = _json.loads(dbpedia_matches_path.read_text("utf-8"))
+    for _aid, _data in _dbm.items():
+        _schools = _data.get("schools", [])
+        if _schools:
+            v5_agent_school[_aid] = _schools[0]
+roster_path = kg_path.parent / "lineage_schools.json"
+if roster_path.exists():
+    import unicodedata as _ud
+    _roster = _json.loads(roster_path.read_text("utf-8"))
+    for _name, _school in _roster.items():
+        _slug = re.sub(r"[^a-z0-9]+", "-",
+                       "".join(c for c in _ud.normalize("NFKD", _name.lower())
+                               if not _ud.combining(c))).strip("-")
+        if _slug:
+            _aid = f"agent:{_slug}"
+            if _aid not in v5_agent_school:
+                v5_agent_school[_aid] = _school
+
+# concept → school (via agent → school)
+v5_concept_school: Dict[str, str] = {}
+for cid, agents in v5_concept_agents.items():
+    for aid in agents:
+        if aid in v5_agent_school:
+            v5_concept_school[cid] = v5_agent_school[aid]
+            break
+
+v5_concept_ids = set(v5_concept_school.keys())
 concept_nodes_v5 = {n["id"]: n for n in ALL_NODES
                     if n.get("type") == "concept" and n["id"] in v5_concept_ids}
-# Synthesize lineage hub nodes at VIEW TIME (visualization-only, NOT persisted)
+
+# Synthesize lineage hubs from schools
+v5_school_counts: Counter = Counter(v5_concept_school.values())
 lineage_hub_nodes_v5 = {}
-for lin, mc in lineage_mapping_counts.items():
-    hub_id = f"lineage:{lin}"
+for school, count in v5_school_counts.items():
+    hub_id = f"lineage:{school}"
     lineage_hub_nodes_v5[hub_id] = {
-        "id": hub_id,
-        "label": lin,
-        "type": "lineage",
-        "lineage": lin,
-        "mapping_count": mc,
+        "id": hub_id, "label": school, "type": "lineage",
+        "lineage": school, "mapping_count": count,
     }
-# Each concept attaches to its DOMINANT lineage only (tree structure → readable).
+
+# concept → hub edges (dominant school)
 v5_edges_raw = []
-for cid, votes in concept_lineage_votes.items():
-    if not votes:
-        continue
-    lin, weight = votes.most_common(1)[0]
+for cid, school in v5_concept_school.items():
     v5_edges_raw.append({
-        "source": cid,
-        "target": f"lineage:{lin}",
-        "relation": "in_lineage",
-        "lineage": lin,
-        "weight": weight,
-        "confidence": 1.0,
-        "verified": False,
+        "source": cid, "target": f"lineage:{school}",
+        "relation": "in_lineage", "lineage": school,
+        "weight": 1, "confidence": 1.0, "verified": False,
     })
-# Add rhizomatic concept→concept edges between in-view concepts
-RHIZOMATIC_V5 = {"extends", "critiques", "redefines", "reappropriates", "related_to"}
+
+# Rhizomatic concept→concept edges between in-view concepts
 for e in ALL_EDGES:
     if e.get("relation") in RHIZOMATIC_V5:
         s, t = e["source"], e["target"]
@@ -816,12 +826,15 @@ log.info(f"  Result View 5: {len(d3_nodes_v5)} nodes ({len(lineage_hub_nodes_v5)
 log.info("Processing View 6: Lineage \u2192 Works + Agents...")
 # Aggregate source_text→lineage and agent→lineage from translation_mapping
 # bridges per ontology §3.3. Lineage hubs are synthesized at view-time only.
+DEFAULT_LINEAGES = {"performance", "general", "manual", ""}
 work_lineage_votes: Dict[str, Counter] = defaultdict(Counter)
 agent_lineage_votes: Dict[str, Counter] = defaultdict(Counter)
+lineage_mapping_counts_v6: Counter = Counter()
 for m_id, m_node in mapping_nodes.items():
     lin = (m_node.get("lineage") or "").strip()
     if lin in DEFAULT_LINEAGES:
         continue
+    lineage_mapping_counts_v6[lin] += 1
     for text_id in mapping_texts.get(m_id, []):
         work_lineage_votes[text_id][lin] += 1
     for agent_id in mapping_agents.get(m_id, []):
@@ -829,7 +842,7 @@ for m_id, m_node in mapping_nodes.items():
 # Real entity nodes participating in at least one lineage
 v6_work_ids = set(work_lineage_votes.keys())
 v6_agent_ids = set(agent_lineage_votes.keys())
-v6_lineage_names = (set(lineage_mapping_counts.keys()) &
+v6_lineage_names = (set(lineage_mapping_counts_v6.keys()) &
                     (set().union(*[v.keys() for v in work_lineage_votes.values()] or [set()]) |
                      set().union(*[v.keys() for v in agent_lineage_votes.values()] or [set()])))
 work_nodes_v6 = {n["id"]: n for n in ALL_NODES if n["id"] in v6_work_ids}
@@ -843,7 +856,7 @@ for lin in v6_lineage_names:
         "label": lin,
         "type": "lineage",
         "lineage": lin,
-        "mapping_count": lineage_mapping_counts.get(lin, 0),
+        "mapping_count": lineage_mapping_counts_v6.get(lin, 0),
     }
 # Edges: work→lineage and agent→lineage (weighted)
 v6_edges_raw = []
@@ -903,7 +916,7 @@ d3_nodes_v6 = []
 for n in v6_nodes_pruned:
     ntype = n.get("type", "")
     if ntype == "lineage":
-        mc = lineage_mapping_counts.get(n.get("lineage", ""), 0)
+        mc = lineage_mapping_counts_v6.get(n.get("lineage", ""), 0)
         size = max(18, min(56, 18 + math.log1p(mc) * 7))
         color = "#fbbf24"
         label = n.get("label", "")
@@ -924,7 +937,7 @@ for n in v6_nodes_pruned:
         "label": label,
         "type": ntype,
         "lineage": n.get("lineage", ""),
-        "mapping_count": lineage_mapping_counts.get(n.get("lineage", ""), 0),
+        "mapping_count": lineage_mapping_counts_v6.get(n.get("lineage", ""), 0),
         "project_type": n.get("project_type", ""),
         "role": n.get("role", ""),
         "all_roles": n.get("all_roles", []),
