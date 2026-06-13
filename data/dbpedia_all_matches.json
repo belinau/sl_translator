@@ -31,9 +31,7 @@
   },
   "agent:aime-cesaire": {
     "name": "Aimé Césaire",
-    "notable_ideas": [
-      "Politician"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -205,9 +203,7 @@
   },
   "agent:antonin-artaud": {
     "name": "Antonin Artaud",
-    "notable_ideas": [
-      "Theatre of Cruelty"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -347,19 +343,7 @@
   },
   "agent:arlie-russell-hochschild": {
     "name": "Arlie Russell Hochschild",
-    "notable_ideas": [
-      "Emotion work",
-      "Emotional labor",
-      "Family economics",
-      "Feeling rules",
-      "Global care chain",
-      "Market culture",
-      "Strangers in Their Own Land",
-      "The Managed Heart",
-      "The Second Shift",
-      "The Time Bind",
-      "Work–family conflict"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [
       "Sociology"
@@ -487,9 +471,7 @@
   },
   "agent:bell-hooks": {
     "name": "Bell hooks",
-    "notable_ideas": [
-      "Oppositional gaze"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -687,9 +669,7 @@
   },
   "agent:benedicte-savoy": {
     "name": "Bénédicte Savoy",
-    "notable_ideas": [
-      "Provenance"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [
       "Art history"
@@ -759,9 +739,7 @@
   },
   "agent:carla-lonzi": {
     "name": "Carla Lonzi",
-    "notable_ideas": [
-      "Feminism"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -854,28 +832,21 @@
   },
   "agent:charlotte-pistorius": {
     "name": "Charlotte Pistorius",
-    "notable_ideas": [
-      "Ernst Moritz Arndt",
-      "Friedrich Schleiermacher"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
   },
   "agent:chris-cuomo": {
     "name": "Chris Cuomo",
-    "notable_ideas": [
-      "Cuomo Prime Time"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
   },
   "agent:claude-lanzmann": {
     "name": "Claude Lanzmann",
-    "notable_ideas": [
-      "Shoah (film)"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -1099,9 +1070,7 @@
   },
   "agent:derrick-bell": {
     "name": "Derrick Bell",
-    "notable_ideas": [
-      "Critical race theory"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -1495,14 +1464,7 @@
   },
   "agent:erving-goffman": {
     "name": "Erving Goffman",
-    "notable_ideas": [
-      "Dramaturgy (sociology)",
-      "Impression management",
-      "Stigma (sociology)",
-      "Symbolic interactionist",
-      "Tie signs",
-      "Total institution"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [
       "Symbolic interactionism"
@@ -1684,9 +1646,7 @@
   },
   "agent:fred-moten": {
     "name": "Fred Moten",
-    "notable_ideas": [
-      "African-American culture"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -1748,9 +1708,7 @@
   },
   "agent:fritz-perls": {
     "name": "Fritz Perls",
-    "notable_ideas": [
-      "Gestalt Therapy"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [
       "Psychiatry",
@@ -1800,12 +1758,7 @@
   },
   "agent:galileo-galilei": {
     "name": "Galileo Galilei",
-    "notable_ideas": [
-      "Analytical dynamics",
-      "Heliocentrism",
-      "Kinematics",
-      "Observational astronomy"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [
       "Astronomy",
@@ -1843,12 +1796,7 @@
   },
   "agent:geoffrey-hinton": {
     "name": "Geoffrey Hinton",
-    "notable_ideas": [
-      "Backpropagation",
-      "Boltzmann machine",
-      "Capsule neural network",
-      "Deep learning"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [
       "Artificial intelligence",
@@ -1861,9 +1809,7 @@
   },
   "agent:georg-cantor": {
     "name": "Georg Cantor",
-    "notable_ideas": [
-      "Set theory"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [
       "Mathematics"
@@ -1902,10 +1848,7 @@
   },
   "agent:george-lakoff": {
     "name": "George Lakoff",
-    "notable_ideas": [
-      "Conceptual metaphor",
-      "Embodied cognition"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [
       "Cognitive linguistics",
@@ -1924,11 +1867,7 @@
   },
   "agent:george-soros": {
     "name": "George Soros",
-    "notable_ideas": [
-      "Open Society Foundations",
-      "Quantum Fund",
-      "Soros Fund Management"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -2109,9 +2048,7 @@
   },
   "agent:wekker-gloria": {
     "name": "Gloria Wekker",
-    "notable_ideas": [
-      "Critical race theory"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -2231,9 +2168,7 @@
   },
   "agent:hans-ulrich-wehler": {
     "name": "Hans-Ulrich Wehler",
-    "notable_ideas": [
-      "Bielefeld School"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [
       "History",
@@ -2446,9 +2381,7 @@
   },
   "agent:hortense-spillers": {
     "name": "Hortense Spillers",
-    "notable_ideas": [
-      "African-American literature"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -2802,9 +2735,7 @@
   },
   "agent:james-j-gibson": {
     "name": "James J. Gibson",
-    "notable_ideas": [
-      "Affordance"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [
       "Experimental psychology",
@@ -2818,10 +2749,7 @@
   },
   "agent:james-watson": {
     "name": "James Watson",
-    "notable_ideas": [
-      "DNA structure",
-      "Molecular biology"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [
       "Genetics"
@@ -3091,9 +3019,7 @@
   },
   "agent:johann-puch": {
     "name": "Johann Puch",
-    "notable_ideas": [
-      "Puch"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -3158,11 +3084,7 @@
   },
   "agent:jose-esteban-munoz": {
     "name": "José Esteban Muñoz",
-    "notable_ideas": [
-      "Ephemerality",
-      "Performance studies",
-      "Queer theory"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -3234,9 +3156,7 @@
   },
   "agent:liebenfels-jorg-lanz-von": {
     "name": "Jörg Lanz von Liebenfels",
-    "notable_ideas": [
-      "Racism"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -3350,11 +3270,7 @@
   },
   "agent:mckittrick-katherine": {
     "name": "Katherine McKittrick",
-    "notable_ideas": [
-      "Black studies",
-      "Diaspora studies",
-      "Gender studies"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -3430,9 +3346,7 @@
   },
   "agent:kurt-jooss": {
     "name": "Kurt Jooss",
-    "notable_ideas": [
-      "Tanztheater"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -3474,10 +3388,7 @@
   },
   "agent:leni-riefenstahl": {
     "name": "Leni Riefenstahl",
-    "notable_ideas": [
-      "Olympia (1938 film)",
-      "Triumph of the Will"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -3502,9 +3413,7 @@
   },
   "agent:ljudevit-gaj": {
     "name": "Ljudevit Gaj",
-    "notable_ideas": [
-      "Gaj's Latin alphabet"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -3571,10 +3480,7 @@
   },
   "agent:lucy-kurien": {
     "name": "Lucy Kurien",
-    "notable_ideas": [
-      "Interfaith",
-      "Maher (NGO)"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -3638,9 +3544,7 @@
   },
   "agent:marcel-mauss": {
     "name": "Marcel Mauss",
-    "notable_ideas": [
-      "The Gift (essay)"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [
       "Anthropology",
@@ -3730,10 +3634,7 @@
   },
   "agent:mark-sykes": {
     "name": "Mark Sykes",
-    "notable_ideas": [
-      "Conservative Party (UK)",
-      "Sykes-Picot Agreement"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -3859,11 +3760,7 @@
   },
   "agent:mary-douglas": {
     "name": "Mary Douglas",
-    "notable_ideas": [
-      "Cultural theory of risk",
-      "Natural Symbols",
-      "Purity and Danger"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [
       "Comparative religion",
@@ -3994,20 +3891,14 @@
   },
   "agent:max-schubert": {
     "name": "Max Schubert",
-    "notable_ideas": [
-      "Penfolds Grange"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
   },
   "agent:melanie-klein": {
     "name": "Melanie Klein",
-    "notable_ideas": [
-      "Projective identification",
-      "Reparation (psychoanalysis)",
-      "Splitting (psychology)"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [
       "Psychoanalysis"
@@ -4122,9 +4013,7 @@
   },
   "agent:michelle-murphy": {
     "name": "Michelle Murphy",
-    "notable_ideas": [
-      "Environmental justice"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -4229,9 +4118,7 @@
   },
   "agent:mladen-stilinovic": {
     "name": "Mladen Stilinović",
-    "notable_ideas": [
-      "Group of Six Artists"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -4320,11 +4207,7 @@
   },
   "agent:niklas-luhmann": {
     "name": "Niklas Luhmann",
-    "notable_ideas": [
-      "Autopoiesis",
-      "Constructivist epistemology",
-      "Functional differentiation"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [
       "Communication theory",
@@ -4367,18 +4250,7 @@
   },
   "agent:norbert-wiener": {
     "name": "Norbert Wiener",
-    "notable_ideas": [
-      "Abstract Wiener space",
-      "Brownian motion",
-      "Classical Wiener space",
-      "Cybernetics",
-      "Evolutionary informatics",
-      "Generalized Wiener process",
-      "Information revolution",
-      "List of things named after Norbert Wiener",
-      "Philosophy of information",
-      "Wiener amalgam space"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [
       "Cybernetics",
@@ -4523,10 +4395,7 @@
   },
   "agent:paul-cohen": {
     "name": "Paul Cohen",
-    "notable_ideas": [
-      "Continuum hypothesis",
-      "List of forcing notions"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [
       "Mathematics"
@@ -4608,30 +4477,21 @@
   },
   "agent:pauline-oliveros": {
     "name": "Pauline Oliveros",
-    "notable_ideas": [
-      "Deep Listening Band"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
   },
   "agent:peggy-mcintosh": {
     "name": "Peggy McIntosh",
-    "notable_ideas": [
-      "Male privilege",
-      "White privilege"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
   },
   "agent:peter-dajnko": {
     "name": "Peter Dajnko",
-    "notable_ideas": [
-      "Beekeeping",
-      "Dajnko alphabet",
-      "Slovene language"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -4803,12 +4663,7 @@
   },
   "agent:raewyn-connell": {
     "name": "Raewyn Connell",
-    "notable_ideas": [
-      "Hegemonic masculinity",
-      "Men's studies",
-      "Social Class",
-      "Southern theory"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -5010,14 +4865,7 @@
   },
   "agent:richard-dawkins": {
     "name": "Richard Dawkins",
-    "notable_ideas": [
-      "Criticism of religion",
-      "Extended phenotype",
-      "Gene-centered view of evolution",
-      "Meme",
-      "Middle World",
-      "New Atheism"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": [
@@ -5125,9 +4973,7 @@
   },
   "agent:roger-fry": {
     "name": "Roger Fry",
-    "notable_ideas": [
-      "Bloomsbury Group"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -5178,9 +5024,7 @@
   },
   "agent:roman-ondak": {
     "name": "Roman Ondak",
-    "notable_ideas": [
-      "Conceptual art"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -5232,9 +5076,7 @@
   },
   "agent:rudi-dutschke": {
     "name": "Rudi Dutschke",
-    "notable_ideas": [
-      "German student movement"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -5259,18 +5101,14 @@
   },
   "agent:saidiya-hartman": {
     "name": "Saidiya Hartman",
-    "notable_ideas": [
-      "MacArthur Fellow"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
   },
   "agent:sam-durant": {
     "name": "Sam Durant",
-    "notable_ideas": [
-      "Sam Durant: Scenes from the Pilgrim Story: Myths, Massacres, and Monuments"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -5310,14 +5148,7 @@
   },
   "agent:sara-ahmed": {
     "name": "Sara Ahmed",
-    "notable_ideas": [
-      "Affect theory",
-      "Critical race theory",
-      "Feminist theory",
-      "Lesbian feminism",
-      "Postcolonialism",
-      "Queer theory"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -5342,13 +5173,7 @@
   },
   "agent:sigmund-freud": {
     "name": "Sigmund Freud",
-    "notable_ideas": [
-      "Defense mechanism",
-      "Freud's psychoanalytic theories",
-      "Oedipus complex",
-      "Psychoanalysis",
-      "Repression (psychology)"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [
       "Neurology",
@@ -5413,9 +5238,7 @@
   },
   "agent:simone-forti": {
     "name": "Simone Forti",
-    "notable_ideas": [
-      "Postmodern dance"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -5588,10 +5411,7 @@
   },
   "agent:susanne-klatten": {
     "name": "Susanne Klatten",
-    "notable_ideas": [
-      "Altana",
-      "BMW"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -5618,10 +5438,7 @@
   },
   "agent:tatyana-grosman": {
     "name": "Tatyana Grosman",
-    "notable_ideas": [
-      "Graphic design",
-      "Printmaking"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -5690,9 +5507,7 @@
   },
   "agent:tom-marioni": {
     "name": "Tom Marioni",
-    "notable_ideas": [
-      "Conceptual art"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -5795,10 +5610,7 @@
   },
   "agent:vuk-karadzic": {
     "name": "Vuk Karadžić",
-    "notable_ideas": [
-      "Serbian Cyrillic alphabet",
-      "Serbian language"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -5846,25 +5658,14 @@
   },
   "agent:wilhelm-reich": {
     "name": "Wilhelm Reich",
-    "notable_ideas": [
-      "Character Analysis",
-      "Freudo-Marxism",
-      "Orgastic potency",
-      "Orgone",
-      "Vegetotherapy"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
   },
   "agent:william-morris": {
     "name": "William Morris",
-    "notable_ideas": [
-      "Medievalism",
-      "Socialism",
-      "Textile Design",
-      "Wallpaper"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
@@ -5884,20 +5685,14 @@
   },
   "agent:xavier-antich": {
     "name": "Xavier Antich",
-    "notable_ideas": [
-      "Òmnium Cultural"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [],
     "influenced_by": []
   },
   "agent:yuval-noah-harari": {
     "name": "Yuval Noah Harari",
-    "notable_ideas": [
-      "21 Lessons for the 21st Century",
-      "Homo Deus: A Brief History of Tomorrow",
-      "Sapiens: A Brief History of Humankind"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [
       "Big History",
@@ -5951,14 +5746,7 @@
   },
   "agent:mile-durkheim": {
     "name": "Émile Durkheim",
-    "notable_ideas": [
-      "Anomie",
-      "Collective consciousness",
-      "Collective effervescence",
-      "Sacred–profane dichotomy",
-      "Social fact",
-      "Social integration"
-    ],
+    "notable_ideas": [],
     "schools": [],
     "fields": [
       "Anthropology",
