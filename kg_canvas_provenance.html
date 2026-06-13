@@ -341,7 +341,7 @@
         const container = document.getElementById('canvas-container');
         // Edge-relation colors injected from Python EDGE_COLORS
         const edgeColors = {"written_by": "#fb923c", "translated_by": "#22d3ee", "edited_by": "#fbbf24", "performed_by": "#f472b6", "published_by": "#34d399", "sl_published_by": "#6ee7b7", "hosted_by": "#a78bfa", "cited_in": "#94a3b8", "appears_in": "#cbd5e1", "instantiates_concept": "#c084fc", "translates_to": "#ec4899", "instantiated_in": "#38bdf8", "attributed_to": "#fb923c", "contributed_to": "#22d3ee", "extends": "#c084fc", "critiques": "#e879f9", "redefines": "#818cf8", "reappropriates": "#f0abfc", "related_to": "#d8b4fe", "in_lineage": "#fbbf24", "work_in_lineage": "#22d3ee", "agent_in_lineage": "#fb923c"};
-        const specialRelations = new Set(["contributed_to", "translated_by", "edited_by", "appears_in", "instantiated_in", "translates_to", "performed_by", "written_by", "cited_in", "attributed_to"]);
+        const specialRelations = new Set(["performed_by", "attributed_to", "written_by", "appears_in", "contributed_to", "cited_in", "instantiated_in", "translates_to", "edited_by", "translated_by"]);
         const availableLineages = [];
         const isSpecialRelation = (rel) => {
             return specialRelations.has(rel);

@@ -821,15 +821,21 @@ for e in v5_edges_pruned:
 available_lineages_v5 = sorted({n.get("label", "") for n in lineage_hub_nodes_v5.values()})
 log.info(f"  Result View 5: {len(d3_nodes_v5)} nodes ({len(lineage_hub_nodes_v5)} lineage hubs), {len(d3_edges_v5)} edges.")
 # ===========================================================================
-# VIEW 6 PROCESSING: Lineage \u2192 Works + Agents
+# VIEW 6 PROCESSING: Lineage → Works + Agents
 # ===========================================================================
-log.info("Processing View 6: Lineage \u2192 Works + Agents...")
-# Aggregate source_text→lineage and agent→lineage from translation_mapping
-# bridges per ontology §3.3. Lineage hubs are synthesized at view-time only.
+log.info("Processing View 6: Lineage → Works + Agents...")
+# V6 combines two data sources:
+# 1. Mapping-based: works/agents from translation mappings with lineage field
+# 2. School-based: agents with known schools (DBpedia + roster) and their works
+# Both feed into the same view with written_by + cited_in structure edges.
+
+# --- Source 1: mapping-based (keeps existing translation data visible) ---
 DEFAULT_LINEAGES = {"performance", "general", "manual", ""}
+v6_work_lineage: Dict[str, str] = {}  # work → dominant lineage
+v6_agent_lineage: Dict[str, str] = {}  # agent → dominant lineage
+lineage_mapping_counts_v6: Counter = Counter()
 work_lineage_votes: Dict[str, Counter] = defaultdict(Counter)
 agent_lineage_votes: Dict[str, Counter] = defaultdict(Counter)
-lineage_mapping_counts_v6: Counter = Counter()
 for m_id, m_node in mapping_nodes.items():
     lin = (m_node.get("lineage") or "").strip()
     if lin in DEFAULT_LINEAGES:
@@ -839,70 +845,100 @@ for m_id, m_node in mapping_nodes.items():
         work_lineage_votes[text_id][lin] += 1
     for agent_id in mapping_agents.get(m_id, []):
         agent_lineage_votes[agent_id][lin] += 1
-# Real entity nodes participating in at least one lineage
-v6_work_ids = set(work_lineage_votes.keys())
-v6_agent_ids = set(agent_lineage_votes.keys())
-v6_lineage_names = (set(lineage_mapping_counts_v6.keys()) &
-                    (set().union(*[v.keys() for v in work_lineage_votes.values()] or [set()]) |
-                     set().union(*[v.keys() for v in agent_lineage_votes.values()] or [set()])))
+for wid, votes in work_lineage_votes.items():
+    v6_work_lineage[wid] = votes.most_common(1)[0][0]
+for aid, votes in agent_lineage_votes.items():
+    v6_agent_lineage[aid] = votes.most_common(1)[0][0]
+
+# --- Source 2: school-based (agents with DBpedia/roster schools) ---
+v6_agent_school: Dict[str, str] = {}
+_dbm_path = kg_path.parent / "dbpedia_all_matches.json"
+if _dbm_path.exists():
+    import json as _json
+    _dbm = _json.loads(_dbm_path.read_text("utf-8"))
+    for _aid, _data in _dbm.items():
+        _schools = _data.get("schools", [])
+        if _schools:
+            v6_agent_school[_aid] = _schools[0]
+_roster_path = kg_path.parent / "lineage_schools.json"
+if _roster_path.exists():
+    import unicodedata as _ud
+    _roster = _json.loads(_roster_path.read_text("utf-8"))
+    for _name, _school in _roster.items():
+        _slug = re.sub(r"[^a-z0-9]+", "-",
+                       "".join(c for c in _ud.normalize("NFKD", _name.lower())
+                               if not _ud.combining(c))).strip("-")
+        if _slug:
+            _aid = f"agent:{_slug}"
+            if _aid not in v6_agent_school:
+                v6_agent_school[_aid] = _school
+
+# Add school-based agents (that aren't already from mappings)
+for aid, school in v6_agent_school.items():
+    if aid not in v6_agent_lineage and node_by_id.get(aid, {}).get("type") == "agent":
+        v6_agent_lineage[aid] = school
+
+# Add works by school-based agents
+for e in ALL_EDGES:
+    if e.get("relation") == "written_by":
+        wid, aid = e["source"], e["target"]
+        if aid in v6_agent_lineage and wid not in v6_work_lineage:
+            if node_by_id.get(wid, {}).get("type") == "source_text":
+                v6_work_lineage[wid] = v6_agent_lineage[aid]
+
+# --- Build nodes ---
+v6_work_ids = set(v6_work_lineage.keys())
+v6_agent_ids = set(v6_agent_lineage.keys())
 work_nodes_v6 = {n["id"]: n for n in ALL_NODES if n["id"] in v6_work_ids}
 agent_nodes_v6 = {n["id"]: n for n in ALL_NODES if n["id"] in v6_agent_ids}
-# Synthesize lineage hubs at view-time (visualization-only, NOT persisted)
+
+# Lineage hubs from both sources
+v6_all_lineages: Counter = Counter()
+for lin in v6_work_lineage.values():
+    v6_all_lineages[lin] += 1
+for lin in v6_agent_lineage.values():
+    v6_all_lineages[lin] += 1
 lineage_hub_nodes_v6 = {}
-for lin in v6_lineage_names:
+for lin, count in v6_all_lineages.items():
     hub_id = f"lineage:{lin}"
     lineage_hub_nodes_v6[hub_id] = {
-        "id": hub_id,
-        "label": lin,
-        "type": "lineage",
-        "lineage": lin,
-        "mapping_count": lineage_mapping_counts_v6.get(lin, 0),
+        "id": hub_id, "label": lin, "type": "lineage",
+        "lineage": lin, "mapping_count": count,
     }
-# Edges: work→lineage and agent→lineage (weighted)
+
+# --- Build edges ---
 v6_edges_raw = []
-for wid, votes in work_lineage_votes.items():
-    for lin, weight in votes.items():
-        v6_edges_raw.append({
-            "source": wid,
-            "target": f"lineage:{lin}",
-            "relation": "work_in_lineage",
-            "lineage": lin,
-            "weight": weight,
-            "confidence": 1.0,
-            "verified": False,
-        })
-for aid, votes in agent_lineage_votes.items():
-    for lin, weight in votes.items():
-        v6_edges_raw.append({
-            "source": aid,
-            "target": f"lineage:{lin}",
-            "relation": "agent_in_lineage",
-            "lineage": lin,
-            "weight": weight,
-            "confidence": 1.0,
-            "verified": False,
-        })
-# Add written_by edges between in-view agents and works
+# Work → lineage hub (dominant)
+for wid, lin in v6_work_lineage.items():
+    v6_edges_raw.append({
+        "source": wid, "target": f"lineage:{lin}",
+        "relation": "work_in_lineage", "lineage": lin,
+        "weight": 1, "confidence": 1.0, "verified": False,
+    })
+# Agent → lineage hub
+for aid, lin in v6_agent_lineage.items():
+    v6_edges_raw.append({
+        "source": aid, "target": f"lineage:{lin}",
+        "relation": "agent_in_lineage", "lineage": lin,
+        "weight": 1, "confidence": 1.0, "verified": False,
+    })
+# written_by between in-view agents and works
 for e in ALL_EDGES:
     if e.get("relation") == "written_by":
         s, t = e["source"], e["target"]
         if s in v6_work_ids and t in v6_agent_ids:
             v6_edges_raw.append({
-                "source": s, "target": t,
-                "relation": "written_by",
-                "lineage": "", "weight": 1,
-                "confidence": 1.0, "verified": True,
+                "source": s, "target": t, "relation": "written_by",
+                "lineage": "", "weight": 1, "confidence": 1.0, "verified": True,
             })
-# Add cited_in edges between in-view works
+# cited_in between in-view works
 for e in ALL_EDGES:
     if e.get("relation") == "cited_in":
         s, t = e["source"], e["target"]
         if s in v6_work_ids and t in v6_work_ids:
             v6_edges_raw.append({
-                "source": s, "target": t,
-                "relation": "cited_in",
-                "lineage": "", "weight": 1,
-                "confidence": 1.0, "verified": True,
+                "source": s, "target": t, "relation": "cited_in",
+                "lineage": "", "weight": 1, "confidence": 1.0, "verified": True,
             })
 
 v6_nodes_raw = (list(work_nodes_v6.values()) + list(agent_nodes_v6.values())
