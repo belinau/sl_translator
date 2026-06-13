@@ -1,0 +1,779 @@
+{
+  "agent:lee-friedlander": {
+    "name": "Lee Friedlander",
+    "notable_ideas": [
+      "| notable_works    ="
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:timothy-leary": {
+    "name": "Timothy Leary",
+    "notable_ideas": [
+      "Eight-circuit model of consciousness",
+      "Reality tunnel",
+      "Question authority",
+      "Set and setting",
+      "Turn on, tune in, drop out"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:taja-kramberger": {
+    "name": "Taja Kramberger",
+    "notable_ideas": [
+      "Reflexivity in historiography",
+      "transformative & transfirmative discursive formations",
+      "conceptualization of province and provincialism"
+    ],
+    "schools": [
+      "French epistemology",
+      "Annales School",
+      "Bourdieuian and Foucauldian apparatus",
+      "theory of discourse",
+      "anthropology of sex and gender"
+    ],
+    "source": "wikipedia"
+  },
+  "agent:arlie-russell-hochschild": {
+    "name": "Arlie Russell Hochschild",
+    "notable_ideas": [
+      "The Second Shift",
+      "The Managed Heart",
+      "Strangers in Their Own Land",
+      "The Time Bind",
+      "Emotional labor",
+      "Family economics#Division of labor within the family"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:bernard-akoi-jackson": {
+    "name": "Bernard Akoi-Jackson",
+    "notable_ideas": [
+      "Installation art",
+      "poetry"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:jean-luc-godard": {
+    "name": "Jean-Luc Godard",
+    "notable_ideas": [],
+    "schools": [
+      "French New Wave"
+    ],
+    "source": "wikipedia"
+  },
+  "agent:teresa-de-lauretis": {
+    "name": "Teresa de Lauretis",
+    "notable_ideas": [
+      "coined the term \"queer theory\""
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:david-fromkin": {
+    "name": "David Fromkin",
+    "notable_ideas": [
+      "| author_abbrev_bot ="
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:robert-smithson": {
+    "name": "Robert Smithson",
+    "notable_ideas": [],
+    "schools": [
+      "Land art"
+    ],
+    "source": "wikipedia"
+  },
+  "agent:jane-rendell": {
+    "name": "Jane Rendell",
+    "notable_ideas": [
+      "Critical spatial practice; feminist architectural theory; art and architecture writing"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:jefta-van-dinther": {
+    "name": "Jefta van Dinther",
+    "notable_ideas": [
+      "| notable_works ="
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:kate-fowle": {
+    "name": "Kate Fowle",
+    "notable_ideas": [
+      "MoMA PS1",
+      "Garage Museum of Contemporary Art"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:didier-fassin": {
+    "name": "Didier Fassin",
+    "notable_ideas": [
+      "| influences ="
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:zdenka-badovinac": {
+    "name": "Zdenka Badovinac",
+    "notable_ideas": [
+      "| notable_works      ="
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:robert-cohan": {
+    "name": "Robert Cohan",
+    "notable_ideas": [
+      "The Place (London)",
+      "London Contemporary Dance School",
+      "London Contemporary Dance Theatre"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:maja-smrekar": {
+    "name": "Maja Smrekar",
+    "notable_ideas": [
+      "Intermedia art",
+      "bio-art",
+      "performance"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:manca-kosir": {
+    "name": "Manca Košir",
+    "notable_ideas": [
+      "| awards            ="
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:alison-kafer": {
+    "name": "Alison Kafer",
+    "notable_ideas": [
+      "Crip Time"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:avgust-cernigoj": {
+    "name": "Avgust Černigoj",
+    "notable_ideas": [
+      "Constructivism (art)",
+      "Constructivism (art)",
+      "Avant-garde",
+      "Academy of Fine Arts, Munich",
+      "Bauhaus",
+      "Weimar"
+    ],
+    "schools": [
+      "Constructivism (art)",
+      "Avant-garde",
+      "Academy of Fine Arts, Munich",
+      "Bauhaus",
+      "Weimar"
+    ],
+    "source": "wikipedia"
+  },
+  "agent:andre-leroi-gourhan": {
+    "name": "André Leroi-Gourhan",
+    "notable_ideas": [
+      "Technical tendencies"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:denise-ferreira-da-silva": {
+    "name": "Denise Ferreira da Silva",
+    "notable_ideas": [
+      "Critical legal theory",
+      "political philosophy",
+      "Black feminist thought"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:benedicte-savoy": {
+    "name": "Bénédicte Savoy",
+    "notable_ideas": [
+      "Provenance"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:ivan-cankar": {
+    "name": "Ivan Cankar",
+    "notable_ideas": [],
+    "schools": [
+      "Symbolism (arts)",
+      "Modernism"
+    ],
+    "source": "wikipedia"
+  },
+  "agent:kodwo-eshun": {
+    "name": "Kodwo Eshun",
+    "notable_ideas": [
+      "Co-founding art collective The Otolith Group"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:furie-matt": {
+    "name": "Matt Furie",
+    "notable_ideas": [
+      "Pepe the Frog"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:katalin-ladik": {
+    "name": "Katalin Ladik",
+    "notable_ideas": [
+      "| notable_works ="
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:merold-westphal": {
+    "name": "Merold Westphal",
+    "notable_ideas": [
+      "ontotheology"
+    ],
+    "schools": [
+      "German idealism",
+      "Phenomenology (philosophy)"
+    ],
+    "source": "wikipedia"
+  },
+  "agent:peter-weiss": {
+    "name": "Peter Weiss",
+    "notable_ideas": [],
+    "schools": [
+      "Avant-garde"
+    ],
+    "source": "wikipedia"
+  },
+  "agent:jerko-jesa-denegri": {
+    "name": "Jerko Ješa Denegri",
+    "notable_ideas": [
+      "| occupation  = Art Historian and Art Critics"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:anne-carson": {
+    "name": "Anne Carson",
+    "notable_ideas": [],
+    "schools": [
+      "Eros the Bittersweet",
+      "Autobiography of Red",
+      "Men in the Off Hours",
+      "The Beauty of the Husband",
+      "Red Doc"
+    ],
+    "source": "wikipedia"
+  },
+  "agent:vito-acconci": {
+    "name": "Vito Acconci",
+    "notable_ideas": [
+      "Landscape architect",
+      "Installation art",
+      "Performance art",
+      "Video art"
+    ],
+    "schools": [
+      "0 to 9 Magazine"
+    ],
+    "source": "wikipedia"
+  },
+  "agent:dubravka-sekulic": {
+    "name": "Dubravka Sekulić",
+    "notable_ideas": [
+      "Architectural research"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:mauricio-kagel": {
+    "name": "Mauricio Kagel",
+    "notable_ideas": [
+      "List of compositions by Mauricio Kagel"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:jean-tinguely": {
+    "name": "Jean Tinguely",
+    "notable_ideas": [
+      "| notable_works    ="
+    ],
+    "schools": [
+      "Eva Aeppli",
+      "Niki de Saint Phalle"
+    ],
+    "source": "wikipedia"
+  },
+  "agent:okwui-enwezor": {
+    "name": "Okwui Enwezor",
+    "notable_ideas": [
+      "|occupation   = Curator",
+      "academic administrator"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:ayi-kwei-armah": {
+    "name": "Ayi Kwei Armah",
+    "notable_ideas": [],
+    "schools": [
+      "The Beautyful Ones Are Not Yet Born",
+      "Two Thousand Seasons",
+      "The Healers (novel)"
+    ],
+    "source": "wikipedia"
+  },
+  "agent:rosa-barba": {
+    "name": "Rosa Barba",
+    "notable_ideas": [
+      "video art",
+      "installation art"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:kacem-sonia": {
+    "name": "Sonia Kacem",
+    "notable_ideas": [
+      "Sculpture",
+      "installation art"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:alexander-fried": {
+    "name": "Alexander Fried",
+    "notable_ideas": [
+      "Columbia University"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:ferdinand-von-schirach": {
+    "name": "Ferdinand von Schirach",
+    "notable_ideas": [
+      "| website     = {{URL|http://www.schirach.de}}"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:marina-garces": {
+    "name": "Marina Garcés",
+    "notable_ideas": [
+      "Philosopher"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:james-j-gibson": {
+    "name": "James J. Gibson",
+    "notable_ideas": [
+      "affordance"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:janez-vrecko": {
+    "name": "Janez Vrečko",
+    "notable_ideas": [
+      "| spouse ="
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:volker-schlondorff": {
+    "name": "Volker Schlöndorff",
+    "notable_ideas": [],
+    "schools": [
+      "New German Cinema"
+    ],
+    "source": "wikipedia"
+  },
+  "agent:leah-barclay": {
+    "name": "Leah Barclay",
+    "notable_ideas": [
+      "| notable_works ="
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:nesa-paripovic": {
+    "name": "Neša Paripović",
+    "notable_ideas": [
+      "Performance art"
+    ],
+    "schools": [
+      "Conceptual art"
+    ],
+    "source": "wikipedia"
+  },
+  "agent:caroline-a-jones": {
+    "name": "Caroline A. Jones",
+    "notable_ideas": [
+      "Art History and Art Theory"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:mladen-stilinovic": {
+    "name": "Mladen Stilinović",
+    "notable_ideas": [
+      "Group of Six Artists"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:william-shakespeare": {
+    "name": "William Shakespeare",
+    "notable_ideas": [],
+    "schools": [
+      "English Renaissance"
+    ],
+    "source": "wikipedia"
+  },
+  "agent:xavier-antich": {
+    "name": "Xavier Antich",
+    "notable_ideas": [
+      "Òmnium Cultural"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:leonardo-da-vinci": {
+    "name": "Leonardo da Vinci",
+    "notable_ideas": [],
+    "schools": [
+      "High Renaissance"
+    ],
+    "source": "wikipedia"
+  },
+  "agent:marjetica-potrc": {
+    "name": "Marjetica Potrč",
+    "notable_ideas": [
+      "Ljubljana",
+      "Socialist Republic of Slovenia",
+      "Socialist Federal Republic of Yugoslavia"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:rudi-dutschke": {
+    "name": "Rudi Dutschke",
+    "notable_ideas": [
+      "Außerparlamentarische Opposition",
+      "West German student movement"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:chris-cuomo": {
+    "name": "Chris Cuomo",
+    "notable_ideas": [
+      "Cuomo Prime Time",
+      "New Day (TV program)"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:wilhelm-reich": {
+    "name": "Wilhelm Reich",
+    "notable_ideas": [
+      "orgastic potency",
+      "vegetotherapy",
+      "Freudo-Marxism",
+      "orgone"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:nell-irvin-painter": {
+    "name": "Nell Irvin Painter",
+    "notable_ideas": [
+      "African American Literature; American History; American Slavery"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:piero-manzoni": {
+    "name": "Piero Manzoni",
+    "notable_ideas": [],
+    "schools": [
+      "Conceptual art"
+    ],
+    "source": "wikipedia"
+  },
+  "agent:chekhov-anton": {
+    "name": "Anton Chekhov",
+    "notable_ideas": [],
+    "schools": [
+      "Literary realism"
+    ],
+    "source": "wikipedia"
+  },
+  "agent:alva-noe": {
+    "name": "Alva Noë",
+    "notable_ideas": [
+      "Sensorimotor profile"
+    ],
+    "schools": [
+      "Analytic phenomenology"
+    ],
+    "source": "wikipedia"
+  },
+  "agent:marie-rambert": {
+    "name": "Marie Rambert",
+    "notable_ideas": [
+      "Rambert Dance Company"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:tim-ingold": {
+    "name": "Tim Ingold",
+    "notable_ideas": [
+      "Taskscape"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:eldridge-cleaver": {
+    "name": "Eldridge Cleaver",
+    "notable_ideas": [],
+    "schools": [
+      "Black Power",
+      "Civil Rights Movement"
+    ],
+    "source": "wikipedia"
+  },
+  "agent:georges-didi-huberman": {
+    "name": "Georges Didi-Huberman",
+    "notable_ideas": [
+      "| occupation  = Philosopher",
+      "art historian"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:andy-warhol": {
+    "name": "Andy Warhol",
+    "notable_ideas": [],
+    "schools": [
+      "Pop art"
+    ],
+    "source": "wikipedia"
+  },
+  "agent:hannes-priesch": {
+    "name": "Hannes Priesch",
+    "notable_ideas": [
+      "| notable_works    ="
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:victor-vasarely": {
+    "name": "Victor Vasarely",
+    "notable_ideas": [],
+    "schools": [
+      "Op art"
+    ],
+    "source": "wikipedia"
+  },
+  "agent:unica-zurn": {
+    "name": "Unica Zürn",
+    "notable_ideas": [
+      "Painting"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:gertrude-stein": {
+    "name": "Gertrude Stein",
+    "notable_ideas": [],
+    "schools": [
+      "Modernist literature"
+    ],
+    "source": "wikipedia"
+  },
+  "agent:noah-charney": {
+    "name": "Noah Charney",
+    "notable_ideas": [
+      "| notable_works ="
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:miodrag-b-protic": {
+    "name": "Miodrag B. Protić",
+    "notable_ideas": [
+      "painting"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:nagel-thomas": {
+    "name": "Thomas Nagel",
+    "notable_ideas": [
+      "Panpsychism",
+      "subjective character of experience",
+      "What Is It Like to Be a Bat?"
+    ],
+    "schools": [
+      "Analytic philosophy",
+      "Postanalytic philosophy"
+    ],
+    "source": "wikipedia"
+  },
+  "agent:antonin-artaud": {
+    "name": "Antonin Artaud",
+    "notable_ideas": [
+      "Theatre of Cruelty",
+      "Body without organs"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:martens-renzo": {
+    "name": "Renzo Martens",
+    "notable_ideas": [
+      "institutional critique",
+      "film"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:louise-toupin": {
+    "name": "Louise Toupin",
+    "notable_ideas": [
+      "| awards            ="
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:erica-powell": {
+    "name": "Erica Powell",
+    "notable_ideas": [
+      "Presidential secretary"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:juliet-mitchell": {
+    "name": "Juliet Mitchell",
+    "notable_ideas": [
+      "Psychoanalysis",
+      "gender studies",
+      "English literature",
+      "socialist feminism"
+    ],
+    "schools": [
+      "Psychoanalysis",
+      "gender studies",
+      "English literature",
+      "socialist feminism"
+    ],
+    "source": "wikipedia"
+  },
+  "agent:andreas-malm": {
+    "name": "Andreas Malm",
+    "notable_ideas": [
+      "Climate change"
+    ],
+    "schools": [
+      "Marxism"
+    ],
+    "source": "wikipedia"
+  },
+  "agent:lygia-clark": {
+    "name": "Lygia Clark",
+    "notable_ideas": [],
+    "schools": [
+      "Neo-Concrete Movement"
+    ],
+    "source": "wikipedia"
+  },
+  "agent:jeanette-winterson": {
+    "name": "Jeanette Winterson",
+    "notable_ideas": [],
+    "schools": [
+      "Oranges Are Not the Only Fruit"
+    ],
+    "source": "wikipedia"
+  },
+  "agent:christian-hartmann": {
+    "name": "Christian Hartmann",
+    "notable_ideas": [
+      "Nazi Germany"
+    ],
+    "schools": [
+      "History of Europe#20th century",
+      "Special:Diff/746942468",
+      "historiography"
+    ],
+    "source": "wikipedia"
+  },
+  "agent:stefan-planinc": {
+    "name": "Štefan Planinc",
+    "notable_ideas": [],
+    "schools": [
+      "Levstik Award",
+      "Levstik Award",
+      "Prešeren Award",
+      "Jakopič Award"
+    ],
+    "source": "wikipedia"
+  },
+  "agent:eric-gyamfi": {
+    "name": "Eric Gyamfi",
+    "notable_ideas": [
+      "Photography"
+    ],
+    "schools": [
+      "Foam Fotografiemuseum Amsterdam#Foam Paul Huf Award"
+    ],
+    "source": "wikipedia"
+  },
+  "agent:bozo-skerlj": {
+    "name": "Božo Škerlj",
+    "notable_ideas": [
+      "Levstik Award"
+    ],
+    "schools": [],
+    "source": "wikipedia"
+  },
+  "agent:jela-krecic": {
+    "name": "Jela Krečič",
+    "notable_ideas": [
+      "Julian Assange"
+    ],
+    "schools": [],
+    "source": "sl.wikipedia"
+  },
+  "agent:matjaz-hanzek": {
+    "name": "Matjaž Hanžek",
+    "notable_ideas": [
+      "Združena levica",
+      "varuh človekovih pravic Republike Slovenije"
+    ],
+    "schools": [],
+    "source": "sl.wikipedia"
+  }
+}
