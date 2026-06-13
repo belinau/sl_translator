@@ -15,6 +15,8 @@ import logging
 import argparse
 import json
 import math
+import re
+import unicodedata
 import pathlib
 import sys
 from collections import Counter, defaultdict
@@ -59,6 +61,12 @@ ALL_NODES = raw_data.get("nodes", [])
 ALL_EDGES = raw_data.get("edges", [])
 node_by_id = {n["id"]: n for n in ALL_NODES}
 
+
+DATA_DIR = kg_path.parent
+
+def _norm(s: str) -> str:
+    """NFKD-strip diacritics, lowercase."""
+    return "".join(c for c in unicodedata.normalize("NFKD", s.lower()) if not unicodedata.combining(c))
 log.info(f"Loaded {len(ALL_NODES)} nodes and {len(ALL_EDGES)} edges.")
 
 def compute_physics_defaults(n_nodes: int, n_edges: int) -> Dict[str, float]:
