@@ -1,0 +1,6015 @@
+{
+  "agent:adam-frank": {
+    "name": "Adam Frank",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Physics"
+    ],
+    "influenced_by": []
+  },
+  "agent:adrienne-maree-brown": {
+    "name": "Adrienne Maree Brown",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Afrofuturism",
+      "Creative non-fiction",
+      "Non-fiction",
+      "Science fiction"
+    ],
+    "influenced_by": []
+  },
+  "agent:agnes-martin": {
+    "name": "Agnes Martin",
+    "notable_ideas": [],
+    "schools": [
+      "Abstract expressionism"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:aime-cesaire": {
+    "name": "Aimé Césaire",
+    "notable_ideas": [
+      "Politician"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:alain-badiou": {
+    "name": "Alain Badiou",
+    "notable_ideas": [
+      "Event (philosophy)",
+      "Henology",
+      "Mathematicism",
+      "Metapolitics"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "Maoism",
+      "Marxism",
+      "Modern Platonism"
+    ],
+    "fields": [
+      "Metapolitics",
+      "Ontology",
+      "Philosophy of mathematics",
+      "Psychoanalysis",
+      "Set theory"
+    ],
+    "influenced_by": [
+      "Karl Marx"
+    ]
+  },
+  "agent:alberto-burri": {
+    "name": "Alberto Burri",
+    "notable_ideas": [],
+    "schools": [
+      "Arte Povera",
+      "Fluxus",
+      "Nouveau réalisme"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:alberto-toscano": {
+    "name": "Alberto Toscano",
+    "notable_ideas": [],
+    "schools": [
+      "Western Marxism"
+    ],
+    "fields": [
+      "Cultural criticism"
+    ],
+    "influenced_by": [
+      "Alain Badiou",
+      "Karl Marx"
+    ]
+  },
+  "agent:alenka-zupancic": {
+    "name": "Alenka Zupančič",
+    "notable_ideas": [],
+    "schools": [
+      "Ljubljana school of psychoanalysis"
+    ],
+    "fields": [
+      "Cultural studies",
+      "Ethics",
+      "German idealism",
+      "Ontology",
+      "Political theory",
+      "Psychoanalysis",
+      "Sexuality"
+    ],
+    "influenced_by": [
+      "Alain Badiou",
+      "Friedrich Nietzsche",
+      "Georg Wilhelm Friedrich Hegel",
+      "Immanuel Kant",
+      "Jacques Lacan",
+      "Mladen Dolar",
+      "Sigmund Freud",
+      "Slavoj Žižek"
+    ]
+  },
+  "agent:alessandro-cortini": {
+    "name": "Alessandro Cortini",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Alternative rock",
+      "Electronic music",
+      "Indie pop",
+      "Industrial metal",
+      "Industrial rock",
+      "Synthpop"
+    ],
+    "influenced_by": []
+  },
+  "agent:alessandro-magnasco": {
+    "name": "Alessandro Magnasco",
+    "notable_ideas": [],
+    "schools": [
+      "Baroque"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:alexander-rodchenko": {
+    "name": "Alexander Rodchenko",
+    "notable_ideas": [],
+    "schools": [
+      "Constructivism (art)"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:ales-debeljak": {
+    "name": "Aleš Debeljak",
+    "notable_ideas": [],
+    "schools": [
+      "Postmodernism"
+    ],
+    "fields": [
+      "Cultural studies",
+      "Essays",
+      "Poetry"
+    ],
+    "influenced_by": []
+  },
+  "agent:alice-walker": {
+    "name": "Alice Walker",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "African-American literature"
+    ],
+    "influenced_by": []
+  },
+  "agent:allan-kaprow": {
+    "name": "Allan Kaprow",
+    "notable_ideas": [],
+    "schools": [
+      "Fluxus"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:alva-noe": {
+    "name": "Alva Noë",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Cognitive science",
+      "Philosophy of mind"
+    ],
+    "influenced_by": [
+      "Daniel Dennett",
+      "Hubert Dreyfus",
+      "John McDowell",
+      "Ludwig Wittgenstein",
+      "Martin Heidegger",
+      "Maurice Merleau-Ponty"
+    ]
+  },
+  "agent:andy-warhol": {
+    "name": "Andy Warhol",
+    "notable_ideas": [],
+    "schools": [
+      "Pop art"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:antonin-artaud": {
+    "name": "Antonin Artaud",
+    "notable_ideas": [
+      "Theatre of Cruelty"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:antonio-gramsci": {
+    "name": "Antonio Gramsci",
+    "notable_ideas": [
+      "Americanism (ideology)",
+      "Bourgeoisie",
+      "Counter-hegemony",
+      "Cultural hegemony",
+      "Fordism"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "Marxist humanism",
+      "Neo-Marxism",
+      "Western Marxism"
+    ],
+    "fields": [
+      "Ideology"
+    ],
+    "influenced_by": [
+      "Amadeo Bordiga",
+      "Antonio Labriola",
+      "Benedetto Croce",
+      "Engels",
+      "Francesco De Sanctis",
+      "G. Mosca",
+      "G. Sorel",
+      "Giovanni Gentile",
+      "Hegel",
+      "Lenin",
+      "Machiavelli",
+      "Marx",
+      "V. Pareto"
+    ]
+  },
+  "agent:antonio-negri": {
+    "name": "Antonio Negri",
+    "notable_ideas": [
+      "Globalization"
+    ],
+    "schools": [
+      "Autonomist Marxism",
+      "Continental philosophy"
+    ],
+    "fields": [
+      "Political philosophy"
+    ],
+    "influenced_by": [
+      "Galvano Della Volpe",
+      "Karl Marx"
+    ]
+  },
+  "agent:aristotle": {
+    "name": "Aristotle",
+    "notable_ideas": [
+      "Accident (philosophy)",
+      "Aether (classical element)",
+      "Aristotelian biology",
+      "Aristotelian ethics",
+      "Aristotelian logic",
+      "Aristotelian physics",
+      "Aristotelianism",
+      "Aristotle's theory of universals",
+      "Aristotle's views on women",
+      "Catharsis",
+      "Classical elements",
+      "Common sense",
+      "Deliberative rhetoric",
+      "Enthymeme",
+      "Epideictic",
+      "Episteme",
+      "Essence",
+      "Eternity of the world",
+      "Family as a model for the state",
+      "Five wits",
+      "Forensic rhetoric",
+      "Four causes",
+      "Genus–differentia definition",
+      "Golden mean (philosophy)",
+      "Horror vacui (physics)",
+      "Hylomorphism",
+      "Hypokeimenon",
+      "Intellectual virtue",
+      "Kyklos",
+      "Logos",
+      "Magnanimity",
+      "Mimesis",
+      "Natural slavery",
+      "Nous",
+      "Paradeigma",
+      "Pathos",
+      "Phronesis",
+      "Potentiality and actuality",
+      "Rational animal",
+      "Substance theory",
+      "Syllogism",
+      "Techne",
+      "Three appeals",
+      "Unmoved mover"
+    ],
+    "schools": [
+      "Aristotelianism",
+      "Classical republicanism",
+      "Peripatetic school"
+    ],
+    "fields": [
+      "Aesthetics",
+      "Biology",
+      "Economics",
+      "Ethics",
+      "Geology",
+      "Government",
+      "Logic",
+      "Metaphysics",
+      "Meteorology",
+      "Music",
+      "Physics",
+      "Poetry",
+      "Politics",
+      "Psychology",
+      "Rhetoric",
+      "Zoology"
+    ],
+    "influenced_by": [
+      "Empedocles",
+      "Heraclitus",
+      "Hippias",
+      "Hippodamus of Miletus",
+      "Parmenides",
+      "Phaleas of Chalcedon",
+      "Plato",
+      "Socrates"
+    ]
+  },
+  "agent:arlie-russell-hochschild": {
+    "name": "Arlie Russell Hochschild",
+    "notable_ideas": [
+      "Emotion work",
+      "Emotional labor",
+      "Family economics",
+      "Feeling rules",
+      "Global care chain",
+      "Market culture",
+      "Strangers in Their Own Land",
+      "The Managed Heart",
+      "The Second Shift",
+      "The Time Bind",
+      "Work–family conflict"
+    ],
+    "schools": [],
+    "fields": [
+      "Sociology"
+    ],
+    "influenced_by": [
+      "C. Wright Mills",
+      "David Riesman"
+    ]
+  },
+  "agent:arthur-danto": {
+    "name": "Arthur Danto",
+    "notable_ideas": [
+      "Indiscernibles"
+    ],
+    "schools": [
+      "Analytic philosophy"
+    ],
+    "fields": [
+      "Philosophy of action",
+      "Philosophy of art",
+      "Philosophy of history"
+    ],
+    "influenced_by": [
+      "Andy Warhol",
+      "Arthur Schopenhauer",
+      "Friedrich Nietzsche",
+      "Georg Wilhelm Friedrich Hegel",
+      "Jean-Paul Sartre",
+      "Ludwig Wittgenstein",
+      "Maurice Merleau-Ponty",
+      "Nelson Goodman"
+    ]
+  },
+  "agent:augusto-boal": {
+    "name": "Augusto Boal",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Theatre of the Oppressed"
+    ],
+    "influenced_by": []
+  },
+  "agent:autopsia": {
+    "name": "Autopsia",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Contemporary classical music",
+      "Electronic music",
+      "Experimental music"
+    ],
+    "influenced_by": []
+  },
+  "agent:axel-honneth": {
+    "name": "Axel Honneth",
+    "notable_ideas": [],
+    "schools": [
+      "Continental philosophy",
+      "Frankfurt School",
+      "Neopragmatism"
+    ],
+    "fields": [
+      "Critical theory",
+      "Moral philosophy",
+      "Political philosophy",
+      "Recognition (sociology)",
+      "Social philosophy"
+    ],
+    "influenced_by": [
+      "Charles Taylor (philosopher)",
+      "G. W. F. Hegel",
+      "György Lukács",
+      "Isaiah Berlin",
+      "Jean-Paul Sartre",
+      "John Dewey",
+      "John McDowell",
+      "John Rawls",
+      "Jürgen Habermas",
+      "Martin Heidegger",
+      "Michel Foucault",
+      "Robert B. Pippin",
+      "Stanley Cavell",
+      "Theodor W. Adorno"
+    ]
+  },
+  "agent:barbara-kruger": {
+    "name": "Barbara Kruger",
+    "notable_ideas": [],
+    "schools": [
+      "Feminist art movement",
+      "The Pictures Generation"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:baruch-spinoza": {
+    "name": "Baruch Spinoza",
+    "notable_ideas": [],
+    "schools": [
+      "Cartesianism",
+      "Conceptualism",
+      "Correspondence theory of truth",
+      "Direct realism",
+      "Foundationalism",
+      "Rationalism",
+      "Spinozism"
+    ],
+    "fields": [
+      "Epistemology",
+      "Ethics",
+      "Hebrew Bible",
+      "Metaphysics"
+    ],
+    "influenced_by": [
+      "Abraham ibn Ezra",
+      "Christiaan Huygens",
+      "Epicurus",
+      "Franciscus van den Enden",
+      "Hasdai Crescas",
+      "Maimonides",
+      "Niccolò Machiavelli",
+      "René Descartes",
+      "Thomas Hobbes"
+    ]
+  },
+  "agent:bell-hooks": {
+    "name": "Bell hooks",
+    "notable_ideas": [
+      "Oppositional gaze"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:okri-ben": {
+    "name": "Ben Okri",
+    "notable_ideas": [],
+    "schools": [
+      "Postcolonial literature",
+      "Postmodern literature"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:ben-shahn": {
+    "name": "Ben Shahn",
+    "notable_ideas": [],
+    "schools": [
+      "Social realism"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:benedict-anderson": {
+    "name": "Benedict Anderson",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Auxiliary sciences of history",
+      "Political science"
+    ],
+    "influenced_by": []
+  },
+  "agent:bertolt-brecht": {
+    "name": "Bertolt Brecht",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Epic theatre",
+      "Non-Aristotelian drama"
+    ],
+    "influenced_by": []
+  },
+  "agent:bob-black": {
+    "name": "Bob Black",
+    "notable_ideas": [
+      "The abolition of work"
+    ],
+    "schools": [
+      "Post-left anarchy"
+    ],
+    "fields": [
+      "History of anarchism",
+      "Hunter-gatherer",
+      "Post-industrial society",
+      "Refusal of work"
+    ],
+    "influenced_by": [
+      "Charles Darwin",
+      "Charles Fourier",
+      "Emma Goldman",
+      "Errico Malatesta",
+      "Fredy Perlman",
+      "Friedrich Nietzsche",
+      "Guy Debord",
+      "Henry David Thoreau",
+      "Ivan Illich",
+      "John Zerzan",
+      "Karl Kraus (writer)",
+      "Karl Marx",
+      "Leo Tolstoy",
+      "Ludwig Wittgenstein",
+      "Marshall Sahlins",
+      "Max Stirner",
+      "Oscar Wilde",
+      "Paul Goodman (writer)",
+      "Peter Kropotkin",
+      "Raoul Vaneigem",
+      "Richard Borshay Lee",
+      "Robert Michels",
+      "Sigmund Freud",
+      "Theodor Adorno",
+      "Thomas Kuhn",
+      "Walter Benjamin",
+      "William Godwin",
+      "William Morris"
+    ]
+  },
+  "agent:boris-groys": {
+    "name": "Boris Groys",
+    "notable_ideas": [],
+    "schools": [
+      "Continental philosophy"
+    ],
+    "fields": [
+      "Art theory",
+      "Ethics",
+      "Political philosophy",
+      "Religion"
+    ],
+    "influenced_by": [
+      "Alexandre Kojève",
+      "Aristotle",
+      "Edmund Husserl",
+      "Friedrich Nietzsche",
+      "Georg Wilhelm Friedrich Hegel",
+      "Immanuel Kant",
+      "Jacques Derrida",
+      "Jacques Lacan",
+      "Martin Heidegger",
+      "Plato",
+      "Søren Kierkegaard",
+      "Vladimir Solovyov (philosopher)",
+      "Walter Benjamin"
+    ]
+  },
+  "agent:bozidar-jakac": {
+    "name": "Božidar Jakac",
+    "notable_ideas": [],
+    "schools": [
+      "Expressionism",
+      "Lyrical Realism",
+      "Symbolism (arts)"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:bozo-skerlj": {
+    "name": "Božo Škerlj",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Anthropology"
+    ],
+    "influenced_by": []
+  },
+  "agent:brian-massumi": {
+    "name": "Brian Massumi",
+    "notable_ideas": [],
+    "schools": [
+      "Poststructuralism",
+      "Process philosophy",
+      "Radical empiricism"
+    ],
+    "fields": [
+      "Affect (philosophy)",
+      "Virtuality"
+    ],
+    "influenced_by": [
+      "Alfred North Whitehead",
+      "Charles Sanders Peirce",
+      "Félix Guattari",
+      "Gilles Deleuze",
+      "Henri Bergson",
+      "Isabelle Stengers",
+      "William James"
+    ]
+  },
+  "agent:brion-gysin": {
+    "name": "Brion Gysin",
+    "notable_ideas": [],
+    "schools": [
+      "Asemic writing",
+      "Beat Generation",
+      "Postmodern"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:bruno-latour": {
+    "name": "Bruno Latour",
+    "notable_ideas": [
+      "Actant",
+      "Actor–network theory",
+      "Blackboxing",
+      "Graphism thesis",
+      "Mapping controversies",
+      "Nonmodernism"
+    ],
+    "schools": [
+      "Actor–network theory",
+      "Constructivism (disambiguation)",
+      "Continental philosophy",
+      "Social constructionism"
+    ],
+    "fields": [],
+    "influenced_by": [
+      "Alfred North Whitehead",
+      "Algirdas Julien Greimas",
+      "Eric Voegelin",
+      "Gabriel Tarde",
+      "Gilles Deleuze",
+      "Michel Serres"
+    ]
+  },
+  "agent:benedicte-savoy": {
+    "name": "Bénédicte Savoy",
+    "notable_ideas": [
+      "Provenance"
+    ],
+    "schools": [],
+    "fields": [
+      "Art history"
+    ],
+    "influenced_by": []
+  },
+  "agent:carin-kuoni": {
+    "name": "Carin Kuoni",
+    "notable_ideas": [],
+    "schools": [
+      "Abstract art",
+      "Modernism"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:carl-andre": {
+    "name": "Carl Andre",
+    "notable_ideas": [],
+    "schools": [
+      "Minimalism"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:carl-schmitt": {
+    "name": "Carl Schmitt",
+    "notable_ideas": [
+      "Legality",
+      "State of exception",
+      "The Concept of the Political"
+    ],
+    "schools": [
+      "Conservative Revolution",
+      "Continental philosophy",
+      "Decisionism",
+      "Realism (international relations)"
+    ],
+    "fields": [
+      "Constitutional law",
+      "Jurisprudence",
+      "Philosophy of religion",
+      "Political theology",
+      "Politics"
+    ],
+    "influenced_by": [
+      "Charles Darwin",
+      "Donoso Cortés",
+      "E. Burke",
+      "G. Sorel",
+      "Guénon",
+      "Hegel",
+      "Hobbes",
+      "J. de Maistre",
+      "Kant",
+      "Karl Marx",
+      "Kierkegaard",
+      "Leo Strauss",
+      "M. Weber",
+      "Machiavelli",
+      "Max Stirner",
+      "Nietzsche",
+      "Plato",
+      "Rousseau",
+      "Sigmund Freud"
+    ]
+  },
+  "agent:carla-lonzi": {
+    "name": "Carla Lonzi",
+    "notable_ideas": [
+      "Feminism"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:carolee-schneemann": {
+    "name": "Carolee Schneemann",
+    "notable_ideas": [],
+    "schools": [
+      "Feminist art",
+      "Fluxus",
+      "Happening",
+      "Neo-dada"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:catherine-malabou": {
+    "name": "Catherine Malabou",
+    "notable_ideas": [
+      "Neuroplasticity",
+      "Transsubjectivation"
+    ],
+    "schools": [
+      "Continental philosophy"
+    ],
+    "fields": [
+      "Feminist theory",
+      "Philosophy",
+      "Psychology"
+    ],
+    "influenced_by": [
+      "Antonio Damasio",
+      "G.W.F. Hegel",
+      "Immanuel Kant",
+      "Jacques Derrida",
+      "Jean-Luc Marion",
+      "Luce Irigaray",
+      "Martin Heidegger",
+      "Michel Foucault"
+    ]
+  },
+  "agent:catherine-porter": {
+    "name": "Catherine Porter",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Easy Listening",
+      "Pop Music"
+    ],
+    "influenced_by": []
+  },
+  "agent:chalmers-johnson": {
+    "name": "Chalmers Johnson",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Political science"
+    ],
+    "influenced_by": []
+  },
+  "agent:chantal-mouffe": {
+    "name": "Chantal Mouffe",
+    "notable_ideas": [
+      "Deliberative democracy"
+    ],
+    "schools": [
+      "Post-Marxism"
+    ],
+    "fields": [
+      "Political theory"
+    ],
+    "influenced_by": [
+      "Antonio Gramsci",
+      "Carl Schmitt",
+      "Jacques Derrida",
+      "Jacques Lacan",
+      "Karl Marx",
+      "Ludwig Wittgenstein",
+      "Slavoj Žižek"
+    ]
+  },
+  "agent:charles-baudelaire": {
+    "name": "Charles Baudelaire",
+    "notable_ideas": [],
+    "schools": [
+      "Decadent movement"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:charlotte-pistorius": {
+    "name": "Charlotte Pistorius",
+    "notable_ideas": [
+      "Ernst Moritz Arndt",
+      "Friedrich Schleiermacher"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:chris-cuomo": {
+    "name": "Chris Cuomo",
+    "notable_ideas": [
+      "Cuomo Prime Time"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:claude-lanzmann": {
+    "name": "Claude Lanzmann",
+    "notable_ideas": [
+      "Shoah (film)"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:claude-lvi-strauss": {
+    "name": "Claude Lévi-Strauss",
+    "notable_ideas": [
+      "Alliance theory",
+      "Bricolage",
+      "Culinary triangle",
+      "Floating signifier",
+      "Mytheme",
+      "Mythography",
+      "Structuralism",
+      "Structuralist theory of mythology"
+    ],
+    "schools": [
+      "Structuralism"
+    ],
+    "fields": [
+      "Anthropology",
+      "Kinship",
+      "Linguistics",
+      "Society"
+    ],
+    "influenced_by": [
+      "Alfred Radcliffe-Brown",
+      "Ferdinand de Saussure",
+      "Franz Boas",
+      "Henri Bergson",
+      "Jean-Jacques Rousseau",
+      "Karl Marx",
+      "Lewis Henry Morgan",
+      "Marcel Mauss",
+      "Roman Jakobson",
+      "Émile Durkheim"
+    ]
+  },
+  "agent:clement-greenberg": {
+    "name": "Clement Greenberg",
+    "notable_ideas": [],
+    "schools": [
+      "Abstract expressionism",
+      "Color field painting",
+      "Post-painterly abstraction"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:cornelius-castoriadis": {
+    "name": "Cornelius Castoriadis",
+    "notable_ideas": [
+      "Affect (psychology)",
+      "Alterity",
+      "Being-in-itself",
+      "Chaos (cosmogony)",
+      "Creation ex nihilo",
+      "Decentralized planning (economics)",
+      "Degrowth",
+      "Democracy",
+      "Georg Cantor",
+      "Gödelian argument",
+      "Historiography",
+      "Human self-reflection",
+      "Id, ego and super-ego",
+      "Ideology",
+      "Imaginary (sociology)",
+      "Imagination",
+      "Intentionality",
+      "Lacanianism",
+      "Law of identity",
+      "Marx's theory of history",
+      "Marxian economics",
+      "Materialist dialectic",
+      "Mental representation",
+      "New Philosophers",
+      "Nomos (sociology)",
+      "Oikos",
+      "Popular tribunal",
+      "Poststructuralist subject",
+      "Power theory of value",
+      "Psyche (psychology)",
+      "Psychogenesis",
+      "Rationality",
+      "Reductionism",
+      "Social constructionism",
+      "Social constructivism",
+      "Socialist economic models",
+      "Society",
+      "Spiritualism (philosophy)",
+      "Splitting (psychology)",
+      "State capitalism",
+      "Structural functionalism",
+      "Structuralism",
+      "Sublimation (psychology)",
+      "The Imaginary (psychoanalysis)",
+      "Theory of Forms",
+      "Totalitarian democracy",
+      "Unconscious mind",
+      "Wage system",
+      "Wikt:agora",
+      "Wikt:anaclisis",
+      "Wikt:delegation",
+      "Wikt:ecclesia",
+      "Wikt:lability",
+      "Wikt:sociogenesis"
+    ],
+    "schools": [
+      "Classical republicanism",
+      "Continental philosophy",
+      "Libertarian socialism",
+      "Post-Lacanian",
+      "Post-Marxism",
+      "Post-phenomenology",
+      "Praxis (process)",
+      "Revolutionary socialism",
+      "Western Marxism"
+    ],
+    "fields": [
+      "Aesthetics",
+      "Developmental psychology",
+      "Ecology",
+      "Economics",
+      "Epistemology",
+      "Libertarian socialism",
+      "Ontology",
+      "Philosophy of history",
+      "Philosophy of science",
+      "Political philosophy",
+      "Psychoanalysis",
+      "Social criticism",
+      "Sovietology"
+    ],
+    "influenced_by": [
+      "André Leroi-Gourhan",
+      "Aristotle",
+      "C. L. R. James",
+      "Edmund Husserl",
+      "Francisco Varela",
+      "Gaston Bachelard",
+      "Giambattista Vico",
+      "Grace Lee Boggs",
+      "György Lukács",
+      "Hannah Arendt",
+      "Jacques Derrida",
+      "Jacques Ellul",
+      "Jean Laplanche",
+      "Jean-Jacques Rousseau",
+      "Joan Robinson",
+      "Johann Gottlieb Fichte",
+      "Karl Marx",
+      "Leon Trotsky",
+      "Martin Heidegger",
+      "Maurice Merleau-Ponty",
+      "Max Weber",
+      "Melanie Klein",
+      "Paul Ricœur",
+      "Piera Aulagnier",
+      "Rosa Luxemburg",
+      "Serge Latouche",
+      "Sigmund Freud",
+      "Susan Sutherland Isaacs"
+    ]
+  },
+  "agent:david": {
+    "name": "DAVID",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Bioinformatics"
+    ],
+    "influenced_by": []
+  },
+  "agent:damien-hirst": {
+    "name": "Damien Hirst",
+    "notable_ideas": [],
+    "schools": [
+      "Young British Artists"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:dane-zajc": {
+    "name": "Dane Zajc",
+    "notable_ideas": [],
+    "schools": [
+      "Existentialism",
+      "Surrealism"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:david-hockney": {
+    "name": "David Hockney",
+    "notable_ideas": [],
+    "schools": [
+      "Pop art"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:green": {
+    "name": "Green",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "J-pop"
+    ],
+    "influenced_by": []
+  },
+  "agent:deborah-hay": {
+    "name": "Deborah Hay",
+    "notable_ideas": [],
+    "schools": [
+      "Judson Dance Theater",
+      "Minimalism",
+      "Postmodern dance"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:derrick-bell": {
+    "name": "Derrick Bell",
+    "notable_ideas": [
+      "Critical race theory"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:prima-diane-di": {
+    "name": "Diane di Prima",
+    "notable_ideas": [],
+    "schools": [
+      "Beat Generation"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:dick-higgins": {
+    "name": "Dick Higgins",
+    "notable_ideas": [],
+    "schools": [
+      "Fluxus"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:doris-humphrey": {
+    "name": "Doris Humphrey",
+    "notable_ideas": [],
+    "schools": [
+      "Modern dance"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:crimp-douglas": {
+    "name": "Douglas Crimp",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Ethics",
+      "Feminist theory",
+      "Gender theory",
+      "Human sexuality",
+      "Institutional critique",
+      "Phenomenology (philosophy)",
+      "Political philosophy",
+      "Psychoanalysis",
+      "Queer theory"
+    ],
+    "influenced_by": []
+  },
+  "agent:douglas-kellner": {
+    "name": "Douglas Kellner",
+    "notable_ideas": [],
+    "schools": [
+      "Frankfurt School"
+    ],
+    "fields": [
+      "Alter-globalization",
+      "Critical theory",
+      "Media culture",
+      "Media literacy",
+      "Postmodern theory"
+    ],
+    "influenced_by": [
+      "Ernst Bloch",
+      "Gilles Deleuze",
+      "Guy Debord",
+      "Herbert Marcuse",
+      "Jean Baudrillard",
+      "Jean-François Lyotard",
+      "Karl Korsch",
+      "Max Horkheimer",
+      "Michel Foucault",
+      "Theodor Adorno"
+    ]
+  },
+  "agent:dragotin-kette": {
+    "name": "Dragotin Kette",
+    "notable_ideas": [],
+    "schools": [
+      "Fin de siecle",
+      "Neo-romanticism"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:dusan-prelevic": {
+    "name": "Dušan Prelević",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Jazz",
+      "Rhythm and blues",
+      "Rock music",
+      "Soul music"
+    ],
+    "influenced_by": []
+  },
+  "agent:edmund-husserl": {
+    "name": "Edmund Husserl",
+    "notable_ideas": [
+      "Formal ontology",
+      "Hyle",
+      "Lebenswelt",
+      "Mereology",
+      "Nachgewahren",
+      "Noesis (phenomenology)",
+      "Phenomenological description",
+      "Phenomenological reduction",
+      "Phenomenology (philosophy)",
+      "Physicalism",
+      "Pre-reflective self-consciousness",
+      "Retention and protention",
+      "Theory of moments",
+      "Transcendental idealism",
+      "Urdoxa"
+    ],
+    "schools": [
+      "Austrian realism",
+      "Conceptualism",
+      "Continental philosophy",
+      "Correspondence theory of truth",
+      "Foundationalism",
+      "Genetic phenomenology",
+      "Indirect realism",
+      "Logical objectivism",
+      "Phenomenology (philosophy)",
+      "Transcendental constitutive phenomenology"
+    ],
+    "fields": [
+      "Epistemology",
+      "Intersubjectivity",
+      "Ontology",
+      "Philosophy of mathematics"
+    ],
+    "influenced_by": [
+      "Benno Kerry",
+      "Bernard Bolzano",
+      "Carl Stumpf",
+      "David Hume",
+      "Franz Brentano",
+      "Gottfried Wilhelm Leibniz",
+      "Heinrich Rickert",
+      "Hermann Lotze",
+      "Immanuel Kant",
+      "Karl Weierstrass",
+      "Paul Natorp",
+      "Plato",
+      "René Descartes",
+      "Tomáš Garrigue Masaryk",
+      "Wilhelm Windelband"
+    ]
+  },
+  "agent:zalta-edward-n": {
+    "name": "Edward N. Zalta",
+    "notable_ideas": [
+      "Abstract object theory",
+      "Computational metaphysics",
+      "Dual copula strategy",
+      "Platonized naturalism"
+    ],
+    "schools": [
+      "Analytic philosophy",
+      "Mathematical platonism",
+      "Mathematical structuralism",
+      "Neo-logicism"
+    ],
+    "fields": [
+      "Epistemology",
+      "Intensional logic",
+      "Intentionality",
+      "Metaphysics",
+      "Philosophy of language",
+      "Philosophy of logic",
+      "Philosophy of mathematics",
+      "Philosophy of mind",
+      "Situation theory"
+    ],
+    "influenced_by": [
+      "Alexius Meinong",
+      "Ernst Mally",
+      "Gottlob Frege"
+    ]
+  },
+  "agent:edward-said": {
+    "name": "Edward Said",
+    "notable_ideas": [
+      "Occidentalism",
+      "Orientalism",
+      "Other (philosophy)"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "Postcolonialism"
+    ],
+    "fields": [],
+    "influenced_by": [
+      "Aimé Césaire",
+      "Antonio Gramsci",
+      "Arthur Schopenhauer",
+      "Bertrand Russell",
+      "Frantz Fanon",
+      "Friedrich Nietzsche",
+      "Giambattista Vico",
+      "Jacques Derrida",
+      "Jean-Paul Sartre",
+      "Joseph Conrad",
+      "Karl Marx",
+      "Michel Foucault",
+      "Noam Chomsky",
+      "Theodor Adorno"
+    ]
+  },
+  "agent:elizabeth-grosz": {
+    "name": "Elizabeth Grosz",
+    "notable_ideas": [],
+    "schools": [
+      "Continental philosophy",
+      "Feminist theory",
+      "Queer theory"
+    ],
+    "fields": [
+      "Darwinism",
+      "Deconstruction",
+      "Feminist philosophy",
+      "Gilles Deleuze",
+      "Philosophy of art",
+      "Psychoanalytic theory",
+      "Sexual selection"
+    ],
+    "influenced_by": [
+      "Charles Darwin",
+      "Friedrich Nietzsche",
+      "Gilles Deleuze",
+      "Jacques Derrida",
+      "Jacques Lacan",
+      "Luce Irigaray"
+    ]
+  },
+  "agent:emil-nolde": {
+    "name": "Emil Nolde",
+    "notable_ideas": [],
+    "schools": [
+      "Expressionism"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:emilio-vedova": {
+    "name": "Emilio Vedova",
+    "notable_ideas": [],
+    "schools": [
+      "Arte Informale",
+      "Gruppo degli Otto"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:emma-goldman": {
+    "name": "Emma Goldman",
+    "notable_ideas": [],
+    "schools": [
+      "Anarchism",
+      "Feminism"
+    ],
+    "fields": [],
+    "influenced_by": [
+      "Friedrich Nietzsche",
+      "Henry David Thoreau",
+      "Johann Most",
+      "Mary Wollstonecraft",
+      "Max Stirner",
+      "Mikhail Bakunin",
+      "Nikolay Chernyshevsky",
+      "Oscar Wilde",
+      "Peter Kropotkin",
+      "Ralph Waldo Emerson"
+    ]
+  },
+  "agent:emmanuel-levinas": {
+    "name": "Emmanuel Levinas",
+    "notable_ideas": [
+      "Other (philosophy)"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "Existential phenomenology",
+      "Jewish philosophy"
+    ],
+    "fields": [
+      "Ethics"
+    ],
+    "influenced_by": [
+      "Edmund Husserl",
+      "Franz Rosenzweig",
+      "Gabriel Marcel",
+      "Henri Bergson",
+      "Jean Wahl",
+      "Lev Shestov",
+      "Maimonides",
+      "Martin Buber",
+      "Martin Heidegger",
+      "Monsieur Chouchani",
+      "René Descartes",
+      "Søren Kierkegaard",
+      "Vladimir Jankélévitch"
+    ]
+  },
+  "agent:epicurus": {
+    "name": "Epicurus",
+    "notable_ideas": [],
+    "schools": [
+      "Epicureanism"
+    ],
+    "fields": [
+      "Epistemology",
+      "Ethics",
+      "Physics",
+      "Theology"
+    ],
+    "influenced_by": [
+      "Aristippus",
+      "Aristotle",
+      "Democritus",
+      "Nausiphanes",
+      "Plato",
+      "Pyrrho"
+    ]
+  },
+  "agent:ernest-gellner": {
+    "name": "Ernest Gellner",
+    "notable_ideas": [
+      "Nationalism",
+      "Ordinary language philosophy"
+    ],
+    "schools": [
+      "Critical rationalism"
+    ],
+    "fields": [
+      "Anthropology",
+      "Nationalism",
+      "Philosophy of science",
+      "Political philosophy"
+    ],
+    "influenced_by": [
+      "Bertrand Russell",
+      "Bronisław Malinowski",
+      "Karl Popper",
+      "Max Weber"
+    ]
+  },
+  "agent:ernesto-laclau": {
+    "name": "Ernesto Laclau",
+    "notable_ideas": [],
+    "schools": [
+      "Post-Marxism"
+    ],
+    "fields": [
+      "Hegemony"
+    ],
+    "influenced_by": [
+      "Karl Marx"
+    ]
+  },
+  "agent:ernst-bloch": {
+    "name": "Ernst Bloch",
+    "notable_ideas": [
+      "Non-simultaneity",
+      "The Principle of Hope"
+    ],
+    "schools": [
+      "Marxist hermeneutics",
+      "Western Marxism"
+    ],
+    "fields": [
+      "Humanism",
+      "Ideology",
+      "Nature",
+      "Philosophy of history",
+      "Religion",
+      "Subjectivity",
+      "Theology",
+      "Utopia"
+    ],
+    "influenced_by": [
+      "G. W. F. Hegel",
+      "Heinrich Rickert",
+      "Jacob Boehme",
+      "Karl Marx",
+      "Paracelsus",
+      "Thomas Müntzer"
+    ]
+  },
+  "agent:erving-goffman": {
+    "name": "Erving Goffman",
+    "notable_ideas": [
+      "Dramaturgy (sociology)",
+      "Impression management",
+      "Stigma (sociology)",
+      "Symbolic interactionist",
+      "Tie signs",
+      "Total institution"
+    ],
+    "schools": [],
+    "fields": [
+      "Symbolic interactionism"
+    ],
+    "influenced_by": [
+      "Alfred Radcliffe-Brown",
+      "Alfred Schütz",
+      "C. W. M. Hart",
+      "Dennis Wrong",
+      "Everett Hughes (sociologist)",
+      "Georg Simmel",
+      "Herbert Blumer",
+      "Ray Birdwhistell",
+      "Sigmund Freud",
+      "Talcott Parsons",
+      "W. Lloyd Warner",
+      "Émile Durkheim"
+    ]
+  },
+  "agent:evan-parker": {
+    "name": "Evan Parker",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Free improvisation",
+      "Free jazz"
+    ],
+    "influenced_by": []
+  },
+  "agent:eve-kosofsky-sedgwick": {
+    "name": "Eve Kosofsky Sedgwick",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Literary criticism"
+    ],
+    "influenced_by": []
+  },
+  "agent:faith-ringgold": {
+    "name": "Faith Ringgold",
+    "notable_ideas": [],
+    "schools": [
+      "Civil rights",
+      "Feminist art movement in the United States"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:ferdinand-de-saussure": {
+    "name": "Ferdinand de Saussure",
+    "notable_ideas": [
+      "Langue and parole",
+      "Laryngeal theory",
+      "Linguistic sign",
+      "Semiology",
+      "Semiotic arbitrariness",
+      "Signified and signifier",
+      "Structural linguistics",
+      "Synchrony and diachrony"
+    ],
+    "schools": [
+      "Linguistic turn",
+      "Semiotics",
+      "Structuralism"
+    ],
+    "fields": [
+      "Linguistics"
+    ],
+    "influenced_by": [
+      "August Leskien",
+      "Heinrich Zimmer",
+      "Hermann Oldenberg",
+      "Pāṇini",
+      "Émile Durkheim"
+    ]
+  },
+  "agent:fernand-leger": {
+    "name": "Fernand Léger",
+    "notable_ideas": [],
+    "schools": [
+      "Cubism",
+      "Modernism"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:filippo-tommaso-marinetti": {
+    "name": "Filippo Tommaso Marinetti",
+    "notable_ideas": [],
+    "schools": [
+      "Futurism"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:franko": {
+    "name": "FranKo",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Alternative rock",
+      "Pop rock",
+      "Pop-punk"
+    ],
+    "influenced_by": []
+  },
+  "agent:france-preseren": {
+    "name": "France Prešeren",
+    "notable_ideas": [],
+    "schools": [
+      "Romantic school"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:frantz-fanon": {
+    "name": "Frantz Fanon",
+    "notable_ideas": [
+      "Colonial mentality",
+      "Double consciousness",
+      "Negrescence",
+      "Sociogeny"
+    ],
+    "schools": [
+      "Black existentialism",
+      "Critical theory",
+      "Existential phenomenology",
+      "Marxism"
+    ],
+    "fields": [
+      "Decolonization",
+      "Postcolonialism",
+      "Psychoanalysis",
+      "Psychopathology",
+      "Racism",
+      "Revolution"
+    ],
+    "influenced_by": [
+      "Karl Marx"
+    ]
+  },
+  "agent:franz-kline": {
+    "name": "Franz Kline",
+    "notable_ideas": [],
+    "schools": [
+      "Abstract expressionism",
+      "Action painting"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:francois-laruelle": {
+    "name": "François Laruelle",
+    "notable_ideas": [
+      "Henology",
+      "The Real"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "Non-philosophy"
+    ],
+    "fields": [
+      "Ontology"
+    ],
+    "influenced_by": [
+      "Alain Badiou",
+      "Emmanuel Levinas",
+      "Friedrich Nietzsche",
+      "Félix Ravaisson-Mollien",
+      "Gilles Deleuze",
+      "Jacques Derrida",
+      "Jacques Lacan",
+      "Johann Gottlieb Fichte",
+      "Karl August von Eschenmayer",
+      "Karl Marx",
+      "Martin Heidegger",
+      "Michel Henry"
+    ]
+  },
+  "agent:fred-moten": {
+    "name": "Fred Moten",
+    "notable_ideas": [
+      "African-American culture"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:fredric-jameson": {
+    "name": "Fredric Jameson",
+    "notable_ideas": [
+      "Cognitive map"
+    ],
+    "schools": [
+      "Marxist hermeneutics",
+      "Western Marxism"
+    ],
+    "fields": [
+      "Postmodernism"
+    ],
+    "influenced_by": [
+      "Darko Suvin",
+      "Karl Marx"
+    ]
+  },
+  "agent:friedrich-nietzsche": {
+    "name": "Friedrich Nietzsche",
+    "notable_ideas": [
+      "Apollonian and Dionysian",
+      "Eternal return",
+      "Fact–value distinction",
+      "Genealogy (philosophy)",
+      "God is dead",
+      "Herd behavior",
+      "Last man",
+      "Master–slave morality",
+      "Nietzschean affirmation",
+      "Nihilism",
+      "Perspectivism",
+      "Ressentiment",
+      "Transvaluation of values",
+      "Will to power"
+    ],
+    "schools": [
+      "Anti-foundationalism",
+      "Atheism",
+      "Continental philosophy",
+      "Dionysus",
+      "Existentialism",
+      "German Romanticism",
+      "Immoralism",
+      "Metaphysical voluntarism",
+      "Naturalism (philosophy)",
+      "Nietzscheanism",
+      "Nihilism",
+      "Perspectivism",
+      "Philosophical pessimism",
+      "Philosophical realism",
+      "Political realism"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:fritz-perls": {
+    "name": "Fritz Perls",
+    "notable_ideas": [
+      "Gestalt Therapy"
+    ],
+    "schools": [],
+    "fields": [
+      "Psychiatry",
+      "Psychotherapy"
+    ],
+    "influenced_by": [
+      "Gestalt Psychology",
+      "Jacob L. Moreno",
+      "Kurt Lewin",
+      "Otto Rank",
+      "Wilhelm Reich"
+    ]
+  },
+  "agent:felix-guattari": {
+    "name": "Félix Guattari",
+    "notable_ideas": [
+      "Assemblage (philosophy)",
+      "Desiring-production",
+      "Deterritorialization",
+      "Ecosophy",
+      "Schizoanalysis"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "Freudo-Marxism",
+      "Post-Marxism",
+      "Post-structuralism",
+      "Psychoanalysis"
+    ],
+    "fields": [
+      "Ecology",
+      "Linguistics",
+      "Marxist philosophy",
+      "Political philosophy",
+      "Psychoanalysis",
+      "Semiotics"
+    ],
+    "influenced_by": [
+      "Friedrich Nietzsche",
+      "Gilles Deleuze",
+      "Jacques Lacan",
+      "Jean-Paul Sartre",
+      "Karl Marx",
+      "Louis Althusser",
+      "Sigmund Freud"
+    ]
+  },
+  "agent:galileo-galilei": {
+    "name": "Galileo Galilei",
+    "notable_ideas": [
+      "Analytical dynamics",
+      "Heliocentrism",
+      "Kinematics",
+      "Observational astronomy"
+    ],
+    "schools": [],
+    "fields": [
+      "Astronomy",
+      "Engineering",
+      "Mathematics",
+      "Natural philosophy",
+      "Physics"
+    ],
+    "influenced_by": [
+      "John Philoponus",
+      "Nicolaus Copernicus"
+    ]
+  },
+  "agent:gayatri-chakravorty-spivak": {
+    "name": "Gayatri Chakravorty Spivak",
+    "notable_ideas": [
+      "Other (philosophy)",
+      "Strategic essentialism",
+      "Subaltern (postcolonialism)"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "Deconstruction",
+      "Postcolonialism"
+    ],
+    "fields": [
+      "Feminism",
+      "Literary criticism",
+      "Marxism",
+      "Postcolonialism"
+    ],
+    "influenced_by": [
+      "Karl Marx"
+    ]
+  },
+  "agent:geoffrey-hinton": {
+    "name": "Geoffrey Hinton",
+    "notable_ideas": [
+      "Backpropagation",
+      "Boltzmann machine",
+      "Capsule neural network",
+      "Deep learning"
+    ],
+    "schools": [],
+    "fields": [
+      "Artificial intelligence",
+      "Cognitive science",
+      "Machine learning",
+      "Neural network",
+      "Object recognition"
+    ],
+    "influenced_by": []
+  },
+  "agent:georg-cantor": {
+    "name": "Georg Cantor",
+    "notable_ideas": [
+      "Set theory"
+    ],
+    "schools": [],
+    "fields": [
+      "Mathematics"
+    ],
+    "influenced_by": []
+  },
+  "agent:georg-simmel": {
+    "name": "Georg Simmel",
+    "notable_ideas": [
+      "Formal sociology"
+    ],
+    "schools": [
+      "Lebensphilosophie",
+      "Neo-Kantianism"
+    ],
+    "fields": [
+      "Philosophy",
+      "Sociology"
+    ],
+    "influenced_by": [
+      "Immanuel Kant",
+      "Karl Marx",
+      "Max Weber"
+    ]
+  },
+  "agent:george-grosz": {
+    "name": "George Grosz",
+    "notable_ideas": [],
+    "schools": [
+      "Dada",
+      "Expressionism",
+      "New Objectivity"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:george-lakoff": {
+    "name": "George Lakoff",
+    "notable_ideas": [
+      "Conceptual metaphor",
+      "Embodied cognition"
+    ],
+    "schools": [],
+    "fields": [
+      "Cognitive linguistics",
+      "Cognitive science"
+    ],
+    "influenced_by": []
+  },
+  "agent:george-maciunas": {
+    "name": "George Maciunas",
+    "notable_ideas": [],
+    "schools": [
+      "Fluxus"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:george-soros": {
+    "name": "George Soros",
+    "notable_ideas": [
+      "Open Society Foundations",
+      "Quantum Fund",
+      "Soros Fund Management"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:georges-bataille": {
+    "name": "Georges Bataille",
+    "notable_ideas": [
+      "Base materialism",
+      "Limit-experience",
+      "Solar anus",
+      "The Accursed Share"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "French Nietzscheanism"
+    ],
+    "fields": [
+      "Eroticism",
+      "Literary criticism",
+      "Mysticism",
+      "Sacredness",
+      "Sovereignty",
+      "Surrealism",
+      "Transgressive fiction"
+    ],
+    "influenced_by": [
+      "Alexandre Kojève",
+      "Friedrich Nietzsche",
+      "Georg Wilhelm Friedrich Hegel",
+      "Karl Marx",
+      "Lev Shestov",
+      "Marcel Mauss",
+      "Maria de Naglowska",
+      "Marquis de Sade",
+      "René Guénon",
+      "Sigmund Freud",
+      "Émile Durkheim"
+    ]
+  },
+  "agent:gertrude-stein": {
+    "name": "Gertrude Stein",
+    "notable_ideas": [],
+    "schools": [
+      "Modernist literature"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:gilbert-simondon": {
+    "name": "Gilbert Simondon",
+    "notable_ideas": [
+      "Individuation",
+      "Transduction (psychology)"
+    ],
+    "schools": [
+      "Continental philosophy"
+    ],
+    "fields": [
+      "Communication",
+      "Epistemology",
+      "Information",
+      "Philosophy of nature",
+      "Philosophy of science",
+      "Technology"
+    ],
+    "influenced_by": [
+      "André Leroi-Gourhan",
+      "Gaston Bachelard",
+      "Georges Canguilhem",
+      "Henri Bergson",
+      "Maurice Merleau-Ponty",
+      "Norbert Wiener",
+      "Presocratics"
+    ]
+  },
+  "agent:gilles-deleuze": {
+    "name": "Gilles Deleuze",
+    "notable_ideas": [
+      "Affect (philosophy)",
+      "Arborescent",
+      "Assemblage (philosophy)",
+      "Body without organs",
+      "Desiring-production",
+      "Deterritorialization",
+      "Event (philosophy)",
+      "Haecceity",
+      "Identity (philosophy)",
+      "Immanent evaluation",
+      "Individuation",
+      "Line of flight",
+      "Minority (philosophy)",
+      "Molar configuration",
+      "Multiplicity (philosophy)",
+      "Percept",
+      "Plane of immanence",
+      "Reterritorialization",
+      "Rhizome (philosophy)",
+      "Schizoanalysis",
+      "Societies of control",
+      "Socius (philosophy)",
+      "Subjectification",
+      "Transcendental empiricism",
+      "Univocity of being",
+      "Virtuality (philosophy)"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "Empiricism",
+      "French Nietzscheanism",
+      "Materialism",
+      "Post-Marxism",
+      "Post-structuralism"
+    ],
+    "fields": [
+      "Aesthetics",
+      "Film semiotics",
+      "History of Western philosophy",
+      "Literary theory",
+      "Metaphilosophy",
+      "Metaphysics",
+      "Psychoanalysis",
+      "Semiotics"
+    ],
+    "influenced_by": [
+      "Alfred North Whitehead",
+      "Antonin Artaud",
+      "Baruch Spinoza",
+      "Charles Sanders Peirce",
+      "D. H. Lawrence",
+      "David Hume",
+      "Duns Scotus",
+      "Ferdinand Alquié",
+      "Franz Kafka",
+      "Friedrich Nietzsche",
+      "Friedrich Wilhelm Joseph Schelling",
+      "Georges Canguilhem",
+      "Gilbert Simondon",
+      "Gottfried Leibniz",
+      "Gregory Bateson",
+      "Henri Bergson",
+      "Immanuel Kant",
+      "Jacques Lacan",
+      "Jakob von Uexküll",
+      "Jean Hyppolite",
+      "Jean Wahl",
+      "Jean-Paul Sartre",
+      "Jorge Luis Borges",
+      "Karl Marx",
+      "Lev Shestov",
+      "Louis Althusser",
+      "Marcel Proust",
+      "Martin Heidegger",
+      "Maurice de Gandillac",
+      "Michel Foucault",
+      "Pierre Klossowski",
+      "Salomon Maimon",
+      "Samuel Beckett",
+      "Sigmund Freud",
+      "William S. Burroughs"
+    ]
+  },
+  "agent:giorgio-agamben": {
+    "name": "Giorgio Agamben",
+    "notable_ideas": [
+      "Homo sacer"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "Philosophy of life"
+    ],
+    "fields": [
+      "Aesthetics",
+      "Political philosophy"
+    ],
+    "influenced_by": [
+      "Hannah Arendt"
+    ]
+  },
+  "agent:wekker-gloria": {
+    "name": "Gloria Wekker",
+    "notable_ideas": [
+      "Critical race theory"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:golo-mann": {
+    "name": "Golo Mann",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Historian"
+    ],
+    "influenced_by": []
+  },
+  "agent:graham-harman": {
+    "name": "Graham Harman",
+    "notable_ideas": [
+      "Causality",
+      "Object-oriented ontology"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "Object-oriented ontology",
+      "Speculative realism"
+    ],
+    "fields": [
+      "Metaphysics"
+    ],
+    "influenced_by": [
+      "Alfred North Whitehead",
+      "Aristotle",
+      "Bruno Latour",
+      "Edmund Husserl",
+      "Immanuel Kant",
+      "Martin Heidegger",
+      "Socrates",
+      "Xavier Zubiri"
+    ]
+  },
+  "agent:grum": {
+    "name": "Grum",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "House music",
+      "Nu-disco",
+      "Progressive house",
+      "Tech house",
+      "Trance music"
+    ],
+    "influenced_by": []
+  },
+  "agent:guy-debord": {
+    "name": "Guy Debord",
+    "notable_ideas": [
+      "Dérive",
+      "Détournement",
+      "Psychogeography",
+      "Recuperation (sociology)",
+      "Spectacle (critical theory)"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "Letterist International",
+      "Situationist International",
+      "Ultra-left",
+      "Western Marxism"
+    ],
+    "fields": [
+      "Class struggle",
+      "Commodity fetishism",
+      "Reification (Marxism)",
+      "Social alienation",
+      "Social theory"
+    ],
+    "influenced_by": [
+      "Karl Marx"
+    ]
+  },
+  "agent:guy-hocquenghem": {
+    "name": "Guy Hocquenghem",
+    "notable_ideas": [],
+    "schools": [
+      "Continental philosophy",
+      "Queer theory"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:hans-georg-gadamer": {
+    "name": "Hans-Georg Gadamer",
+    "notable_ideas": [
+      "Consciousness",
+      "Fusion of horizons",
+      "Practical philosophy"
+    ],
+    "schools": [],
+    "fields": [
+      "Aesthetics",
+      "Epistemology",
+      "Hermeneutics",
+      "Metaphysics",
+      "Ontology",
+      "Philosophy of language"
+    ],
+    "influenced_by": [
+      "Aristotle",
+      "Augustine",
+      "Edmund Husserl",
+      "Friedrich Wilhelm Joseph Schelling",
+      "Georg Wilhelm Friedrich Hegel",
+      "Immanuel Kant",
+      "Karl Jaspers",
+      "Leo Strauss",
+      "Martin Heidegger",
+      "Plato"
+    ]
+  },
+  "agent:hans-ulrich-wehler": {
+    "name": "Hans-Ulrich Wehler",
+    "notable_ideas": [
+      "Bielefeld School"
+    ],
+    "schools": [],
+    "fields": [
+      "History",
+      "Sociology"
+    ],
+    "influenced_by": []
+  },
+  "agent:hans-hartung": {
+    "name": "Hans Hartung",
+    "notable_ideas": [],
+    "schools": [
+      "Lyrical Abstraction",
+      "Tachism"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:harold-bloom": {
+    "name": "Harold Bloom",
+    "notable_ideas": [],
+    "schools": [
+      "Aestheticism",
+      "Romanticism"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:heiko-schramm": {
+    "name": "Heiko Schramm",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Alternative rock",
+      "Blues",
+      "Blues rock"
+    ],
+    "influenced_by": []
+  },
+  "agent:helen-frankenthaler": {
+    "name": "Helen Frankenthaler",
+    "notable_ideas": [],
+    "schools": [
+      "Abstract expressionism",
+      "Color field painting",
+      "Lyrical abstraction"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:henri-bergson": {
+    "name": "Henri Bergson",
+    "notable_ideas": [
+      "Affect (philosophy)",
+      "Duration (philosophy)",
+      "Immediate data of consciousness",
+      "Intuition (Bergson)",
+      "Open society",
+      "Élan vital"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "French spiritualism",
+      "Philosophy of life",
+      "Process philosophy"
+    ],
+    "fields": [
+      "Epistemology",
+      "Immediate experience",
+      "Metaphysics",
+      "Philosophy of language",
+      "Philosophy of mathematics"
+    ],
+    "influenced_by": [
+      "Arthur Schopenhauer",
+      "Charles Darwin",
+      "Félix Ravaisson-Mollien",
+      "Gottfried Wilhelm Leibniz",
+      "Herbert Spencer",
+      "Immanuel Kant",
+      "Maine de Biran",
+      "Plotinus",
+      "Spinoza",
+      "William James"
+    ]
+  },
+  "agent:henri-lefebvre": {
+    "name": "Henri Lefebvre",
+    "notable_ideas": [
+      "Rhythmanalysis",
+      "Right to the city",
+      "Social space"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "Georg Wilhelm Friedrich Hegel",
+      "Western Marxism"
+    ],
+    "fields": [
+      "Dialectics",
+      "Everyday life",
+      "History",
+      "Literature",
+      "Marx's theory of alienation",
+      "Modernity",
+      "Social space",
+      "Urbanity"
+    ],
+    "influenced_by": [
+      "François Rabelais",
+      "Friedrich Engels",
+      "Friedrich Nietzsche",
+      "G. W. F. Hegel",
+      "Gaston Bachelard",
+      "Heraclitus",
+      "Jean-Jacques Rousseau",
+      "Karl Marx",
+      "Kostas Axelos",
+      "Martin Heidegger",
+      "Maurice Merleau-Ponty",
+      "Roland Barthes",
+      "Vladimir Lenin"
+    ]
+  },
+  "agent:henri-matisse": {
+    "name": "Henri Matisse",
+    "notable_ideas": [],
+    "schools": [
+      "Fauvism",
+      "Modernism",
+      "Post-Impressionism"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:moore-henry": {
+    "name": "Henry Moore",
+    "notable_ideas": [],
+    "schools": [
+      "Modernism"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:herbert-marcuse": {
+    "name": "Herbert Marcuse",
+    "notable_ideas": [
+      "Free Play (Derrida)",
+      "Great refusal",
+      "Negative Dialectics",
+      "One-Dimensional Man",
+      "Repressive desublimation",
+      "Repressive tolerance",
+      "Technological rationality",
+      "Totalitarian democracy"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "Frankfurt School",
+      "Western Marxism"
+    ],
+    "fields": [
+      "Communism",
+      "Industrialism",
+      "Social theory",
+      "Socialism",
+      "Technology"
+    ],
+    "influenced_by": [
+      "Edmund Husserl",
+      "Friedrich Engels",
+      "Friedrich Nietzsche",
+      "Friedrich Pollock",
+      "G. W. F. Hegel",
+      "Immanuel Kant",
+      "Karl Marx",
+      "Martin Heidegger",
+      "Max Horkheimer",
+      "Sigmund Freud",
+      "Theodor W. Adorno"
+    ]
+  },
+  "agent:herman-melville": {
+    "name": "Herman Melville",
+    "notable_ideas": [],
+    "schools": [
+      "Romanticism"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:hito-steyerl": {
+    "name": "Hito Steyerl",
+    "notable_ideas": [],
+    "schools": [
+      "Conceptual Art"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:hladno-pivo": {
+    "name": "Hladno pivo",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Alternative rock",
+      "Punk rock",
+      "Rock music"
+    ],
+    "influenced_by": []
+  },
+  "agent:hortense-spillers": {
+    "name": "Hortense Spillers",
+    "notable_ideas": [
+      "African-American literature"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:helene-cixous": {
+    "name": "Hélène Cixous",
+    "notable_ideas": [],
+    "schools": [
+      "Continental philosophy",
+      "French feminism"
+    ],
+    "fields": [
+      "Literary criticism"
+    ],
+    "influenced_by": [
+      "Jacques Derrida",
+      "Jacques Lacan",
+      "Maurice Blanchot",
+      "Sigmund Freud"
+    ]
+  },
+  "agent:immanuel-kant": {
+    "name": "Immanuel Kant",
+    "notable_ideas": [
+      "Abstract and concrete",
+      "Aesthetic distance",
+      "Aesthetic judgment",
+      "Analytic–synthetic distinction",
+      "Categorical imperative",
+      "Category (Kant)",
+      "Copernican Revolution",
+      "Cosmotheology",
+      "Critical philosophy",
+      "Empirical realism",
+      "Hypothetical imperative",
+      "Kant's antinomies",
+      "Kant's pitchfork",
+      "Kantian ethics",
+      "Kingdom of Ends",
+      "Nebular hypothesis",
+      "Noogony",
+      "Noology",
+      "Noumenon",
+      "Ontotheology",
+      "Practical reason",
+      "Public reason",
+      "Radical evil",
+      "Rechtsstaat",
+      "Sapere aude",
+      "Schema (Kant)",
+      "Sublime (philosophy)",
+      "Theoretical philosophy",
+      "Transcendental idealism",
+      "Transcendental subject",
+      "Transcendental theology",
+      "Understanding (Kant)"
+    ],
+    "schools": [
+      "Classical liberalism",
+      "Correspondence theory of truth",
+      "Empirical realism",
+      "Enlightenment philosophy",
+      "Foundationalism",
+      "German idealism",
+      "Indirect realism",
+      "Kantianism",
+      "Liberal naturalism",
+      "Metaphysical conceptualism",
+      "Perceptual non-conceptualism",
+      "Transcendental idealism"
+    ],
+    "fields": [
+      "Aesthetics",
+      "Cosmogony",
+      "Epistemology",
+      "Ethics",
+      "Metaphysics",
+      "Systematic philosophy"
+    ],
+    "influenced_by": [
+      "Adam Smith",
+      "Alexander Gottlieb Baumgarten",
+      "Aristotle",
+      "Christian August Crusius",
+      "Christian Wolff (philosopher)",
+      "David Hume",
+      "Emanuel Swedenborg",
+      "Euclid",
+      "Gottfried Wilhelm Leibniz",
+      "Isaac Newton",
+      "Jean-Jacques Rousseau",
+      "Johann Georg Hamann",
+      "Johannes Nikolaus Tetens",
+      "John Locke",
+      "Lucretius",
+      "Plato",
+      "René Descartes",
+      "Sextus Empiricus"
+    ]
+  },
+  "agent:ingo-niermann": {
+    "name": "Ingo Niermann",
+    "notable_ideas": [],
+    "schools": [
+      "Postmodern literature",
+      "Utopian"
+    ],
+    "fields": [
+      "Cultural design"
+    ],
+    "influenced_by": []
+  },
+  "agent:isaac-asimov": {
+    "name": "Isaac Asimov",
+    "notable_ideas": [],
+    "schools": [
+      "Golden Age of Science Fiction"
+    ],
+    "fields": [
+      "Hard SF",
+      "Mystery fiction",
+      "Popular science",
+      "Social SF"
+    ],
+    "influenced_by": []
+  },
+  "agent:isabelle-stengers": {
+    "name": "Isabelle Stengers",
+    "notable_ideas": [],
+    "schools": [
+      "Continental philosophy",
+      "Speculative realism"
+    ],
+    "fields": [
+      "Philosophy of science"
+    ],
+    "influenced_by": [
+      "Alfred North Whitehead",
+      "Gilles Deleuze",
+      "Ilya Prigogine"
+    ]
+  },
+  "agent:isadora-duncan": {
+    "name": "Isadora Duncan",
+    "notable_ideas": [],
+    "schools": [
+      "Modern dance"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:isidora-bjelica": {
+    "name": "Isidora Bjelica",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Romance novel"
+    ],
+    "influenced_by": []
+  },
+  "agent:ivan-cankar": {
+    "name": "Ivan Cankar",
+    "notable_ideas": [],
+    "schools": [
+      "Modernism",
+      "Symbolism (arts)"
+    ],
+    "fields": [
+      "Short novel"
+    ],
+    "influenced_by": []
+  },
+  "agent:ivan-picelj": {
+    "name": "Ivan Picelj",
+    "notable_ideas": [],
+    "schools": [
+      "Croatian art of the 20th century"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:j-l-austin": {
+    "name": "J. L. Austin",
+    "notable_ideas": [
+      "Descriptive fallacy",
+      "Linguistic phenomenology",
+      "Performative utterance",
+      "Speech acts"
+    ],
+    "schools": [
+      "Analytic philosophy",
+      "Correspondence theory of truth",
+      "Linguistic philosophy",
+      "Ordinary language philosophy"
+    ],
+    "fields": [
+      "Ethics",
+      "Philosophy of language",
+      "Philosophy of mind",
+      "Philosophy of perception"
+    ],
+    "influenced_by": [
+      "Aristotle",
+      "G. E. Moore",
+      "Gilbert Ryle",
+      "Gottfried Wilhelm Leibniz",
+      "Harold Arthur Prichard",
+      "Immanuel Kant",
+      "John Cook Wilson",
+      "Plato"
+    ]
+  },
+  "agent:jack-levine": {
+    "name": "Jack Levine",
+    "notable_ideas": [],
+    "schools": [
+      "Social Realism"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:jacques-derrida": {
+    "name": "Jacques Derrida",
+    "notable_ideas": [
+      "Arche-writing",
+      "Citationality",
+      "Deconstruction",
+      "Différance",
+      "Free play (Derrida)",
+      "Hauntology",
+      "Invagination (philosophy)",
+      "Khôra",
+      "Metaphysics of presence",
+      "Phallogocentrism",
+      "Pharmakon (philosophy)",
+      "Sous rature",
+      "Trace (deconstruction)"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "Deconstruction",
+      "Post-structuralism",
+      "Radical hermeneutics"
+    ],
+    "fields": [],
+    "influenced_by": [
+      "Charles Darwin",
+      "Claude Lévi-Strauss",
+      "Edmund Husserl",
+      "Emmanuel Levinas",
+      "Ferdinand de Saussure",
+      "Franz Kafka",
+      "Friedrich Nietzsche",
+      "Georg Wilhelm Friedrich Hegel",
+      "Georges Bataille",
+      "J.L. Austin",
+      "James Joyce",
+      "Jean Genet",
+      "Jean-Jacques Rousseau",
+      "Karl Marx",
+      "Martin Heidegger",
+      "Maurice Blanchot",
+      "Meister Eckhart",
+      "Plato",
+      "Roland Barthes",
+      "Sigmund Freud",
+      "Søren Kierkegaard",
+      "Walter Benjamin"
+    ]
+  },
+  "agent:jacques-ellul": {
+    "name": "Jacques Ellul",
+    "notable_ideas": [
+      "Technological society"
+    ],
+    "schools": [
+      "Christian anarchism",
+      "Continental philosophy",
+      "Non-conformists of the 1930s"
+    ],
+    "fields": [],
+    "influenced_by": [
+      "André Neher",
+      "Bernard Charbonneau",
+      "Carl Jung",
+      "Charles Péguy",
+      "Christoph Blumhardt",
+      "Cornelius Castoriadis",
+      "Daniel Bell",
+      "Dietrich Bonhoeffer",
+      "Emmanuel Mounier",
+      "G.K.Chesterton",
+      "Georges Bernanos",
+      "Gilbert Simondon",
+      "Guy Debord",
+      "Jean Baudrillard",
+      "John Calvin",
+      "John Kenneth Galbraith",
+      "Karl Barth",
+      "Karl Marx",
+      "Karl Popper",
+      "Lewis Mumford",
+      "Marshall MacLuhan",
+      "Martin Luther",
+      "Max Weber",
+      "Nikolai Berdyaev",
+      "Paul Ricoeur",
+      "Pierre-Joseph Proudhon",
+      "Radovan Richta",
+      "Reinhold Niebuhr",
+      "Rene Girard",
+      "Situationist International",
+      "Søren Kierkegaard",
+      "Thomas Kuhn"
+    ]
+  },
+  "agent:jacques-lacan": {
+    "name": "Jacques Lacan",
+    "notable_ideas": [
+      "Graph of desire",
+      "Mirror stage",
+      "Objet petit a",
+      "Split subject",
+      "The Imaginary (psychoanalysis)",
+      "The Real",
+      "The Symbolic"
+    ],
+    "schools": [
+      "Post-structuralism",
+      "Psychoanalysis",
+      "Structuralism"
+    ],
+    "fields": [
+      "Psychoanalysis"
+    ],
+    "influenced_by": [
+      "Alexandre Kojève",
+      "Aristotle",
+      "Claude Lévi-Strauss",
+      "Gaëtan Gatian de Clérambault",
+      "Georg Wilhelm Friedrich Hegel",
+      "Georges Bataille",
+      "Immanuel Kant",
+      "Jean Paul Sartre",
+      "Karl Marx",
+      "Marquis de Sade",
+      "Roman Jakobson",
+      "Salvador Dalí",
+      "Sigmund Freud"
+    ]
+  },
+  "agent:james-j-gibson": {
+    "name": "James J. Gibson",
+    "notable_ideas": [
+      "Affordance"
+    ],
+    "schools": [],
+    "fields": [
+      "Experimental psychology",
+      "Visual perception"
+    ],
+    "influenced_by": [
+      "Edwin B. Holt",
+      "Eleanor J. Gibson",
+      "Kurt Koffka"
+    ]
+  },
+  "agent:james-watson": {
+    "name": "James Watson",
+    "notable_ideas": [
+      "DNA structure",
+      "Molecular biology"
+    ],
+    "schools": [],
+    "fields": [
+      "Genetics"
+    ],
+    "influenced_by": []
+  },
+  "agent:janet-cardiff": {
+    "name": "Janet Cardiff",
+    "notable_ideas": [],
+    "schools": [
+      "Conceptual Art"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:janez-vrecko": {
+    "name": "Janez Vrečko",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Literary history"
+    ],
+    "influenced_by": []
+  },
+  "agent:jasbir-puar": {
+    "name": "Jasbir Puar",
+    "notable_ideas": [
+      "Homonationalism"
+    ],
+    "schools": [],
+    "fields": [
+      "Queer theory",
+      "Race studies"
+    ],
+    "influenced_by": [
+      "Félix Guattari",
+      "Gilles Deleuze",
+      "Michel Foucault"
+    ]
+  },
+  "agent:jasper-johns": {
+    "name": "Jasper Johns",
+    "notable_ideas": [],
+    "schools": [
+      "Abstract expressionism",
+      "Neo-Dada",
+      "Pop art"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:jean-franois-lyotard": {
+    "name": "Jean-François Lyotard",
+    "notable_ideas": [
+      "Libidinal economy",
+      "Metanarrative",
+      "Postmodernity"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "Phenomenology (philosophy)",
+      "Post-Marxism",
+      "Postmodern philosophy"
+    ],
+    "fields": [
+      "Judaism",
+      "Sociology",
+      "Sublime (philosophy)"
+    ],
+    "influenced_by": [
+      "Ludwig Wittgenstein",
+      "Michel de Montaigne",
+      "Émile Durkheim"
+    ]
+  },
+  "agent:jean-luc-marion": {
+    "name": "Jean-Luc Marion",
+    "notable_ideas": [
+      "Intentionality",
+      "Phenomenological reduction"
+    ],
+    "schools": [],
+    "fields": [
+      "Descartes",
+      "Phenomenology (philosophy)",
+      "Philosophical theology"
+    ],
+    "influenced_by": [
+      "Augustine",
+      "Bernard of Clairveaux",
+      "Edmund Husserl",
+      "Emmanuel Levinas",
+      "Hans Urs von Balthasar",
+      "Henri Bergson",
+      "Immanuel Kant",
+      "Jacques Derrida",
+      "Jean Daniélou",
+      "Karl Barth",
+      "Louis Althusser",
+      "Martin Heidegger",
+      "Michel Henry",
+      "Pseudo-Dionysius the Areopagite",
+      "René Descartes"
+    ]
+  },
+  "agent:jean-luc-nancy": {
+    "name": "Jean-Luc Nancy",
+    "notable_ideas": [
+      "Existence",
+      "Freedom",
+      "Resurrection",
+      "Sense"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "Deconstruction"
+    ],
+    "fields": [
+      "Literary criticism",
+      "Ontology",
+      "Philosophy of technology",
+      "Political philosophy"
+    ],
+    "influenced_by": [
+      "Martin Heidegger"
+    ]
+  },
+  "agent:jean-paul-sartre": {
+    "name": "Jean-Paul Sartre",
+    "notable_ideas": [
+      "Bad faith (existentialism)",
+      "Existence precedes essence",
+      "Nothing",
+      "Pre-reflective self-consciousness",
+      "Sartrean terminology",
+      "Situation (Sartre)"
+    ],
+    "schools": [
+      "Anarchism",
+      "Continental philosophy",
+      "Existential phenomenology",
+      "Existentialism",
+      "Hermeneutics",
+      "Phenomenology (philosophy)",
+      "Western Marxism"
+    ],
+    "fields": [
+      "Consciousness",
+      "Epistemology",
+      "Ethics",
+      "Literature",
+      "Metaphysics",
+      "Ontology",
+      "Political philosophy",
+      "Self-consciousness"
+    ],
+    "influenced_by": [
+      "Alexandre Kojève",
+      "Baruch Spinoza",
+      "Edmund Husserl",
+      "Emmanuel Levinas",
+      "Gaston Bachelard",
+      "Georg Wilhelm Friedrich Hegel",
+      "Gustave Flaubert",
+      "Henri Bergson",
+      "Henri Lefebvre",
+      "Jean Wahl",
+      "Jean-Jacques Rousseau",
+      "Karl Marx",
+      "Louis-Ferdinand Céline",
+      "Marcel Proust",
+      "Martin Heidegger",
+      "Maurice Merleau-Ponty",
+      "Paul-Yves Nizan",
+      "René Descartes",
+      "Simone de Beauvoir",
+      "Søren Kierkegaard",
+      "Wilhelm Stekel"
+    ]
+  },
+  "agent:jean-baudrillard": {
+    "name": "Jean Baudrillard",
+    "notable_ideas": [
+      "Hyperreality",
+      "Nick Land",
+      "Sign value"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "French Nietzscheanism",
+      "Nihilism",
+      "Pataphysics",
+      "Post-Marxism",
+      "Post-structuralism",
+      "Postmodern philosophy"
+    ],
+    "fields": [
+      "Alterity",
+      "Anthropology",
+      "Art",
+      "Communication",
+      "Communication theory",
+      "Consumerism",
+      "Critique of economy",
+      "Economics",
+      "Event (philosophy)",
+      "Foreign policy",
+      "Gender role",
+      "Historicity (philosophy)",
+      "Love",
+      "Mass media",
+      "Media theory",
+      "Object (philosophy)",
+      "Pataphysics",
+      "Philosophy of death",
+      "Photography",
+      "Popular culture",
+      "Postmodernity",
+      "Power (social and political)",
+      "Semiotics",
+      "Simulacrum",
+      "Social entropy",
+      "Social history",
+      "System theory"
+    ],
+    "influenced_by": [
+      "Karl Marx"
+    ]
+  },
+  "agent:jeanette-winterson": {
+    "name": "Jeanette Winterson",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Children's fiction"
+    ],
+    "influenced_by": []
+  },
+  "agent:jernej-kopitar": {
+    "name": "Jernej Kopitar",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Linguistics",
+      "Slavic studies"
+    ],
+    "influenced_by": []
+  },
+  "agent:joan-jonas": {
+    "name": "Joan Jonas",
+    "notable_ideas": [],
+    "schools": [
+      "Performance art"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:joanna-russ": {
+    "name": "Joanna Russ",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Fantasy",
+      "Feminist science fiction"
+    ],
+    "influenced_by": []
+  },
+  "agent:johann-puch": {
+    "name": "Johann Puch",
+    "notable_ideas": [
+      "Puch"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:john-ruskin": {
+    "name": "John Ruskin",
+    "notable_ideas": [
+      "Illth",
+      "Pathetic fallacy"
+    ],
+    "schools": [
+      "Continental philosophy"
+    ],
+    "fields": [
+      "Aesthetics",
+      "Ethics",
+      "Philosophy of education",
+      "Political economy"
+    ],
+    "influenced_by": [
+      "Alexander Pope",
+      "Arthur Helps",
+      "Bible",
+      "Byron",
+      "Charles Eliot Norton",
+      "Dante",
+      "George Herbert",
+      "Homer",
+      "J. M. W. Turner",
+      "James Duffield Harding",
+      "Keats",
+      "Plato",
+      "Ralph Waldo Emerson",
+      "Richard Hooker",
+      "Samuel Johnson",
+      "Shakespeare",
+      "Tennyson",
+      "Thomas Carlyle",
+      "Walter Scott",
+      "Wordsworth",
+      "Xenophon"
+    ]
+  },
+  "agent:josef-albers": {
+    "name": "Josef Albers",
+    "notable_ideas": [],
+    "schools": [
+      "Geometric abstraction"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:josip-murn": {
+    "name": "Josip Murn",
+    "notable_ideas": [],
+    "schools": [
+      "Fin de siecle",
+      "Symbolist poetry"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:jose-esteban-munoz": {
+    "name": "José Esteban Muñoz",
+    "notable_ideas": [
+      "Ephemerality",
+      "Performance studies",
+      "Queer theory"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:judith-butler": {
+    "name": "Judith Butler",
+    "notable_ideas": [
+      "Gender performativity"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "Critical theory",
+      "Performative turn",
+      "Post-structuralism",
+      "Queer theory",
+      "Third-wave feminism"
+    ],
+    "fields": [
+      "Discourse",
+      "Embodied cognition",
+      "Ethics",
+      "Feminist theory",
+      "Gender theory",
+      "Human sexuality",
+      "Jewish philosophy",
+      "Phenomenology (philosophy)",
+      "Political philosophy",
+      "Psychoanalysis"
+    ],
+    "influenced_by": [
+      "Andre Breton",
+      "Emmanuel Lévinas",
+      "Friedrich Nietzsche",
+      "Gayle Rubin",
+      "Georg Wilhelm Friedrich Hegel",
+      "J. L. Austin",
+      "Jacques Derrida",
+      "Jacques Lacan",
+      "Karl Marx",
+      "Louis Althusser",
+      "Luce Irigaray",
+      "Martin Heidegger",
+      "Maurice Merleau-Ponty",
+      "Michel Foucault",
+      "Monique Wittig",
+      "Sigmund Freud",
+      "Simone de Beauvoir",
+      "Theodor Adorno"
+    ]
+  },
+  "agent:julia-kristeva": {
+    "name": "Julia Kristeva",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [],
+    "influenced_by": [
+      "André Green (psychoanalyst)",
+      "Georges Bataille",
+      "Hannah Arendt",
+      "Jacques Derrida",
+      "Jacques Lacan",
+      "Lucien Goldmann",
+      "Melanie Klein",
+      "Mikhail Bakhtin",
+      "Roland Barthes",
+      "Sigmund Freud",
+      "Winnicott"
+    ]
+  },
+  "agent:liebenfels-jorg-lanz-von": {
+    "name": "Jörg Lanz von Liebenfels",
+    "notable_ideas": [
+      "Racism"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:jrgen-habermas": {
+    "name": "Jürgen Habermas",
+    "notable_ideas": [
+      "Communicative action",
+      "Communicative rationality",
+      "Constitutional patriotism",
+      "Deliberative democracy",
+      "Discourse ethics",
+      "Instrumental and value-rational action",
+      "Performative contradiction",
+      "Post-metaphysical philosophy",
+      "Postsecularism",
+      "Rational reconstruction",
+      "Social system",
+      "Structuralism",
+      "The Enlightenment",
+      "The Structural Transformation of the Public Sphere",
+      "Transhumanism",
+      "Universal pragmatics"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "Critical theory",
+      "Neopragmatism"
+    ],
+    "fields": [
+      "Epistemology",
+      "Philosophy of law",
+      "Political theory",
+      "Pragmatics",
+      "Pragmatism",
+      "Rationalization (sociology)",
+      "Social theory"
+    ],
+    "influenced_by": [
+      "Charles Sanders Peirce",
+      "Friedrich Wilhelm Joseph Schelling",
+      "Georg Wilhelm Friedrich Hegel",
+      "George Herbert Mead",
+      "Herbert Marcuse",
+      "Immanuel Kant",
+      "J. L. Austin",
+      "Jean Piaget",
+      "John Dewey",
+      "John Rawls",
+      "Karl Bühler",
+      "Karl Marx",
+      "Karl-Otto Apel",
+      "Ludwig Wittgenstein",
+      "Martin Heidegger",
+      "Max Horkheimer",
+      "Max Weber",
+      "Richard Rorty",
+      "Sigmund Freud",
+      "Søren Kierkegaard",
+      "Talcott Parsons",
+      "Theodor W. Adorno",
+      "Wilhelm Dilthey",
+      "Wolfgang Abendroth",
+      "Émile Durkheim"
+    ]
+  },
+  "agent:karel-appel": {
+    "name": "Karel Appel",
+    "notable_ideas": [],
+    "schools": [
+      "CoBrA"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:karen-barad": {
+    "name": "Karen Barad",
+    "notable_ideas": [],
+    "schools": [
+      "Continental philosophy",
+      "Feminism",
+      "Materialism"
+    ],
+    "fields": [
+      "Feminist theory",
+      "Theoretical physics"
+    ],
+    "influenced_by": []
+  },
+  "agent:karen-j-warren": {
+    "name": "Karen J. Warren",
+    "notable_ideas": [
+      "Ecofeminism"
+    ],
+    "schools": [
+      "Ecofeminism"
+    ],
+    "fields": [
+      "Ethics"
+    ],
+    "influenced_by": []
+  },
+  "agent:katherine-mansfield": {
+    "name": "Katherine Mansfield",
+    "notable_ideas": [],
+    "schools": [
+      "Literary modernism"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:mckittrick-katherine": {
+    "name": "Katherine McKittrick",
+    "notable_ideas": [
+      "Black studies",
+      "Diaspora studies",
+      "Gender studies"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:kazimir-malevich": {
+    "name": "Kazimir Malevich",
+    "notable_ideas": [],
+    "schools": [
+      "Suprematism"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:kevin-aviance": {
+    "name": "Kevin Aviance",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Dance music"
+    ],
+    "influenced_by": []
+  },
+  "agent:konstantin-stanislavski": {
+    "name": "Konstantin Stanislavski",
+    "notable_ideas": [],
+    "schools": [
+      "Naturalism (theatre)",
+      "Realism (theatre)",
+      "Socialist realism",
+      "Symbolism (arts)"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:kostas-axelos": {
+    "name": "Kostas Axelos",
+    "notable_ideas": [
+      "Open Marxism"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "Phenomenology (philosophy)",
+      "Western Marxism"
+    ],
+    "fields": [
+      "History of philosophy",
+      "Praxis (process)",
+      "Social alienation",
+      "Techné"
+    ],
+    "influenced_by": [
+      "Friedrich Nietzsche",
+      "G. W. F. Hegel",
+      "Heraclitus",
+      "Karl Marx",
+      "Martin Heidegger",
+      "Sigmund Freud"
+    ]
+  },
+  "agent:kraftwerk": {
+    "name": "Kraftwerk",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Art pop",
+      "Avant-garde music",
+      "Electronic music",
+      "Electropop",
+      "Krautrock",
+      "Synth-pop"
+    ],
+    "influenced_by": []
+  },
+  "agent:kurt-jooss": {
+    "name": "Kurt Jooss",
+    "notable_ideas": [
+      "Tanztheater"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:kurt-schwitters": {
+    "name": "Kurt Schwitters",
+    "notable_ideas": [],
+    "schools": [
+      "Merz (art style)"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:laibach": {
+    "name": "Laibach",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Avant-garde music",
+      "Electro-industrial",
+      "Electronic music",
+      "Experimental music",
+      "Industrial music",
+      "Martial industrial",
+      "Neoclassical dark wave"
+    ],
+    "influenced_by": []
+  },
+  "agent:laurie-anderson": {
+    "name": "Laurie Anderson",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Art pop",
+      "Avant-pop",
+      "Electronic music"
+    ],
+    "influenced_by": []
+  },
+  "agent:leni-riefenstahl": {
+    "name": "Leni Riefenstahl",
+    "notable_ideas": [
+      "Olympia (1938 film)",
+      "Triumph of the Will"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:lev-kreft": {
+    "name": "Lev Kreft",
+    "notable_ideas": [],
+    "schools": [
+      "Frankfurt school",
+      "Marxism",
+      "Postmodernism"
+    ],
+    "fields": [
+      "Aesthetics",
+      "Cultural philosophy",
+      "Cultural sociology",
+      "Ethics",
+      "Political philosophy",
+      "Social philosophy"
+    ],
+    "influenced_by": []
+  },
+  "agent:ljudevit-gaj": {
+    "name": "Ljudevit Gaj",
+    "notable_ideas": [
+      "Gaj's Latin alphabet"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:louis-althusser": {
+    "name": "Louis Althusser",
+    "notable_ideas": [
+      "Aleatory materialism",
+      "Interpellation (philosophy)",
+      "Overdetermination"
+    ],
+    "schools": [
+      "Structural Marxism",
+      "Western Marxism"
+    ],
+    "fields": [
+      "Economics",
+      "Ideology",
+      "Politics"
+    ],
+    "influenced_by": [
+      "Karl Marx"
+    ]
+  },
+  "agent:louise-bourgeois": {
+    "name": "Louise Bourgeois",
+    "notable_ideas": [],
+    "schools": [
+      "Feminist art",
+      "Modernism",
+      "Surrealism"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:irigaray-luce": {
+    "name": "Luce Irigaray",
+    "notable_ideas": [
+      "Phallocentrism"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "French feminism"
+    ],
+    "fields": [
+      "Feminist Philosophy",
+      "Feminist Theory",
+      "Gender identity",
+      "Linguistics",
+      "Philosophy",
+      "Psychoanalysis",
+      "Psychology",
+      "Schizophrenia"
+    ],
+    "influenced_by": [
+      "Emmanuel Levinas",
+      "Friedrich Nietzsche",
+      "Jacques Derrida",
+      "Jacques Lacan",
+      "Martin Heidegger",
+      "Maurice Merleau-Ponty",
+      "Sigmund Freud"
+    ]
+  },
+  "agent:lucy-kurien": {
+    "name": "Lucy Kurien",
+    "notable_ideas": [
+      "Interfaith",
+      "Maher (NGO)"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:lucy-taylor": {
+    "name": "Lucy Taylor",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Horror fiction"
+    ],
+    "influenced_by": []
+  },
+  "agent:lygia-clark": {
+    "name": "Lygia Clark",
+    "notable_ideas": [],
+    "schools": [
+      "Neo-Concrete Movement"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:maimuna": {
+    "name": "Maimuna",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Classic",
+      "Classical crossover"
+    ],
+    "influenced_by": []
+  },
+  "agent:manuel-delanda": {
+    "name": "Manuel DeLanda",
+    "notable_ideas": [],
+    "schools": [
+      "Continental philosophy",
+      "Materialism",
+      "Speculative realism"
+    ],
+    "fields": [
+      "Philosophy of science"
+    ],
+    "influenced_by": [
+      "Fernand Braudel",
+      "Félix Guattari",
+      "Gilles Deleuze",
+      "Michel Foucault"
+    ]
+  },
+  "agent:marcel-duchamp": {
+    "name": "Marcel Duchamp",
+    "notable_ideas": [],
+    "schools": [
+      "Conceptual art",
+      "Cubism",
+      "Dada"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:marcel-mauss": {
+    "name": "Marcel Mauss",
+    "notable_ideas": [
+      "The Gift (essay)"
+    ],
+    "schools": [],
+    "fields": [
+      "Anthropology",
+      "Sociology"
+    ],
+    "influenced_by": [
+      "Émile Durkheim"
+    ]
+  },
+  "agent:margaret-atwood": {
+    "name": "Margaret Atwood",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Climate fiction",
+      "Dystopian fiction",
+      "Historical fiction",
+      "Speculative fiction"
+    ],
+    "influenced_by": []
+  },
+  "agent:makarovic-marija": {
+    "name": "Marija Makarovič",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Ethnology"
+    ],
+    "influenced_by": []
+  },
+  "agent:mario-prassinos": {
+    "name": "Mario Prassinos",
+    "notable_ideas": [],
+    "schools": [
+      "Abstract art",
+      "Figurative art",
+      "Landscape art",
+      "Portrait painting",
+      "School of Paris",
+      "Surrealism"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:mark-fisher": {
+    "name": "Mark Fisher",
+    "notable_ideas": [
+      "Business ontology",
+      "Capitalist realism"
+    ],
+    "schools": [
+      "Continental philosophy"
+    ],
+    "fields": [
+      "Critical theory",
+      "Music criticism",
+      "Philosophy",
+      "Political theory"
+    ],
+    "influenced_by": [
+      "Antonio Gramsci",
+      "Baruch Spinoza",
+      "Franco Berardi",
+      "Fredric Jameson",
+      "Félix Guattari",
+      "Gilles Deleuze",
+      "Jacques Derrida",
+      "Jacques Lacan",
+      "Jean Baudrillard",
+      "Karl Marx",
+      "Nick Land",
+      "Sadie Plant",
+      "Sigmund Freud",
+      "Slavoj Žižek",
+      "Theodor Adorno"
+    ]
+  },
+  "agent:mark-rothko": {
+    "name": "Mark Rothko",
+    "notable_ideas": [],
+    "schools": [
+      "Abstract expressionism",
+      "Color Field"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:mark-sykes": {
+    "name": "Mark Sykes",
+    "notable_ideas": [
+      "Conservative Party (UK)",
+      "Sykes-Picot Agreement"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:marshall-mcluhan": {
+    "name": "Marshall McLuhan",
+    "notable_ideas": [
+      "Figure and ground (media)",
+      "Global village",
+      "Hot and cool media",
+      "Media ecology",
+      "Tetrad of media effects",
+      "The medium is the message"
+    ],
+    "schools": [
+      "Toronto School of communication theory"
+    ],
+    "fields": [
+      "Media studies",
+      "New Criticism",
+      "Sensorium"
+    ],
+    "influenced_by": [
+      "Aristotle",
+      "Bertram Brooker",
+      "Bonaventure",
+      "Edmund Snow Carpenter",
+      "Edward Alexander Bott",
+      "Eric A. Havelock",
+      "F. R. Leavis",
+      "Francis Bacon",
+      "G. K. Chesterton",
+      "Hans Selye",
+      "Harold Innis",
+      "Hilaire Belloc",
+      "I. A. Richards",
+      "Jacques Ellul",
+      "James Joyce",
+      "John Murray Gibbon",
+      "Marcel Duchamp",
+      "Pierre Teilhard de Chardin",
+      "Reginald Fessenden",
+      "Richard Maurice Bucke",
+      "Thomas Aquinas",
+      "Thomas Nashe",
+      "Wyndham Lewis",
+      "Étienne Gilson"
+    ]
+  },
+  "agent:martha-graham": {
+    "name": "Martha Graham",
+    "notable_ideas": [],
+    "schools": [
+      "Modern dance"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:martin-heidegger": {
+    "name": "Martin Heidegger",
+    "notable_ideas": [
+      "Aletheia",
+      "Being",
+      "Dasein",
+      "Ecstasy (philosophy)",
+      "Fundamental ontology",
+      "Gestell",
+      "Heideggerian terminology",
+      "Hermeneutic circle",
+      "Language speaks",
+      "Ontological difference",
+      "Ontotheology",
+      "World disclosure"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "Existential phenomenology",
+      "Existentialism",
+      "Hermeneutic phenomenology",
+      "Hermeneutics",
+      "Ontological hermeneutics",
+      "Phenomenology (philosophy)",
+      "Transcendental hermeneutic phenomenology"
+    ],
+    "fields": [
+      "Christian philosophy",
+      "Greek philosophy",
+      "Metaphysics",
+      "Ontology",
+      "Philosophy and literature",
+      "Philosophy of art",
+      "Philosophy of language",
+      "Philosophy of technology",
+      "Thinking"
+    ],
+    "influenced_by": [
+      "Anaximander",
+      "Aristotle",
+      "Augustine of Hippo",
+      "Bonaventure",
+      "Duns Scotus",
+      "Edmund Husserl",
+      "Emil Lask",
+      "Franz Brentano",
+      "Friedrich Hölderlin",
+      "Friedrich Nietzsche",
+      "Georg Wilhelm Friedrich Hegel",
+      "Heinrich Rickert",
+      "Heraclitus",
+      "Immanuel Kant",
+      "Jakob Johann von Uexküll",
+      "Karl Jaspers",
+      "Laozi",
+      "Nicolai Hartmann",
+      "Parmenides",
+      "Paul Yorck von Wartenburg",
+      "Plato",
+      "Søren Kierkegaard",
+      "Thomas Aquinas",
+      "Thomas of Erfurt",
+      "Wilhelm Dilthey"
+    ]
+  },
+  "agent:mary-douglas": {
+    "name": "Mary Douglas",
+    "notable_ideas": [
+      "Cultural theory of risk",
+      "Natural Symbols",
+      "Purity and Danger"
+    ],
+    "schools": [],
+    "fields": [
+      "Comparative religion",
+      "Social anthropology"
+    ],
+    "influenced_by": [
+      "Émile Durkheim"
+    ]
+  },
+  "agent:mary-wigman": {
+    "name": "Mary Wigman",
+    "notable_ideas": [],
+    "schools": [
+      "Expressionist dance"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:mats-gustafsson": {
+    "name": "Mats Gustafsson",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Free jazz",
+      "Jazz music"
+    ],
+    "influenced_by": []
+  },
+  "agent:maurice-blanchot": {
+    "name": "Maurice Blanchot",
+    "notable_ideas": [],
+    "schools": [
+      "Continental philosophy",
+      "Phenomenology (philosophy)"
+    ],
+    "fields": [
+      "Ethics",
+      "Literary criticism",
+      "Philosophy of language",
+      "Poetics",
+      "Political philosophy"
+    ],
+    "influenced_by": [
+      "Alexandre Kojève",
+      "Antonin Artaud",
+      "Comte de Lautréamont",
+      "Emmanuel Levinas",
+      "Franz Kafka",
+      "Friedrich Hölderlin",
+      "Friedrich Nietzsche",
+      "Georges Bataille",
+      "Marquis de Sade",
+      "Martin Heidegger",
+      "Rainer Maria Rilke",
+      "Stéphane Mallarmé"
+    ]
+  },
+  "agent:maurice-merleau-ponty": {
+    "name": "Maurice Merleau-Ponty",
+    "notable_ideas": [
+      "Holism",
+      "Incarnation",
+      "Invagination (philosophy)"
+    ],
+    "schools": [
+      "Embodied phenomenology",
+      "Existential phenomenology",
+      "Phenomenology (philosophy)",
+      "Post-structuralism",
+      "Structuralism",
+      "Western Marxism"
+    ],
+    "fields": [
+      "Aesthetics"
+    ],
+    "influenced_by": [
+      "Gaston Bachelard"
+    ]
+  },
+  "agent:mauricio-lasansky": {
+    "name": "Mauricio Lasansky",
+    "notable_ideas": [],
+    "schools": [
+      "American modernism"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:max-ernst": {
+    "name": "Max Ernst",
+    "notable_ideas": [],
+    "schools": [
+      "Dada",
+      "Surrealism"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:max-horkheimer": {
+    "name": "Max Horkheimer",
+    "notable_ideas": [
+      "Authoritarian personality",
+      "Critical theory",
+      "Culture industry",
+      "Eclipse of Reason (Horkheimer)",
+      "Instrumental and value rationality"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "Frankfurt School",
+      "Western Marxism"
+    ],
+    "fields": [
+      "Counter-Enlightenment",
+      "Social theory"
+    ],
+    "influenced_by": [
+      "Arthur Schopenhauer",
+      "Friedrich Pollock",
+      "Georg Wilhelm Friedrich Hegel",
+      "Hans Cornelius",
+      "Immanuel Kant",
+      "Karl Marx",
+      "Sigmund Freud",
+      "Theodor Adorno",
+      "Wilhelm Dilthey"
+    ]
+  },
+  "agent:max-schubert": {
+    "name": "Max Schubert",
+    "notable_ideas": [
+      "Penfolds Grange"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:melanie-klein": {
+    "name": "Melanie Klein",
+    "notable_ideas": [
+      "Projective identification",
+      "Reparation (psychoanalysis)",
+      "Splitting (psychology)"
+    ],
+    "schools": [],
+    "fields": [
+      "Psychoanalysis"
+    ],
+    "influenced_by": [
+      "Karl Abraham",
+      "Sigmund Freud"
+    ]
+  },
+  "agent:meredith-monk": {
+    "name": "Meredith Monk",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Avant-garde music"
+    ],
+    "influenced_by": []
+  },
+  "agent:meta-vidmar": {
+    "name": "Meta Vidmar",
+    "notable_ideas": [],
+    "schools": [
+      "Expressionist dance"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:michael-hardt": {
+    "name": "Michael Hardt",
+    "notable_ideas": [
+      "Altermodernity",
+      "Empire (Hardt and Negri book)"
+    ],
+    "schools": [
+      "Autonomism",
+      "Continental philosophy"
+    ],
+    "fields": [
+      "Literary theory",
+      "Political philosophy"
+    ],
+    "influenced_by": [
+      "Karl Marx"
+    ]
+  },
+  "agent:michael-marder": {
+    "name": "Michael Marder",
+    "notable_ideas": [],
+    "schools": [
+      "Continental philosophy",
+      "Phenomenology (philosophy)"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:michel-foucault": {
+    "name": "Michel Foucault",
+    "notable_ideas": [
+      "Archaeology of knowledge",
+      "Assujettissement",
+      "Biopower",
+      "Disciplinary institution",
+      "Discursive formation",
+      "Dispositif",
+      "Foucauldian discourse analysis",
+      "Gaze",
+      "Genealogy (philosophy)",
+      "Governmentality",
+      "Heterotopia (space)",
+      "Limit-experience",
+      "Panopticism",
+      "Parrhesia",
+      "Power-knowledge",
+      "Épistémè"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "French Nietzscheanism",
+      "Post-structuralism"
+    ],
+    "fields": [
+      "Historical epistemology",
+      "History of ideas",
+      "Philosophy of literature",
+      "Philosophy of technology",
+      "Political philosophy"
+    ],
+    "influenced_by": [
+      "Antonin Artaud",
+      "Daniel Lagache",
+      "Erving Goffman",
+      "Friedrich Nietzsche",
+      "Gaston Bachelard",
+      "Georg Wilhelm Friedrich Hegel",
+      "Georges Bataille",
+      "Georges Canguilhem",
+      "Georges Dumézil",
+      "Gilles Deleuze",
+      "Immanuel Kant",
+      "Jean Hyppolite",
+      "Karl Marx",
+      "Louis Althusser",
+      "Ludwig Klages",
+      "Marquis de Sade",
+      "Martin Heidegger",
+      "Maurice Blanchot",
+      "Maurice Merleau-Ponty",
+      "Michel de Montaigne",
+      "Roland Barthes",
+      "Sigmund Freud"
+    ]
+  },
+  "agent:michelle-murphy": {
+    "name": "Michelle Murphy",
+    "notable_ideas": [
+      "Environmental justice"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:mierle-laderman-ukeles": {
+    "name": "Mierle Laderman Ukeles",
+    "notable_ideas": [],
+    "schools": [
+      "Feminist art movement in the United States"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:mikhail-bakhtin": {
+    "name": "Mikhail Bakhtin",
+    "notable_ideas": [
+      "Carnivalesque",
+      "Chronotope",
+      "Dialogism",
+      "Heteroglossia",
+      "Polyphony (literature)"
+    ],
+    "schools": [
+      "Dialogic criticism"
+    ],
+    "fields": [
+      "Literary criticism",
+      "Literary theory"
+    ],
+    "influenced_by": [
+      "Charles Darwin",
+      "Ernst Cassirer",
+      "F. F. Zelinsky",
+      "Friedrich Nietzsche",
+      "Fyodor Dostoyevsky",
+      "Hermann Cohen",
+      "Immanuel Kant",
+      "Karl Marx",
+      "Max Scheler",
+      "Sigmund Freud",
+      "Søren Kierkegaard"
+    ]
+  },
+  "agent:milica-pavlovic": {
+    "name": "Milica Pavlović",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Electropop",
+      "Turbo folk"
+    ],
+    "influenced_by": []
+  },
+  "agent:misko-suvakovic": {
+    "name": "Miško Šuvaković",
+    "notable_ideas": [],
+    "schools": [
+      "Analytical aesthetics",
+      "Critical theory",
+      "Discursive analysis",
+      "Media studies",
+      "Poststructuralism"
+    ],
+    "fields": [],
+    "influenced_by": [
+      "Jerko Denegri"
+    ]
+  },
+  "agent:mladen-dolar": {
+    "name": "Mladen Dolar",
+    "notable_ideas": [
+      "Objet petit a",
+      "Subversive affirmation"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "Lacanian psychoanalysis",
+      "Ljubljana school of psychoanalysis",
+      "Post-Hegelianism"
+    ],
+    "fields": [
+      "Cultural studies",
+      "Dialectic",
+      "Film theory",
+      "German idealism",
+      "Ideology",
+      "Marxism",
+      "Ontology",
+      "Political theory",
+      "Psychoanalysis"
+    ],
+    "influenced_by": [
+      "Alain Badiou",
+      "Alenka Zupančič",
+      "Božidar Debenjak",
+      "Georg Wilhelm Friedrich Hegel",
+      "Immanuel Kant",
+      "Jacques Lacan",
+      "Sigmund Freud",
+      "Slavoj Žižek"
+    ]
+  },
+  "agent:mladen-stilinovic": {
+    "name": "Mladen Stilinović",
+    "notable_ideas": [
+      "Group of Six Artists"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:monique-wittig": {
+    "name": "Monique Wittig",
+    "notable_ideas": [],
+    "schools": [
+      "French feminism",
+      "Lesbian feminism",
+      "Materialist feminism"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:morris-graves": {
+    "name": "Morris Graves",
+    "notable_ideas": [],
+    "schools": [
+      "Abstract Expressionism",
+      "Northwest School (art)"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:nesa-paripovic": {
+    "name": "Neša Paripović",
+    "notable_ideas": [],
+    "schools": [
+      "Conceptual art"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:nick-land": {
+    "name": "Nick Land",
+    "notable_ideas": [
+      "Accelerationism"
+    ],
+    "schools": [
+      "Accelerationism",
+      "Continental philosophy",
+      "Dark Enlightenment",
+      "Speculative realism"
+    ],
+    "fields": [
+      "Accelerationism",
+      "Antihumanism",
+      "Cybernetics",
+      "Cyberpunk",
+      "Horror fiction",
+      "Materialism",
+      "Nihilism"
+    ],
+    "influenced_by": [
+      "Aquinas",
+      "Baudrillard",
+      "Deleuze",
+      "Emil Cioran",
+      "Eugen von Böhm-Bawerk",
+      "Georg Cantor",
+      "Georges Bataille",
+      "Heidegger",
+      "Jean-Francois Lyotard",
+      "Kant",
+      "Lovecraft",
+      "Nietzsche",
+      "Schopenhauer"
+    ]
+  },
+  "agent:srnicek-nick": {
+    "name": "Nick Srnicek",
+    "notable_ideas": [],
+    "schools": [
+      "Accelerationism",
+      "Continental philosophy",
+      "Speculative realism"
+    ],
+    "fields": [
+      "Political philosophy"
+    ],
+    "influenced_by": [
+      "François Laruelle",
+      "Mark Fisher"
+    ]
+  },
+  "agent:niklas-luhmann": {
+    "name": "Niklas Luhmann",
+    "notable_ideas": [
+      "Autopoiesis",
+      "Constructivist epistemology",
+      "Functional differentiation"
+    ],
+    "schools": [],
+    "fields": [
+      "Communication theory",
+      "Social theory",
+      "Sociocybernetics",
+      "Systems theory"
+    ],
+    "influenced_by": [
+      "Arnold Gehlen",
+      "Edmund Husserl",
+      "G. Spencer-Brown",
+      "Gotthard Günther",
+      "Gregory Bateson",
+      "Heinz von Foerster",
+      "Helmut Schelsky",
+      "Humberto Maturana",
+      "Reinhart Koselleck",
+      "Talcott Parsons"
+    ]
+  },
+  "agent:nikolas-rose": {
+    "name": "Nikolas Rose",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Sociology"
+    ],
+    "influenced_by": []
+  },
+  "agent:tuck": {
+    "name": "Tuck",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Medical drama",
+      "Serial (radio and television)",
+      "Thriller (genre)"
+    ],
+    "influenced_by": []
+  },
+  "agent:norbert-wiener": {
+    "name": "Norbert Wiener",
+    "notable_ideas": [
+      "Abstract Wiener space",
+      "Brownian motion",
+      "Classical Wiener space",
+      "Cybernetics",
+      "Evolutionary informatics",
+      "Generalized Wiener process",
+      "Information revolution",
+      "List of things named after Norbert Wiener",
+      "Philosophy of information",
+      "Wiener amalgam space"
+    ],
+    "schools": [],
+    "fields": [
+      "Cybernetics",
+      "Mathematics"
+    ],
+    "influenced_by": []
+  },
+  "agent:octavia-e-butler": {
+    "name": "Octavia E. Butler",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Science fiction"
+    ],
+    "influenced_by": []
+  },
+  "agent:oliver-mandic": {
+    "name": "Oliver Mandić",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Children's music",
+      "Disco",
+      "Folk rock",
+      "Funk",
+      "Jazz rock",
+      "New Romanticism",
+      "New wave music",
+      "Pop rock",
+      "Synthpop"
+    ],
+    "influenced_by": []
+  },
+  "agent:ossip-zadkine": {
+    "name": "Ossip Zadkine",
+    "notable_ideas": [],
+    "schools": [
+      "Art Deco",
+      "Cubism"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:oton-zupancic": {
+    "name": "Oton Župančič",
+    "notable_ideas": [],
+    "schools": [
+      "Modernism",
+      "Symbolism (arts)"
+    ],
+    "fields": [
+      "Epic poetry",
+      "Lyrical poetry"
+    ],
+    "influenced_by": []
+  },
+  "agent:otto-dix": {
+    "name": "Otto Dix",
+    "notable_ideas": [],
+    "schools": [
+      "Dada",
+      "Expressionism",
+      "New objectivity"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:otto-f-kernberg": {
+    "name": "Otto F. Kernberg",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Psychoanalysis"
+    ],
+    "influenced_by": []
+  },
+  "agent:ovid": {
+    "name": "Ovid",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Drama",
+      "Elegy",
+      "Epic poetry"
+    ],
+    "influenced_by": []
+  },
+  "agent:pj-harvey": {
+    "name": "PJ Harvey",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Alternative rock",
+      "Art rock",
+      "Avant-rock",
+      "Folk rock",
+      "Indie rock",
+      "Punk blues"
+    ],
+    "influenced_by": []
+  },
+  "agent:m": {
+    "name": "M",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [],
+    "influenced_by": [
+      "ALGOL",
+      "I",
+      "XPL"
+    ]
+  },
+  "agent:parmigianino": {
+    "name": "Parmigianino",
+    "notable_ideas": [],
+    "schools": [
+      "Mannerism"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:paul-b-preciado": {
+    "name": "Paul B. Preciado",
+    "notable_ideas": [],
+    "schools": [
+      "Continental philosophy"
+    ],
+    "fields": [
+      "Gender identity",
+      "History of Technology",
+      "Sexuality"
+    ],
+    "influenced_by": [
+      "Félix Guattari",
+      "Gilles Deleuze",
+      "Jacques Derrida",
+      "Jacques Lacan",
+      "Judith Butler",
+      "Michel Foucault",
+      "Ágnes Heller"
+    ]
+  },
+  "agent:paul-cohen": {
+    "name": "Paul Cohen",
+    "notable_ideas": [
+      "Continuum hypothesis",
+      "List of forcing notions"
+    ],
+    "schools": [],
+    "fields": [
+      "Mathematics"
+    ],
+    "influenced_by": [
+      "Georg Cantor",
+      "Kurt Gödel"
+    ]
+  },
+  "agent:paul-klee": {
+    "name": "Paul Klee",
+    "notable_ideas": [],
+    "schools": [
+      "Bauhaus",
+      "Expressionism",
+      "Surrealism"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:paul-rabinow": {
+    "name": "Paul Rabinow",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Cultural anthropology"
+    ],
+    "influenced_by": [
+      "Michel Foucault",
+      "Richard McKeon"
+    ]
+  },
+  "agent:paul-ricur": {
+    "name": "Paul Ricœur",
+    "notable_ideas": [
+      "Hermeneutics",
+      "Imaginary (sociology)",
+      "Imagination",
+      "Metaphor",
+      "School of suspicion",
+      "Structuralism"
+    ],
+    "schools": [
+      "Christian existentialism",
+      "Christian theology",
+      "Continental philosophy",
+      "Hermeneutic phenomenology",
+      "Psychoanalysis"
+    ],
+    "fields": [
+      "Ancient philosophy",
+      "Hermeneutics",
+      "Historiography",
+      "Literary criticism",
+      "Moral philosophy",
+      "Narrative identity",
+      "Personal identity",
+      "Phenomenology (philosophy)",
+      "Philosophy of action",
+      "Philosophy of language",
+      "Political philosophy"
+    ],
+    "influenced_by": [
+      "Edmund Husserl"
+    ]
+  },
+  "agent:paul-de-man": {
+    "name": "Paul de Man",
+    "notable_ideas": [
+      "Authorial intentionalism"
+    ],
+    "schools": [
+      "Deconstruction"
+    ],
+    "fields": [],
+    "influenced_by": [
+      "Jacques Derrida"
+    ]
+  },
+  "agent:pauline-oliveros": {
+    "name": "Pauline Oliveros",
+    "notable_ideas": [
+      "Deep Listening Band"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:peggy-mcintosh": {
+    "name": "Peggy McIntosh",
+    "notable_ideas": [
+      "Male privilege",
+      "White privilege"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:peter-dajnko": {
+    "name": "Peter Dajnko",
+    "notable_ideas": [
+      "Beekeeping",
+      "Dajnko alphabet",
+      "Slovene language"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:petrol-girls": {
+    "name": "Petrol Girls",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Hardcore punk",
+      "Post-hardcore",
+      "Riot grrrl"
+    ],
+    "influenced_by": []
+  },
+  "agent:piero-manzoni": {
+    "name": "Piero Manzoni",
+    "notable_ideas": [],
+    "schools": [
+      "Conceptual art"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:pierre-bourdieu": {
+    "name": "Pierre Bourdieu",
+    "notable_ideas": [
+      "Cultural capital"
+    ],
+    "schools": [
+      "Structuralism"
+    ],
+    "fields": [
+      "Sociology"
+    ],
+    "influenced_by": [
+      "Gaston Bachelard"
+    ]
+  },
+  "agent:plato": {
+    "name": "Plato",
+    "notable_ideas": [
+      "Agathos kai sophos",
+      "Allegory of the Cave",
+      "Analogy of the divided line",
+      "Analogy of the sun",
+      "Anima mundi",
+      "Atlantis",
+      "Cardinal virtues",
+      "Chariot Allegory",
+      "Demiurge",
+      "Euthyphro dilemma",
+      "Five regimes",
+      "Form of the Good",
+      "Hyperuranion",
+      "Innatism",
+      "Myth of Er",
+      "Peritrope",
+      "Philosopher king",
+      "Philotimo",
+      "Plato's political philosophy",
+      "Plato's theory of soul",
+      "Plato's unwritten doctrines",
+      "Platonic epistemology",
+      "Platonic realism",
+      "Platonic solids",
+      "Platonism",
+      "Poiesis",
+      "Ring of Gyges",
+      "Ship of State",
+      "Theory of forms",
+      "Transcendentals",
+      "True name"
+    ],
+    "schools": [
+      "Platonism"
+    ],
+    "fields": [
+      "Aesthetics",
+      "Cosmology",
+      "Epistemology",
+      "Eschatology",
+      "Ethics",
+      "Mathematics",
+      "Metaphysics",
+      "Philosophy of education",
+      "Philosophy of language",
+      "Philosophy of love",
+      "Philosophy of self",
+      "Political philosophy"
+    ],
+    "influenced_by": [
+      "Archytas",
+      "Cratylus",
+      "Diotima of Mantinea",
+      "Eleusinian Mysteries",
+      "Heraclitus",
+      "Hesiod",
+      "Homer",
+      "Orphism (religion)",
+      "Parmenides",
+      "Pythagoras",
+      "Socrates",
+      "Sophists",
+      "Theaetetus (mathematician)",
+      "Theodorus of Cyrene"
+    ]
+  },
+  "agent:predrag-bobic": {
+    "name": "Predrag Bobić",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Garage Rock",
+      "Rock music"
+    ],
+    "influenced_by": []
+  },
+  "agent:quentin-meillassoux": {
+    "name": "Quentin Meillassoux",
+    "notable_ideas": [
+      "Correlationism",
+      "Factiality",
+      "Facticity",
+      "Speculative materialism"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "Speculative realism"
+    ],
+    "fields": [
+      "Materialism",
+      "Philosophy of mathematics"
+    ],
+    "influenced_by": [
+      "Alain Badiou",
+      "Aristotle",
+      "Baruch Spinoza",
+      "David Hume",
+      "Gilles Deleuze",
+      "Henri Bergson",
+      "Martin Heidegger",
+      "Stéphane Mallarmé"
+    ]
+  },
+  "agent:r-murray-schafer": {
+    "name": "R. Murray Schafer",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Avant-garde",
+      "Contemporary classical music",
+      "Musical theatre"
+    ],
+    "influenced_by": []
+  },
+  "agent:rada-ivekovic": {
+    "name": "Rada Iveković",
+    "notable_ideas": [],
+    "schools": [
+      "Buddhist philosophy",
+      "Feminist philosophy"
+    ],
+    "fields": [
+      "Feminist philosophy",
+      "Political philosophy"
+    ],
+    "influenced_by": []
+  },
+  "agent:raewyn-connell": {
+    "name": "Raewyn Connell",
+    "notable_ideas": [
+      "Hegemonic masculinity",
+      "Men's studies",
+      "Social Class",
+      "Southern theory"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:rilke-rainer-maria": {
+    "name": "Rainer Maria Rilke",
+    "notable_ideas": [],
+    "schools": [
+      "Modernism"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:ray-brassier": {
+    "name": "Ray Brassier",
+    "notable_ideas": [
+      "Transcendental nihilism"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "Speculative realism"
+    ],
+    "fields": [
+      "Antihumanism",
+      "Materialism",
+      "Methodological naturalism",
+      "Nihilism",
+      "Philosophical realism"
+    ],
+    "influenced_by": [
+      "Alain Badiou",
+      "Arthur Schopenhauer",
+      "Felix Guattari",
+      "François Laruelle",
+      "G.W.F. Hegel",
+      "Gilles Deleuze",
+      "Max Stirner",
+      "Nick Land",
+      "Paul Churchland",
+      "Quentin Meillassoux",
+      "Sigmund Freud",
+      "Thomas Metzinger",
+      "Wilfrid Sellars"
+    ]
+  },
+  "agent:renata-salecl": {
+    "name": "Renata Salecl",
+    "notable_ideas": [],
+    "schools": [
+      "Critical legal studies",
+      "Lacanianism",
+      "Ljubljana school of psychoanalysis"
+    ],
+    "fields": [
+      "Legal theory",
+      "Philosophy",
+      "Psychoanalysis"
+    ],
+    "influenced_by": [
+      "Christopher Lasch",
+      "Jacques Lacan",
+      "Michel Foucault",
+      "Sigmund Freud",
+      "Slavoj Žižek"
+    ]
+  },
+  "agent:renaud-barbaras": {
+    "name": "Renaud Barbaras",
+    "notable_ideas": [],
+    "schools": [
+      "Phenomenology (philosophy)"
+    ],
+    "fields": [
+      "Anthropology",
+      "Metaphysics",
+      "Perception",
+      "Philosophy of life",
+      "Psychoanalysis"
+    ],
+    "influenced_by": [
+      "Edmund Husserl",
+      "Henri Bergson",
+      "Jacques Lacan",
+      "Jan Patočka",
+      "Martin Heidegger",
+      "Maurice Merleau-Ponty"
+    ]
+  },
+  "agent:rene-descartes": {
+    "name": "René Descartes",
+    "notable_ideas": [
+      "Analytic geometry",
+      "Balloonist theory",
+      "Cartesian circle",
+      "Cartesian coordinate system",
+      "Cartesian doubt",
+      "Cartesian dualism",
+      "Causal adequacy principle",
+      "Cogito ergo sum",
+      "Conatus",
+      "Conservation of momentum",
+      "Descartes' Rule of Signs",
+      "Dream argument",
+      "Evil demon",
+      "Folium of Descartes",
+      "Foundationalism",
+      "Imaginary number",
+      "Interactionism (philosophy of mind)",
+      "Mathesis universalis",
+      "Mental substance",
+      "Method of normals",
+      "Mind–body problem",
+      "Res extensa",
+      "Subject (philosophy)",
+      "Trademark argument",
+      "Trialism",
+      "Wax argument"
+    ],
+    "schools": [
+      "Augustinianism",
+      "Cartesianism",
+      "Conceptualism",
+      "Corpuscularianism",
+      "Correspondence theory of truth",
+      "Foundationalism",
+      "Indirect realism",
+      "Innatism",
+      "Mechanism (philosophy)",
+      "Medieval theological voluntarism",
+      "Rationalism"
+    ],
+    "fields": [
+      "Cosmology",
+      "Epistemology",
+      "Mathematics",
+      "Metaphysics",
+      "Physics"
+    ],
+    "influenced_by": [
+      "Al-Ghazali",
+      "Anselm of Canterbury",
+      "Archimedes",
+      "Aristotle",
+      "Augustine of Hippo",
+      "Averroes",
+      "Avicenna",
+      "Duns Scotus",
+      "Elisabeth of the Palatinate",
+      "Francisco Sanches",
+      "Francisco Suárez",
+      "François Viète",
+      "Isaac Beeckman",
+      "Jacobus Golius",
+      "Marin Mersenne",
+      "Michel de Montaigne",
+      "Plato",
+      "Rodrigo de Arriaga",
+      "Sextus Empiricus",
+      "Stoics",
+      "Teresa of Ávila",
+      "Thomas Aquinas",
+      "William Harvey",
+      "William of Ockham"
+    ]
+  },
+  "agent:rene-magritte": {
+    "name": "René Magritte",
+    "notable_ideas": [],
+    "schools": [
+      "Surrealism"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:reza-negarestani": {
+    "name": "Reza Negarestani",
+    "notable_ideas": [],
+    "schools": [
+      "Continental philosophy",
+      "Modern Platonism",
+      "Rationalism",
+      "Speculative realism"
+    ],
+    "fields": [
+      "Philosophy of mind",
+      "Philosophy of science"
+    ],
+    "influenced_by": [
+      "Charles Sanders Peirce",
+      "Félix Guattari",
+      "Georg Wilhelm Friedrich Hegel",
+      "Gilles Deleuze",
+      "Nick Land",
+      "Ray Brassier",
+      "Robert Brandom",
+      "Rudolf Carnap",
+      "Wilfrid Sellars"
+    ]
+  },
+  "agent:richard-dawkins": {
+    "name": "Richard Dawkins",
+    "notable_ideas": [
+      "Criticism of religion",
+      "Extended phenotype",
+      "Gene-centered view of evolution",
+      "Meme",
+      "Middle World",
+      "New Atheism"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": [
+      "Charles Darwin",
+      "Christopher Hitchens",
+      "Nikolaas Tinbergen",
+      "W. D. Hamilton"
+    ]
+  },
+  "agent:richard-prince": {
+    "name": "Richard Prince",
+    "notable_ideas": [],
+    "schools": [
+      "The Pictures Generation"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:richard-rorty": {
+    "name": "Richard Rorty",
+    "notable_ideas": [
+      "Anti-foundationalism",
+      "Antirepresentationalism",
+      "Cultural criticism",
+      "Epistemological",
+      "Ironist",
+      "Postphilosophy",
+      "Reformist Left",
+      "Sentimentality",
+      "Vocabulary"
+    ],
+    "schools": [
+      "Neopragmatism",
+      "Postanalytic philosophy"
+    ],
+    "fields": [
+      "Epistemology",
+      "Ethics",
+      "Liberalism",
+      "Metaphilosophy",
+      "Philosophy of language",
+      "Philosophy of mind",
+      "Postmodernism"
+    ],
+    "influenced_by": [
+      "Donald Davidson (philosopher)",
+      "Friedrich Nietzsche",
+      "Hubert Dreyfus",
+      "Isaiah Berlin",
+      "Jacques Derrida",
+      "Jean-François Lyotard",
+      "John Dewey",
+      "John Rawls",
+      "Leo Strauss",
+      "Ludwig Wittgenstein",
+      "Martin Heidegger",
+      "Michel Foucault",
+      "Thomas Kuhn",
+      "Walter Rauschenbusch",
+      "Wilfrid Sellars",
+      "Willard Van Orman Quine",
+      "William James"
+    ]
+  },
+  "agent:robert-motherwell": {
+    "name": "Robert Motherwell",
+    "notable_ideas": [],
+    "schools": [
+      "Abstract expressionism"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:robert-rauschenberg": {
+    "name": "Robert Rauschenberg",
+    "notable_ideas": [],
+    "schools": [
+      "Abstract Expressionism",
+      "Neo-Dada"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:robert-smithson": {
+    "name": "Robert Smithson",
+    "notable_ideas": [],
+    "schools": [
+      "Land art"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:roberto-esposito": {
+    "name": "Roberto Esposito",
+    "notable_ideas": [],
+    "schools": [
+      "Continental philosophy"
+    ],
+    "fields": [
+      "Biopolitics",
+      "Italian philosophy",
+      "Political philosophy"
+    ],
+    "influenced_by": []
+  },
+  "agent:roger-fry": {
+    "name": "Roger Fry",
+    "notable_ideas": [
+      "Bloomsbury Group"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:roland-barthes": {
+    "name": "Roland Barthes",
+    "notable_ideas": [
+      "Death of the author",
+      "Effect of reality",
+      "Narrative",
+      "Writing degree zero"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "Post-structuralism",
+      "Semiotics",
+      "Structuralism"
+    ],
+    "fields": [
+      "Comics semiotics",
+      "Linguistics",
+      "Literary theory",
+      "Narratology",
+      "Semiotics",
+      "Semiotics of photography"
+    ],
+    "influenced_by": [
+      "Ferdinand de Saussure"
+    ]
+  },
+  "agent:roman-jakobson": {
+    "name": "Roman Jakobson",
+    "notable_ideas": [
+      "Jakobson's functions of language",
+      "Markedness"
+    ],
+    "schools": [
+      "Moscow linguistic circle",
+      "Prague linguistic circle"
+    ],
+    "fields": [
+      "Linguistics"
+    ],
+    "influenced_by": [
+      "Ferdinand de Saussure",
+      "Nikolai Trubetzkoy"
+    ]
+  },
+  "agent:roman-ondak": {
+    "name": "Roman Ondak",
+    "notable_ideas": [
+      "Conceptual art"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:rosa-menkman": {
+    "name": "Rosa Menkman",
+    "notable_ideas": [],
+    "schools": [
+      "Glitch art"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:rosi-braidotti": {
+    "name": "Rosi Braidotti",
+    "notable_ideas": [],
+    "schools": [
+      "Continental philosophy",
+      "Materialism",
+      "Postmodern feminism",
+      "Spinozism"
+    ],
+    "fields": [],
+    "influenced_by": [
+      "Baruch Spinoza",
+      "Donna Haraway",
+      "Gilles Deleuze",
+      "Luce Irigaray",
+      "Michel Foucault"
+    ]
+  },
+  "agent:roy-ascott": {
+    "name": "Roy Ascott",
+    "notable_ideas": [],
+    "schools": [
+      "Technoetics"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:roy-lichtenstein": {
+    "name": "Roy Lichtenstein",
+    "notable_ideas": [],
+    "schools": [
+      "Pop art"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:rudi-dutschke": {
+    "name": "Rudi Dutschke",
+    "notable_ideas": [
+      "German student movement"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:silvia": {
+    "name": "SILVIA",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Intelligent software assistant"
+    ],
+    "influenced_by": []
+  },
+  "agent:k": {
+    "name": "k",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [],
+    "influenced_by": [
+      "I"
+    ]
+  },
+  "agent:saidiya-hartman": {
+    "name": "Saidiya Hartman",
+    "notable_ideas": [
+      "MacArthur Fellow"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:sam-durant": {
+    "name": "Sam Durant",
+    "notable_ideas": [
+      "Sam Durant: Scenes from the Pilgrim Story: Myths, Massacres, and Monuments"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:delany-samuel-r": {
+    "name": "Samuel R. Delany",
+    "notable_ideas": [],
+    "schools": [
+      "New Wave science fiction"
+    ],
+    "fields": [
+      "Autobiography",
+      "Creative nonfiction",
+      "Erotic literature",
+      "Fantasy",
+      "Literary criticism",
+      "New Wave (science fiction)"
+    ],
+    "influenced_by": []
+  },
+  "agent:sandra-harding": {
+    "name": "Sandra Harding",
+    "notable_ideas": [
+      "Feminist epistemology",
+      "Strong objectivity"
+    ],
+    "schools": [
+      "Feminist philosophy",
+      "Post-colonialism"
+    ],
+    "fields": [
+      "Epistemology",
+      "Philosophy of science",
+      "Standpoint theory"
+    ],
+    "influenced_by": []
+  },
+  "agent:sara-ahmed": {
+    "name": "Sara Ahmed",
+    "notable_ideas": [
+      "Affect theory",
+      "Critical race theory",
+      "Feminist theory",
+      "Lesbian feminism",
+      "Postcolonialism",
+      "Queer theory"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:weiss": {
+    "name": "Weiss",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Rock music"
+    ],
+    "influenced_by": []
+  },
+  "agent:siegfried-kracauer": {
+    "name": "Siegfried Kracauer",
+    "notable_ideas": [],
+    "schools": [
+      "Frankfurt School"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:sigmund-freud": {
+    "name": "Sigmund Freud",
+    "notable_ideas": [
+      "Defense mechanism",
+      "Freud's psychoanalytic theories",
+      "Oedipus complex",
+      "Psychoanalysis",
+      "Repression (psychology)"
+    ],
+    "schools": [],
+    "fields": [
+      "Neurology",
+      "Psychoanalysis",
+      "Psychotherapy"
+    ],
+    "influenced_by": [
+      "Charles Darwin",
+      "Dostoevsky",
+      "Empedocles",
+      "Feuerbach",
+      "Franz Brentano",
+      "G. Le Bon",
+      "Goethe",
+      "Gustav Fechner",
+      "Herbart",
+      "J. M. Charcot",
+      "Josef Breuer",
+      "Kierkegaard",
+      "Marquis de Sade",
+      "Nietzsche",
+      "Plato",
+      "Schopenhauer",
+      "Shakespeare",
+      "Sophocles",
+      "Von Hartmann",
+      "Wilhelm Fliess"
+    ]
+  },
+  "agent:critchley-simon": {
+    "name": "Simon Critchley",
+    "notable_ideas": [],
+    "schools": [
+      "Continental philosophy"
+    ],
+    "fields": [
+      "Aesthetics",
+      "Ethics",
+      "Political philosophy"
+    ],
+    "influenced_by": [
+      "Alain Badiou",
+      "Aristotle",
+      "Dominique Janicaud",
+      "Edmund Husserl",
+      "Emmanuel Levinas",
+      "Ernesto Laclau",
+      "Friedrich Nietzsche",
+      "Georg Wilhelm Friedrich Hegel",
+      "Immanuel Kant",
+      "Jacques Derrida",
+      "Jacques Lacan",
+      "Jacques Rancière",
+      "Jean-Jacques Rousseau",
+      "Jean-Luc Nancy",
+      "Martin Heidegger",
+      "Plato",
+      "Richard J. Bernstein",
+      "Robert Bernasconi",
+      "Søren Kierkegaard"
+    ]
+  },
+  "agent:simone-forti": {
+    "name": "Simone Forti",
+    "notable_ideas": [
+      "Postmodern dance"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:siouxsie-sioux": {
+    "name": "Siouxsie Sioux",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Alternative rock",
+      "Exotica",
+      "Gothic rock",
+      "New wave music",
+      "Post-punk"
+    ],
+    "influenced_by": []
+  },
+  "agent:slavoj-zizek": {
+    "name": "Slavoj Žižek",
+    "notable_ideas": [
+      "Dialectical materialism",
+      "Ideology",
+      "Interpassivity",
+      "Subversive affirmation"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "Freudo-Marxism",
+      "Lacanian psychoanalysis",
+      "Ljubljana school of psychoanalysis",
+      "Post-Hegelianism",
+      "Post-Marxism"
+    ],
+    "fields": [
+      "Cultural studies",
+      "Dialectic",
+      "Film theory",
+      "German idealism",
+      "Ideology",
+      "Marxism",
+      "Ontology",
+      "Political theory",
+      "Psychoanalysis",
+      "Theology"
+    ],
+    "influenced_by": [
+      "Alain Badiou",
+      "Alenka Zupančič",
+      "Baruch Spinoza",
+      "Book of Job",
+      "Božidar Debenjak",
+      "Carl Schmitt",
+      "Ernesto Laclau",
+      "Fredric Jameson",
+      "Friedrich Engels",
+      "Friedrich Wilhelm Joseph Schelling",
+      "G.K. Chesterton",
+      "Georg Wilhelm Friedrich Hegel",
+      "Henri Lefebvre",
+      "Immanuel Kant",
+      "Jacques Lacan",
+      "Jacques Rancière",
+      "Karl Marx",
+      "Leo Strauss",
+      "Louis Althusser",
+      "Michel Foucault",
+      "Mladen Dolar",
+      "Sigmund Freud",
+      "Theodor Adorno",
+      "Walter Benjamin",
+      "Étienne Balibar"
+    ]
+  },
+  "agent:socrates": {
+    "name": "Socrates",
+    "notable_ideas": [
+      "Gadfly (philosophy and social science)",
+      "I know that I know nothing",
+      "Irony",
+      "Moral intellectualism",
+      "Socratic dialogue",
+      "Socratic method",
+      "Socratic questioning",
+      "The unexamined life is not worth living"
+    ],
+    "schools": [
+      "Classical Greek philosophy"
+    ],
+    "fields": [
+      "Epistemology",
+      "Ethics",
+      "Teleology"
+    ],
+    "influenced_by": [
+      "Anaxagoras",
+      "Archelaus (philosopher)",
+      "Damon of Athens",
+      "Diotima of Mantinea",
+      "Parmenides",
+      "Prodicus"
+    ]
+  },
+  "agent:sophie-taeuber-arp": {
+    "name": "Sophie Taeuber-Arp",
+    "notable_ideas": [],
+    "schools": [
+      "Concrete Art",
+      "Constructivism (art)",
+      "Dada"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:sophocles": {
+    "name": "Sophocles",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Tragedy"
+    ],
+    "influenced_by": []
+  },
+  "agent:horvat-srecko": {
+    "name": "Srećko Horvat",
+    "notable_ideas": [],
+    "schools": [
+      "Continental philosophy"
+    ],
+    "fields": [
+      "Film theory",
+      "Ideology",
+      "Marxism",
+      "Political theory",
+      "Poststructuralism"
+    ],
+    "influenced_by": [
+      "Yanis Varoufakis"
+    ]
+  },
+  "agent:srdic-sr-an": {
+    "name": "Srđan Srdić",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Literary fiction"
+    ],
+    "influenced_by": []
+  },
+  "agent:stephen-o-malley": {
+    "name": "Stephen O'Malley",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Dark ambient",
+      "Doom metal",
+      "Drone metal",
+      "Experimental metal"
+    ],
+    "influenced_by": []
+  },
+  "agent:steve-paxton": {
+    "name": "Steve Paxton",
+    "notable_ideas": [],
+    "schools": [
+      "Judson Dance Theater",
+      "Postmodern dance"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:susanne-klatten": {
+    "name": "Susanne Klatten",
+    "notable_ideas": [
+      "Altana",
+      "BMW"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:tadeusz-kotarbiski": {
+    "name": "Tadeusz Kotarbiński",
+    "notable_ideas": [
+      "Logology (sociology)",
+      "Reism"
+    ],
+    "schools": [
+      "Lwów–Warsaw school of logic"
+    ],
+    "fields": [
+      "Ethics",
+      "Formal logic",
+      "Ontology",
+      "Praxeology"
+    ],
+    "influenced_by": [
+      "Kazimierz Twardowski",
+      "Stanisław Leśniewski"
+    ]
+  },
+  "agent:tatyana-grosman": {
+    "name": "Tatyana Grosman",
+    "notable_ideas": [
+      "Graphic design",
+      "Printmaking"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:terry-frost": {
+    "name": "Terry Frost",
+    "notable_ideas": [],
+    "schools": [
+      "St Ives School"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:thomas-kuhn": {
+    "name": "Thomas Kuhn",
+    "notable_ideas": [
+      "Commensurability (philosophy of science)",
+      "Normal science",
+      "Paradigm shift",
+      "Transcendental nominalism"
+    ],
+    "schools": [
+      "Analytic philosophy",
+      "Historical turn",
+      "Historiographical externalism"
+    ],
+    "fields": [
+      "History of science",
+      "Philosophy of science"
+    ],
+    "influenced_by": [
+      "Alexandre Koyré",
+      "Anneliese Maier",
+      "Herbert Butterfield",
+      "Hélène Metzger",
+      "Immanuel Kant",
+      "Jean Piaget",
+      "John Hasbrouck Van Vleck",
+      "Karl Popper",
+      "Ludwig Wittgenstein",
+      "Ludwik Fleck",
+      "Michael Polanyi",
+      "Norwood Russell Hanson",
+      "Émile Meyerson"
+    ]
+  },
+  "agent:timothy-morton": {
+    "name": "Timothy Morton",
+    "notable_ideas": [],
+    "schools": [
+      "Speculative realism"
+    ],
+    "fields": [
+      "Buddhism",
+      "Ecocriticism",
+      "Metaphysics",
+      "Object-oriented ontology",
+      "Philosophical realism"
+    ],
+    "influenced_by": [
+      "Buddhist philosophy",
+      "Graham Harman",
+      "Jacques Derrida",
+      "Karl Marx"
+    ]
+  },
+  "agent:tom-marioni": {
+    "name": "Tom Marioni",
+    "notable_ideas": [
+      "Conceptual art"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:tomasz-stanko": {
+    "name": "Tomasz Stańko",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Jazz"
+    ],
+    "influenced_by": []
+  },
+  "agent:toni-morrison": {
+    "name": "Toni Morrison",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "American literature"
+    ],
+    "influenced_by": []
+  },
+  "agent:tristan-garcia": {
+    "name": "Tristan Garcia",
+    "notable_ideas": [],
+    "schools": [
+      "Continental philosophy",
+      "Speculative realism"
+    ],
+    "fields": [],
+    "influenced_by": [
+      "Quentin Meillassoux"
+    ]
+  },
+  "agent:umberto-eco": {
+    "name": "Umberto Eco",
+    "notable_ideas": [
+      "The Limits of Interpretation"
+    ],
+    "schools": [
+      "Continental philosophy"
+    ],
+    "fields": [
+      "Comics semiotics",
+      "Film semiotics",
+      "Semiotics"
+    ],
+    "influenced_by": []
+  },
+  "agent:valie-export": {
+    "name": "Valie Export",
+    "notable_ideas": [],
+    "schools": [
+      "Avant-garde",
+      "Performance art"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:victor-vasarely": {
+    "name": "Victor Vasarely",
+    "notable_ideas": [],
+    "schools": [
+      "Op art"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:vlada-divljan": {
+    "name": "Vlada Divljan",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Art rock",
+      "Electronic music",
+      "Experimental music",
+      "New wave music",
+      "Pop rock",
+      "Punk rock"
+    ],
+    "influenced_by": []
+  },
+  "agent:vladimir-mayakovsky": {
+    "name": "Vladimir Mayakovsky",
+    "notable_ideas": [],
+    "schools": [
+      "Russian Futurism"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:vlado-kreslin": {
+    "name": "Vlado Kreslin",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Folk rock"
+    ],
+    "influenced_by": []
+  },
+  "agent:vuk-karadzic": {
+    "name": "Vuk Karadžić",
+    "notable_ideas": [
+      "Serbian Cyrillic alphabet",
+      "Serbian language"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:walter-benjamin": {
+    "name": "Walter Benjamin",
+    "notable_ideas": [
+      "Aestheticization of politics",
+      "Dialectic",
+      "Flâneur",
+      "The Work of Art in the Age of Mechanical Reproduction"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "Marxist hermeneutics",
+      "Western Marxism"
+    ],
+    "fields": [
+      "Aesthetics",
+      "Epistemology",
+      "Literary theory",
+      "Philosophy of history",
+      "Philosophy of language",
+      "Philosophy of technology"
+    ],
+    "influenced_by": [
+      "Bertolt Brecht",
+      "Charles Baudelaire",
+      "Eric Gutkind",
+      "Franz Kafka",
+      "Friedrich Hölderlin",
+      "Georg Lukács",
+      "Gershom Scholem",
+      "Heinrich Rickert",
+      "Johann Jakob Bachofen",
+      "Kabbalah",
+      "Karl Marx",
+      "Leo Strauss",
+      "Ludwig Klages",
+      "Marcel Proust",
+      "Martin Buber",
+      "Novalis",
+      "Theodor Adorno"
+    ]
+  },
+  "agent:wilhelm-reich": {
+    "name": "Wilhelm Reich",
+    "notable_ideas": [
+      "Character Analysis",
+      "Freudo-Marxism",
+      "Orgastic potency",
+      "Orgone",
+      "Vegetotherapy"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:william-morris": {
+    "name": "William Morris",
+    "notable_ideas": [
+      "Medievalism",
+      "Socialism",
+      "Textile Design",
+      "Wallpaper"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:william-s-burroughs": {
+    "name": "William S. Burroughs",
+    "notable_ideas": [],
+    "schools": [
+      "Beat Generation",
+      "Postmodern literature"
+    ],
+    "fields": [
+      "Beat Generation",
+      "Paranoid fiction"
+    ],
+    "influenced_by": []
+  },
+  "agent:xavier-antich": {
+    "name": "Xavier Antich",
+    "notable_ideas": [
+      "Òmnium Cultural"
+    ],
+    "schools": [],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:yuval-noah-harari": {
+    "name": "Yuval Noah Harari",
+    "notable_ideas": [
+      "21 Lessons for the 21st Century",
+      "Homo Deus: A Brief History of Tomorrow",
+      "Sapiens: A Brief History of Humankind"
+    ],
+    "schools": [],
+    "fields": [
+      "Big History",
+      "Social philosophy"
+    ],
+    "influenced_by": []
+  },
+  "agent:yves-klein": {
+    "name": "Yves Klein",
+    "notable_ideas": [],
+    "schools": [
+      "Nouveau réalisme"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:zdenko-kolar": {
+    "name": "Zdenko Kolar",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Art rock",
+      "Blues",
+      "New wave music",
+      "Punk rock"
+    ],
+    "influenced_by": []
+  },
+  "agent:zoran-music": {
+    "name": "Zoran Mušič",
+    "notable_ideas": [],
+    "schools": [
+      "Ecole de Paris",
+      "Neodvisni"
+    ],
+    "fields": [],
+    "influenced_by": []
+  },
+  "agent:douard-glissant": {
+    "name": "Édouard Glissant",
+    "notable_ideas": [
+      "Poetics of relation"
+    ],
+    "schools": [
+      "Postcolonialism"
+    ],
+    "fields": [],
+    "influenced_by": [
+      "Aimé Césaire"
+    ]
+  },
+  "agent:mile-durkheim": {
+    "name": "Émile Durkheim",
+    "notable_ideas": [
+      "Anomie",
+      "Collective consciousness",
+      "Collective effervescence",
+      "Sacred–profane dichotomy",
+      "Social fact",
+      "Social integration"
+    ],
+    "schools": [],
+    "fields": [
+      "Anthropology",
+      "Education",
+      "Philosophy",
+      "Religious studies",
+      "Sociology"
+    ],
+    "influenced_by": [
+      "Aristotle",
+      "Auguste Comte",
+      "Charles Renouvier",
+      "Descartes",
+      "Fustel de Coulanges",
+      "Guyau",
+      "Herbert Spencer",
+      "John Dewey",
+      "John Stuart Mill",
+      "Kant",
+      "L. Bonald",
+      "Ludwig Gumplowicz",
+      "Montesquieu",
+      "Plato",
+      "Rousseau",
+      "Spinoza",
+      "William James"
+    ]
+  },
+  "agent:tienne-balibar": {
+    "name": "Étienne Balibar",
+    "notable_ideas": [
+      "Law of equal liberty"
+    ],
+    "schools": [
+      "Continental philosophy",
+      "Post-Marxism"
+    ],
+    "fields": [
+      "Political philosophy"
+    ],
+    "influenced_by": [
+      "Karl Marx"
+    ]
+  },
+  "agent:zarana-papic": {
+    "name": "Žarana Papić",
+    "notable_ideas": [],
+    "schools": [],
+    "fields": [
+      "Social anthropology"
+    ],
+    "influenced_by": []
+  }
+}
