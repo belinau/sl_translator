@@ -15,8 +15,6 @@ import logging
 import argparse
 import json
 import math
-import re
-import unicodedata
 import pathlib
 import sys
 from collections import Counter, defaultdict
@@ -61,12 +59,6 @@ ALL_NODES = raw_data.get("nodes", [])
 ALL_EDGES = raw_data.get("edges", [])
 node_by_id = {n["id"]: n for n in ALL_NODES}
 
-
-DATA_DIR = kg_path.parent
-
-def _norm(s: str) -> str:
-    """NFKD-strip diacritics, lowercase."""
-    return "".join(c for c in unicodedata.normalize("NFKD", s.lower()) if not unicodedata.combining(c))
 log.info(f"Loaded {len(ALL_NODES)} nodes and {len(ALL_EDGES)} edges.")
 
 def compute_physics_defaults(n_nodes: int, n_edges: int) -> Dict[str, float]:
@@ -93,13 +85,10 @@ def compute_physics_defaults(n_nodes: int, n_edges: int) -> Dict[str, float]:
         return {"charge": -800,  "link_dist": 200, "link_str": 0.30,
                 "collide": 20, "velocity": 0.42, "center": 0.10,
                 "alpha_decay": 0.018}
-    # Tree-like / sparse — V5/V6 lineage views (hub-and-spoke star topology).
-    # Needs very strong repulsion so hub clusters push apart, weak center so
-    # they don't all collapse into a single blob, and short link distance to
-    # keep leaves tight around their hub.
-    return     {"charge": -2800, "link_dist": 120, "link_str": 0.55,
-                "collide": 16, "velocity": 0.35, "center": 0.02,
-                "alpha_decay": 0.008}
+    # Tree-like / sparse — V5 lineage→concepts (single-attribution)
+    return     {"charge": -1400, "link_dist": 260, "link_str": 0.45,
+                "collide": 20, "velocity": 0.40, "center": 0.12,
+                "alpha_decay": 0.022}
 def physics_replacements(defaults: Dict[str, float]) -> Dict[str, str]:
     """Map placeholder name → string for HTML/JS template substitution."""
     return {
@@ -714,49 +703,33 @@ log.info("Processing View 5: Lineage \u2192 Concepts...")
 # that is the SOLE source of lineage information in the KG. There are NO
 # lineage node types and NO agent_in_lineage edges. Lineage hubs are
 # synthesized at view-time only.
-# Aggregate: which concepts associate with which lineages?
-# Rebased on curated concept→theorist (attributed_to) + lineage_schools.json roster,
-# NOT on the random per-mapping lineage field.
 DEFAULT_LINEAGES = {"performance", "general", "manual", ""}
-
-# Load lineage roster: theorist name → school
-try:
-    _roster_raw: dict = json.loads((DATA_DIR / "lineage_schools.json").read_text(encoding="utf-8"))
-except Exception:
-    _roster_raw = {}
-# Build agent_id → school mapping (slugified)
-_agent_school: dict[str, str] = {}
-for theorist_name, school in _roster_raw.items():
-    slug = re.sub(r"[^a-z0-9]+", "-", _norm(theorist_name)).strip("-")
-    if slug:
-        _agent_school[f"agent:{slug}"] = school
-school_slug = lambda s: re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
-
-# Vote: concept → school, via concept -[attributed_to]-> agent → school
+# Aggregate: which concepts associate with which non-default lineages?
+# Walk mapping nodes; for each: src/tgt term → concept → lineage_vote
 concept_lineage_votes: Dict[str, Counter] = defaultdict(Counter)
-for e in ALL_EDGES:
-    if e.get("relation") != "attributed_to":
-        continue
-    src, tgt = e.get("source", ""), e.get("target", "")
-    if not src.startswith("concept:") or not tgt.startswith("agent:"):
-        continue
-    school = _agent_school.get(tgt)
-    if school and school not in DEFAULT_LINEAGES:
-        concept_lineage_votes[src][school] += 1
-
-# Synthesize lineage hub nodes
 lineage_mapping_counts: Counter = Counter()
-for cid, votes in concept_lineage_votes.items():
-    for school, count in votes.items():
-        lineage_mapping_counts[school] += count
-
+for m_id, m_node in mapping_nodes.items():
+    lin = (m_node.get("lineage") or "").strip()
+    if lin in DEFAULT_LINEAGES:
+        continue
+    src_term = mapping_sources.get(m_id)
+    tgt_term = mapping_targets.get(m_id)
+    for term_id in (src_term, tgt_term):
+        if not term_id:
+            continue
+        cid = term_to_concept.get(term_id)
+        if cid:
+            concept_lineage_votes[cid][lin] += 1
+    lineage_mapping_counts[lin] += 1
+# Build node sets
 v5_concept_ids = set(concept_lineage_votes.keys())
 v5_lineage_names = set(lineage_mapping_counts.keys())
 concept_nodes_v5 = {n["id"]: n for n in ALL_NODES
                     if n.get("type") == "concept" and n["id"] in v5_concept_ids}
+# Synthesize lineage hub nodes at VIEW TIME (visualization-only, NOT persisted)
 lineage_hub_nodes_v5 = {}
 for lin, mc in lineage_mapping_counts.items():
-    hub_id = f"lineage:{school_slug(lin)}"
+    hub_id = f"lineage:{lin}"
     lineage_hub_nodes_v5[hub_id] = {
         "id": hub_id,
         "label": lin,
@@ -772,7 +745,7 @@ for cid, votes in concept_lineage_votes.items():
     lin, weight = votes.most_common(1)[0]
     v5_edges_raw.append({
         "source": cid,
-        "target": f"lineage:{school_slug(lin)}",
+        "target": f"lineage:{lin}",
         "relation": "in_lineage",
         "lineage": lin,
         "weight": weight,
@@ -825,24 +798,23 @@ for e in v5_edges_pruned:
 
 available_lineages_v5 = sorted({n.get("label", "") for n in lineage_hub_nodes_v5.values()})
 log.info(f"  Result View 5: {len(d3_nodes_v5)} nodes ({len(lineage_hub_nodes_v5)} lineage hubs), {len(d3_edges_v5)} edges.")
+# ===========================================================================
 # VIEW 6 PROCESSING: Lineage \u2192 Works + Agents
 # ===========================================================================
-log.info("Processing View 6: Lineage → Works + Agents...")
-# Rebased on curated agent→school roster, NOT per-mapping lineage.
-# Agent→school from lineage_schools.json; Work→school via written_by→agent→school.
+log.info("Processing View 6: Lineage \u2192 Works + Agents...")
+# Aggregate source_text→lineage and agent→lineage from translation_mapping
+# bridges per ontology §3.3. Lineage hubs are synthesized at view-time only.
 work_lineage_votes: Dict[str, Counter] = defaultdict(Counter)
 agent_lineage_votes: Dict[str, Counter] = defaultdict(Counter)
-for aid, school in _agent_school.items():
-    if school and school not in DEFAULT_LINEAGES:
-        agent_lineage_votes[aid][school] += 1
-for e in ALL_EDGES:
-    if e.get("relation") != "written_by":
+for m_id, m_node in mapping_nodes.items():
+    lin = (m_node.get("lineage") or "").strip()
+    if lin in DEFAULT_LINEAGES:
         continue
-    text_id = e.get("source", "")
-    aid = e.get("target", "")
-    school = _agent_school.get(aid)
-    if school and school not in DEFAULT_LINEAGES:
-        work_lineage_votes[text_id][school] += 1
+    for text_id in mapping_texts.get(m_id, []):
+        work_lineage_votes[text_id][lin] += 1
+    for agent_id in mapping_agents.get(m_id, []):
+        agent_lineage_votes[agent_id][lin] += 1
+# Real entity nodes participating in at least one lineage
 v6_work_ids = set(work_lineage_votes.keys())
 v6_agent_ids = set(agent_lineage_votes.keys())
 v6_lineage_names = (set(lineage_mapping_counts.keys()) &
@@ -850,9 +822,10 @@ v6_lineage_names = (set(lineage_mapping_counts.keys()) &
                      set().union(*[v.keys() for v in agent_lineage_votes.values()] or [set()])))
 work_nodes_v6 = {n["id"]: n for n in ALL_NODES if n["id"] in v6_work_ids}
 agent_nodes_v6 = {n["id"]: n for n in ALL_NODES if n["id"] in v6_agent_ids}
+# Synthesize lineage hubs at view-time (visualization-only, NOT persisted)
 lineage_hub_nodes_v6 = {}
 for lin in v6_lineage_names:
-    hub_id = f"lineage:{school_slug(lin)}"
+    hub_id = f"lineage:{lin}"
     lineage_hub_nodes_v6[hub_id] = {
         "id": hub_id,
         "label": lin,
@@ -860,12 +833,13 @@ for lin in v6_lineage_names:
         "lineage": lin,
         "mapping_count": lineage_mapping_counts.get(lin, 0),
     }
+# Edges: work→lineage and agent→lineage (weighted)
 v6_edges_raw = []
 for wid, votes in work_lineage_votes.items():
     for lin, weight in votes.items():
         v6_edges_raw.append({
             "source": wid,
-            "target": f"lineage:{school_slug(lin)}",
+            "target": f"lineage:{lin}",
             "relation": "work_in_lineage",
             "lineage": lin,
             "weight": weight,
@@ -876,7 +850,7 @@ for aid, votes in agent_lineage_votes.items():
     for lin, weight in votes.items():
         v6_edges_raw.append({
             "source": aid,
-            "target": f"lineage:{school_slug(lin)}",
+            "target": f"lineage:{lin}",
             "relation": "agent_in_lineage",
             "lineage": lin,
             "weight": weight,
