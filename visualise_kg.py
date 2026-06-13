@@ -752,6 +752,18 @@ for cid, votes in concept_lineage_votes.items():
         "confidence": 1.0,
         "verified": False,
     })
+# Add rhizomatic concept→concept edges between in-view concepts
+RHIZOMATIC_V5 = {"extends", "critiques", "redefines", "reappropriates", "related_to"}
+for e in ALL_EDGES:
+    if e.get("relation") in RHIZOMATIC_V5:
+        s, t = e["source"], e["target"]
+        if s in v5_concept_ids and t in v5_concept_ids:
+            v5_edges_raw.append({
+                "source": s, "target": t,
+                "relation": e["relation"],
+                "lineage": "", "weight": 1,
+                "confidence": 1.0, "verified": False,
+            })
 
 v5_nodes_raw = list(concept_nodes_v5.values()) + list(lineage_hub_nodes_v5.values())
 v5_nodes_pruned, v5_edges_pruned = prune_subgraph(v5_nodes_raw, v5_edges_raw, args.limit)
@@ -857,6 +869,28 @@ for aid, votes in agent_lineage_votes.items():
             "confidence": 1.0,
             "verified": False,
         })
+# Add written_by edges between in-view agents and works
+for e in ALL_EDGES:
+    if e.get("relation") == "written_by":
+        s, t = e["source"], e["target"]
+        if s in v6_work_ids and t in v6_agent_ids:
+            v6_edges_raw.append({
+                "source": s, "target": t,
+                "relation": "written_by",
+                "lineage": "", "weight": 1,
+                "confidence": 1.0, "verified": True,
+            })
+# Add cited_in edges between in-view works
+for e in ALL_EDGES:
+    if e.get("relation") == "cited_in":
+        s, t = e["source"], e["target"]
+        if s in v6_work_ids and t in v6_work_ids:
+            v6_edges_raw.append({
+                "source": s, "target": t,
+                "relation": "cited_in",
+                "lineage": "", "weight": 1,
+                "confidence": 1.0, "verified": True,
+            })
 
 v6_nodes_raw = (list(work_nodes_v6.values()) + list(agent_nodes_v6.values())
                 + list(lineage_hub_nodes_v6.values()))
