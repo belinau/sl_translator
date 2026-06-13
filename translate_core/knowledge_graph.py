@@ -1412,6 +1412,87 @@ class KnowledgeGraph:
         self.G.remove_node(concept_id)
         return True
 
+
+    # ------------------------------------------------------------------
+    # Agent dedup factory
+    # ------------------------------------------------------------------
+    def merge_agent_nodes(self, canonical_id: str, duplicate_id: str) -> bool:
+        """Merge *duplicate_id* into *canonical_id*.
+
+        Both must exist and be type ``"agent"``.  Re-points every edge
+        incident on *duplicate_id* onto *canonical_id* (skipping
+        self-loops and edges that already exist on the canonical node),
+        unions metadata (alt_spellings, all_roles), sums mention_count,
+        and removes *duplicate_id* from the graph.
+
+        Returns ``True`` if the merge was performed, ``False`` on any
+        precondition failure (missing node, wrong type, same id).
+        """
+        if canonical_id == duplicate_id:
+            return False
+        if not self.G.has_node(canonical_id) or not self.G.has_node(duplicate_id):
+            return False
+        if self.G.nodes[canonical_id].get("type") != "agent":
+            return False
+        if self.G.nodes[duplicate_id].get("type") != "agent":
+            return False
+
+        can_data = self.G.nodes[canonical_id]
+        dup_data = self.G.nodes[duplicate_id]
+
+        # ── Re-point out-edges (duplicate → target) ──
+        for _, tgt, edata in list(self.G.out_edges(duplicate_id, data=True)):
+            if tgt == canonical_id:
+                continue  # drop self-loop
+            if not self.G.has_edge(canonical_id, tgt):
+                self.G.add_edge(canonical_id, tgt, **edata)
+
+        # ── Re-point in-edges (source → duplicate) ──
+        for src, _, edata in list(self.G.in_edges(duplicate_id, data=True)):
+            if src == canonical_id:
+                continue  # drop self-loop
+            if not self.G.has_edge(src, canonical_id):
+                self.G.add_edge(src, canonical_id, **edata)
+
+        # ── Merge metadata ──
+        def _union_list(a: list | None, b: list | None) -> list:
+            seen: set[str] = set()
+            result: list[str] = []
+            for item in (a or []) + (b or []):
+                if item not in seen:
+                    seen.add(item)
+                    result.append(item)
+            return result
+
+        # alt_spellings: union + add duplicate's own name
+        dup_name = dup_data.get("name", "")
+        can_alt = can_data.get("alt_spellings", []) or []
+        dup_alt = dup_data.get("alt_spellings", []) or []
+        merged_alt = _union_list(can_alt, dup_alt)
+        if dup_name and dup_name not in merged_alt:
+            merged_alt.append(dup_name)
+        can_data["alt_spellings"] = merged_alt
+
+        # all_roles: union
+        can_data["all_roles"] = _union_list(
+            can_data.get("all_roles", []), dup_data.get("all_roles", [])
+        )
+
+        # mention_count: sum
+        can_data["mention_count"] = (
+            (can_data.get("mention_count") or 0) + (dup_data.get("mention_count") or 0)
+        )
+
+        # role: prefer specific over generic "agent"
+        can_role = can_data.get("role", "")
+        dup_role = dup_data.get("role", "")
+        if can_role in ("", "agent") and dup_role not in ("", "agent"):
+            can_data["role"] = dup_role
+
+        # ── Remove duplicate node ──
+        self.G.remove_node(duplicate_id)
+        return True
+
     def update_concept_metadata(
         self,
         concept_id: str,

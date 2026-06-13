@@ -48,20 +48,15 @@ if str(ROOT) not in sys.path:
 # ---------------------------------------------------------------------------
 class _KGLike(Protocol):
     """The ingester reads `.G` for membership checks and writes via two
-    factory methods. Tests pass a synthetic stand-in; production passes a
-    real `KnowledgeGraph`."""
-
-    G: Any  # networkx.DiGraph
-
-    def add_concept_node(
-        self,
-        concept_id: str,
-        label: str,
-        domain: str = ...,
-        definition: str = ...,
-        **kwargs: Any,
-    ) -> str: ...
-
+    factory methods — `add_concept_node` and `link_attributed_to`.  The
+    protocol is intentionally narrow: the ingester must not reach into
+    the KG's internals.
+    """
+    G: Any
+    def has_node(self, n: str) -> bool: ...
+    def has_edge(self, u: str, v: str) -> bool: ...
+    def add_concept_node(self, concept_id: str, *, label: str, definition: str, **kw: Any) -> str: ...
+    def add_agent_node(self, agent_id: str, *, name: str, role: str, dedup_group: str, alt_spellings: list[str], all_roles: list[str], mention_count: int) -> str: ...
     def link_attributed_to(self, source_id: str, agent_id: str) -> bool: ...
 
 
@@ -98,30 +93,25 @@ def _label_for_pre_slugged_concept(concept_id: str) -> str:
 # Plan structures — immutable so re-running plan_ingest is safe.
 # ---------------------------------------------------------------------------
 class Plan(NamedTuple):
-    """Result of planning. Three iterables in deterministic order.
-
+    """Result of planning. Four iterables in deterministic order.
     `new_concepts` — list of `{id, label, definition}` dicts for concept
                      nodes to create (already filtered against the KG).
     `new_edges`    — list of `(concept_id, agent_id)` tuples to link
                      via `link_attributed_to`.
+    `new_agents`   — list of `{id, name}` dicts for agent nodes to
+                     create (theorists whose agent node is missing).
     `review`       — list of review-queue records to append. Each has
                      fields `{id, type, reason, source, concept_id}`.
-
     NamedTuple (not dataclass) on purpose: the script is loaded via
     `importlib.util.spec_from_file_location` from the tests, which
     confuses the dataclass-annotation resolver on Python 3.14 (it tries
     to look the script up in `sys.modules` and finds None). NamedTuple
     sidesteps that and gives us the immutability we want anyway.
     """
-
     new_concepts: list[dict[str, str]]
     new_edges: list[tuple[str, str]]
+    new_agents: list[dict[str, str]]
     review: list[dict[str, str]]
-
-
-# ---------------------------------------------------------------------------
-# Pure planner
-# ---------------------------------------------------------------------------
 def plan_ingest(
     kg: _KGLike,
     *,
@@ -137,15 +127,15 @@ def plan_ingest(
     review records are filtered against the on-disk queue by `apply_plan`.
     """
     g = kg.G
-
     new_concepts: list[dict[str, str]] = []
     new_edges: list[tuple[str, str]] = []
+    new_agents: list[dict[str, str]] = []
     review: list[dict[str, str]] = []
-
     # Track planned concept ids so a second curator file can't re-plan
     # the same node twice in one pass.
     planned_concept_ids: set[str] = set()
-
+    # Track planned agent ids so dedup across theorists+schools is stable.
+    planned_agent_ids: set[str] = set()
     def _plan_concept(cid: str, label: str) -> None:
         if cid in planned_concept_ids:
             return
@@ -153,28 +143,36 @@ def plan_ingest(
         if g.has_node(cid):
             return
         new_concepts.append({"id": cid, "label": label, "definition": ""})
-
+    def _plan_missing_agent(agent_id: str, theorist_name: str) -> None:
+        """Collect agent for creation (curated roster is trusted)."""
+        if agent_id in planned_agent_ids:
+            return
+        planned_agent_ids.add(agent_id)
+        if not theorist_name.strip():
+            # Only route to review if the name itself is blank.
+            review.append(
+                {
+                    "id": agent_id,
+                    "type": "agent",
+                    "reason": "missing_agent_blank_name",
+                    "source": "curator_lineages",
+                    "concept_id": "",
+                }
+            )
+            return
+        new_agents.append({"id": agent_id, "name": theorist_name})
     # --- theorists: `concept:<id>` → theorist_name ----------------------
     for concept_id, theorist_name in sorted(theorists.items()):
         label = _label_for_pre_slugged_concept(concept_id)
         _plan_concept(concept_id, label)
-
         agent_id = _agent_id_for(theorist_name)
         if g.has_node(agent_id):
             # Avoid re-emitting an existing edge.
             if not g.has_edge(concept_id, agent_id):
                 new_edges.append((concept_id, agent_id))
         else:
-            review.append(
-                {
-                    "id": agent_id,
-                    "type": "agent",
-                    "reason": "missing_agent",
-                    "source": "concept_theorists",
-                    "concept_id": concept_id,
-                }
-            )
-
+            _plan_missing_agent(agent_id, theorist_name)
+            new_edges.append((concept_id, agent_id))
     # --- schools: agent_name → school_name -------------------------------
     # Sort by (agent_name, school_name) for determinism and to keep
     # multiple-agents-share-one-concept ordering stable.
@@ -182,25 +180,17 @@ def plan_ingest(
         concept_id = _concept_id_for_school(school)
         # Concept label is the ORIGINAL school string (preserves casing).
         _plan_concept(concept_id, school)
-
         agent_id = _agent_id_for(agent_name)
         if g.has_node(agent_id):
             if not g.has_edge(concept_id, agent_id):
                 new_edges.append((concept_id, agent_id))
         else:
-            review.append(
-                {
-                    "id": agent_id,
-                    "type": "agent",
-                    "reason": "missing_agent",
-                    "source": "lineage_schools",
-                    "concept_id": concept_id,
-                }
-            )
-
+            _plan_missing_agent(agent_id, agent_name)
+            new_edges.append((concept_id, agent_id))
     return Plan(
         new_concepts=new_concepts,
         new_edges=new_edges,
+        new_agents=new_agents,
         review=review,
     )
 
@@ -244,15 +234,13 @@ def _write_review_queue(path: Path, records: list[dict[str, Any]]) -> None:
 
 
 def apply_plan(kg: _KGLike, plan: Plan, *, review_path: Path) -> None:
-    """Apply `plan` to `kg` and append missing-agent records to
-    `review_path`.
-
-    Concept-node and edge writes go through the idempotent factories
-    (`add_concept_node`, `link_attributed_to`), so re-applying the same
-    plan never duplicates KG state. Review-queue records are deduped
-    against the existing on-disk queue by the 5-tuple key above, so
-    repeated runs don't grow the queue either.
+    """Apply `plan` to `kg` and append review records to `review_path`.
+    Concept-node, agent-node, and edge writes go through the idempotent
+    factories, so re-applying the same plan never duplicates KG state.
+    Review-queue records are deduped against the existing on-disk queue
+    by the 5-tuple key, so repeated runs don't grow the queue either.
     """
+    from translate_core.entity_extraction.name_dedup import dedup_group_key
     # 1. Create concepts.
     for spec in plan.new_concepts:
         kg.add_concept_node(
@@ -260,13 +248,23 @@ def apply_plan(kg: _KGLike, plan: Plan, *, review_path: Path) -> None:
             label=spec["label"],
             definition=spec.get("definition", ""),
         )
-
-    # 2. Link concept → agent (factory is a no-op if either node is
+    # 2. Create missing theorist agents (curated roster is trusted).
+    for spec in plan.new_agents:
+        bare_slug = spec["id"].split(":", 1)[1] if spec["id"].startswith("agent:") else spec["id"]
+        kg.add_agent_node(
+            bare_slug,
+            name=spec["name"],
+            role="author",
+            dedup_group=dedup_group_key(spec["name"]),
+            alt_spellings=[spec["name"]],
+            all_roles=["author"],
+            mention_count=1,
+        )
+    # 3. Link concept → agent (factory is a no-op if either node is
     #    missing or the edge already exists).
     for concept_id, agent_id in plan.new_edges:
         kg.link_attributed_to(concept_id, agent_id)
-
-    # 3. Append review records, deduping against the existing queue.
+    # 4. Append review records, deduping against the existing queue.
     if plan.review:
         existing = _load_review_queue(review_path)
         seen = {_dedup_key(r) for r in existing}
@@ -279,7 +277,6 @@ def apply_plan(kg: _KGLike, plan: Plan, *, review_path: Path) -> None:
             appended.append(dict(rec))
         if len(appended) != len(existing):
             _write_review_queue(review_path, appended)
-
 
 # ---------------------------------------------------------------------------
 # CLI
@@ -301,6 +298,7 @@ def _print_report(plan: Plan, *, mode: str) -> None:
     print(
         f"mode={mode} "
         f"{verb}_concepts={len(plan.new_concepts)} "
+        f"{verb}_agents={len(plan.new_agents)} "
         f"{edge_verb}_edges={len(plan.new_edges)} "
         f"{rev_verb}_review_records={len(plan.review)}"
     )

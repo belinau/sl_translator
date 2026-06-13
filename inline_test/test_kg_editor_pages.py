@@ -24,8 +24,8 @@ class TestRecordMatchesText:
         r = {"kind": "agent_person", "payload": {"name": "Donna Haraway"}}
         assert record_matches_text(r, "haraway")
 
-    def test_match_on_title_en(self):
-        r = {"kind": "cited_work", "payload": {"title_en": "A Cyborg Manifesto"}}
+    def test_match_on_title_orig(self):
+        r = {"kind": "cited_work", "payload": {"title_orig": "A Cyborg Manifesto"}}
         assert record_matches_text(r, "cyborg")
 
     def test_no_match(self):
@@ -39,7 +39,7 @@ class TestRecordMatchesText:
 
 class TestRecordLabel:
     def test_cited_work_label(self):
-        r = {"kind": "cited_work", "payload": {"author": "Haraway", "title_en": "Cyborg", "year": "1991"}}
+        r = {"kind": "cited_work", "payload": {"author": "Haraway", "title_orig": "Cyborg", "year": "1991"}}
         label = record_label(r)
         assert "Haraway" in label
         assert "Cyborg" in label
@@ -82,9 +82,9 @@ class TestCandidateTexts:
         assert c["primary"] == "Haraway"
 
     def test_work_candidate(self):
-        r = {"kind": "cited_work", "payload": {"title_en": "Cyborg", "author": "Haraway", "year": "1991"}}
+        r = {"kind": "cited_work", "payload": {"title_orig": "Cyborg", "author": "Haraway", "year": "1991"}}
         c = candidate_texts(r)
-        assert c["title_en"] == "Cyborg"
+        assert c["title_orig"] == "Cyborg"
         assert c["author"] == "Haraway"
 
 
@@ -183,7 +183,7 @@ class TestCommitRecord:
             "kind": "cited_work",
             "payload": {
                 "cited_id": "cyborg-manifesto",
-                "title_en": "A Cyborg Manifesto",
+                "title_orig": "A Cyborg Manifesto",
                 "author": "Haraway",
                 "year": "1991",
             },

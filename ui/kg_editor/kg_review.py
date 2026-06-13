@@ -174,22 +174,19 @@ def page_kg_review():
 
         label = (
             it.get("name")
-            or it.get("title_en")
-            or it.get("title")
-            or it.get("title_sl")
+            or it.get("title_orig") or it.get("title")
+            or it.get("title_translation")
             or nid
         )
-
         with ui.expansion(f"{ntype}: {label[:70]}", caption=it.get("reason")).classes(
             "w-full"
         ):
             ui.label(f"id: {nid}").classes("text-[11px] opacity-45")
-
             # ── Type-specific summary ─────────────────────────────────────
             if ntype == "source_text":
                 ui.markdown(
-                    f"**title:** `{it.get('title')}`  ·  **EN:** `{it.get('title_en')}`  ·  "
-                    f"**SL:** `{it.get('title_sl')}`  ·  **year:** `{it.get('year')}`  ·  "
+                    f"**title:** `{it.get('title')}`  ·  **orig:** `{it.get('title_orig')}`  ·  "
+                    f"**translation:** `{it.get('title_translation')}`  ·  **year:** `{it.get('year')}`  ·  "
                     f"**type:** `{it.get('project_type')}`"
                 ).classes("text-sm")
             elif ntype == "agent":
@@ -243,10 +240,10 @@ def page_kg_review():
 
         with ui.card().classes("w-full p-3 gap-2").props("flat bordered"):
             if ntype == "source_text":
-                e_ten = ui.input("Title (EN):", value=it.get("title_en") or "").classes(
+                e_torig = ui.input("Title (orig):", value=it.get("title_orig") or it.get("title_en") or "").classes(
                     "w-full"
                 )
-                e_tsl = ui.input("Title (SL):", value=it.get("title_sl") or "").classes(
+                e_ttrans = ui.input("Title (translation):", value=it.get("title_translation") or it.get("title_sl") or "").classes(
                     "w-full"
                 )
                 e_title = ui.input(
@@ -260,7 +257,6 @@ def page_kg_review():
                 e_pt = ui.select(pt_opts, value=cur_pt, label="Project type:").classes(
                     "w-full"
                 )
-
                 async def _on_save_source():
                     yr_str = e_yr.value.strip()
                     try:
@@ -273,8 +269,8 @@ def page_kg_review():
                         title=e_title.value or None,
                         year=yr,
                         project_type=e_pt.value,
-                        title_en=e_ten.value.strip() or None,
-                        title_sl=e_tsl.value.strip() or None,
+                        title_orig=e_torig.value.strip() or None,
+                        title_translation=e_ttrans.value.strip() or None,
                     )
                     await run.io_bound(kg.save)
                     drop_kg_review(items, it)
@@ -333,18 +329,16 @@ def page_kg_review():
             cands = {
                 "primary": (
                     it.get("name")
-                    or it.get("title_en")
-                    or it.get("title")
-                    or it.get("title_sl")
+                    or it.get("title_orig") or it.get("title")
+                    or it.get("title_translation")
                     or nid
                 ),
                 "name": it.get("name")
-                or it.get("title_en")
-                or it.get("title")
-                or it.get("title_sl")
+                or it.get("title_orig") or it.get("title")
+                or it.get("title_translation")
                 or nid,
-                "title_en": it.get("title_en") or "",
-                "title_sl": it.get("title_sl") or "",
+                "title_orig": it.get("title_orig") or it.get("title_en") or "",
+                "title_translation": it.get("title_translation") or it.get("title_sl") or "",
                 "author": "",
                 "year": it.get("year"),
                 "city": "",

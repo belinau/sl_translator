@@ -161,32 +161,28 @@ def render_record(r: dict) -> None:
     with ui.card().classes("w-full p-3 gap-1").props("flat bordered"):
         if kind == "cited_work":
             ui.label(f"Author: {p.get('author')}").classes("text-sm")
-            ui.label(f"Title (EN): {p.get('title_en')}").classes("text-sm")
-            ui.label(f"Title (SL): {p.get('title_sl')}").classes("text-sm")
-            if p.get("title_orig"):
-                ui.label(f"Title (orig): {p.get('title_orig')}").classes("text-sm")
+            ui.label(f"Title (orig): {p.get('title_orig') or p.get('title_en')}").classes("text-sm")
+            ui.label(f"Title (translation): {p.get('title_translation') or p.get('title_sl')}").classes("text-sm")
             ui.label(f"Year: {p.get('year')}").classes("text-sm")
             op = p.get("original_pub") or {}
             if op:
                 ui.label(f"Original pub: {op.get('city', '')} / {op.get('publisher', '')}").classes(
                     "text-sm"
                 )
-            sp = p.get("slovenian_edition") or {}
-            if sp:
+            te = p.get("translation_edition") or p.get("slovenian_edition") or {}
+            if te:
                 ui.label(
-                    f"SL edition: {sp.get('city', '')} / {sp.get('publisher', '')} "
-                    f"(trans. {sp.get('translator', '—')})"
+                    f"Translation edition: {te.get('city', '')} / {te.get('publisher', '')} "
+                    f"(trans. {te.get('translator', '—')})"
                 ).classes("text-sm")
             ui.label(f"Cited in: {p.get('container_work_id')}").classes("text-sm")
-
         elif kind == "translated_work":
             ui.label(f"Author: {p.get('author')}").classes("text-sm")
             ui.label(f"Translator: {p.get('translator')}").classes("text-sm")
-            ui.label(f"Title (EN): {p.get('title_en')}").classes("text-sm")
-            ui.label(f"Title (SL): {p.get('title_sl')}").classes("text-sm")
+            ui.label(f"Title (orig): {p.get('title_orig') or p.get('title_en')}").classes("text-sm")
+            ui.label(f"Title (translation): {p.get('title_translation') or p.get('title_sl')}").classes("text-sm")
             ui.label(f"Year: {p.get('year')}").classes("text-sm")
             ui.label(f"Project type: {p.get('project_type')}").classes("text-sm")
-
         elif kind == "agent_person":
             ui.label(f"Name: {p.get('name')}").classes("text-sm")
             ui.label(f"Roles: {p.get('all_roles', [p.get('role')])}").classes("text-sm")
@@ -239,14 +235,10 @@ def build_reclass_inputs(target: str, c: dict) -> dict:
             value=RECLASS_PROJECT_TYPES[0],
             label="Project type:",
         ).classes("w-full")
-        f["title_en"] = ui.input("Title (EN):", value=c.get("title_en") or c.get("primary") or "")
-        f["title_sl"] = ui.input("Title (SL):", value=c.get("title_sl") or "")
+        f["title_orig"] = ui.input("Title (orig):", value=c.get("title_orig") or c.get("primary") or "")
+        f["title_translation"] = ui.input("Title (translation):", value=c.get("title_translation") or "")
         f["year"] = ui.input("Year:", value=str(c.get("year") or ""))
         f["author"] = ui.input("Author (optional):", value=c.get("author") or "")
-
-    elif target == "institution":
-        f["name"] = ui.input("Name:", value=c.get("primary") or "")
-        f["kind"] = ui.select(INSTITUTION_KINDS, value=INSTITUTION_KINDS[0], label="Kind:").classes("w-full")
         f["city"] = ui.input("City (optional):", value=c.get("city") or "")
 
     elif target == "concept":

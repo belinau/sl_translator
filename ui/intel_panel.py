@@ -130,19 +130,32 @@ _GENERIC_LINEAGES = frozenset({
 })
 
 
-def _concept_context(G, concept_id: str) -> tuple[list[str], list[str]]:
-    """Theory lineages + theorist names attached to a concept, via the bridge:
-    concept <-instantiates_concept- term -has_mapping-> mapping
-    -> mapping.lineage (theory) + mapping -attributed_to-> agent."""
-    lineages: list[str] = []
+def _concept_context(G, concept_id: str) -> tuple[list[str], list[str], list[str]]:
+    """Theory lineages + theorist names + container provenance for a concept.
+    Theorists: the concept's OWN attributed_to edges (originating theorist).
+    Lineages: via mapping.lineage from term→mapping bridge (filtered generic).
+    Containers: via mapping.instantiated_in→source_text (where the translator
+    encountered this term).  The translator is NEVER a theorist.
+    """
     theorists: list[str] = []
-    seen_l, seen_t = set(), set()
+    lineages: list[str] = []
+    containers: list[str] = []
+    seen_t, seen_l, seen_c = set(), set(), set()
+    # --- Theorists: concept's own attributed_to out-edges ---
+    for _c, ag, ed in G.out_edges(concept_id, data=True):
+        if ed.get("relation") == "attributed_to" and G.has_node(ag):
+            nm = G.nodes[ag].get("name")
+            if nm and nm not in seen_t:
+                seen_t.add(nm); theorists.append(nm)
+        if len(theorists) >= 3:
+            break
+    # --- Lineages + containers: via term→mapping bridge ---
     examined = 0
     for term, _c, ed in G.in_edges(concept_id, data=True):
         if ed.get("relation") != "instantiates_concept":
             continue
         examined += 1
-        if examined > 60:  # cap traversal so the UI refresh stays snappy
+        if examined > 60:
             break
         for _t, mp, ed2 in G.out_edges(term, data=True):
             if ed2.get("relation") != "has_mapping":
@@ -150,14 +163,17 @@ def _concept_context(G, concept_id: str) -> tuple[list[str], list[str]]:
             lin = (G.nodes[mp].get("lineage") or "").strip()
             if lin and lin.lower() not in _GENERIC_LINEAGES and lin not in seen_l:
                 seen_l.add(lin); lineages.append(lin)
-            for _m, ag, ed3 in G.out_edges(mp, data=True):
-                if ed3.get("relation") == "attributed_to" and G.has_node(ag):
-                    nm = G.nodes[ag].get("name")
-                    if nm and nm not in seen_t:
-                        seen_t.add(nm); theorists.append(nm)
-        if len(theorists) >= 3 and len(lineages) >= 3:
+            # Container provenance: mapping -[instantiated_in]-> source_text
+            for _m, st, ed3 in G.out_edges(mp, data=True):
+                if ed3.get("relation") == "instantiated_in" and G.has_node(st):
+                    title = (G.nodes[st].get("title") or "").strip()
+                    if title and title not in seen_c:
+                        seen_c.add(title); containers.append(title)
+            if len(lineages) >= 3 and len(containers) >= 3:
+                break
+        if len(lineages) >= 3 and len(containers) >= 3:
             break
-    return lineages[:3], theorists[:3]
+    return lineages[:3], theorists[:3], containers[:3]
 
 
 def _concept_for(G, term_node_id: str) -> dict | None:
@@ -170,13 +186,14 @@ def _concept_for(G, term_node_id: str) -> dict | None:
         nd = G.nodes[v]
         if nd.get("type") != "concept":
             continue
-        lineages, theorists = _concept_context(G, v)
+        lineages, theorists, containers = _concept_context(G, v)
         return {
             "id": v,
             "label": nd.get("label") or v,
             "domain": nd.get("domain") or "",
             "lineages": lineages,
             "theorists": theorists,
+            "containers": containers,
         }
     return None
 
@@ -541,6 +558,12 @@ def build(
                                     ui.badge(ln, color="grey-5").props(
                                         "outline"
                                     ).classes("text-[9px] px-1").tooltip("lineage")
+                            for ct in concept.get("containers", []):
+                                ui.badge(ct, color="teal-5").props(
+                                    "outline"
+                                ).classes("text-[9px] px-1").tooltip(
+                                    "you translated this term in this work"
+                                )
                     with ui.column().classes("w-full gap-1"):
                         for h in group_hits:
                             _render_hit(h)

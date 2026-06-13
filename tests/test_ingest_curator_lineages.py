@@ -127,16 +127,37 @@ class _FakeKG:
             self.G.add_node(concept_id, **data)
         return concept_id
 
+    def add_agent_node(
+        self,
+        agent_id: str,
+        *,
+        name: str,
+        role: str = "",
+        dedup_group: str = "",
+        alt_spellings: list[str] | None = None,
+        all_roles: list[str] | None = None,
+        mention_count: int = 0,
+        **kwargs: Any,
+    ) -> str:
+        """Mirror `KnowledgeGraph.add_agent_node`: idempotent — does NOT
+        overwrite an existing agent node."""
+        nid = f"agent:{agent_id}" if not agent_id.startswith("agent:") else agent_id
+        if not self.G.has_node(nid):
+            self.G.add_node(
+                nid,
+                id=nid,
+                type="agent",
+                name=name,
+                role=role,
+                dedup_group=dedup_group,
+                alt_spellings=alt_spellings or [],
+                all_roles=all_roles or [],
+                mention_count=mention_count,
+                **kwargs,
+            )
+        return nid
+
     def link_attributed_to(self, src_id: str, agent_id: str) -> bool:
-        """Mirror the production semantics enough for the ingester:
-        edge `(src) -[attributed_to]-> (agent)`. Idempotent. The
-        production method targets `translation_mapping` nodes; the
-        Phase 10 ingester points it at `concept` nodes. We deliberately
-        do NOT enforce the production type-guard in this fake — the
-        ingester is allowed to call this factory with concept sources;
-        if the implementer decides to use a different factory name
-        (e.g. `link_concept_attributed_to`), the test will fail with
-        AttributeError and the implementer will rename here."""
         ag = agent_id if agent_id.startswith("agent:") else f"agent:{agent_id}"
         if not (self.G.has_node(src_id) and self.G.has_node(ag)):
             return False
@@ -163,9 +184,10 @@ def fkg() -> _FakeKG:
 # where `IngestPlan` (NamedTuple or dataclass) exposes:
 #   - new_concepts: list[dict]  — concept-node specs (id, label, definition)
 #   - new_edges:    list[tuple[str, str]]  — (src concept id, agent id) pairs
-#   - review:       list[dict]  — review-queue records to append
+#   - new_agents:   list[dict]  — agent-node specs (id, name) for missing theorists
+#   - review:       list[dict]  — review-queue records to append (blank-name only)
 #
-# Order across all three lists MUST be deterministic for the same input.
+# Order across all four lists MUST be deterministic for the same input.
 # ---------------------------------------------------------------------------
 
 
@@ -311,43 +333,46 @@ def test_schools_multiple_agents_share_one_concept_node(
 
 
 # ===========================================================================
-# 3. Missing-agent routing
+# 3. Missing-agent handling (agents created, not deferred to review)
 # ===========================================================================
-def test_theorists_missing_agent_routed_to_review_queue(
+def test_theorists_missing_agent_created_via_add_agent_node(
     ingester, fkg: _FakeKG, tmp_path: Path,
 ) -> None:
-    """No agent node for the theorist → append a record to
-    `data/kg_review.json` with `reason="missing_agent"`. NO stub agent
-    is created."""
+    """No agent node for the theorist → the ingester creates the agent
+    via `add_agent_node` and wires the attributed_to edge. No review
+    record is produced for a named theorist."""
     review_path = tmp_path / "kg_review.json"
     theorists = {"concept:phantom": "Nobody Real"}
 
     plan = ingester.plan_ingest(fkg, theorists=theorists, schools={})
     ingester.apply_plan(fkg, plan, review_path=review_path)
 
-    # no agent node was created
-    agent_nodes = [n for n, d in fkg.G.nodes(data=True) if d.get("type") == "agent"]
-    assert agent_nodes == []
+    # agent node was created
+    assert fkg.G.has_node("agent:nobody-real")
+    agent = fkg.G.nodes["agent:nobody-real"]
+    assert agent["type"] == "agent"
+    assert agent["name"] == "Nobody Real"
 
-    # review-queue record landed
+    # concept node exists
+    assert fkg.G.has_node("concept:phantom")
+    # attributed_to edge is wired (both nodes exist)
+    assert fkg.G.has_edge("concept:phantom", "agent:nobody-real")
+    edge = fkg.G.get_edge_data("concept:phantom", "agent:nobody-real")
+    assert edge["relation"] == "attributed_to"
+
+    # review queue is empty (agent was created, not deferred)
     queue = _read_review_queue(review_path)
-    assert len(queue) == 1
-    rec = queue[0]
-    assert rec["type"] == "agent"
-    assert rec["reason"] == "missing_agent"
-    assert rec["source"] == "concept_theorists"
-    assert rec["concept_id"] == "concept:phantom"
-    # the attempted agent slug — implementer chooses exact convention but
-    # it must be an `agent:`-prefixed slug.
-    assert rec["id"].startswith("agent:")
+    assert queue == []
+    # plan also carries the agent spec
+    assert any(a["id"] == "agent:nobody-real" for a in plan.new_agents)
 
 
-def test_schools_missing_agent_routed_to_review_but_concept_still_created(
+def test_schools_missing_agent_created_and_concept_still_created(
     ingester, fkg: _FakeKG, tmp_path: Path,
 ) -> None:
     """Lineage-schools branch: the concept node IS created even when
-    the agent is missing, so that future curator agent-additions resolve
-    cleanly. Only the edge is deferred to the review queue."""
+    the agent is initially missing, and the agent is also created via
+    add_agent_node. The attributed_to edge is wired."""
     review_path = tmp_path / "kg_review.json"
     schools = {"Unknown Theorist": "speculative realism"}
 
@@ -356,59 +381,61 @@ def test_schools_missing_agent_routed_to_review_but_concept_still_created(
 
     # concept node exists
     assert fkg.G.has_node("concept:speculative-realism")
-    # NO agent node was stubbed
-    agent_nodes = [n for n, d in fkg.G.nodes(data=True) if d.get("type") == "agent"]
-    assert agent_nodes == []
-    # NO attributed_to edge (the agent doesn't exist to point at)
-    out = list(fkg.G.out_edges("concept:speculative-realism", data=True))
-    assert out == []
+    # agent node was created
+    assert fkg.G.has_node("agent:unknown-theorist")
+    agent = fkg.G.nodes["agent:unknown-theorist"]
+    assert agent["type"] == "agent"
+    assert agent["name"] == "Unknown Theorist"
+    # attributed_to edge IS wired (both nodes now exist)
+    assert fkg.G.has_edge("concept:speculative-realism", "agent:unknown-theorist")
+    edge = fkg.G.get_edge_data("concept:speculative-realism", "agent:unknown-theorist")
+    assert edge["relation"] == "attributed_to"
 
-    # review-queue record landed with the right `source`
+    # review queue is empty (agent was created, not deferred)
     queue = _read_review_queue(review_path)
-    assert len(queue) == 1
-    rec = queue[0]
-    assert rec["type"] == "agent"
-    assert rec["reason"] == "missing_agent"
-    assert rec["source"] == "lineage_schools"
-    assert rec["id"].startswith("agent:")
+    assert queue == []
+    assert any(a["id"] == "agent:unknown-theorist" for a in plan.new_agents)
+
 
 
 def test_review_queue_appends_to_existing_records(
     ingester, fkg: _FakeKG, tmp_path: Path,
 ) -> None:
     """If `kg_review.json` already exists with prior records, the
-    ingester APPENDS — it must not clobber the file."""
+    ingester APPENDS — it must not clobber the file. Blank-name agents
+    still go to the review queue."""
     review_path = tmp_path / "kg_review.json"
     existing = [
         {"id": "source:prior", "type": "source_text", "reason": "placeholder_year"}
     ]
     review_path.write_text(json.dumps(existing), encoding="utf-8")
 
-    theorists = {"concept:phantom": "Nobody Real"}
+    # Blank name → still routed to review (missing_agent_blank_name)
+    theorists = {"concept:phantom": "   "}
     plan = ingester.plan_ingest(fkg, theorists=theorists, schools={})
     ingester.apply_plan(fkg, plan, review_path=review_path)
 
     queue = _read_review_queue(review_path)
     assert len(queue) == 2
     assert queue[0] == existing[0]
-    assert queue[1]["reason"] == "missing_agent"
+    assert queue[1]["reason"] == "missing_agent_blank_name"
 
 
 # ===========================================================================
 # 4. Idempotency
 # ===========================================================================
-def test_idempotent_no_duplicate_edges_or_review_records(
+def test_idempotent_no_duplicate_edges_nodes_or_agents(
     ingester, fkg: _FakeKG, tmp_path: Path,
 ) -> None:
     """Running the ingester twice with the same inputs must NOT
-    duplicate edges OR review-queue entries."""
+    duplicate edges, concept nodes, or agent nodes."""
     review_path = tmp_path / "kg_review.json"
     fkg.seed_agent("agent:roy-ascott", label="Roy Ascott")
     theorists = {
         "concept:interactivity": "Roy Ascott",
         "concept:phantom": "Nobody Real",
     }
-    schools = {"Aby Warburg": "iconology"}  # Aby Warburg agent absent
+    schools = {"Aby Warburg": "iconology"}  # Aby Warburg agent absent initially
     # First run
     plan = ingester.plan_ingest(fkg, theorists=theorists, schools=schools)
     ingester.apply_plan(fkg, plan, review_path=review_path)
@@ -428,16 +455,13 @@ def test_idempotent_no_duplicate_edges_or_review_records(
     concept_nodes = [n for n, d in fkg.G.nodes(data=True) if d.get("type") == "concept"]
     assert sorted(concept_nodes) == sorted(set(concept_nodes))
 
-    # review queue: one entry per missing agent, not two
+    # exactly one agent node per id (created agents are not duplicated)
+    agent_nodes = [n for n, d in fkg.G.nodes(data=True) if d.get("type") == "agent"]
+    assert sorted(agent_nodes) == sorted(set(agent_nodes))
+
+    # review queue is empty (missing agents were created, not deferred)
     queue = _read_review_queue(review_path)
-    by_concept = [r for r in queue if r.get("concept_id") == "concept:phantom"]
-    assert len(by_concept) == 1
-    by_aby = [
-        r for r in queue
-        if r.get("source") == "lineage_schools"
-        and r.get("id", "").endswith("aby-warburg")
-    ]
-    assert len(by_aby) == 1
+    assert queue == []
 
 
 # ===========================================================================
@@ -465,11 +489,12 @@ def test_plan_ingest_is_deterministic_for_same_inputs(
     plan_a = ingester.plan_ingest(fkg, theorists=theorists, schools=schools)
     plan_b = ingester.plan_ingest(fkg, theorists=theorists, schools=schools)
 
-    # The plan exposes three iterables (new_concepts, new_edges, review).
+    # The plan exposes four iterables (new_concepts, new_edges, new_agents, review).
     # Compare structurally — the implementer may choose NamedTuple,
-    # dataclass, or plain dict; in all cases the three fields are present.
+    # dataclass, or plain dict; in all cases the four fields are present.
     assert list(plan_a.new_concepts) == list(plan_b.new_concepts)
     assert list(plan_a.new_edges) == list(plan_b.new_edges)
+    assert list(plan_a.new_agents) == list(plan_b.new_agents)
     assert list(plan_a.review) == list(plan_b.review)
 
 
@@ -534,9 +559,9 @@ def test_main_apply_writes_to_kg_and_review_queue(
     # KG was mutated for the resolvable theorist
     assert fkg.G.has_node("concept:interactivity")
     assert fkg.G.has_edge("concept:interactivity", "agent:roy-ascott")
-    # review queue contains the missing agent
+    # missing agent was created (not deferred to review queue)
+    assert fkg.G.has_node("agent:nobody-real")
+    assert fkg.G.has_edge("concept:phantom", "agent:nobody-real")
+    # review queue is empty (named agents are created, not reviewed)
     queue = _read_review_queue(review_path)
-    assert any(
-        r.get("reason") == "missing_agent" and r.get("concept_id") == "concept:phantom"
-        for r in queue
-    )
+    assert queue == []

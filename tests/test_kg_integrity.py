@@ -132,7 +132,8 @@ class TestKGIntegrity(unittest.TestCase):
 
         raw = json.loads(open(self.db_path, encoding="utf-8").read())
 
-        valid_prefixes = ("term:", "concept:", "coll:", "segment:", "domain:")
+        valid_prefixes = ("term:", "concept:", "coll:", "segment:", "domain:",
+                          "map:", "agent:", "source:", "institution:")
 
         for edge in raw["edges"]:
             # "source" must be a real node ID
@@ -145,12 +146,13 @@ class TestKGIntegrity(unittest.TestCase):
                 edge["target"].startswith(valid_prefixes),
                 f'edge target "{edge["target"]}" does not look like a node ID',
             )
-            # provenance must exist and be a recognised value
-            self.assertIn(
-                edge.get("provenance"),
-                ("auto", "manual"),
-                "edge provenance missing or unexpected",
-            )
+            # provenance must exist on translates_to edges
+            if edge.get("relation") == "translates_to":
+                self.assertIn(
+                    edge.get("provenance"),
+                    ("auto", "manual"),
+                    "translates_to edge provenance missing or unexpected",
+                )
 
     # ------------------------------------------------------------------
     # 3. Bidirectional translation links

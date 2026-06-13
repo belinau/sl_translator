@@ -55,6 +55,30 @@ logger = logging.getLogger(__name__)
 # surface a stale smol export without spamming the log.
 _t_index_fallback_warned: set[str] = set()
 
+_CONCEPT_THEORISTS: dict[str, str] | None = None
+def _concept_theorist_roster() -> dict[str, str]:
+    """concept_id -> theorist name, from data/concept_theorists.json. Cached."""
+    global _CONCEPT_THEORISTS
+    if _CONCEPT_THEORISTS is None:
+        import pathlib
+        p = pathlib.Path("data/concept_theorists.json")
+        try:
+            _CONCEPT_THEORISTS = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            _CONCEPT_THEORISTS = {}
+    return _CONCEPT_THEORISTS
+_LINEAGE_ROSTER_STR: str | None = None
+def _lineage_roster_block() -> str:
+    """Compact 'Theorist (lineage)' reference from data/lineage_schools.json."""
+    global _LINEAGE_ROSTER_STR
+    if _LINEAGE_ROSTER_STR is None:
+        import pathlib
+        try:
+            raw = json.loads(pathlib.Path("data/lineage_schools.json").read_text("utf-8"))
+        except (OSError, ValueError):
+            raw = {}
+        _LINEAGE_ROSTER_STR = "; ".join(f"{name} ({school})" for name, school in sorted(raw.items()))
+    return _LINEAGE_ROSTER_STR
 
 def _warn_once_t_index_fallback(origin: str) -> None:
     if origin not in _t_index_fallback_warned:
@@ -201,6 +225,7 @@ concept:
 Rules:
 - Only output entities ACTUALLY MENTIONED in the segment.
 - For concepts: only emit if the segment explicitly attributes the concept to an author or quotes it from a named work. Do NOT invent attributions.
+Known theorists and their lineages in this corpus (use ONLY when the segment actually names the theorist or unmistakably discusses their concept; never copy a name the segment does not mention): {theorist_roster}
 - For bilingual fields: if SOURCE and TARGET both name the same entity, fill BOTH name_orig/name_translation (or title_orig/title_translation).
 - For cited_work: container_work_id will be filled by the downstream pipeline from segment metadata; you do not need to emit it.
 - Reply with: {{"entities":[<objects>]}}
@@ -249,6 +274,7 @@ def format_extract_prompt(
         inst_kinds=", ".join(sorted(VALID_INSTITUTION_KINDS)),
         proj_types=", ".join(sorted(VALID_CITED_PROJECT_TYPES)),
         concept_domains=", ".join(sorted(VALID_CONCEPT_DOMAINS)),
+        theorist_roster=_lineage_roster_block(),
     )
 
 
@@ -675,6 +701,8 @@ def _build_concept(
         source_work_year = None
 
     concept_id = f"concept:{_slugify(canonical_label)}"
+    if not originating_author:
+        originating_author = _concept_theorist_roster().get(concept_id)
 
     payload = {
         "concept_id": concept_id,

@@ -55,7 +55,7 @@ def record_matches_text(r: dict, q: str) -> bool:
     p = r.get("payload", {})
     haystack = " ".join(str(v) for v in [
         p.get("name"), p.get("author"),
-        p.get("title_en"), p.get("title_sl"), p.get("title_orig"),
+        p.get("title_orig"), p.get("title_translation"),
     ] if v).lower()
     return q in haystack
 
@@ -63,9 +63,9 @@ def record_matches_text(r: dict, q: str) -> bool:
 def record_label(r: dict) -> str:
     p = r.get("payload", {})
     if r["kind"] == "cited_work":
-        return f"{p.get('author', '?')} — {(p.get('title_en') or p.get('title_sl') or '?')[:60]} ({p.get('year') or '—'})"
+        return f"{p.get('author', '?')} — {(p.get('title_orig') or p.get('title_translation') or '?')[:60]} ({p.get('year') or '—'})"
     if r["kind"] == "translated_work":
-        return f"{p.get('author', '?')} — {(p.get('title_en') or '?')[:60]} ({p.get('year') or '—'})"
+        return f"{p.get('author', '?')} — {(p.get('title_orig') or p.get('title_translation') or '?')[:60]} ({p.get('year') or '—'})"
     if r["kind"] == "agent_person":
         return f"{p.get('name', '?')} (×{p.get('mention_count', 1)}, group={p.get('dedup_group')})"
     if r["kind"] == "institution":
@@ -113,10 +113,12 @@ def commit_record(kg, r: dict) -> None:
             year_int = None
         kg.add_source_text_node(
             wid,
-            title=p.get("title_en") or p.get("title_sl") or wid,
+            title=p.get("title_orig") or p.get("title_translation") or wid,
             year=year_int,
-            title_en=p.get("title_en"),
-            title_sl=p.get("title_sl"),
+            title_orig=p.get("title_orig"),
+            title_translation=p.get("title_translation"),
+            orig_lang=p.get("orig_lang"),
+            translation_lang=p.get("translation_lang"),
             project_type=p.get("project_type", "book_translation"),
         )
         if p.get("author"):
@@ -141,13 +143,14 @@ def commit_record(kg, r: dict) -> None:
             year_int = None
         kg.add_source_text_node(
             cid,
-            title=p.get("title_en") or p.get("title_sl") or p.get("title_orig") or cid,
+            title=p.get("title_orig") or p.get("title_translation") or cid,
             year=year_int,
-            title_en=p.get("title_en"),
-            title_sl=p.get("title_sl"),
             title_orig=p.get("title_orig"),
+            title_translation=p.get("title_translation"),
+            orig_lang=p.get("orig_lang"),
+            translation_lang=p.get("translation_lang"),
             project_type="cited_work",
-            slovenian_edition=p.get("slovenian_edition"),
+            translation_edition=p.get("translation_edition"),
         )
         if p.get("author"):
             aid = review_slugify(p["author"])
@@ -172,18 +175,18 @@ def commit_record(kg, r: dict) -> None:
 
 # ---------------------------------------------------------------------------
 # Candidate texts / reclassify
-# ---------------------------------------------------------------------------
 def candidate_texts(r: dict) -> dict:
     """Best-guess text values from a record's payload, for pre-filling a
     reclassification form so the reviewer only confirms/edits."""
     p = r.get("payload", {})
-    primary = (p.get("name") or p.get("title_en") or p.get("title_sl")
-               or p.get("title_orig") or p.get("author") or "")
+    primary = (p.get("name") or p.get("title_orig") or p.get("title_translation")
+               or p.get("title_en") or p.get("title_sl")
+               or p.get("author") or "")
     return {
         "primary": primary,
         "name": p.get("name") or p.get("author") or primary,
-        "title_en": p.get("title_en") or "",
-        "title_sl": p.get("title_sl") or "",
+        "title_orig": p.get("title_orig") or p.get("title_en") or "",
+        "title_translation": p.get("title_translation") or p.get("title_sl") or "",
         "author": p.get("author") or "",
         "year": p.get("year"),
         "city": p.get("city") or "",
@@ -205,18 +208,20 @@ def commit_as(kg, target: str, f: dict) -> tuple[str | None, str | None]:
             alt_spellings=[name], all_roles=[role], mention_count=1,
         )
     elif target == "cited_work":
-        title = (f.get("title_en") or f.get("title_sl") or "").strip()
+        title = (f.get("title_orig") or f.get("title_translation") or "").strip()
         if not title:
-            return "A title (EN or SL) is required.", None
+            return "A title is required.", None
         try:
             year_int = int(f["year"]) if (f.get("year") or "").strip() else None
         except (TypeError, ValueError):
             year_int = None
-        cid = review_slugify(f.get("title_en") or f.get("title_sl"))
+        cid = review_slugify(f.get("title_orig") or f.get("title_translation"))
         new_id = kg.add_source_text_node(
             cid, title=title, year=year_int,
-            title_en=(f.get("title_en") or "").strip() or None,
-            title_sl=(f.get("title_sl") or "").strip() or None,
+            title_orig=(f.get("title_orig") or "").strip() or None,
+            title_translation=(f.get("title_translation") or "").strip() or None,
+            orig_lang=f.get("orig_lang") or None,
+            translation_lang=f.get("translation_lang") or None,
             project_type=f.get("project_type", "cited_work"),
         )
         author = (f.get("author") or "").strip()

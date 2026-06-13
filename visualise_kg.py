@@ -249,7 +249,7 @@ BIBLIOGRAPHY_RELATIONS = {
     "published_by", "sl_published_by", "hosted_by",
     "cited_in", "appears_in",
 }
-RHIZOMATIC_RELATIONS = {"extends", "critiques", "redefines", "reappropriates", "related_to"}
+RHIZOMATIC_RELATIONS = {"extends", "critiques", "redefines", "reappropriates", "related_to", "attributed_to"}
 V1_DIRECT_RELATIONS = BIBLIOGRAPHY_RELATIONS | RHIZOMATIC_RELATIONS
 
 for e in ALL_EDGES:
@@ -258,34 +258,6 @@ for e in ALL_EDGES:
     if s in v1_ids and t in v1_ids and rel in V1_DIRECT_RELATIONS:
         add_v1_edge(s, t, rel, confidence=e.get("confidence", 0.5), verified=e.get("verified", False))
 
-# Perform Providential Link Projection:
-# Connect Concepts directly to the Works/Agents that discussed/translated their terms
-for m_id, m_node in mapping_nodes.items():
-    src_term = mapping_sources.get(m_id)
-    tgt_term = mapping_targets.get(m_id)
-
-    if not src_term or not tgt_term:
-        continue
-
-    cu = term_to_concept.get(src_term)
-    cv = term_to_concept.get(tgt_term)
-
-    conf = m_node.get("confidence", 0.5)
-    ver = m_node.get("verified", False)
-    lineage = m_node.get("lineage", "")
-    # Concept to Concept (Projected Translation)
-    if cu and cv:
-        add_v1_edge(cu, cv, "translates_to", confidence=conf, verified=ver, lineage=lineage)
-    # Concepts to Source Texts
-    texts = mapping_texts.get(m_id, [])
-    for text_id in texts:
-        if cu: add_v1_edge(cu, text_id, "instantiated_in", confidence=conf, verified=ver, lineage=lineage)
-        if cv: add_v1_edge(cv, text_id, "instantiated_in", confidence=conf, verified=ver, lineage=lineage)
-    # Concepts to Translating Agents
-    agents = mapping_agents.get(m_id, [])
-    for agent_id in agents:
-        if cu: add_v1_edge(cu, agent_id, "attributed_to", confidence=conf, verified=ver, lineage=lineage)
-        if cv: add_v1_edge(cv, agent_id, "attributed_to", confidence=conf, verified=ver, lineage=lineage)
 
 v1_edges_raw = list(v1_edges_dict.values())
 v1_nodes_pruned, v1_edges_pruned = prune_subgraph(v1_nodes_raw, v1_edges_raw, args.limit)
@@ -731,33 +703,49 @@ log.info("Processing View 5: Lineage \u2192 Concepts...")
 # that is the SOLE source of lineage information in the KG. There are NO
 # lineage node types and NO agent_in_lineage edges. Lineage hubs are
 # synthesized at view-time only.
+# Aggregate: which concepts associate with which lineages?
+# Rebased on curated concept→theorist (attributed_to) + lineage_schools.json roster,
+# NOT on the random per-mapping lineage field.
 DEFAULT_LINEAGES = {"performance", "general", "manual", ""}
-# Aggregate: which concepts associate with which non-default lineages?
-# Walk mapping nodes; for each: src/tgt term → concept → lineage_vote
+
+# Load lineage roster: theorist name → school
+try:
+    _roster_raw: dict = json.loads((DATA_DIR / "lineage_schools.json").read_text(encoding="utf-8"))
+except Exception:
+    _roster_raw = {}
+# Build agent_id → school mapping (slugified)
+_agent_school: dict[str, str] = {}
+for theorist_name, school in _roster_raw.items():
+    slug = re.sub(r"[^a-z0-9]+", "-", _norm(theorist_name)).strip("-")
+    if slug:
+        _agent_school[f"agent:{slug}"] = school
+school_slug = lambda s: re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
+
+# Vote: concept → school, via concept -[attributed_to]-> agent → school
 concept_lineage_votes: Dict[str, Counter] = defaultdict(Counter)
-lineage_mapping_counts: Counter = Counter()
-for m_id, m_node in mapping_nodes.items():
-    lin = (m_node.get("lineage") or "").strip()
-    if lin in DEFAULT_LINEAGES:
+for e in ALL_EDGES:
+    if e.get("relation") != "attributed_to":
         continue
-    src_term = mapping_sources.get(m_id)
-    tgt_term = mapping_targets.get(m_id)
-    for term_id in (src_term, tgt_term):
-        if not term_id:
-            continue
-        cid = term_to_concept.get(term_id)
-        if cid:
-            concept_lineage_votes[cid][lin] += 1
-    lineage_mapping_counts[lin] += 1
-# Build node sets
+    src, tgt = e.get("source", ""), e.get("target", "")
+    if not src.startswith("concept:") or not tgt.startswith("agent:"):
+        continue
+    school = _agent_school.get(tgt)
+    if school and school not in DEFAULT_LINEAGES:
+        concept_lineage_votes[src][school] += 1
+
+# Synthesize lineage hub nodes
+lineage_mapping_counts: Counter = Counter()
+for cid, votes in concept_lineage_votes.items():
+    for school, count in votes.items():
+        lineage_mapping_counts[school] += count
+
 v5_concept_ids = set(concept_lineage_votes.keys())
 v5_lineage_names = set(lineage_mapping_counts.keys())
 concept_nodes_v5 = {n["id"]: n for n in ALL_NODES
                     if n.get("type") == "concept" and n["id"] in v5_concept_ids}
-# Synthesize lineage hub nodes at VIEW TIME (visualization-only, NOT persisted)
 lineage_hub_nodes_v5 = {}
 for lin, mc in lineage_mapping_counts.items():
-    hub_id = f"lineage:{lin}"
+    hub_id = f"lineage:{school_slug(lin)}"
     lineage_hub_nodes_v5[hub_id] = {
         "id": hub_id,
         "label": lin,
@@ -773,7 +761,7 @@ for cid, votes in concept_lineage_votes.items():
     lin, weight = votes.most_common(1)[0]
     v5_edges_raw.append({
         "source": cid,
-        "target": f"lineage:{lin}",
+        "target": f"lineage:{school_slug(lin)}",
         "relation": "in_lineage",
         "lineage": lin,
         "weight": weight,
@@ -826,23 +814,24 @@ for e in v5_edges_pruned:
 
 available_lineages_v5 = sorted({n.get("label", "") for n in lineage_hub_nodes_v5.values()})
 log.info(f"  Result View 5: {len(d3_nodes_v5)} nodes ({len(lineage_hub_nodes_v5)} lineage hubs), {len(d3_edges_v5)} edges.")
-# ===========================================================================
 # VIEW 6 PROCESSING: Lineage \u2192 Works + Agents
 # ===========================================================================
-log.info("Processing View 6: Lineage \u2192 Works + Agents...")
-# Aggregate source_text→lineage and agent→lineage from translation_mapping
-# bridges per ontology §3.3. Lineage hubs are synthesized at view-time only.
+log.info("Processing View 6: Lineage → Works + Agents...")
+# Rebased on curated agent→school roster, NOT per-mapping lineage.
+# Agent→school from lineage_schools.json; Work→school via written_by→agent→school.
 work_lineage_votes: Dict[str, Counter] = defaultdict(Counter)
 agent_lineage_votes: Dict[str, Counter] = defaultdict(Counter)
-for m_id, m_node in mapping_nodes.items():
-    lin = (m_node.get("lineage") or "").strip()
-    if lin in DEFAULT_LINEAGES:
+for aid, school in _agent_school.items():
+    if school and school not in DEFAULT_LINEAGES:
+        agent_lineage_votes[aid][school] += 1
+for e in ALL_EDGES:
+    if e.get("relation") != "written_by":
         continue
-    for text_id in mapping_texts.get(m_id, []):
-        work_lineage_votes[text_id][lin] += 1
-    for agent_id in mapping_agents.get(m_id, []):
-        agent_lineage_votes[agent_id][lin] += 1
-# Real entity nodes participating in at least one lineage
+    text_id = e.get("source", "")
+    aid = e.get("target", "")
+    school = _agent_school.get(aid)
+    if school and school not in DEFAULT_LINEAGES:
+        work_lineage_votes[text_id][school] += 1
 v6_work_ids = set(work_lineage_votes.keys())
 v6_agent_ids = set(agent_lineage_votes.keys())
 v6_lineage_names = (set(lineage_mapping_counts.keys()) &
@@ -850,10 +839,9 @@ v6_lineage_names = (set(lineage_mapping_counts.keys()) &
                      set().union(*[v.keys() for v in agent_lineage_votes.values()] or [set()])))
 work_nodes_v6 = {n["id"]: n for n in ALL_NODES if n["id"] in v6_work_ids}
 agent_nodes_v6 = {n["id"]: n for n in ALL_NODES if n["id"] in v6_agent_ids}
-# Synthesize lineage hubs at view-time (visualization-only, NOT persisted)
 lineage_hub_nodes_v6 = {}
 for lin in v6_lineage_names:
-    hub_id = f"lineage:{lin}"
+    hub_id = f"lineage:{school_slug(lin)}"
     lineage_hub_nodes_v6[hub_id] = {
         "id": hub_id,
         "label": lin,
@@ -861,13 +849,12 @@ for lin in v6_lineage_names:
         "lineage": lin,
         "mapping_count": lineage_mapping_counts.get(lin, 0),
     }
-# Edges: work→lineage and agent→lineage (weighted)
 v6_edges_raw = []
 for wid, votes in work_lineage_votes.items():
     for lin, weight in votes.items():
         v6_edges_raw.append({
             "source": wid,
-            "target": f"lineage:{lin}",
+            "target": f"lineage:{school_slug(lin)}",
             "relation": "work_in_lineage",
             "lineage": lin,
             "weight": weight,
@@ -878,7 +865,7 @@ for aid, votes in agent_lineage_votes.items():
     for lin, weight in votes.items():
         v6_edges_raw.append({
             "source": aid,
-            "target": f"lineage:{lin}",
+            "target": f"lineage:{school_slug(lin)}",
             "relation": "agent_in_lineage",
             "lineage": lin,
             "weight": weight,
@@ -939,7 +926,6 @@ for e in v6_edges_pruned:
     })
 available_lineages_v6 = sorted({n.get("label", "") for n in lineage_hub_nodes_v6.values()})
 log.info(f"  Result View 6: {len(d3_nodes_v6)} nodes ({len(lineage_hub_nodes_v6)} lineage hubs), {len(d3_edges_v6)} edges.")
-# ---------------------------------------------------------------------------
 # Dynamic D3.js Output Templates (Pure CSS/JS replacement strategy)
 # ---------------------------------------------------------------------------
 LEGEND_V1 = [

@@ -46,7 +46,8 @@ HARD = {
     "forbidden_node_type", "ghost_node", "unknown_node_type", "dangling_edge",
     "cited_in_self_loop", "agent_missing_required", "bad_role", "bad_kind",
     "bad_project_type", "container_missing_translated_by", "source_no_title",
-    "duplicate_source_stem",
+    "duplicate_source_stem", "legacy_bilingual_field",
+    "mapping_low_quality", "duplicate_agent_token_set",
     # fragment_title is SOFT: title quality is governed by the LLM re-typing pass;
     # legitimately lowercase-styled art/poetry titles (e.g. "like water, a bone
     # sings #3") are real works, not fragments, and must not fail the gate.
@@ -107,10 +108,34 @@ def validate(nodes: list[dict], edges: list[dict]) -> dict[str, list[str]]:
             if title and (title[:1].islower() or _SENT_SL.search(title) or title.count("?") >= 3):
                 v["fragment_title"].append(f"{nid}: {title[:50]!r}")
             stems[_stem(nid)].append(nid)
-
+            for legacy in ("title_en", "title_sl", "slovenian_edition", "publisher_en", "publisher_sl"):
+                if legacy in n:
+                    v["legacy_bilingual_field"].append(f"{nid} ({legacy})")
     for stem, members in stems.items():
         if len(members) > 1:
             v["duplicate_source_stem"].append(f"{stem}: {members}")
+
+    # ── mapping_low_quality: any unverified mapping with conf < 0.5 ──
+    for n in nodes:
+        if n.get("type") == "translation_mapping":
+            if n.get("verified") is not True and (n.get("confidence") or 0) < 0.5:
+                v["mapping_low_quality"].append(n["id"])
+
+    # ── duplicate_agent_token_set: two agents with identical name-token sets (≥2 tokens) ──
+    import unicodedata as _ud
+    agent_tokens: dict[frozenset[str], list[str]] = defaultdict(list)
+    for n in nodes:
+        if n.get("type") != "agent":
+            continue
+        name = n.get("name", "")
+        nfkd = _ud.normalize("NFKD", name)
+        stripped = "".join(c for c in nfkd if not _ud.combining(c))
+        tokens = frozenset(t for t in re.sub(r"[^a-z0-9]+", " ", stripped.lower()).split() if len(t) >= 2)
+        if len(tokens) >= 2:
+            agent_tokens[tokens].append(n["id"])
+    for tokens, ids in agent_tokens.items():
+        if len(ids) > 1:
+            v["duplicate_agent_token_set"].append(f"{sorted(tokens)}: {ids}")
 
     return dict(v)
 

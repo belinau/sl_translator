@@ -149,3 +149,86 @@ def classify_numbered_block(
         if label in answer:
             return label
     return "other"
+
+
+_PERSON_LABELS = ("PERSON", "OTHER")
+
+
+def classify_person_names(
+    labels: list[str],
+    *,
+    model: str | None = None,
+    base_url: str | None = None,
+    timeout: float = 60.0,
+) -> dict[str, bool] | None:
+    """Classify labels as PERSON or OTHER via the smol model.
+
+    Returns a dict mapping each label to ``True`` (person name) or ``False``
+    (not a person), or ``None`` if the Ollama endpoint is unreachable —
+    callers must abort and mutate nothing in that case.
+
+    Prompt stays minimal per O-18: numbered list, one line per item.
+    """
+    global _unavailable_logged
+    if model is None or base_url is None:
+        import config
+
+        model = model or config.SMOL_MODEL
+        base_url = base_url or config.OLLAMA_URL
+
+    # Deduplicate to avoid asking about the same label twice.
+    unique = sorted(set(labels))
+    batch_size = 40
+    results: dict[str, bool] = {}
+
+    for start in range(0, len(unique), batch_size):
+        batch = unique[start : start + batch_size]
+        numbered = "\n".join(f"{i+1}. {lab}" for i, lab in enumerate(batch))
+        prompt = (
+            "Answer one line per item: <n>. PERSON or <n>. OTHER. "
+            "PERSON = the name of a specific human being. "
+            "Concepts, common words, places, organisations, work titles, and -isms are OTHER.\n\n"
+            f"{numbered}"
+        )
+        payload = json.dumps(
+            {
+                "model": model,
+                "prompt": prompt,
+                "stream": False,
+                "options": {"temperature": 0},
+            }
+        ).encode("utf-8")
+        req = urllib.request.Request(
+            f"{base_url}/api/generate",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                body = json.loads(resp.read())
+        except (OSError, ValueError) as e:
+            if not _unavailable_logged:
+                log.warning(
+                    "smol person-name classification unavailable (%s) — "
+                    "no nodes will be deleted",
+                    e,
+                )
+                _unavailable_logged = True
+            return None  # Abort entire call — caller must not act on partial data
+
+        _unavailable_logged = False
+        response_text = body.get("response", "").strip()
+
+        # Parse response lines: "<n>. PERSON" or "<n>. OTHER"
+        for line in response_text.splitlines():
+            line = line.strip()
+            # Accept "3. PERSON" or "3.PERSON" or "3) PERSON"
+            m = __import__("re").match(r"(\d+)\s*[.)]\s*(PERSON|OTHER)", line, __import__("re").IGNORECASE)
+            if not m:
+                continue
+            idx = int(m.group(1)) - 1  # 1-indexed
+            if 0 <= idx < len(batch):
+                results[batch[idx]] = m.group(2).upper() == "PERSON"
+
+    # Labels not found in any response line default to False (not a person)
+    return {lab: results.get(lab, False) for lab in labels}

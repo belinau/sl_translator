@@ -1107,6 +1107,12 @@ def write_to_kg(
                         mention_count=1,
                     )
                     agent_id_by_dedup[grp] = author_agent_id
+            # Concept → theorist attribution (concept's own attributed_to edge,
+            # distinct from the mapping attribution which records the translator).
+            # Guard: a concept is held by its originating theorist, never by the
+            # translator (Citation-model invariant).
+            if author_agent_id and author_agent_id.lower() not in ("urban-belina", "belina-urban"):
+                kg.link_attributed_to(concept_id, author_agent_id)
 
             # Source work → cited_work source_text, with cited_in →
             # container(s) and written_by → originating author
