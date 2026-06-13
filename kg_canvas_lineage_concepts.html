@@ -267,28 +267,28 @@
             <input type="range" id="conf-threshold" min="0.0" max="0.90" step="0.05" value="0.15">
         </div>
         <div class="drawer-group" style="border-top: 1px solid var(--panel-border); padding-top: 12px;">
-            <label>Repulsion (Charge) <span class="value-display" id="charge-val">-1400</span></label>
-            <input type="range" id="charge-force" min="-3000" max="-50" step="25" value="-1400">
+            <label>Repulsion (Charge) <span class="value-display" id="charge-val">-2800</span></label>
+            <input type="range" id="charge-force" min="-3000" max="-50" step="25" value="-2800">
         </div>
         <div class="drawer-group">
-            <label>Spacing (Distance) <span class="value-display" id="link-dist-val">260</span></label>
-            <input type="range" id="link-dist" min="30" max="600" step="10" value="260">
+            <label>Spacing (Distance) <span class="value-display" id="link-dist-val">120</span></label>
+            <input type="range" id="link-dist" min="30" max="600" step="10" value="120">
         </div>
         <div class="drawer-group">
-            <label>Link Strength <span class="value-display" id="link-strength-val">0.45</span></label>
-            <input type="range" id="link-strength" min="0.02" max="1.0" step="0.02" value="0.45">
+            <label>Link Strength <span class="value-display" id="link-strength-val">0.55</span></label>
+            <input type="range" id="link-strength" min="0.02" max="1.0" step="0.02" value="0.55">
         </div>
         <div class="drawer-group">
-            <label>Collision Padding <span class="value-display" id="collision-val">20</span></label>
-            <input type="range" id="collision-force" min="4" max="60" step="1" value="20">
+            <label>Collision Padding <span class="value-display" id="collision-val">16</span></label>
+            <input type="range" id="collision-force" min="4" max="60" step="1" value="16">
         </div>
         <div class="drawer-group">
-            <label>Velocity Decay <span class="value-display" id="velocity-val">0.40</span></label>
-            <input type="range" id="velocity-decay" min="0.05" max="0.95" step="0.05" value="0.40">
+            <label>Velocity Decay <span class="value-display" id="velocity-val">0.35</span></label>
+            <input type="range" id="velocity-decay" min="0.05" max="0.95" step="0.05" value="0.35">
         </div>
         <div class="drawer-group">
-            <label>Centering Strength <span class="value-display" id="center-val">0.12</span></label>
-            <input type="range" id="center-strength" min="0.0" max="1.0" step="0.05" value="0.12">
+            <label>Centering Strength <span class="value-display" id="center-val">0.02</span></label>
+            <input type="range" id="center-strength" min="0.0" max="1.0" step="0.05" value="0.02">
         </div>
         <div class="drawer-group" style="border-top: 1px solid var(--panel-border); padding-top: 12px;">
             <label>Lineage Filter <span class="value-display" id="lineage-val">All</span></label>
@@ -341,7 +341,7 @@
         const container = document.getElementById('canvas-container');
         // Edge-relation colors injected from Python EDGE_COLORS
         const edgeColors = {"written_by": "#fb923c", "translated_by": "#22d3ee", "edited_by": "#fbbf24", "performed_by": "#f472b6", "published_by": "#34d399", "sl_published_by": "#6ee7b7", "hosted_by": "#a78bfa", "cited_in": "#94a3b8", "appears_in": "#cbd5e1", "instantiates_concept": "#c084fc", "translates_to": "#ec4899", "instantiated_in": "#38bdf8", "attributed_to": "#fb923c", "contributed_to": "#22d3ee", "extends": "#c084fc", "critiques": "#e879f9", "redefines": "#818cf8", "reappropriates": "#f0abfc", "related_to": "#d8b4fe", "in_lineage": "#fbbf24", "work_in_lineage": "#22d3ee", "agent_in_lineage": "#fb923c"};
-        const specialRelations = new Set(["attributed_to", "translates_to", "appears_in", "written_by", "edited_by", "translated_by", "contributed_to", "performed_by", "cited_in", "instantiated_in"]);
+        const specialRelations = new Set(["translated_by", "translates_to", "written_by", "appears_in", "attributed_to", "instantiated_in", "edited_by", "cited_in", "contributed_to", "performed_by"]);
         const availableLineages = ["African feminist thought", "African philosophy", "Black aesthetics", "Black feminist thought", "Black political thought", "Black studies", "Cold War studies", "German Idealism", "Gesamtkunstwerk music drama", "Holocaust testimonial literature", "Marxism", "Marxist feminism", "Marxist theory", "October School art criticism", "Serbian modernist poetry", "Serbian theatre studies", "Slovenian contemporary art", "Slovenian literary theory", "Slovenian performance studies", "Slovenian psychoanalysis", "Theatre of the Oppressed", "abolitionist theory", "accelerationism", "acoustic ecology", "actor-network theory", "aesthetics", "affect theory", "afropessimism", "analytic aesthetics", "anarchism", "ancient Greek philosophy", "anthropology", "appropriation art", "architecture theory", "art criticism", "art history", "autonomist Marxism", "bauhaus", "biopolitics", "black feminism", "black marxism", "brechtian theatre", "butoh", "chicana feminism", "cognitive linguistics", "comparative literature", "conceptual art", "contemporary art", "contemporary art theory", "contemporary dance", "contemporary dance theory", "contemporary performance", "critical Black feminist studies", "critical aesthetics", "critical art theory", "critical dance studies", "critical globalization studies", "critical indigenous studies", "critical race theory", "critical sociology", "critical theory", "critical whiteness studies", "crowd theory", "cultural studies", "cultural theory", "curatorial studies", "dance studies", "decolonial theory", "deconstruction", "deep listening", "dependency theory", "dialogic theory", "digital media studies", "eco-feminism", "environmental history", "environmental studies", "existentialism", "existentialist feminism", "experimental cinema", "experimental literature", "experimental music", "experimental theatre", "feminist anthropology", "feminist art", "feminist art history", "feminist conceptual art", "feminist film theory", "feminist phenomenology", "feminist philosophy", "feminist science and technology studies", "feminist science studies", "feminist standpoint theory", "feminist theory", "film theory", "fluxus", "forensic architecture", "futurism", "generative linguistics", "glitch feminism", "heritage studies", "hermeneutics", "holocaust studies", "iconology", "image theory", "institutional critique", "intersectional feminism", "lacanian psychoanalysis", "linguistics", "literary criticism", "literary theory", "masculinities studies", "materialist feminism", "media ecology", "media theory", "memory studies", "method acting", "microhistory", "modern dance", "museum studies", "music theory", "neo-Darwinism", "neo-pragmatism", "new materialism", "new media theory", "non-philosophy", "négritude", "object relations theory", "object-oriented ontology", "pan-africanism", "performance art", "performance studies", "phenomenology", "philosophy of science", "philosophy of time", "platonism", "play theory", "political theory", "post-marxism", "post-structuralism", "postcolonial performance studies", "postcolonial studies", "postcolonial theory", "postdramatic theatre", "posthumanism", "postmodern dance", "postmodern literature", "practice theory", "process philosophy", "psychoanalysis", "public choice theory", "puppetry", "queer theory", "radical democracy", "radical design", "radical feminism", "reception theory", "relational aesthetics", "semiotics", "situationism", "slovenian poetry", "social movement theory", "social theory", "sociology", "sound studies", "structuralism", "symbolic interactionism", "systems theory", "tanztheater", "telematic art", "theatre studies", "translation studies", "transnational feminism", "trauma studies", "trauma theory", "urban design theory", "urban theory", "visual culture", "visual culture studies", "western marxism", "whiteness studies"];
         const isSpecialRelation = (rel) => {
             return specialRelations.has(rel);
@@ -547,16 +547,16 @@
         //   • centering force 0.1 (gentle pull to origin, NOT a clump)
         //   • velocity decay 0.4 (default damping; slider exposes it)
         // ──────────────────────────────────────────────────────────────
-        elem.d3Force('charge').strength(-1400).distanceMax(2400);
+        elem.d3Force('charge').strength(-2800).distanceMax(2400);
         const linkForce = elem.d3Force('link');
-        const _baseDist = 260;
-        const _baseStr  = 0.45;
+        const _baseDist = 120;
+        const _baseStr  = 0.55;
         linkForce.distance(d => isSpecialRelation(d.relation) ? _baseDist * 0.6 : _baseDist);
         linkForce.strength(d => isSpecialRelation(d.relation) ? Math.min(1, _baseStr * 1.75) : _baseStr);
-        elem.d3Force('collide', d3.forceCollide().radius(d => d.size + 20).strength(0.9));
-        elem.d3Force('center', d3.forceCenter(0, 0).strength(0.12));
-        elem.d3VelocityDecay(0.40);
-        elem.d3AlphaDecay(0.022);
+        elem.d3Force('collide', d3.forceCollide().radius(d => d.size + 16).strength(0.9));
+        elem.d3Force('center', d3.forceCenter(0, 0).strength(0.02));
+        elem.d3VelocityDecay(0.35);
+        elem.d3AlphaDecay(0.008);
         // Slider control actions — every change calls d3ReheatSimulation()
         // so the visible layout actually responds.
         document.getElementById('charge-force').addEventListener('input', e => {

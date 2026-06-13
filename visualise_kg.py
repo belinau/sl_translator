@@ -93,10 +93,13 @@ def compute_physics_defaults(n_nodes: int, n_edges: int) -> Dict[str, float]:
         return {"charge": -800,  "link_dist": 200, "link_str": 0.30,
                 "collide": 20, "velocity": 0.42, "center": 0.10,
                 "alpha_decay": 0.018}
-    # Tree-like / sparse — V5 lineage→concepts (single-attribution)
-    return     {"charge": -1400, "link_dist": 260, "link_str": 0.45,
-                "collide": 20, "velocity": 0.40, "center": 0.12,
-                "alpha_decay": 0.022}
+    # Tree-like / sparse — V5/V6 lineage views (hub-and-spoke star topology).
+    # Needs very strong repulsion so hub clusters push apart, weak center so
+    # they don't all collapse into a single blob, and short link distance to
+    # keep leaves tight around their hub.
+    return     {"charge": -2800, "link_dist": 120, "link_str": 0.55,
+                "collide": 16, "velocity": 0.35, "center": 0.02,
+                "alpha_decay": 0.008}
 def physics_replacements(defaults: Dict[str, float]) -> Dict[str, str]:
     """Map placeholder name → string for HTML/JS template substitution."""
     return {
