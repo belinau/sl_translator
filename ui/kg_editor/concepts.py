@@ -1,10 +1,20 @@
-"""Concepts page — search, edit, delete, rhizomatic connections, new concept."""
+"""Concepts page — search, edit, delete, rhizomatic connections, new concept,
+plus untranslated-target queue for fast bilingual-label entry."""
 
 from __future__ import annotations
 
-from nicegui import ui
+from nicegui import run, ui
 
 from .common import kg_frame
+
+PAGE_SIZE = 30
+
+
+def _needs_target(c: dict) -> bool:
+    """A concept needs a target label if it has a translation_lang slot set
+    but label_translation is empty. This cleanly captures the ~116
+    bilingual-scaffolded concepts without dragging in ~4300 legacy concepts."""
+    return bool(c.get("translation_lang")) and not (c.get("label_translation") or "").strip()
 
 
 @ui.page("/kg/concepts")
@@ -14,43 +24,58 @@ def page_concepts():
         return
     kg, _glossary = result
 
-    # --- Search input (outside results container so value survives re-renders) ---
-    search_input = ui.input(
-        "Search concepts (label, domain, or ID)",
-    ).props("outlined dense clearable debounce=300").classes("w-full mt-4")
+    # ── State closures ─────────────────────────────────────────────────────
+    search_ref: dict = {"value": ""}
+    mode_ref: dict = {"value": "search"}
+    page_ref: dict = {"value": 1}
+
+    # ── Filter inputs (built once, outside render) ────────────────────────
+    with ui.row().classes("w-full items-center q-gutter-sm"):
+        search_input = ui.input(
+            "Search concepts (label, domain, or ID)",
+        ).props("outlined dense clearable debounce=300").classes("col-7")
+        search_input.on_value_change(lambda e: _update_search(e))
+
+        # Untranslated count is computed dynamically in render()
+        mode_toggle = ui.toggle(
+            {"search": "Search", "untranslated": "Untranslated"},
+            value="search",
+        ).classes("col")
+        mode_toggle.on_value_change(lambda e: _update_mode(e))
+
     results = ui.column().classes("w-full px-4 pb-4 gap-2")
 
+    # ── Filter helpers ─────────────────────────────────────────────────────
+    def _update_search(e):
+        search_ref["value"] = e.value if hasattr(e, "value") else (e or "")
+        page_ref["value"] = 1
+        render()
+
+    def _update_mode(e):
+        mode_ref["value"] = e.value if hasattr(e, "value") else (e or "search")
+        page_ref["value"] = 1
+        render()
+
+    def _update_page(page_num):
+        page_ref["value"] = page_num
+        render()
+
+    # ── Master render ──────────────────────────────────────────────────────
     def render():
-        q = (search_input.value or "").strip().lower()
-        concepts_all = kg.get_all_by_type("concept")
-        hits = (
-            [
-                c
-                for c in concepts_all
-                if q in c.get("label", "").lower()
-                or q in c.get("domain", "").lower()
-                or q in c.get("id", "").lower()
-            ]
-            if q
-            else []
-        )
+        concepts_all = kg.get_all_by_type("concept") if kg else []
+
+        # Show/hide search input based on mode
+        if mode_ref["value"] == "search":
+            search_input.set_visibility(True)
+        else:
+            search_input.set_visibility(False)
+
         results.clear()
         with results:
-            if q:
-                ui.label(f"{len(hits)} of {len(concepts_all)} concepts match.").classes(
-                    "text-caption"
-                )
-                for c in hits:
-                    _concept_card(c, kg, render)
-                if not hits:
-                    ui.label(f"No concepts matching '{search_input.value}'.").classes(
-                        "text-grey-6"
-                    )
+            if mode_ref["value"] == "untranslated":
+                _render_untranslated(kg, concepts_all, render, page_ref, _update_page)
             else:
-                ui.label(
-                    f"{len(concepts_all)} concepts in graph. "
-                    "Type a search to find and edit them."
-                ).classes("text-grey-6")
+                _render_search(kg, concepts_all, render, search_ref)
 
             # Rhizomatic connection section (visible when ≥2 concepts)
             if len(concepts_all) >= 2:
@@ -59,8 +84,99 @@ def page_concepts():
             # New concept section (always visible)
             _new_concept_section(kg, render)
 
-    search_input.on_value_change(lambda e: render())
     render()
+
+
+# ---------------------------------------------------------------------------
+# Search mode render
+# ---------------------------------------------------------------------------
+def _render_search(kg, concepts_all: list, render_fn, search_ref: dict):
+    q = search_ref["value"].strip().lower()
+    hits = (
+        [
+            c
+            for c in concepts_all
+            if q in c.get("label", "").lower()
+            or q in c.get("domain", "").lower()
+            or q in c.get("id", "").lower()
+        ]
+        if q
+        else []
+    )
+    if q:
+        ui.label(f"{len(hits)} of {len(concepts_all)} concepts match.").classes(
+            "text-caption"
+        )
+        for c in hits:
+            _concept_card(c, kg, render_fn)
+        if not hits:
+            ui.label(f"No concepts matching '{q}'.").classes("text-grey-6")
+    else:
+        ui.label(
+            f"{len(concepts_all)} concepts in graph. "
+            "Type a search to find and edit them."
+        ).classes("text-grey-6")
+
+
+# ---------------------------------------------------------------------------
+# Untranslated queue
+# ---------------------------------------------------------------------------
+def _render_untranslated(kg, concepts_all: list, render_fn, page_ref: dict, update_page_fn):
+    queue = sorted(
+        [c for c in concepts_all if _needs_target(c)],
+        key=lambda c: c.get("label_orig") or c.get("label") or c.get("id", ""),
+    )
+    ui.label(f"{len(queue)} concepts need a target label.").classes("text-caption q-mb-sm")
+
+    if not queue:
+        ui.label("All bilingual concepts have target labels!").classes("text-positive")
+        return
+
+    # Pagination
+    total_pages = max(1, (len(queue) + PAGE_SIZE - 1) // PAGE_SIZE)
+    current_page = min(page_ref["value"], total_pages)
+    page_ref["value"] = current_page
+    page_start = (current_page - 1) * PAGE_SIZE
+    page_slice = queue[page_start : page_start + PAGE_SIZE]
+
+    if total_pages > 1:
+        ui.pagination(
+            1,
+            total_pages,
+            direction_links=True,
+            value=current_page,
+            on_change=lambda e: update_page_fn(e.value),
+        ).classes("q-mb-md")
+
+    for c in page_slice:
+        _queue_row(c, kg, render_fn)
+
+
+def _queue_row(c: dict, kg, render_fn):
+    """One dense row: source label + domain caption + target-label input + save."""
+    c_id = c["id"]
+    label = c.get("label_orig") or c.get("label") or c_id
+    domain = c.get("domain", "")
+
+    with ui.row().classes("w-full items-center q-gutter-sm"):
+        ui.label(label).classes("col-4 text-body2")
+        if domain:
+            ui.label(domain).classes("text-caption text-grey-6")
+        inp = ui.input("target label", value=c.get("label_translation") or "").props(
+            "outlined dense"
+        ).classes("col-4")
+
+        async def _save(val=inp, cid=c_id, rfn=render_fn):
+            v = (val.value or "").strip()
+            if not v:
+                ui.notify("Enter a target label", type="warning")
+                return
+            await run.io_bound(kg.update_concept_metadata, cid, label_translation=v)
+            ui.notify("Saved.", type="positive")
+            rfn()
+
+        ui.button(icon="check", on_click=_save).props("flat round dense color=primary")
+        inp.on("keydown.enter", _save)
 
 
 # ---------------------------------------------------------------------------
@@ -86,10 +202,29 @@ def _concept_card(c: dict, kg, render_fn):
             "outlined dense"
         ).classes("w-full")
 
+        ui.separator().classes("q-my-sm")
+        ui.label("Bilingual fields").classes("text-caption")
+        label_orig_input = ui.input("Label (orig):", value=c.get("label_orig") or "").props(
+            "outlined dense"
+        ).classes("w-full")
+        label_trans_input = ui.input("Label (translation):", value=c.get("label_translation") or "").props(
+            "outlined dense"
+        ).classes("w-full")
+        orig_lang_input = ui.input("Orig lang:", value=c.get("orig_lang") or "").props(
+            "outlined dense"
+        ).classes("w-full")
+        trans_lang_input = ui.input("Translation lang:", value=c.get("translation_lang") or "").props(
+            "outlined dense"
+        ).classes("w-full")
+
         with ui.row().classes("gap-2"):
             ui.button(
                 "Save",
-                on_click=lambda: _save_concept(c_id, label_input, domain_input, def_input, kg, render_fn),
+                on_click=lambda: _save_concept(
+                    c_id, label_input, domain_input, def_input,
+                    label_orig_input, label_trans_input, orig_lang_input, trans_lang_input,
+                    kg, render_fn,
+                ),
             ).props("flat color=primary")
 
             ui.button(
@@ -99,12 +234,20 @@ def _concept_card(c: dict, kg, render_fn):
             ).props("flat color=negative")
 
 
-def _save_concept(c_id: str, label_input, domain_input, def_input, kg, render_fn):
+def _save_concept(
+    c_id: str, label_input, domain_input, def_input,
+    label_orig_input, label_trans_input, orig_lang_input, trans_lang_input,
+    kg, render_fn,
+):
     kg.update_concept_metadata(
         c_id,
         label=label_input.value,
         domain=domain_input.value,
         definition=def_input.value,
+        label_orig=label_orig_input.value or None,
+        label_translation=label_trans_input.value or None,
+        orig_lang=orig_lang_input.value or None,
+        translation_lang=trans_lang_input.value or None,
     )
     ui.notify("Updated.", type="positive")
     render_fn()

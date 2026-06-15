@@ -1499,8 +1499,19 @@ class KnowledgeGraph:
         label: Optional[str] = None,
         domain: Optional[str] = None,
         definition: Optional[str] = None,
+        *,
+        label_orig: Optional[str] = ...,
+        label_translation: Optional[str] = ...,
+        orig_lang: Optional[str] = ...,
+        translation_lang: Optional[str] = ...,
     ) -> bool:
-        """Update fields on an existing conceptual container."""
+        """Update fields on an existing conceptual container.
+
+        Bilingual fields (label_orig, label_translation, orig_lang,
+        translation_lang) use a sentinel default so that ``None`` means
+        "don't change" while explicit ``None`` is not a useful value.
+        Pass a real string to set, or omit to leave unchanged.
+        """
         if not self.G.has_node(concept_id):
             return False
 
@@ -1511,6 +1522,17 @@ class KnowledgeGraph:
             node["domain"] = domain
         if definition is not None:
             node["definition"] = definition
+        # Ellipsis (...) is used as the default sentinel so that omitted
+        # parameters are distinguishable from ``None`` (which means "clear
+        # the field"). Since ``...`` is a singleton, ``is not ...`` works.
+        for field, value in [
+            ("label_orig", label_orig),
+            ("label_translation", label_translation),
+            ("orig_lang", orig_lang),
+            ("translation_lang", translation_lang),
+        ]:
+            if value is not ...:
+                node[field] = value
         return True
 
     def update_term_node(
@@ -1575,6 +1597,7 @@ class KnowledgeGraph:
         orig_lang: Optional[str] = ...,
         translation_lang: Optional[str] = ...,
         slovenian_edition: Optional[dict] = ...,
+        translation_edition: Optional[dict] = ...,
         project_type: Optional[str] = None,
     ) -> bool:
         """Update mutable fields on an existing source_text node.
@@ -1610,6 +1633,8 @@ class KnowledgeGraph:
                 node[field] = value
         if slovenian_edition is not ...:
             node["slovenian_edition"] = slovenian_edition
+        if translation_edition is not ...:
+            node["translation_edition"] = translation_edition
         if author_id is not None:
             # Remove old author edge, add new one
             auth_node = f"agent:{author_id.lower()}" if not author_id.startswith("agent:") else author_id

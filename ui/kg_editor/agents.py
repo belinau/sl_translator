@@ -120,10 +120,6 @@ def page_agents():
                 label="Role",
             ).classes("w-full q-mb-sm")
 
-            with ui.row().classes("q-gutter-sm"):
-                save_btn = ui.button("Save", icon="save", color="primary")
-                delete_btn = ui.button("Delete", icon="delete", color="negative")
-
             async def _on_save():
                 await run.io_bound(
                     kg.update_agent_node, a_id, name=name_input.value, role=role_select.value
@@ -136,17 +132,17 @@ def page_agents():
                 ui.notify("Deleted.", type="positive")
                 render_fn()
 
-            save_btn.on("click", _on_save)
-            delete_btn.on("click", _on_delete)
+            with ui.row().classes("q-gutter-sm"):
+                ui.button("Save", icon="save", color="primary", on_click=_on_save)
+                ui.button("Delete", icon="delete", color="negative", on_click=_on_delete)
 
     # ── New Agent form ────────────────────────────────────────────────────
     def _render_new_agent(kg, render_fn):
         na_id_input = ui.input("Short ID (e.g. haraway):").classes("w-full q-mb-sm")
         na_name_input = ui.input("Full Name:").classes("w-full q-mb-sm")
-        na_role_select = ui.select(["author", "translator"], value="author", label="Role").classes(
+        na_role_select = ui.select(AGENT_ROLES, value="author", label="Role").classes(
             "w-full q-mb-sm"
         )
-        create_btn = ui.button("Create", icon="add", color="primary").classes("w-full")
 
         async def _on_create():
             na_id = na_id_input.value.strip()
@@ -158,7 +154,7 @@ def page_agents():
             ui.notify("Created.", type="positive")
             render_fn()
 
-        create_btn.on("click", _on_create)
+        ui.button("Create", icon="add", color="primary", on_click=_on_create).classes("w-full")
 
     # Initial render
     render()

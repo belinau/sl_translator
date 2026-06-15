@@ -22,13 +22,12 @@ KG_DISMISSED_PATH = BASE_DIR / "data" / "kg_review_dismissed.json"
 # Constants
 # ---------------------------------------------------------------------------
 AGENT_ROLES = [
-    "author", "translator", "editor", "interviewer", "curator", "organization",
-]
-# Targets a reviewer can reclassify a record into (ontology node types).
-RECLASS_AGENT_ROLES = [
     "author", "translator", "editor", "curator", "artist",
-    "interviewer", "interviewee", "agent",
+    "interviewer", "interviewee", "choreographer", "director",
+    "performer", "dancer", "composer", "dramaturg", "agent",
 ]
+# Reviewer reclassify uses the same canonical set.
+RECLASS_AGENT_ROLES = AGENT_ROLES
 RECLASS_PROJECT_TYPES = [
     "cited_work", "book", "book_chapter", "journal_article",
     "magazine_article", "newspaper_article", "web_source",

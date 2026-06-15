@@ -90,10 +90,6 @@ async def page_terms():
             anim_check = ui.checkbox("Animate", value=cur_animate)
             phrase_check = ui.checkbox("Phrase", value=cur_phrase)
 
-            with ui.row().classes("q-gutter-sm q-mb-md"):
-                update_btn = ui.button("Update Term", icon="save", color="primary")
-                delete_btn = ui.button("Delete", icon="delete", color="negative")
-
             async def _on_update():
                 await run.io_bound(
                     kg.update_term_node,
@@ -111,8 +107,9 @@ async def page_terms():
                 ui.notify("Deleted.", type="positive")
                 render_fn()
 
-            update_btn.on("click", _on_update)
-            delete_btn.on("click", _on_delete)
+            with ui.row().classes("q-gutter-sm q-mb-md"):
+                ui.button("Update Term", icon="save", color="primary", on_click=_on_update)
+                ui.button("Delete", icon="delete", color="negative", on_click=_on_delete)
 
             # ── Variants ──────────────────────────────────────────────────
             variants = match.get("variants", [])
@@ -157,11 +154,6 @@ async def page_terms():
                 m_conf = ui.slider(min=0.0, max=1.0, step=0.05, value=float(t.get("confidence", 0.5))).props(
                     "label-always"
                 ).classes("w-full q-mb-xs")
-
-                with ui.row().classes("q-gutter-sm"):
-                    upd_btn = ui.button("Update", icon="save", color="primary")
-                    del_btn = ui.button("Delete", icon="delete", color="negative")
-
                 async def _on_update_mapping():
                     await run.io_bound(
                         kg.update_translation_mapping,
@@ -179,12 +171,9 @@ async def page_terms():
                     ui.notify("Deleted.", type="positive")
                     render_fn()
 
-                upd_btn.on("click", _on_update_mapping)
-                del_btn.on("click", _on_delete_mapping)
-        else:
-            ui.label("_Legacy edge (no mapping node) — not editable._").classes(
-                "text-caption text-grey-6 q-mb-sm"
-            )
+                with ui.row().classes("q-gutter-sm"):
+                    ui.button("Update", icon="save", color="primary", on_click=_on_update_mapping)
+                    ui.button("Delete", icon="delete", color="negative", on_click=_on_delete_mapping)
 
     # ── Quick-Add Translation Mapping ─────────────────────────────────────
     def _render_quick_add(kg, render_fn):
@@ -193,8 +182,6 @@ async def page_terms():
             q_tgt = ui.input("Target term (sl):", placeholder="e.g. pogled").classes("w-full q-mb-xs")
             q_lin = ui.input("Lineage:", placeholder="e.g. Mulveyan").classes("w-full q-mb-xs")
             q_gloss = ui.input("Gloss:", placeholder="optional note").classes("w-full q-mb-xs")
-
-            create_btn = ui.button("Create Mapping", icon="add", color="primary").classes("w-full")
 
             async def _on_create():
                 src = q_src.value.strip()
@@ -209,7 +196,7 @@ async def page_terms():
                 ui.notify(f"Created: '{src}' → '{tgt}'.", type="positive")
                 render_fn()
 
-            create_btn.on("click", _on_create)
+            ui.button("Create Mapping", icon="add", color="primary", on_click=_on_create).classes("w-full")
 
     # ── Add Variant ───────────────────────────────────────────────────────
     def _render_add_variant(kg, render_fn):
@@ -236,7 +223,6 @@ async def page_terms():
                         "w-full q-mb-xs"
                     )
                     var_text = ui.input("Variant form:").classes("w-full q-mb-xs")
-                    add_btn = ui.button("Add Variant", icon="add", color="primary").classes("w-full")
 
                     async def _on_add():
                         if not sel.value or not (var_text.value or "").strip():
@@ -246,9 +232,9 @@ async def page_terms():
                         ui.notify(f"Added '{var_text.value.strip()}'.", type="positive")
                         render_fn()
 
-                    add_btn.on("click", _on_add)
+                    ui.button("Add Variant", icon="add", color="primary", on_click=_on_add).classes("w-full")
 
-            var_search.on("update:model-value", _on_var_search)
+            var_search.on_value_change(lambda e: _on_var_search())
 
     # ── Quick-add helper (runs on io thread) ──────────────────────────────
     def _quick_add_mapping(kg, src: str, tgt: str, lin: str, gloss: str):

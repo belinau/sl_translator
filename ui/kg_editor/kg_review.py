@@ -210,7 +210,7 @@ def page_kg_review():
                         action_select.value, it, items, kg, edit_ptypes, render_fn
                     )
 
-            action_select.on("update:model-value", _on_action_change)
+            action_select.on_value_change(lambda e: _on_action_change())
 
             # Initial render
             with action_area:
@@ -371,7 +371,7 @@ def page_kg_review():
             with reclass_area:
                 _build_reclass_form()
 
-        choice_select.on("update:model-value", _on_choice_change)
+        choice_select.on_value_change(lambda e: _on_choice_change())
 
         # Initial render
         with reclass_area:

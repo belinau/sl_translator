@@ -69,8 +69,20 @@ A language-independent meaning. Many terms in many languages may instantiate one
 | `domain` | yes | str | e.g. `"humanities"`, `"performance"`, `"visual-art"` |
 | `definition` | yes | str | curator's prose definition; `""` until curated |
 | `created_at` | yes | str | ISO-8601 timestamp |
+| `label_orig` | optional | str | source-language label (mirrors `label` for bilingual concepts) |
+| `label_translation` | optional | str | target-language label (the translated form) |
+| `orig_lang` | optional | str | ISO 639-1 code for the source language |
+| `translation_lang` | optional | str | ISO 639-1 code for the target language |
+
+The four bilingual fields use the language-neutral `*_orig` / `*_translation`
+naming convention. They are written at creation via `add_concept_node` and
+updated via `update_concept_metadata`, which accepts them through the sentinel
+convention (omitted = leave unchanged, explicit value = set). The fields
+`label_en`/`label_sl` are FORBIDDEN; use `label_orig`/`label_translation`
+instead.
 
 Authoritative writer: `KnowledgeGraph.add_concept_node` (`knowledge_graph.py:392`).
+Authoritative updater: `KnowledgeGraph.update_concept_metadata` (`knowledge_graph.py:1496`).
 
 ### 2.3 `translation_mapping` — REIFIED EDGE
 
@@ -123,6 +135,10 @@ other).
 
 Authoritative writer: `KnowledgeGraph.add_source_text_node`
 (`knowledge_graph.py:367`).
+Authoritative updater: `KnowledgeGraph.update_source_text_node`
+(`knowledge_graph.py:1564`), which handles bilingual fields and
+`translation_edition` through the sentinel convention (omitted = leave
+unchanged, explicit value = set).
 
 #### 2.4.1 Valid `project_type` values
 
