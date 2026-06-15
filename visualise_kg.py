@@ -167,7 +167,7 @@ EDGE_COLORS = {
     "edited_by":        "#fbbf24",   # Amber (agent-editor)
     "performed_by":     "#f472b6",   # Pink (agent-performer)
     "published_by":     "#34d399",   # Green (institution-publisher)
-    "sl_published_by":  "#6ee7b7",   # Light green (SL publisher)
+    "translation_published_by":  "#6ee7b7",   # Light green (SL publisher)
     "hosted_by":        "#a78bfa",   # Purple (institution-host)
     "cited_in":         "#94a3b8",   # Slate (citation chain)
     "appears_in":       "#cbd5e1",   # Light slate (chapter→book)
@@ -247,7 +247,7 @@ def add_v1_edge(s, t, rel, **kwargs):
 # Import all direct edges between V1 node types
 BIBLIOGRAPHY_RELATIONS = {
     "written_by", "translated_by", "edited_by", "performed_by",
-    "published_by", "sl_published_by", "hosted_by",
+    "published_by", "translation_published_by", "hosted_by",
     "cited_in", "appears_in",
 }
 RHIZOMATIC_RELATIONS = {"extends", "critiques", "redefines", "reappropriates", "related_to", "attributed_to"}
@@ -451,7 +451,7 @@ def add_v3_edge(s, t, rel, **kwargs):
 # Import all direct bibliography edges between V3 node types
 V3_BIBLIOGRAPHY_RELATIONS = {
     "written_by", "translated_by", "edited_by", "performed_by",
-    "published_by", "sl_published_by", "hosted_by",
+    "published_by", "translation_published_by", "hosted_by",
     "cited_in", "appears_in",
 }
 for e in ALL_EDGES:
@@ -557,7 +557,7 @@ def add_v4_edge(s, t, rel, **kwargs):
 
 V4_BIBLIOGRAPHY_RELATIONS = {
     "written_by", "translated_by", "edited_by", "performed_by",
-    "published_by", "sl_published_by", "hosted_by",
+    "published_by", "translation_published_by", "hosted_by",
     "cited_in", "appears_in",
 }
 for e in ALL_EDGES:

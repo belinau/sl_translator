@@ -5,7 +5,7 @@ Exercises each ontology repair listed in data/ontology_audit/kg-sink.md:
 - §2.4.1 container / cited project_type allowlists
 - §2.5 agent role allowlist + O-12 quartet on every agent write
 - §2.6 institution kind allowlist
-- §3.2 sl_published_by edge wired via factory
+- §3.2 translation_published_by edge wired via factory
 - §4 invariant 1 slugify discipline on every source_text id
 - §4 invariant 6 citation_style allowlist
 - O-20 — container source_text never written without a translator
@@ -175,8 +175,9 @@ def test_every_agent_has_o12_quartet(ran):
 def test_no_direct_add_edge_from_ingest_module(ran):
     """Every edge in the KG was written through a KnowledgeGraph factory.
 
+
     Covers: Pass 2 author edge, Pass 3 cited_work author edge,
-    Pass 3 sl_published_by edge, Pass 4 artwork artist edge.
+    Pass 3 translation_published_by edge, Pass 4 artwork artist edge.
     """
     direct = [f for f in ran["callers"] if f == INGEST_FILE]
     assert direct == [], (
@@ -305,3 +306,63 @@ def test_wire_doc_pair_bridge_edges_removed():
     """wire_doc_pair_bridge_edges had no callers in the repo; it is
     removed per the audit's Dead code section."""
     assert not hasattr(ingest, "wire_doc_pair_bridge_edges")
+
+
+# ----- Factory-level O-12 enforcement (Phase 1) --------------------------
+
+def test_add_agent_node_fills_o12_quartet_when_missing(kg):
+    """The factory defaults dedup_group, alt_spellings, all_roles, mention_count."""
+    kg.add_agent_node("foo-bar", name="Foo Bar", role="author")
+    node = kg.G.nodes["agent:foo-bar"]
+    assert node["dedup_group"]
+    assert node["alt_spellings"] == ["Foo Bar"]
+    assert node["all_roles"] == ["author"]
+    assert node["mention_count"] == 1
+
+
+def test_update_agent_node_maintains_o12_quartet(kg):
+    """Renaming an agent recomputes dedup_group and unions into alt_spellings."""
+    kg.add_agent_node("foo-bar", name="Foo Bar", role="author")
+    kg.update_agent_node("agent:foo-bar", name="Foo B. Bar", role="editor")
+    node = kg.G.nodes["agent:foo-bar"]
+    assert "Foo B. Bar" in node["alt_spellings"]
+    assert "editor" in node["all_roles"]
+    assert node["dedup_group"]
+
+
+def test_ensure_agent_produces_o12_compliant_node(kg):
+    """The shared helper now emits a fully O-12-compliant agent node."""
+    from translate_core.entity_extraction.ingest_helpers import ensure_agent
+
+    ensure_agent(kg, "Jane Q. Public")
+    node = kg.G.nodes["agent:jane-q-public"]
+    assert node["dedup_group"]
+    assert node["alt_spellings"]
+    assert node["all_roles"]
+    assert node["mention_count"] == 1
+
+
+# ----- Legacy bilingual params rejected (Phase 3) -------------------------
+
+def test_update_source_text_node_rejects_legacy_bilingual_params(kg):
+    """title_en/title_sl/slovenian_edition are no longer accepted."""
+    kg.add_source_text_node("x", title="X", project_type="book")
+    with pytest.raises(TypeError):
+        kg.update_source_text_node("source:x", title_en="Y")
+
+
+# ----- link_appears_in factory (Phase 2) ---------------------------------
+
+def test_link_appears_in_wires_chapter_to_book(kg):
+    """The new factory creates an appears_in edge from chapter to container."""
+    kg.add_source_text_node("book", title="Book", project_type="book")
+    kg.add_source_text_node("chapter", title="Chapter", project_type="book_chapter")
+    assert kg.link_appears_in("chapter", "book") is True
+    assert kg.G.has_edge("source:chapter", "source:book")
+    assert kg.G["source:chapter"]["source:book"].get("relation") == "appears_in"
+
+
+def test_link_appears_in_self_loop_returns_false(kg):
+    """O-17: chapter and book must be distinct."""
+    kg.add_source_text_node("book", title="Book", project_type="book")
+    assert kg.link_appears_in("book", "book") is False

@@ -124,20 +124,12 @@ def ingest_citation(
     # Author edges
     for a in c.authors:
         aid = _ensure_agent(kg, a)
-        if not kg.G.has_edge(src_node, f"agent:{aid.lower()}"):
-            kg.G.add_edge(
-                src_node, f"agent:{aid.lower()}",
-                relation="written_by",
-            )
+        kg.link_written_by(cwid, aid)
 
     # Editor edges
     for ed in c.editors:
         eid = _ensure_agent(kg, ed)
-        if not kg.G.has_edge(src_node, f"agent:{eid.lower()}"):
-            kg.G.add_edge(
-                src_node, f"agent:{eid.lower()}",
-                relation="edited_by",
-            )
+        kg.link_edited_by(cwid, eid)
 
     # Translator edge (for translation citations or any citation with translator)
     if c.translator:
@@ -150,32 +142,20 @@ def ingest_citation(
             given, surname = "", parts[0]
         tr_author = ParsedAuthor(surname=surname, given=given, role="translator")
         tid = _ensure_agent(kg, tr_author)
-        if not kg.G.has_edge(src_node, f"agent:{tid.lower()}"):
-            kg.G.add_edge(
-                src_node, f"agent:{tid.lower()}",
-                relation="translated_by",
-            )
+        kg.link_translated_by(cwid, tid)
 
     # Publisher edge
     if c.publisher:
         iid = _ensure_institution(kg, c.publisher, c.place, kind="publisher")
-        if not kg.G.has_edge(src_node, f"institution:{iid.lower()}"):
-            kg.G.add_edge(
-                src_node, f"institution:{iid.lower()}",
-                relation="published_by",
-            )
+        kg.link_published_by(cwid, iid)
 
-    # Alt-publisher edges (SL editions etc.)
+    # Alt-publisher edges (SL editions etc.) → canonical translation_published_by
     for ap in rec.alt_publishers:
         ap_name = ap.get("publisher")
         if not ap_name:
             continue
         iid = _ensure_institution(kg, ap_name, ap.get("city"), kind="publisher")
-        if not kg.G.has_edge(src_node, f"institution:{iid.lower()}"):
-            kg.G.add_edge(
-                src_node, f"institution:{iid.lower()}",
-                relation="alt_published_by",
-            )
+        kg.link_translation_published_by(cwid, iid)
 
     # Container book (for chapter): create as separate source_text
     if c.citation_type == "book-chapter" and c.container_title:
@@ -189,14 +169,10 @@ def ingest_citation(
                 project_type="cited_container",
                 citation_type="book",
             )
-        if not kg.G.has_edge(src_node, cnt_node):
-            kg.G.add_edge(src_node, cnt_node, relation="appears_in")
+        kg.link_appears_in(cwid, cnt_id)
 
     # cited_in edge → containing translated work
-    container_node = f"source:{container_work_id.lower()}"
-    if kg.G.has_node(container_node):
-        if not kg.G.has_edge(src_node, container_node):
-            kg.G.add_edge(src_node, container_node, relation="cited_in")
+    kg.link_cited_in(cwid, container_work_id)
 
     return cwid
 

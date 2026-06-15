@@ -124,10 +124,7 @@ def commit_record(kg, r: dict) -> None:
             aid = review_slugify(p["author"])
             if not kg.G.has_node(f"agent:{aid.lower()}"):
                 kg.add_agent_node(aid, name=p["author"], role="author")
-            sn = f"source:{wid.lower()}"
-            an = f"agent:{aid.lower()}"
-            if kg.G.has_node(sn) and kg.G.has_node(an) and not kg.G.has_edge(sn, an):
-                kg.G.add_edge(sn, an, relation="written_by")
+            kg.link_written_by(wid, aid)
         if p.get("translator"):
             tid = review_slugify(p["translator"])
             if not kg.G.has_node(f"agent:{tid.lower()}"):
@@ -151,17 +148,12 @@ def commit_record(kg, r: dict) -> None:
             project_type="cited_work",
             translation_edition=p.get("translation_edition"),
         )
+        pub = p.get("original_pub") or {}
         if p.get("author"):
             aid = review_slugify(p["author"])
             if not kg.G.has_node(f"agent:{aid.lower()}"):
                 kg.add_agent_node(aid, name=p["author"], role="author")
-            sn = f"source:{cid.lower()}"
-            an = f"agent:{aid.lower()}"
-            if kg.G.has_node(sn) and kg.G.has_node(an) and not kg.G.has_edge(sn, an):
-                kg.G.add_edge(sn, an, relation="written_by")
-        if p.get("container_work_id"):
-            kg.link_cited_in(cid, p["container_work_id"])
-        pub = p.get("original_pub") or {}
+            kg.link_written_by(cid, aid)
         if pub.get("publisher"):
             iid = review_slugify(pub["publisher"])
             if not kg.G.has_node(f"institution:{iid.lower()}"):
@@ -232,18 +224,7 @@ def commit_as(kg, target: str, f: dict) -> tuple[str | None, str | None]:
                     dedup_group=dedup_group_key(author),
                     alt_spellings=[author], all_roles=["author"], mention_count=1,
                 )
-            sn, an = f"source:{cid.lower()}", f"agent:{aid.lower()}"
-            if kg.G.has_node(sn) and kg.G.has_node(an) and not kg.G.has_edge(sn, an):
-                kg.G.add_edge(sn, an, relation="written_by")
-    elif target == "institution":
-        name = (f.get("name") or "").strip()
-        if not name:
-            return "Name is required.", None
-        new_id = kg.add_institution_node(
-            review_slugify(name), name=name,
-            kind=f.get("kind", "publisher"), city=(f.get("city") or "").strip() or None,
-        )
-    elif target == "concept":
+            kg.link_written_by(cid, aid)
         label = (f.get("label") or "").strip()
         if not label:
             return "Label is required.", None

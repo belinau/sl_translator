@@ -343,6 +343,14 @@ class KnowledgeGraph:
     ) -> str:
         node_id = f"agent:{agent_id.lower()}"
         if not self.G.has_node(node_id):
+            # O-12: all agent nodes must carry dedup_group, alt_spellings,
+            # all_roles, and mention_count. Fill defaults when caller omits them.
+            from .entity_extraction.name_dedup import dedup_group_key
+
+            kwargs.setdefault("dedup_group", dedup_group_key(name))
+            kwargs.setdefault("alt_spellings", [name])
+            kwargs.setdefault("all_roles", [role])
+            kwargs.setdefault("mention_count", 1)
             self.G.add_node(
                 node_id,
                 id=node_id,
@@ -537,6 +545,22 @@ class KnowledgeGraph:
             return False
         if not self.G.has_edge(cited, container):
             self.G.add_edge(cited, container, relation="cited_in")
+        return True
+
+    def link_appears_in(self, chapter_source_id: str, book_source_id: str) -> bool:
+        """Link a chapter/article (source_text) to the container source_text.
+
+        Relation "appears_in": the cited work appears in the container book.
+        Idempotent and direction-preserving (chapter -> book).
+        """
+        chapter = chapter_source_id if chapter_source_id.startswith("source:") else f"source:{chapter_source_id.lower()}"
+        book = book_source_id if book_source_id.startswith("source:") else f"source:{book_source_id.lower()}"
+        if chapter == book:
+            return False
+        if not (self.G.has_node(chapter) and self.G.has_node(book)):
+            return False
+        if not self.G.has_edge(chapter, book):
+            self.G.add_edge(chapter, book, relation="appears_in")
         return True
 
     def link_published_by(self, source_text_id: str, institution_id: str) -> bool:
@@ -1558,13 +1582,6 @@ class KnowledgeGraph:
             if display_form and display_form.lower() != node.get("term", "").lower():
                 if display_form not in variants:
                     variants.append(display_form)
-                    self._exact_kp.add_keyword(display_form, term_id)
-            node["variants"] = variants
-        if is_animate is not None:
-            node["is_animate"] = is_animate
-        if is_phrase is not None:
-            node["is_phrase"] = is_phrase
-        return True
 
     def update_agent_node(
         self,
@@ -1572,15 +1589,33 @@ class KnowledgeGraph:
         name: Optional[str] = None,
         role: Optional[str] = None,
     ) -> bool:
-        """Update mutable fields on an existing agent node."""
+        """Update mutable fields on an existing agent node.
+
+        Also keeps the O-12 quartet (dedup_group, alt_spellings, all_roles,
+        mention_count) coherent, backfilling it for legacy bare agents.
+        """
         if not self.G.has_node(agent_id):
             return False
+
+        from .entity_extraction.name_dedup import dedup_group_key
 
         node = self.G.nodes[agent_id]
         if name is not None:
             node["name"] = name
+            node["dedup_group"] = dedup_group_key(name)
+            alt_spellings = node.setdefault("alt_spellings", [])
+            if name not in alt_spellings:
+                alt_spellings.append(name)
         if role is not None:
             node["role"] = role
+            all_roles = node.setdefault("all_roles", [])
+            if role not in all_roles:
+                all_roles.append(role)
+        # Backfill any missing O-12 fields (handles legacy bare-agent nodes).
+        node.setdefault("dedup_group", dedup_group_key(node.get("name", "")))
+        node.setdefault("alt_spellings", [node.get("name", "")])
+        node.setdefault("all_roles", [node.get("role", "agent")])
+        node.setdefault("mention_count", node.get("mention_count", 1))
         return True
 
     def update_source_text_node(
@@ -1590,23 +1625,20 @@ class KnowledgeGraph:
         year: Optional[int] = None,
         author_id: Optional[str] = None,
         *,
-        title_en: Optional[str] = ...,
-        title_sl: Optional[str] = ...,
         title_orig: Optional[str] = ...,
         title_translation: Optional[str] = ...,
         orig_lang: Optional[str] = ...,
         translation_lang: Optional[str] = ...,
-        slovenian_edition: Optional[dict] = ...,
         translation_edition: Optional[dict] = ...,
         project_type: Optional[str] = None,
     ) -> bool:
         """Update mutable fields on an existing source_text node.
 
-        Bilingual fields (title_en, title_sl, title_orig, title_translation,
-        orig_lang, translation_lang, slovenian_edition) use a sentinel default
-        so that ``None`` means "don't change" while explicit ``None`` is not
-        a useful value for these fields. Pass a real string or dict to set,
-        or omit to leave unchanged.
+        Only the canonical bilingual fields (title_orig, title_translation,
+        orig_lang, translation_lang) and translation_edition may be written.
+        The legacy fields title_en, title_sl, and slovenian_edition are
+        forbidden per ontology invariant #4 and are not accepted by this
+        method.
         """
         if not self.G.has_node(source_id):
             return False
@@ -1622,8 +1654,6 @@ class KnowledgeGraph:
         # parameters are distinguishable from ``None`` (which means "clear the
         # field"). Since ``...`` is a singleton, ``is not ...`` works correctly.
         for field, value in [
-            ("title_en", title_en),
-            ("title_sl", title_sl),
             ("title_orig", title_orig),
             ("title_translation", title_translation),
             ("orig_lang", orig_lang),
@@ -1631,8 +1661,6 @@ class KnowledgeGraph:
         ]:
             if value is not ...:
                 node[field] = value
-        if slovenian_edition is not ...:
-            node["slovenian_edition"] = slovenian_edition
         if translation_edition is not ...:
             node["translation_edition"] = translation_edition
         if author_id is not None:

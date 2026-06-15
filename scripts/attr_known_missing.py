@@ -2,14 +2,11 @@
 """Attribute concepts to all known authors from the missing list."""
 import re, sys, pathlib, unicodedata
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+from translate_core.entity_extraction._slug import _slugify
 from translate_core.knowledge_graph import KnowledgeGraph
 
 kg = KnowledgeGraph()
 G = kg.G
-
-def _slugify(s):
-    s = "".join(c for c in unicodedata.normalize("NFKD", s.lower()) if not unicodedata.combining(c))
-    return re.sub(r"[^a-z0-9]+", "-", s).strip("-")[:80] or "unknown"
 
 def add(agent_name, concepts):
     # Try exact match first, then NFC/NFD variants

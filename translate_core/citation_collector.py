@@ -457,11 +457,6 @@ def extract_and_ingest(
     report.queued = stats.review_queued
     report.dropped += stats.dropped
 
-    # Wire cited_in edges for records that have container_work_id
-    for rec in re_scored:
-        cw_id = rec.get("payload", {}).get("container_work_id")
-        src_id = rec.get("payload", {}).get("cited_id")
-        if cw_id and src_id and cw_id != src_id:  # O-17: no self-loops
-            kg.link_cited_in(src_id, cw_id)
-
+    # write_to_kg already wires cited_in for every direct-write deferred kind;
+    # no post-loop wiring is needed.
     return report

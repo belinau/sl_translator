@@ -393,6 +393,7 @@ def _parse_one_citation_segment(
                 "title_en": title_en,
                 "title_sl": title_sl,
                 "title_orig": title_orig,
+                "title_translation": title_sl,
                 "year": year,
                 "original_pub": pub_info,
                 "slovenian_edition": sl_pub,
@@ -408,7 +409,6 @@ def _parse_one_citation_segment(
             },
         })
     return out
-
 
 def _extract_inline_citations(
     src: str, tgt: str, container_work_id: str,

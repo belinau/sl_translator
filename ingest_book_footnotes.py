@@ -209,16 +209,12 @@ def ingest_one(
     # Author edges
     for a in citation.authors:
         aid = _ensure_agent(kg, a)
-        agent_node = f"agent:{aid.lower()}"
-        if not kg.G.has_edge(src_node, agent_node):
-            kg.G.add_edge(src_node, agent_node, relation="written_by")
+        kg.link_written_by(cwid, aid)
 
     # Editor edges
     for ed in citation.editors:
         eid = _ensure_agent(kg, ed)
-        agent_node = f"agent:{eid.lower()}"
-        if not kg.G.has_edge(src_node, agent_node):
-            kg.G.add_edge(src_node, agent_node, relation="edited_by")
+        kg.link_edited_by(cwid, eid)
 
     # Translator
     if citation.translator:
@@ -230,22 +226,15 @@ def ingest_one(
                 role="translator",
             )
             tid = _ensure_agent(kg, tr)
-            agent_node = f"agent:{tid.lower()}"
-            if not kg.G.has_edge(src_node, agent_node):
-                kg.G.add_edge(src_node, agent_node, relation="translated_by")
+            kg.link_translated_by(cwid, tid)
 
     # Publisher
     if citation.publisher:
         iid = _ensure_institution(kg, citation.publisher, citation.place, "publisher")
-        inst_node = f"institution:{iid.lower()}"
-        if not kg.G.has_edge(src_node, inst_node):
-            kg.G.add_edge(src_node, inst_node, relation="published_by")
+        kg.link_published_by(cwid, iid)
 
     # cited_in → container book
-    container_node = f"source:{container_work_id.lower()}"
-    if kg.G.has_node(container_node):
-        if not kg.G.has_edge(src_node, container_node):
-            kg.G.add_edge(src_node, container_node, relation="cited_in")
+    kg.link_cited_in(cwid, container_work_id)
 
     return cwid
 

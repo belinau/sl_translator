@@ -68,12 +68,13 @@ def test_detects_each_hard_invariant():
     edges = [
         {"source": "source:cont", "target": "source:cont", "relation": "cited_in"},  # self-loop
         {"source": "source:badtype", "target": "agent:missing", "relation": "written_by"},  # dangling
+        {"source": "source:foo-bar-1990", "target": "institution:maska", "relation": "alt_published_by"},  # unknown relation
     ]
     v = validate(nodes, edges)
     for inv in ("ghost_node", "forbidden_node_type", "unknown_node_type", "bad_role",
                 "agent_missing_required", "bad_kind", "bad_project_type", "source_no_title",
                 "container_missing_translated_by", "duplicate_source_stem",
-                "cited_in_self_loop", "dangling_edge"):
+                "cited_in_self_loop", "dangling_edge", "unknown_edge_relation"):
         assert inv in v, f"missing detection: {inv}"
         assert inv in HARD
     # fragment_title is still detected but advisory (soft), not gate-failing

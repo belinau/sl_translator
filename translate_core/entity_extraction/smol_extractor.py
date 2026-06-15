@@ -21,7 +21,7 @@ CANONICAL ONTOLOGY FIELDS (per ontology.md §2.4.2):
 Per ontology §4 invariant #4 — bilingual extraction is REQUIRED for citations
 that appear in both languages of the TM. Per §3.2 — every cited_work must
 have a `cited_in` edge to its container, plus `written_by` for authors,
-`published_by` for original publisher, `sl_published_by` for SL-edition
+`published_by` for original publisher, `translation_published_by` for the
 publisher when distinct.
 
 CONCEPT EXTRACTION (per ontology §2.2, §3.1):

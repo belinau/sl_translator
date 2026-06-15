@@ -40,6 +40,18 @@ PROJECT_TYPES = CONTAINER_TYPES | {
 AGENT_REQUIRED = ("dedup_group", "alt_spellings", "all_roles", "mention_count")
 TYPE_PREFIXES = ("book-chapter-", "book-", "journal-article-", "article-",
                  "other-", "n-", "unknown-", "artwork-", "web-", "magazine-", "cited-")
+EDGE_RELATIONS = {
+    # termbase
+    "has_mapping", "maps_to", "translates_to", "instantiates_concept",
+    # bibliography
+    "written_by", "translated_by", "edited_by", "performed_by",
+    "published_by", "translation_published_by", "hosted_by",
+    "cited_in", "appears_in",
+    # bridge
+    "instantiated_in", "attributed_to",
+    # concept rhizomatic
+    "extends", "critiques", "redefines", "reappropriates", "related_to",
+}
 
 # HARD invariants fail the gate; SOFT ones are reported but do not fail.
 HARD = {
@@ -47,7 +59,7 @@ HARD = {
     "cited_in_self_loop", "agent_missing_required", "bad_role", "bad_kind",
     "bad_project_type", "container_missing_translated_by", "source_no_title",
     "duplicate_source_stem", "legacy_bilingual_field",
-    "mapping_low_quality", "duplicate_agent_token_set",
+    "mapping_low_quality", "duplicate_agent_token_set", "unknown_edge_relation",
     # fragment_title is SOFT: title quality is governed by the LLM re-typing pass;
     # legitimately lowercase-styled art/poetry titles (e.g. "like water, a bone
     # sings #3") are real works, not fragments, and must not fail the gate.
@@ -63,8 +75,6 @@ def _stem(sid: str) -> str:
 
 
 _SENT_SL = re.compile(r"\b(je bil|je bila|so bili|so bile|ki je bil|čeprav|vidimo|denimo leta)\b", re.I)
-
-
 def validate(nodes: list[dict], edges: list[dict]) -> dict[str, list[str]]:
     """Return {invariant_name: [offending ids/messages]} for every violation."""
     v: dict[str, list[str]] = defaultdict(list)
@@ -76,6 +86,8 @@ def validate(nodes: list[dict], edges: list[dict]) -> dict[str, list[str]]:
             v["dangling_edge"].append(f"{e['source']} -[{e.get('relation')}]-> {e['target']}")
         if e.get("relation") == "cited_in" and e["source"] == e["target"]:
             v["cited_in_self_loop"].append(e["source"])
+        if e.get("relation") not in EDGE_RELATIONS:
+            v["unknown_edge_relation"].append(f"{e['source']} -[{e.get('relation')}]-> {e['target']}")
 
     stems: dict[str, list[str]] = defaultdict(list)
     for n in nodes:

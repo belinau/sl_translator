@@ -55,7 +55,7 @@ A surface form in one language. Indexed for prediction / glossary use.
 | `display_form` | optional | str | when the surface differs in casing/diacritics from `term` |
 | `variants` | optional | list[str] | accumulated alt surface forms |
 
-Authoritative writer: `KnowledgeGraph.add_term_node` (`knowledge_graph.py:429`).
+Authoritative writer: `KnowledgeGraph.add_term_node` (`knowledge_graph.py:427`).
 
 ### 2.2 `concept`
 
@@ -81,8 +81,8 @@ convention (omitted = leave unchanged, explicit value = set). The fields
 `label_en`/`label_sl` are FORBIDDEN; use `label_orig`/`label_translation`
 instead.
 
-Authoritative writer: `KnowledgeGraph.add_concept_node` (`knowledge_graph.py:392`).
-Authoritative updater: `KnowledgeGraph.update_concept_metadata` (`knowledge_graph.py:1496`).
+Authoritative writer: `KnowledgeGraph.add_concept_node` (`knowledge_graph.py:390`).
+Authoritative updater: `KnowledgeGraph.update_concept_metadata` (`knowledge_graph.py:1520`).
 
 ### 2.3 `translation_mapping` — REIFIED EDGE
 
@@ -104,7 +104,7 @@ confidence, provenance, and curator-verification.
 | `created_at` | yes | str | ISO-8601 timestamp |
 
 Authoritative writer: `KnowledgeGraph.link_translations_with_context`
-(`knowledge_graph.py:634`). Also wires the two anchor edges
+(`knowledge_graph.py:657`). Also wires the two anchor edges
 (`has_mapping`, `maps_to`) and optionally the bridge edges
 (`instantiated_in`, `attributed_to`).
 
@@ -134,9 +134,9 @@ exhibition_catalog / interview / thesis_dissertation / short_reference /
 other).
 
 Authoritative writer: `KnowledgeGraph.add_source_text_node`
-(`knowledge_graph.py:367`).
+(`knowledge_graph.py:365`).
 Authoritative updater: `KnowledgeGraph.update_source_text_node`
-(`knowledge_graph.py:1564`), which handles bilingual fields and
+(`knowledge_graph.py:1586`), which handles bilingual fields and
 `translation_edition` through the sentinel convention (omitted = leave
 unchanged, explicit value = set).
 
@@ -214,9 +214,9 @@ A person playing one or more roles relative to source_texts.
 curator has not yet reassigned it.
 
 Authoritative writer: `KnowledgeGraph.add_agent_node`
-(`knowledge_graph.py:351`). Any caller that omits `dedup_group` is
-producing a NON-COMPLIANT record (bare-agent record). New code MUST
-pass `dedup_group=name_dedup.dedup_group_key(name)`.
+(`knowledge_graph.py:341`). The factory enforces the O-12 quartet
+(`dedup_group`, `alt_spellings`, `all_roles`, `mention_count`) when a
+caller omits them. Callers MAY still pass explicit values.
 
 ### 2.6 `institution`
 
@@ -233,11 +233,11 @@ similar organisation.
 | `created_at` | yes | str | ISO-8601 timestamp |
 
 Authoritative writer: `KnowledgeGraph.add_institution_node`
-(`knowledge_graph.py:577`).
+(`knowledge_graph.py:514`).
 
 ## 3. Edge relations
 
-There are exactly **thirteen** edge relations. Anything else is a violation.
+There are exactly **twenty** edge relations, enumerated in §3.1–§3.4. Anything else is a violation.
 
 ### 3.1 Termbase layer
 
@@ -270,7 +270,7 @@ entire payload.
 **Provenance for `translated_by`:** The authoritative source for `translated_by` edges (and for the existence of container nodes) is the **personal/COBISS bibliography** — the translator's complete list of translated works. This is a different source than the book bibliography and must not be conflated with it.
 
 Loops (`a -[cited_in]-> a`) are forbidden and dropped at write time
-(`knowledge_graph.py:605`).
+(`knowledge_graph.py:539`).
 
 ### 3.3 Bridge layer (termbase ↔ bibliography)
 
@@ -294,7 +294,7 @@ primary mechanism for evidence-anchoring a translation choice.
 | `(concept) -[extends \| critiques \| redefines \| reappropriates \| related_to]-> (concept)` | `last_updated: str` | rhizomatic concept network. The `relation` field MUST be one of those five values. |
 
 Authoritative writer: `KnowledgeGraph.link_concepts_rhizomatic`
-(`knowledge_graph.py:413`). Any other value is silently coerced to
+(`knowledge_graph.py:411`). Any other value is silently coerced to
 `related_to`.
 
 ## 4. Invariants the writers must respect
@@ -363,18 +363,16 @@ institution:maska
 institution:routledge
 ```
 
-## 6. Out-of-scope nodes that exist in code but should not be written
+## 6. Removed legacy node types (never write these)
 
-`KnowledgeGraph` exposes factories for the following node types. They
-exist for legacy or experimental purposes. Code SHOULD NOT write new
-instances of them, and the writers will be removed in a future cleanup:
+The following node types existed in earlier versions of `KnowledgeGraph` but
+have been removed. They are forbidden node types: `scripts/validate_kg.py`
+flags any node with one of these types as a hard invariant violation
+(`forbidden_node_type`).
 
-- `collocation` — `add_collocation_node` (`knowledge_graph.py:510`). Was
-  experimental phrase storage; superseded by `is_phrase=True` on `term`.
-- `tm_segment` — `add_segment_node` (`knowledge_graph.py:536`). Violates
-  §4 invariant #3. Do not call.
-- `domain` — `add_domain_node` (`knowledge_graph.py:561`). Superseded
-  by the `domain` field on `concept`.
+- `collocation` — experimental phrase storage; superseded by `is_phrase=True` on `term`.
+- `tm_segment` — violates §4 invariant #3.
+- `domain` — superseded by the `domain` field on `concept`.
 
 These are listed here so reviewers know to flag any new call site that
 references them.

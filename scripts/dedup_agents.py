@@ -41,6 +41,8 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from translate_core.entity_extraction._slug import _slugify
+
 
 # ---------------------------------------------------------------------------
 # Name-token normalisation (same logic as name_dedup but using frozenset)
@@ -82,14 +84,6 @@ def _load_roster_ids() -> set[str]:
                 for slug in data:
                     ids.add(f"agent:{slug}")
     return ids
-
-
-def _slugify(text: str) -> str:
-    nfkd = unicodedata.normalize("NFKD", text)
-    stripped = "".join(c for c in nfkd if not unicodedata.combining(c))
-    lowered = stripped.lower()
-    slug = re.sub(r"[^a-z0-9]+", "-", lowered).strip("-")
-    return slug[:80] or "unknown"
 
 
 # ---------------------------------------------------------------------------
