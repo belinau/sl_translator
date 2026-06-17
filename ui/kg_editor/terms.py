@@ -43,7 +43,12 @@ async def page_terms():
             ui.label("Search Terms & Edit Mappings").classes("text-h6 q-mb-sm")
 
             if not query:
-                ui.label("Type a search query above to find and edit terms and their mappings.").classes(
+                stats = kg.stats()
+                total_terms = stats.get("node_term", 0)
+                ui.label(
+                    f"{total_terms} terms in graph. "
+                    "Type a search query above to find and edit terms and their mappings."
+                ).classes(
                     "text-caption text-grey-6"
                 )
                 _render_quick_add(kg, render)

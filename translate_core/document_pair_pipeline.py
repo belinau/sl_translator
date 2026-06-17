@@ -5,7 +5,7 @@
 # Given a matched EN/SL pair of source documents (DOCX or DOCX+MD), this
 # module:
 #   1. Parses each side independently via DocumentParser.to_markdown_with_meta
-#      (use_vl=False — text-only path; no VL/LLM calls happen here).
+#      (text-only path; no VL/LLM calls happen here).
 #   2. Collects citation snippets from both sides using citation_collector
 #      adapters (collect_from_segments_meta for the parsed metadata path and
 #      collect_from_md for the raw markdown footnote definitions).
@@ -432,14 +432,11 @@ def _match_citations(
 
 
 def parse_side(doc_path: Path, lang: str) -> SideParsed:
-    """Parse one document and extract its markdown + footnotes.
-
-    Always uses ``use_vl=False`` — this orchestrator is the text-only path.
-    """
+    """Parse one document and extract its markdown + footnotes."""
     if lang not in ("en", "sl"):
         raise ValueError(f"lang must be 'en' or 'sl', got {lang!r}")
     parser = DocumentParser()
-    markdown, segments_meta = parser.to_markdown_with_meta(doc_path, use_vl=False)
+    markdown, segments_meta = parser.to_markdown_with_meta(doc_path)
     footnotes = _extract_footnotes_from_md(markdown)
     log.debug(
         "parse_side: %s lang=%s footnotes=%d segments_meta=%d",

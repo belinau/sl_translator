@@ -41,6 +41,19 @@ class BookOutline:
 # Paragraph segmentation
 # ----------------------------------------------------------------------
 
+def build_segments_meta(segments: list[dict]) -> list[dict]:
+    """Per-segment role classification so downstream layers know whether a
+    segment is prose, footnote, bibliography, etc.
+
+    ``type`` is a translate_core.entity_extraction.segment_classifier.SegmentClass
+    value; ``index`` is the position in the parallel ``segments`` list.
+    """
+    from translate_core.entity_extraction.segment_classifier import classify_segments
+
+    labels = classify_segments(segments)
+    return [{"type": labels[i].klass.value, "index": i} for i in range(len(segments))]
+
+
 # Goal: translator-editable segments that never contain half-sentences.
 #
 # Rules:

@@ -21,6 +21,15 @@ from . import intel_panel, kg_search, predictions, segment_editor, segment_navig
 from .state import WorkspaceState, request_kg_save
 
 from translate_core.entity_extraction.ingest_helpers import ensure_agent
+# Segment types excluded from concept promotion (noun-chunk noise). They still
+# save to TM and run citation extraction. Defined at module level so tests and
+# importers can reference the same vocabulary without loading the page function.
+_CONCEPT_SKIP_TYPES = {
+    "bibliography", "index", "bibliography_entry", "footnote",
+    "book_metadata", "noise", "artist_header", "event_metadata",
+    "institution_line", "festival_credit", "artwork_record",
+}
+
 
 # SHARED_CSS (in ui/settings.py) already contains all structural styling.
 # No duplicate page-style block here.
@@ -129,7 +138,9 @@ def page_translate(project_id: str):
             progress_bar = ui.linear_progress(
                 value=state.progress(), color="positive"
             ).props('size="6px" :show-value="false"').classes("w-full rounded-full")
-
+            save_label = ui.label("✓ Saved").classes(
+                "text-[9px] font-bold uppercase tracking-wider text-positive"
+            )
         with ui.row().classes("gap-2 items-center"):
             ui.button(icon="menu_open", on_click=lambda: drawer.toggle()).props("flat round dense color=grey-6").tooltip("Toggle side panel")
             ui_settings.dark_toggle_button(dm)
@@ -149,8 +160,28 @@ def page_translate(project_id: str):
         except Exception:
             pass
 
-    state.subscribe("segments", _update_progress)
+    def _update_save_status():
+        status = state.save_status
+        if status == "saved":
+            text, color = "✓ Saved", "text-positive"
+        elif status == "saving":
+            text, color = "Saving…", "text-amber-500"
+        else:
+            text, color = "● Unsaved", "text-grey-500"
+        try:
+            with state.client:
+                save_label.set_text(text)
+                save_label.classes(
+                    remove="text-positive text-amber-500 text-grey-500",
+                    add=color,
+                )
+        except Exception:
+            pass
 
+    state.subscribe("segments", _update_progress)
+    state.subscribe("save_status", _update_save_status)
+    # Fire once so the indicator reflects the initial state (usually "saved").
+    _update_save_status()
     # ------------------------------------------------------------------
     # Chapter outline sidebar (from VL pipeline, if available)
     # ------------------------------------------------------------------
@@ -233,10 +264,8 @@ def page_translate(project_id: str):
     # ------------------------------------------------------------------
     # Confirm + batch + KG/TM promotion
     # ------------------------------------------------------------------
-    # Segment types excluded from KG promotion (noun-chunk noise) — they
-    # still save to TM; whole-bibliography pages are handled by the
-    # ingest_book_bibliography.py CLI.
-    _KG_SKIP_TYPES = {"bibliography", "index"}
+    # _CONCEPT_SKIP_TYPES is defined at module level so consumers (tests,
+    # import helpers) can reference it without entering the page function.
 
     async def _confirm_segment():
         if not state.segments:
@@ -261,9 +290,6 @@ def page_translate(project_id: str):
         src, tgt = parse_lang_pair(lang_pair)
         loop = asyncio.get_running_loop()
 
-        # Phase 2 KG filter: skip promote_pair for bibliography/index segments
-        # if segments_meta is available. These types produce noisy noun chunks
-        # that pollute concept extraction.
         seg_meta = None
         project_data = load_project(state.project_id)
         if project_data and "segments_meta" in project_data:
@@ -271,30 +297,26 @@ def page_translate(project_id: str):
             if 0 <= seg_index < len(meta_list):
                 seg_meta = meta_list[seg_index]
 
-        if seg_meta and seg_meta.get("type") in _KG_SKIP_TYPES:
-            # Still save to TM, but skip KG promotion
-            try:
-                await loop.run_in_executor(
-                    None,
-                    lambda: save_pair_to_tm(seg["source"], seg["target"], lang_pair),
-                )
-            except Exception as e:
-                log.warning(f"promote_pair TM-only: {e}")
-            return
+        seg_type = seg_meta.get("type") if seg_meta else None
 
-        # Derive domain and context from segments_meta for KG enrichment
+        # Save to TM for every confirmed segment.
+        try:
+            await loop.run_in_executor(
+                None,
+                lambda: save_pair_to_tm(seg["source"], seg["target"], lang_pair),
+            )
+        except Exception as e:
+            log.warning(f"promote_pair TM save: {e}")
+
+        # Concept promotion is gated to prose segments only. Apparatus types
+        # (footnote, bibliography, metadata) produce noisy noun chunks; they are
+        # still handled by the citation extraction path below.
         domain = ""
         context_text = seg["source"]
-        if seg_meta:
-            domain = seg_meta.get("outline_path", "")
-            # For chapter_title segments, use the title itself as domain
-            if seg_meta.get("type") == "chapter_title" and not domain:
-                domain = seg["source"].strip().lstrip("# ").strip()
-        # Project container slug — hoisted so _ensure_project_container
-        # always has it before promote_pair.
         _proj_slug = _slugify_project(state)
+        should_promote = kg is not None and seg_type not in _CONCEPT_SKIP_TYPES
         try:
-            if kg is not None:
+            if should_promote:
                 # Pick up any external KG edits (maintenance scripts) before we
                 # promote + save, so the editor's save merges on top instead of
                 # clobbering them. Also ensure the project container exists with
@@ -312,18 +334,11 @@ def page_translate(project_id: str):
                         ),
                     )[-1],  # promote_pair return value is what callers expect
                 )
-
-            await loop.run_in_executor(
-                None,
-                lambda: save_pair_to_tm(seg["source"], seg["target"], lang_pair),
-            )
-            if kg is not None:
                 request_kg_save(kg.save, delay=3.0)
 
-            # Live smol entity extraction: every confirmed segment goes
-            # through Ollama (glm) → ontology record builders → the O-10
-            # confidence-tier chokepoint. If Ollama is unreachable the
-            # segment stays in working.tmx for the offline batch pipeline.
+            # Live smol entity extraction runs for every segment. Apparatus
+            # segments now have a correct ``type`` in ``segments_meta`` so
+            # collect_from_editor_segment formats them as citation snippets.
             if kg is not None and getattr(config, "SMOL_LIVE_EXTRACTION", False):
                 try:
                     from translate_core.citation_collector import (
@@ -353,7 +368,6 @@ def page_translate(project_id: str):
                         request_kg_save(kg.save, delay=1.0)
                 except Exception as e:
                     log.warning(f"promote_pair entity extraction: {e}")
-
         except Exception as e:
             log.error(f"promote_pair: {e}")
 

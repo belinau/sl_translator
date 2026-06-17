@@ -221,7 +221,7 @@ sl_translator/
 │   ├── ingest_performances_artworks.py  # Performance/artwork ingestion
 │   ├── ingest_glossary_to_kg.py         # Glossary → KG term nodes (idempotent replay)
 │   ├── repair_book_footnotes.py          # Re-parse book PDF; re-attach translations (exact → per-segment span → run fallback); refuses --apply unless 100% translations carried
-│   ├── build_segment_attribution.py     # Build attribution JSON
+│   ├── build_segment_attribution.py      # [REMOVED] superseded by harvest_title_anchors / harvest_boundary_anchors
 │   ├── harvest_boundary_anchors.py      # Boundary anchor harvesting
 │   ├── harvest_title_anchors.py         # Title anchor harvesting
 │   ├── drop_broken_anchors.py            # Drop broken anchors

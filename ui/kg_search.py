@@ -81,6 +81,7 @@ def build(state: WorkspaceState, deps: dict) -> dict:
         return results
 
     refs: dict = {}
+    run_token = {"v": 0}
     with ui.column().classes("w-full gap-1 mt-3"):
         ui.label("SEARCH KG & TM").classes(
             "text-[9px] font-black tracking-[.2em] opacity-60"
@@ -96,9 +97,14 @@ def build(state: WorkspaceState, deps: dict) -> dict:
 
         async def _run() -> None:
             q = (query_input.value or "").strip()
+            run_token["v"] += 1
+            my_token = run_token["v"]
             results.clear()
             if not q:
                 return
+
+            with results:
+                ui.spinner(size="sm").classes("self-center").style("margin: 0.5rem 0")
 
             _src_lang, tgt_lang = parse_lang_pair(state.lang_pair)
             loop = asyncio.get_running_loop()
@@ -132,8 +138,10 @@ def build(state: WorkspaceState, deps: dict) -> dict:
                 print(f"[search tm] {e}")
 
             # ── Render ───────────────────────────────────────────────────────
+            if my_token != run_token["v"] or results.is_deleted:
+                return
+            results.clear()
             with results:
-
                 # ── Term hits ────────────────────────────────────────────────
                 if kg_hits:
                     ui.label("KG TERMS").classes(

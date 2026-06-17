@@ -221,39 +221,6 @@ def collect_from_tmx(
     return snippets
 
 
-def collect_from_docx(
-    docx_path: str,
-    container_work_id: Optional[str] = None,
-) -> list[CitationSnippet]:
-    """Extract CitationSnippets from a DOCX file's footnotes.
-
-    Wraps the existing docx_footnote_parser.
-    """
-    from .entity_extraction.docx_footnote_parser import parse_docx_footnotes
-
-    try:
-        parsed = parse_docx_footnotes(docx_path)
-    except Exception:
-        log.warning("Failed to parse DOCX footnotes from %s", docx_path)
-        return []
-
-    origin = Path(docx_path).stem
-    snippets: list[CitationSnippet] = []
-
-    for fn in parsed:
-        if fn.raw.strip():
-            style = detect_style(fn.raw)
-            snippets.append(CitationSnippet(
-                text=fn.raw,
-                origin=origin,
-                segment_idx=fn.footnote_number or 0,
-                format="footnote",
-                style_hint=style,
-                container_work_id=container_work_id,
-                footnote_number=fn.footnote_number,
-            ))
-
-    return snippets
 
 
 def collect_from_md(

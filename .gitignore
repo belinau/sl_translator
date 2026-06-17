@@ -40,3 +40,5 @@ pyrightconfig.json
 pytest.ini
 uv.lock
 old_tms/
+.ruff_cache/
+.github/workflows/

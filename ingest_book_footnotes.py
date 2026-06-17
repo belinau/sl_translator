@@ -21,7 +21,7 @@ import logging
 import argparse
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -30,10 +30,7 @@ from translate_core.entity_extraction.bibliography_parser import (
     ParsedAuthor,
     ParsedCitation,
 )
-from translate_core.entity_extraction.footnote_parser import (
-    parse_markdown_footnotes,
-    FootnoteParsed,
-)
+from translate_core.entity_extraction.footnote_parser import parse_markdown_footnotes
 from translate_core.entity_extraction.bilingual_tm_matcher import (
     match_citation_against_tm,
     summarize_matches,
@@ -59,85 +56,7 @@ def _cited_work_id(citation: ParsedCitation) -> str:
     )
 
 
-def _is_short_form(citation: ParsedCitation) -> bool:
-    """True if citation is just `Lastname, page` shortform (no title/pub/year)."""
-    return (
-        citation.citation_type == "ibid"
-        and not citation.title
-        and not citation.publisher
-    )
 
-
-def _resolve_ibid_references(
-    footnotes: List[FootnoteParsed],
-) -> List[ParsedCitation]:
-    """Walk footnotes in order. Replace Ibid citations with the previous full
-    citation, copying its identity but keeping the new page number.
-
-    Short-form references (`Lastname, str. N`) where the surname matches a
-    previously-cited work are merged with that work's identity.
-    """
-    out: List[ParsedCitation] = []
-    last_full: Optional[ParsedCitation] = None
-    surname_to_last: Dict[str, ParsedCitation] = {}
-
-    for fn in footnotes:
-        for cit in fn.citations:
-            if cit.citation_type == "ibid" and not cit.title and not cit.authors:
-                # Pure Ibid — refer to last full
-                if last_full:
-                    inherited = ParsedCitation(
-                        raw=cit.raw,
-                        authors=list(last_full.authors),
-                        year=last_full.year,
-                        title=last_full.title,
-                        subtitle=last_full.subtitle,
-                        container_title=last_full.container_title,
-                        place=last_full.place,
-                        publisher=last_full.publisher,
-                        translator=last_full.translator,
-                        url=last_full.url,
-                        citation_type=last_full.citation_type,
-                        pages=cit.pages,  # NEW page from the ibid line
-                    )
-                    inherited.notes.append(f"resolved_from_ibid_to_fn_{fn.footnote_number}")
-                    out.append(inherited)
-                continue
-
-            # Short-form `Lastname, str. N` — match against previous full
-            if (cit.authors and len(cit.authors) == 1
-                and not cit.title and not cit.year and not cit.publisher):
-                surname = cit.authors[0].surname.lower()
-                prev = surname_to_last.get(surname)
-                if prev:
-                    inherited = ParsedCitation(
-                        raw=cit.raw,
-                        authors=list(prev.authors),
-                        year=prev.year,
-                        title=prev.title,
-                        subtitle=prev.subtitle,
-                        container_title=prev.container_title,
-                        place=prev.place,
-                        publisher=prev.publisher,
-                        translator=prev.translator,
-                        url=prev.url,
-                        citation_type=prev.citation_type,
-                        pages=cit.pages,
-                    )
-                    inherited.notes.append(f"resolved_shortform_in_fn_{fn.footnote_number}")
-                    out.append(inherited)
-                    continue
-                # No match found — keep as-is, downstream may skip
-                out.append(cit)
-                continue
-
-            # Full citation — store as last_full and per-surname
-            if cit.authors and (cit.title or cit.container_title or cit.publisher):
-                last_full = cit
-                for a in cit.authors:
-                    surname_to_last[a.surname.lower()] = cit
-            out.append(cit)
-    return out
 
 
 def _ensure_agent(kg: KnowledgeGraph, author: ParsedAuthor) -> str:
@@ -156,56 +75,35 @@ def ingest_one(
     citation: ParsedCitation,
     tm_match: CitationWithTMRefs,
     container_work_id: str,
-    footnote_numbers: List[int],
+    footnote_numbers: list[int],
 ) -> str:
     """Create cited_work + edges. Returns the cited_work id (may be reused
-    if same work cited in multiple footnotes)."""
+    across chapters)."""
     cwid = _cited_work_id(citation)
+    extra: dict[str, Any] = {}
+    if citation.place:
+        extra["place"] = citation.place
+    if citation.publisher:
+        extra["publisher"] = citation.publisher
+    if citation.url:
+        extra["url"] = citation.url
+
     src_node = f"source:{cwid.lower()}"
-
-    extra = {
-        "citation_type": citation.citation_type,
-        "title_short": citation.title,
-        "subtitle": citation.subtitle,
-        "container_title": citation.container_title,
-        "volume": citation.volume,
-        "issue": citation.issue,
-        "pages": citation.pages,
-        "place": citation.place,
-        "publisher": citation.publisher,
-        "translator_name": citation.translator,
-        "url": citation.url,
-        "project_type": "cited_work",
-        "container_work_id": container_work_id,
-        "footnote_numbers": footnote_numbers,
-        "raw_citation": citation.raw[:500],
-        "tm_segment_refs": tm_match.tm_segment_refs or None,
-        "alt_publishers": tm_match.alt_publishers or None,
-    }
-    extra = {k: v for k, v in extra.items() if v not in (None, [])}
-
     if kg.G.has_node(src_node):
-        # Already exists — accumulate footnote numbers + tm refs
-        existing = kg.G.nodes[src_node]
-        existing_fns = set(existing.get("footnote_numbers", []))
-        existing_fns.update(footnote_numbers)
-        existing["footnote_numbers"] = sorted(existing_fns)
-        # Merge tm refs
-        existing_refs = existing.get("tm_segment_refs", [])
-        new_refs = tm_match.tm_segment_refs or []
-        seen_ids = {r.get("global_idx") for r in existing_refs}
-        for r in new_refs:
-            if r.get("global_idx") not in seen_ids:
-                existing_refs.append(r)
-        existing["tm_segment_refs"] = existing_refs
+        kg.merge_source_text_metadata(
+            cwid,
+            footnote_numbers=footnote_numbers,
+            tm_segment_refs=tm_match.tm_segment_refs if tm_match else None,
+        )
     else:
         kg.add_source_text_node(
             cwid,
             title=citation.display_title,
             year=citation.year,
+            footnote_numbers=footnote_numbers,
+            tm_segment_refs=tm_match.tm_segment_refs if tm_match else None,
             **extra,
         )
-
     # Author edges
     for a in citation.authors:
         aid = _ensure_agent(kg, a)

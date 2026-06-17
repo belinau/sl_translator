@@ -63,6 +63,9 @@ def page_review():
             placeholder="author/title/name",
         ).props("outlined dense clearable debounce=300").classes("col-4")
         text_input.on_value_change(lambda e: _update_filter("text", e.value, page_reset=True))
+    ui.label(
+        "Confidence tiers: ≥0.85 auto-writes to KG · 0.55–0.85 shown here for review · <0.55 dropped"
+    ).classes("text-caption text-grey-6 q-mb-md")
 
     # ── Main render ─────────────────────────────────────────────────────────
     def render():
@@ -150,26 +153,37 @@ def page_review():
                 ).classes("w-full q-mb-sm")
 
                 async def _bulk_accept():
+                    from ..components import busy_overlay, confirm_dialog
                     bk = bulk_kind_select.value
                     if bk == "(pick a kind)":
                         ui.notify("Pick a kind first.", type="warning")
                         return
-                    accepted = 0
-                    remaining = []
-                    for r in review_records:
-                        if r["kind"] == bk and r.get("confidence", 0) >= bulk_min_conf.value:
-                            commit_record(kg, r)
-                            accepted += 1
-                        else:
-                            remaining.append(r)
-                    content = json.dumps(remaining, ensure_ascii=False, indent=2, default=str)
-                    await run.io_bound(
-                        REVIEW_PATH.write_text, content, encoding="utf-8"
-                    )
-                    await run.io_bound(kg.save)
+
+                    if not await confirm_dialog(
+                        f"Commit all matching '{bk}' records (≥{bulk_min_conf.value:.2f}) to the KG?",
+                        title="Bulk accept records",
+                        confirm_label="Accept",
+                    ):
+                        return
+
+                    def _do_bulk():
+                        accepted = 0
+                        remaining = []
+                        for r in review_records:
+                            if r["kind"] == bk and r.get("confidence", 0) >= bulk_min_conf.value:
+                                commit_record(kg, r)
+                                accepted += 1
+                            else:
+                                remaining.append(r)
+                        content = json.dumps(remaining, ensure_ascii=False, indent=2, default=str)
+                        REVIEW_PATH.write_text(content, encoding="utf-8")
+                        kg.save()
+                        return accepted
+
+                    async with busy_overlay("Committing records…"):
+                        accepted = await run.io_bound(_do_bulk)
                     ui.notify(f"Committed {accepted} records. KG saved.", type="positive")
                     render()
-
                 ui.button(
                     "Accept all matching", on_click=_bulk_accept
                 ).props("color=primary").classes("w-full")

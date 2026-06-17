@@ -53,6 +53,7 @@ def page_kg_review():
             # ── Scan button ───────────────────────────────────────────────
             with ui.row().classes("items-center q-gutter-sm q-mb-md"):
                 async def _on_scan():
+                    from ..components import busy_overlay
                     try:
                         from scripts.flag_kg_review import flag_dubious
                     except ImportError:
@@ -83,11 +84,14 @@ def page_kg_review():
                         )
                     except Exception:
                         dismissed = set()
-                    flagged = flag_dubious(data_nodes, data_edges, dismissed)
-                    KG_REVIEW_PATH.write_text(
-                        json.dumps(flagged, ensure_ascii=False, indent=2),
-                        encoding="utf-8",
-                    )
+
+                    async with busy_overlay("Scanning KG…"):
+                        flagged = await run.io_bound(flag_dubious, data_nodes, data_edges, dismissed)
+                        await run.io_bound(
+                            KG_REVIEW_PATH.write_text,
+                            json.dumps(flagged, ensure_ascii=False, indent=2),
+                            encoding="utf-8",
+                        )
                     ui.notify(f"Flagged {len(flagged)} dubious nodes.", type="positive")
                     render()
 

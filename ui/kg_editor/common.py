@@ -134,9 +134,10 @@ def kg_frame(active: str):
             ui.separator().classes("my-2")
 
             async def _hard_save():
-                await run.io_bound(kg.save)
+                from ..components import busy_overlay
+                async with busy_overlay("Saving database…"):
+                    await run.io_bound(kg.save)
                 ui.notify("Database saved.", type="positive")
-
             ui.button("Hard Save to Disk", icon="save", on_click=_hard_save).props(
                 "flat dense no-caps color=primary"
             ).classes("w-full")

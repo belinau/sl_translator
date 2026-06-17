@@ -225,6 +225,7 @@ def commit_as(kg, target: str, f: dict) -> tuple[str | None, str | None]:
                     alt_spellings=[author], all_roles=["author"], mention_count=1,
                 )
             kg.link_written_by(cid, aid)
+    elif target == "concept":
         label = (f.get("label") or "").strip()
         if not label:
             return "Label is required.", None
@@ -262,13 +263,7 @@ def reclassify_live_node(kg, old_id: str, target: str, fields: dict) -> str | No
     if not new_id or not kg.G.has_node(old_id):
         return None
     if new_id != old_id:
-        for u, _v, d in list(kg.G.in_edges(old_id, data=True)):
-            if u != new_id and not kg.G.has_edge(u, new_id):
-                kg.G.add_edge(u, new_id, **d)
-        for _u, v, d in list(kg.G.out_edges(old_id, data=True)):
-            if v != new_id and not kg.G.has_edge(new_id, v):
-                kg.G.add_edge(new_id, v, **d)
-        kg.remove_node(old_id)
+        kg.reclassify_node(old_id, new_id)
     return None
 
 

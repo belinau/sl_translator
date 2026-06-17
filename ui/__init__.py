@@ -5,6 +5,7 @@ decorator (declared in workspace.py). Every submodule is exposed here so
 relative imports inside the package resolve cleanly for type checkers.
 """
 from . import (  # noqa: F401
+    components,
     intel_panel,
     predictions,
     segment_editor,
@@ -15,6 +16,7 @@ from . import (  # noqa: F401
 )
 
 __all__ = [
+    "components",
     "intel_panel",
     "predictions",
     "segment_editor",
@@ -23,3 +25,4 @@ __all__ = [
     "state",
     "workspace",
 ]
+

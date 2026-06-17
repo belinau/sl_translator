@@ -43,7 +43,7 @@ class WorkspaceState:
         self.current: dict[str, str] = {"source": seg0["source"], "target": seg0["target"]}
 
         self.is_dirty: bool = False
-
+        self.save_status: str = "saved"  # saved | saving | unsaved
         # NiceGUI Client tied to the current page render. Stored so background
         # tasks can enter the client context (`with state.client:`) before
         # touching UI APIs — without this, the WebSocket may receive payloads
@@ -116,11 +116,15 @@ class WorkspaceState:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             return
+        self.save_status = "unsaved"
+        self.notify("save_status")
         self._save_task = loop.create_task(self._save_after_delay())
 
     async def _save_after_delay(self) -> None:
         try:
             await asyncio.sleep(2.0)
+            self.save_status = "saving"
+            self.notify("save_status")
             payload = {
                 "project_id": self.project_id,
                 "filename": self.filename,
@@ -134,11 +138,14 @@ class WorkspaceState:
                 payload["segments_meta"] = self._segments_meta
             await asyncio.get_running_loop().run_in_executor(None, self._save_callback, payload)
             self.is_dirty = False
+            self.save_status = "saved"
+            self.notify("save_status")
         except asyncio.CancelledError:
             pass
         except Exception as e:
+            self.save_status = "unsaved"
+            self.notify("save_status")
             print(f"[State autosave] {e}")
-
 
 _kg_save_task: asyncio.Task | None = None
 

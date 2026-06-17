@@ -53,9 +53,6 @@ from translate_core.entity_extraction.ingest_helpers import (
 
 log = logging.getLogger(__name__)
 
-def _agent_id(author: ParsedAuthor) -> str:
-    full = f"{author.given} {author.surname}".strip() or author.surname
-    return _slugify(full)
 
 
 def _ensure_agent(kg: KnowledgeGraph, author: ParsedAuthor) -> str:

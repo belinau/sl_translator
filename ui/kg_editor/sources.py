@@ -84,6 +84,7 @@ async def page_sources():
 
         results.clear()
         with results:
+            ui.label("Source Texts").classes("text-h6 q-mb-sm")
             ui.label(f"{len(sources)} sources total. Filter below to narrow before browsing.").classes(
                 "text-caption q-mb-sm"
             )

@@ -61,7 +61,7 @@ def import_book(file_path: str, lang_pair: str = "en->sl",
 
     parser = DocumentParser()
     segments: list[dict] = []
-    segments_meta: list = []
+    segments_meta: list[dict] = []
 
     # ── DOCX ────────────────────────────────────────────────────────────
     if suffix == ".docx":
@@ -75,7 +75,6 @@ def import_book(file_path: str, lang_pair: str = "en->sl",
             from translate_core.book_outline import split_paragraphs as _split
             for txt in _split(md, max_chars=config.SEGMENT_MAX_CHARS):
                 segments.append({"id": len(segments), "source": txt, "target": "", "status": "pending"})
-            segments_meta = []
         else:
             # simple pipeline: paragraph-level extraction preserving docx_para_idx
             import docx as _docx
@@ -97,14 +96,13 @@ def import_book(file_path: str, lang_pair: str = "en->sl",
                             "status": "pending",
                             "docx_para_idx": i,
                         })
-            segments_meta = []
 
     # ── PDF ─────────────────────────────────────────────────────────────
     else:
         log.info("   Parsing PDF with MarkItDown…")
         preprocess = pipeline == "academic"
         try:
-            md_text, segments_meta = parser.to_markdown_with_meta(path, preprocess=preprocess)
+            md_text, _ = parser.to_markdown_with_meta(path, preprocess=preprocess)
         except Exception as ex:
             log.error(f"\nParse failed: {ex}")
             log.info("   pip install 'markitdown[pdf]'")
@@ -117,6 +115,11 @@ def import_book(file_path: str, lang_pair: str = "en->sl",
     if not segments:
         log.error("No text extracted from document.")
         return
+
+    # ── Segment role metadata ──────────────────────────────────────────
+    from translate_core.book_outline import build_segments_meta
+
+    segments_meta = build_segments_meta(segments)
 
     # ── Save ───────────────────────────────────────────────────────────
     project_id = str(uuid.uuid4())[:8]
@@ -136,9 +139,8 @@ def import_book(file_path: str, lang_pair: str = "en->sl",
         "total": len(segments),
         "done": 0,
         "segments": segments,
+        "segments_meta": segments_meta,
     }
-    if segments_meta:
-        ws["segments_meta"] = segments_meta
 
     target_json = projects_dir / f"{project_id}.json"
     target_json.write_text(json.dumps(ws, ensure_ascii=False, indent=2), encoding="utf-8")

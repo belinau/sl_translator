@@ -57,12 +57,20 @@ def page_lineages():
                 ).classes("w-full")
 
                 async def on_merge():
+                    from ..components import busy_overlay, confirm_dialog
                     selected = messy_select.value if messy_select else []
                     clean = (clean_input.value or "").strip() if clean_input else ""
                     if not selected or not clean:
                         ui.notify("Select at least one lineage and provide a target name.", type="warning")
                         return
-                    changes = await run.io_bound(kg.merge_lineages, selected, clean)
+                    if not await confirm_dialog(
+                        f"Merge {len(selected)} lineages into '{clean}'? This rewrites mappings across the graph.",
+                        title="Merge lineages",
+                        confirm_label="Merge",
+                    ):
+                        return
+                    async with busy_overlay("Merging lineages…"):
+                        changes = await run.io_bound(kg.merge_lineages, selected, clean)
                     ui.notify(f"Unified {changes} mappings into '{clean}'.", type="positive")
                     render()
 
@@ -73,7 +81,15 @@ def page_lineages():
             # --- Auto-Align to Glossary ---
             if glossary.entries:
                 async def on_auto_align():
-                    aligned = await run.io_bound(kg.bulk_align_lineages_with_glossary, glossary.entries)
+                    from ..components import busy_overlay, confirm_dialog
+                    if not await confirm_dialog(
+                        "Auto-align all matching translations to glossary lineages?",
+                        title="Auto-align lineages",
+                        confirm_label="Align",
+                    ):
+                        return
+                    async with busy_overlay("Aligning lineages…"):
+                        aligned = await run.io_bound(kg.bulk_align_lineages_with_glossary, glossary.entries)
                     ui.notify(f"Auto-aligned {aligned} translations.", type="positive")
                     render()
 

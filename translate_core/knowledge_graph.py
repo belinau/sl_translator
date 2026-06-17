@@ -1438,6 +1438,56 @@ class KnowledgeGraph:
 
 
     # ------------------------------------------------------------------
+    # Source text provenance merge factory
+    # ------------------------------------------------------------------
+    def merge_source_text_metadata(
+        self,
+        text_id: str,
+        *,
+        footnote_numbers: Optional[list[int]] = None,
+        tm_segment_refs: Optional[list[dict]] = None,
+    ) -> None:
+        """Accumulate footnote_numbers (sorted union) + tm_segment_refs (dedup by
+        global_idx) onto an EXISTING source_text node; no-op if absent. Other fields
+        are untouched."""
+        node_id = text_id if text_id.startswith("source:") else f"source:{text_id.lower()}"
+        if not self.G.has_node(node_id):
+            return
+        data = self.G.nodes[node_id]
+        if footnote_numbers:
+            fns = set(data.get("footnote_numbers", []))
+            fns.update(footnote_numbers)
+            data["footnote_numbers"] = sorted(fns)  # type: ignore[assignment]
+        if tm_segment_refs:
+            existing = list(data.get("tm_segment_refs", []))
+            seen = {r.get("global_idx") for r in existing if r is not None}
+            for r in tm_segment_refs:
+                if r is not None and r.get("global_idx") not in seen:
+                    seen.add(r.get("global_idx"))
+                    existing.append(r)
+            data["tm_segment_refs"] = existing
+
+    # ------------------------------------------------------------------
+    # Generic node reclassification factory
+    # ------------------------------------------------------------------
+    def reclassify_node(self, old_id: str, new_id: str) -> bool:
+        """Migrate every edge incident on old_id onto new_id (skip self-loops
+        and edges that already exist), then remove old_id. Both nodes must exist.
+        Returns True if migration happened, False on precondition failure."""
+        if not self.G.has_node(old_id) or not self.G.has_node(new_id):
+            return False
+        if old_id == new_id:
+            return False
+        for _u, tgt, edata in list(self.G.out_edges(old_id, data=True)):
+            if tgt != new_id and not self.G.has_edge(new_id, tgt):
+                self.G.add_edge(new_id, tgt, **edata)
+        for src, _v, edata in list(self.G.in_edges(old_id, data=True)):
+            if src != new_id and not self.G.has_edge(src, new_id):
+                self.G.add_edge(src, new_id, **edata)
+        self.G.remove_node(old_id)
+        return True
+
+    # ------------------------------------------------------------------
     # Agent dedup factory
     # ------------------------------------------------------------------
     def merge_agent_nodes(self, canonical_id: str, duplicate_id: str) -> bool:

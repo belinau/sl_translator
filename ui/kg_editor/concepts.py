@@ -72,11 +72,11 @@ def page_concepts():
 
         results.clear()
         with results:
+            ui.label("Concepts").classes("text-h6 q-mb-sm")
             if mode_ref["value"] == "untranslated":
                 _render_untranslated(kg, concepts_all, render, page_ref, _update_page)
             else:
                 _render_search(kg, concepts_all, render, search_ref)
-
             # Rhizomatic connection section (visible when ≥2 concepts)
             if len(concepts_all) >= 2:
                 _rhizome_section(kg, concepts_all, render)
@@ -114,9 +114,8 @@ def _render_search(kg, concepts_all: list, render_fn, search_ref: dict):
     else:
         ui.label(
             f"{len(concepts_all)} concepts in graph. "
-            "Type a search to find and edit them."
+            "Type a search to find and edit them, or switch to Untranslated to see missing target labels."
         ).classes("text-grey-6")
-
 
 # ---------------------------------------------------------------------------
 # Untranslated queue

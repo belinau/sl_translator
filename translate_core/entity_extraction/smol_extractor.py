@@ -50,10 +50,7 @@ from ._slug import _slugify
 
 logger = logging.getLogger(__name__)
 
-# Tracks origins for which we've already warned about a missing t_index in
-# ingest_smol_extractions. One warning per origin per process is enough to
-# surface a stale smol export without spamming the log.
-_t_index_fallback_warned: set[str] = set()
+
 
 _CONCEPT_THEORISTS: dict[str, str] | None = None
 def _concept_theorist_roster() -> dict[str, str]:
@@ -79,15 +76,6 @@ def _lineage_roster_block() -> str:
             raw = {}
         _LINEAGE_ROSTER_STR = "; ".join(f"{name} ({school})" for name, school in sorted(raw.items()))
     return _LINEAGE_ROSTER_STR
-
-def _warn_once_t_index_fallback(origin: str) -> None:
-    if origin not in _t_index_fallback_warned:
-        logger.warning(
-            "ingest_smol_extractions: origin=%r has no t_index; "
-            "falling back to seg_idx. Re-run smol export after Phase 6.",
-            origin,
-        )
-        _t_index_fallback_warned.add(origin)
 
 # ── Ontology constraints ──────────────────────────────────────────────────────
 
@@ -346,8 +334,7 @@ def build_record(
     Phase 1B blueprint §7: ``src_lang`` and ``tgt_lang`` are required
     keyword arguments with no defaults — callers MUST pass an explicit
     pair (or explicit ``None``). The legacy ``LANG_EN`` / ``LANG_SL``
-    defaults were removed; the only external caller
-    (``ingest_smol_extractions``) already passes both explicitly.
+    defaults were removed.
 
     Enforces all ontology constraints. Returns None for empty/invalid entities.
     """
@@ -956,43 +943,3 @@ def _build_performance(
         },
     }
 
-
-# ── Batch ingestion from smol agent results ────────────────────────────────────
-
-
-def ingest_smol_extractions(
-    extractions: list[dict],
-) -> list[dict]:
-    """Convert a batch of smol agent extraction results into records.
-
-    Each item in extractions has:
-      - origin: TM origin filename
-      - seg_idx: segment index within origin
-      - container_work_id: container slug (may be empty)
-      - entities: list of parsed entity dicts from smol agent
-
-    Returns a flat list of kg_ingest_entities-compatible record dicts.
-    """
-    records: list[dict] = []
-    for item in extractions:
-        origin = item.get("origin", "")
-        # Phase 6: prefer t_index (TM chronological rank); fall back to seg_idx
-        # only when the export pre-dates Phase 6. Warn once per origin so a
-        # stale export surfaces without spamming the log.
-        t_index = item.get("t_index")
-        if t_index is None:
-            _warn_once_t_index_fallback(origin)
-            effective_idx = item.get("seg_idx", -1)
-        else:
-            effective_idx = t_index
-        container = item.get("container_work_id", "")
-        entities = item.get("entities", [])
-        src_lang, tgt_lang = _detect_source_lang(origin)
-        for ent in entities:
-            rec = build_record(
-                ent, origin, effective_idx, container,
-                src_lang=src_lang, tgt_lang=tgt_lang,
-            )
-            if rec:
-                records.append(rec)
-    return records

@@ -490,39 +490,45 @@ async def handle_new_upload(e, lang_pair: str):
         return
     pipeline, project_type = result
 
-    # ── Parse matrix: pipeline × suffix ──────────────────────────────────
-    try:
-        if pipeline == "simple" and suffix == ".docx":
-            segments = await run.io_bound(_parse_docx, saved_path)
-        elif pipeline == "simple" and suffix == ".pdf":
-            if doc_parser is None:
-                return ui.notify("Document parser not initialized", type="negative")
-            segments = await run.io_bound(_parse_pdf, doc_parser, saved_path, preprocess=False)
-        elif pipeline == "academic" and suffix == ".docx":
-            if doc_parser is None:
-                return ui.notify("Document parser not initialized", type="negative")
-            segments = await run.io_bound(_parse_academic_docx, doc_parser, saved_path)
-        else:  # academic + .pdf
-            if doc_parser is None:
-                return ui.notify("Document parser not initialized", type="negative")
-            segments = await run.io_bound(_parse_pdf, doc_parser, saved_path, preprocess=True)
-    except Exception as ex:
-        return ui.notify(f"Parse error: {ex}", type="negative")
+    from ui.components import busy_overlay
 
-    if not segments:
-        return ui.notify("No text extracted from document", type="warning")
+    async with busy_overlay("Parsing document…"):
+        # ── Parse matrix: pipeline × suffix ──────────────────────────────────
+        try:
+            if pipeline == "simple" and suffix == ".docx":
+                segments = await run.io_bound(_parse_docx, saved_path)
+            elif pipeline == "simple" and suffix == ".pdf":
+                if doc_parser is None:
+                    return ui.notify("Document parser not initialized", type="negative")
+                segments = await run.io_bound(_parse_pdf, doc_parser, saved_path, preprocess=False)
+            elif pipeline == "academic" and suffix == ".docx":
+                if doc_parser is None:
+                    return ui.notify("Document parser not initialized", type="negative")
+                segments = await run.io_bound(_parse_academic_docx, doc_parser, saved_path)
+            else:  # academic + .pdf
+                if doc_parser is None:
+                    return ui.notify("Document parser not initialized", type="negative")
+                segments = await run.io_bound(_parse_pdf, doc_parser, saved_path, preprocess=True)
+        except Exception as ex:
+            return ui.notify(f"Parse error: {ex}", type="negative")
 
-    ws = {
-        "project_id": project_id,
-        "filename": name,
-        "lang_pair": lang_pair,
-        "active_index": 0,
-        "segments": segments,
-        "pipeline": pipeline,
-        "project_type": project_type,
-    }
+        if not segments:
+            return ui.notify("No text extracted from document", type="warning")
 
-    await run.io_bound(save_project, ws)
+        from translate_core.book_outline import build_segments_meta
+
+        ws = {
+            "project_id": project_id,
+            "filename": name,
+            "lang_pair": lang_pair,
+            "active_index": 0,
+            "segments": segments,
+            "segments_meta": build_segments_meta(segments),
+            "pipeline": pipeline,
+            "project_type": project_type,
+        }
+
+        await run.io_bound(save_project, ws)
     notify_msg = f"Created: {len(segments)} segments ({pipeline})"
     if pipeline == "academic" and doc_parser is not None and doc_parser.last_footnote_report:
         rpt = doc_parser.last_footnote_report

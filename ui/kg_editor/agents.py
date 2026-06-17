@@ -63,6 +63,7 @@ def page_agents():
 
         results.clear()
         with results:
+            ui.label("Agents").classes("text-h6 q-mb-sm")
             ui.label(f"{len(agents_filtered)} match filters.").classes("text-caption q-mb-sm")
 
             # Pagination

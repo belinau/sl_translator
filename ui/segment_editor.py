@@ -103,6 +103,9 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
                 ui.label("⌘↵ confirm").classes(
                     "text-[10px] font-bold uppercase tracking-wider opacity-50"
                 )
+                ui.label("⌘↑ previous  ·  ⌘↓ next").classes(
+                    "text-[10px] opacity-50"
+                )
                 confirm_btn = ui.button("CONFIRM", on_click=lambda _: on_confirm()).props(
                     "unelevated rounded color=positive"
                 ).classes("px-8 py-2 font-black tracking-[.2em] text-[11px]")

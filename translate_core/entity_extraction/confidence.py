@@ -393,5 +393,3 @@ def score_record(record_kind: str, signals: dict) -> ScoreResult:
     return ScoreResult(confidence=s, reason_codes=reasons, tier=_to_tier(s))
 
 
-def to_tier(confidence: float) -> ConfidenceTier:
-    return _to_tier(confidence)

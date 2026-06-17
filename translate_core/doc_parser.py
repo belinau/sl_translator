@@ -589,18 +589,12 @@ class DocumentParser:
         source: Path,
         preprocess: bool = True,
         list_style: str = "alphabetical",
-        use_vl: bool = False,
-        vl_cache_dir: Path | None = None,
-        progress_callback=None,
     ) -> str:
         """Convert a local book file to Markdown."""
         md, _ = self.to_markdown_with_meta(
             source,
             preprocess=preprocess,
             list_style=list_style,
-            use_vl=use_vl,
-            vl_cache_dir=vl_cache_dir,
-            progress_callback=progress_callback,
         )
         return md
 
@@ -609,28 +603,21 @@ class DocumentParser:
         source: Path,
         preprocess: bool = True,
         list_style: str = "alphabetical",
-        use_vl: bool = False,
-        vl_cache_dir: Path | None = None,
-        progress_callback=None,
     ) -> Tuple[str, list]:
-        """Convert a local book file to Markdown, returning (markdown, segments_meta)."""
-        del use_vl, vl_cache_dir, progress_callback
+        """Convert a local book file to Markdown, returning (markdown, segments_meta).
+
+        ``segments_meta`` is intentionally empty here; callers (import_book,
+        main.py) run ``book_outline.build_segments_meta`` after segment splitting.
+        """
         raw_text = self.md.convert(str(source)).text_content or ""
         if source.suffix.lower() == ".pdf":
-            # MarkItDown's PDF backend (pdfplumber/pdfminer) loses
-            # sentence-initial capitals and the pronoun "I" — the PDF
-            # text layer encodes them as lowercase glyphs. PyMuPDF maps
-            # character codes to visual glyphs, preserving case.
             try:
                 import fitz
                 doc = fitz.open(str(source))
-                raw_text = "\n\n".join(
-                    doc[i].get_text() for i in range(len(doc))
-                )
+                raw_text = "\n\n".join(doc[i].get_text() for i in range(len(doc)))
                 doc.close()
             except ImportError:
-                pass  # fallback: MarkItDown (case may be imperfect)
-            # Sentence-preserving reflow
+                pass
             raw_text = self._reflow_pdf_text(raw_text)
         if preprocess:
             raw_text = self.preprocess_source_style(
