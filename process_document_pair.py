@@ -98,6 +98,9 @@ def main() -> None:
     log.info(f"  Unmatched SL:  {len(result.unmatched_sl)}")
     if result.tmx_path:
         log.info(f"  Generated TMX: {result.tmx_path}")
+    if result.ingest_report is not None:
+        ir = result.ingest_report
+        log.info(f"  KG ingest: written={ir.written} queued={ir.queued} dropped={ir.dropped} errors={ir.errors}")
 
     if result.unmatched_en:
         log.info("\nUnmatched EN citations (no SL equivalent found):")
@@ -115,6 +118,16 @@ def main() -> None:
             "n_en_only": result.n_en_only,
             "n_sl_only": result.n_sl_only,
             "tmx_path": str(result.tmx_path) if result.tmx_path else None,
+            "ingest_report": (
+                {
+                    "written": result.ingest_report.written,
+                    "queued": result.ingest_report.queued,
+                    "dropped": result.ingest_report.dropped,
+                    "errors": result.ingest_report.errors,
+                }
+                if result.ingest_report is not None
+                else None
+            ),
             "unmatched_en_titles": [
                 (rec.get("payload") or {}).get("title_en", "")
                 for rec in result.unmatched_en

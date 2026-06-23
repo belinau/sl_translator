@@ -304,6 +304,7 @@ def page_home():
 
             with ui.row().classes("gap-3 items-center"):
                 ui.button(icon="account_tree", on_click=lambda: ui.navigate.to("/kg")).props("flat round dense color=white").tooltip("Knowledge Graph editor")
+                ui.button(icon="compare_arrows", on_click=lambda: ui.navigate.to("/aligner")).props("flat round dense color=white").tooltip("Document Aligner")
                 ui.button(icon="dark_mode", on_click=lambda: dm.toggle()).props(
                     "flat round dense color=white"
                 ).tooltip("Toggle dark mode")
@@ -623,7 +624,8 @@ def _parse_pdf(parser: "DocumentParser", path: Path, *, preprocess: bool = True)
 # both the import-position and unused-name checks.
 from ui import workspace as _zen_workspace  # noqa: E402, F401  # pyright: ignore[reportUnusedImport]
 from ui import kg_editor as _kg_editor  # noqa: E402, F401  # pyright: ignore[reportUnusedImport]
-_ = _zen_workspace, _kg_editor  # mark the bindings as deliberately consumed
+from ui import aligner as _zen_aligner  # noqa: E402, F401  # pyright: ignore[reportUnusedImport]
+_ = _zen_workspace, _kg_editor, _zen_aligner  # mark the bindings as deliberately consumed
 
 
 # Publish module-level functions to app_state once they're all defined.
@@ -647,7 +649,6 @@ def apply_colors():
 # Wire apply_colors as well, now that it's defined.
 app_state.apply_colors = apply_colors
 
-
 if __name__ in {"__main__", "__mp_main__"}:
     # storage_secret is required for app.storage.user (dark mode persistence).
     # Any non-empty string works for a single-user desktop app.
@@ -661,7 +662,5 @@ if __name__ in {"__main__", "__mp_main__"}:
         # for 1-3 s during a confirm. NiceGUI's default ping_timeout =
         # max(reconnect_timeout * 0.4, 2) = 2 s, which drops the page on
         # any such call. Widen the window so the editor survives it.
-        # (TM lookups are index-backed since feat/tm-fast-lookup and run
-        # in ~1-130 ms — they no longer factor into this timeout.)
         reconnect_timeout=30.0,
     )

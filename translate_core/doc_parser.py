@@ -609,6 +609,13 @@ class DocumentParser:
         ``segments_meta`` is intentionally empty here; callers (import_book,
         main.py) run ``book_outline.build_segments_meta`` after segment splitting.
         """
+        # Academic DOCX: route to the zipfile-based parser (python-docx +
+        # endnotes→footnotes → [^N] defs). MarkItDown's DocxConverter needs
+        # the uninstalled optional `mammoth`; docx_to_markdown is the same
+        # parser the academic import uses raw (main._parse_academic_docx).
+        if source.suffix.lower() == ".docx":
+            self._last_vl_result = None
+            return self.docx_to_markdown(source), []
         raw_text = self.md.convert(str(source)).text_content or ""
         if source.suffix.lower() == ".pdf":
             try:

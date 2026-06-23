@@ -69,7 +69,7 @@ def _seg_text(tuv: etree._Element) -> str:
     return clean_xml(raw)
 
 
-def read_tmx_with_timecodes(path: Path) -> List[Dict[str, Any]]:
+def read_tmx_with_timecodes(path: Path, *, skip_empty: bool = True) -> List[Dict[str, Any]]:
     """Parse a TMX file with lxml and return entries in natural file order.
 
     Each returned dict carries:
@@ -93,8 +93,11 @@ def read_tmx_with_timecodes(path: Path) -> List[Dict[str, Any]]:
       2. Otherwise fall back to positional order: first ``<tuv>`` is the
          source, second is the target.
 
-    Entries with empty source OR empty target are skipped, matching
-    ``tm.py`` behaviour today.
+    Entries with empty source OR empty target are skipped by default
+    (``skip_empty=True``), matching ``tm.py`` behaviour. Pass
+    ``skip_empty=False`` to keep language-only TUs (e.g. a translator
+    credit line with no counterpart) — used by the aligner's review
+    viewer so the full bilingual document is shown, nothing dropped.
     """
     path = Path(path)
     tree = etree.parse(str(path))
@@ -141,7 +144,7 @@ def read_tmx_with_timecodes(path: Path) -> List[Dict[str, Any]]:
             src_text, src_lang = _seg_text(tuvs[0]), a_lang or None
             tgt_text, tgt_lang = _seg_text(tuvs[1]), b_lang or None
 
-        if not src_text or not tgt_text:
+        if skip_empty and (not src_text or not tgt_text):
             continue
 
         entries.append(

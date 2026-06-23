@@ -40,12 +40,12 @@ import re
 from dataclasses import dataclass, field
 import unicodedata
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Callable, Optional
 from xml.sax.saxutils import escape as _xml_escape
 
 from .citation_collector import (
     CitationSnippet,
-    collect_from_md,
+    IngestReport,
     collect_from_segments_meta,
     write_tmx_manifest,
 )
@@ -90,7 +90,6 @@ class CitationMatch:
     title_orig: str
     title_translation: str  # empty string when not matched
 
-
 @dataclass
 class PairResult:
     """Full result of processing one document pair."""
@@ -100,9 +99,11 @@ class PairResult:
     unmatched_en: list[dict] = field(default_factory=list)
     unmatched_sl: list[dict] = field(default_factory=list)
     tmx_path: Optional[Path] = None
+    n_body_pairs: int = 0
     n_bilingual: int = 0
     n_en_only: int = 0
     n_sl_only: int = 0
+    ingest_report: Optional[IngestReport] = None
 
 
 # ── Normalisation and slug helpers (O-2) ─────────────────────────────────────
@@ -507,126 +508,6 @@ def _collect_side_snippets(
     return snippets
 
 
-def _collect_from_md_path(
-    md_path: Path, container_work_id: str
-) -> list[CitationSnippet]:
-    """Thin wrapper around citation_collector.collect_from_md.
-
-    Exposed so callers can pre-render a side's markdown to disk (e.g.
-    when an EN/SL ``.md`` ships alongside the source) and reuse the
-    canonical adapter.
-    """
-    return collect_from_md(str(md_path), container_work_id=container_work_id)
-
-
-# ── KG ingest of a matched pair ──────────────────────────────────────────────
-
-
-def _maybe_attach_publisher(
-    kg: KnowledgeGraph,
-    source_node_id: str,
-    match: CitationMatch,
-) -> None:
-    """If either side surfaced a publisher, link source → publisher.
-
-    Heuristic-only: we look on ``payload.original_pub.publisher`` first
-    (matches the typed pipeline shape) and fall back to a flat
-    ``payload.publisher`` field.
-    """
-    for record in (match.en_record, match.sl_record):
-        if not record:
-            continue
-        payload = record.get("payload") or {}
-        pub_name = ""
-        op = payload.get("original_pub")
-        if isinstance(op, dict):
-            pub_name = (op.get("publisher") or "").strip()
-        if not pub_name:
-            pub_name = (payload.get("publisher") or "").strip()
-        if not pub_name:
-            continue
-        inst_id = _slugify(pub_name)
-        kg.add_institution_node(inst_id, name=pub_name, kind="publisher")
-        kg.link_published_by(source_node_id, inst_id)
-        return  # one publisher edge per source_text is enough
-
-
-def _ingest_match(
-    kg: KnowledgeGraph,
-    match: CitationMatch,
-    container_work_id: str,
-    *,
-    orig_lang: str,
-    translation_lang: str,
-) -> Optional[str]:
-    """Create the merged source_text node + cited_in edge for one match.
-
-    Returns the resulting node id (or None when the match has no usable
-    title on either side and nothing is written).
-
-    `orig_lang` / `translation_lang` come from the caller's SideParsed
-    instances (`en_side.lang`, `sl_side.lang`) and are written as
-    evidence-derived values on the resulting source_text node.
-    """
-    title_orig = (match.title_orig or "").strip()
-    title_translation = (match.title_translation or "").strip()
-    if not title_orig and not title_translation:
-        return None
-
-    # Display title: prefer the orig side; fall back to translation when
-    # only that side is populated.
-    display_title = title_orig or title_translation
-
-    # Pull author and year off whichever record has them.
-    en_payload = (match.en_record or {}).get("payload") or {}
-    sl_payload = (match.sl_record or {}).get("payload") if match.sl_record else {}
-    sl_payload = sl_payload or {}
-
-    primary_author = (
-        en_payload.get("author")
-        or sl_payload.get("author")
-        or ""
-    )
-    year = en_payload.get("year") or sl_payload.get("year")
-
-    cited_id = (
-        en_payload.get("cited_id")
-        or sl_payload.get("cited_id")
-        or _slugify(f"{primary_author}-{display_title}-{year or ''}")
-    )
-
-    extra: dict = {
-        "project_type": en_payload.get("project_type") or "cited_work",
-        "title_orig": title_orig,
-        "orig_lang": orig_lang,
-        "title_translation": title_translation,
-        "translation_lang": translation_lang,
-        "container_work_id": container_work_id,
-        "provenance": "doc_pair",
-    }
-
-    source_node_id = kg.add_source_text_node(
-        cited_id,
-        display_title,
-        year=year if isinstance(year, int) else None,
-        **extra,
-    )
-
-    # O-17: never create cited_in self-loops. The KG factory already drops
-    # them, but we additionally short-circuit here so the user sees no
-    # surprise edge attempt in logs.
-    container_node_id = (
-        container_work_id
-        if container_work_id.startswith("source:")
-        else f"source:{container_work_id.lower()}"
-    )
-    if source_node_id != container_node_id:
-        kg.link_cited_in(source_node_id, container_work_id)
-
-    _maybe_attach_publisher(kg, source_node_id, match)
-    return source_node_id
-
-
 # ── TMX writer ───────────────────────────────────────────────────────────────
 
 
@@ -654,34 +535,151 @@ def _tu_xml(src_lang: str, src: str, tgt_lang: str, tgt: str) -> str:
         "    </tu>\n"
     )
 
+# Body-alignment emits the FULL literary body — every paragraph, no cap.
+# A literary translation's value is the complete text in the TM; abridging
+# here would defeat the entire point of the aligner.
+
+
+def _body_paragraphs(side: SideParsed) -> list[str]:
+    """Body paragraphs for one side, with citation matter stripped.
+
+    Removes footnote definition blocks (``[^N]: …``, the citation text that
+    ``_extract_footnotes_from_md`` already harvests) and the bibliography
+    section (``# Bibliography`` / ``# Literatura`` / ``# Viri`` / … to the
+    next heading or EOF) so the remaining paragraphs are the literary body
+    the translator actually translated — not the citations, which are
+    paired separately as footnote TUs and routed to the KG.
+
+    Inline footnote reference markers (``… text[^1] more …``) are kept:
+    they are part of the source text the translator worked against and
+    belong in the TM pair.
+    """
+    md = side.markdown or ""
+    # Drop footnote definition blocks (single + multi-line).
+    md = _FN_DEF_BLOCK_RE.sub("", md)
+    # Drop the bibliography/works-cited section: from its header to the
+    # next heading or end of document.
+    out_lines: list[str] = []
+    in_biblio = False
+    for line in md.splitlines():
+        stripped = line.strip()
+        if _BIBLIO_HEADER_RE.match(stripped):
+            in_biblio = True
+            continue
+        if in_biblio and stripped.startswith("#"):
+            in_biblio = False
+        if in_biblio:
+            continue
+        out_lines.append(line)
+    body_md = "\n".join(out_lines)
+    from .book_outline import split_paragraphs
+
+
+    # Keep each paragraph whole as one TU — do NOT sub-split at the
+    # 700-char sentence boundary. Sub-splitting would split an EN
+    # paragraph into N chunks and its SL counterpart into a different
+    # number, and positional 1:1 alignment would then pair the wrong
+    # sentences. Paragraph boundaries (blank lines / structural lines)
+    # are the reliable alignment unit for a faithful literary translation.
+    paras = split_paragraphs(body_md, max_chars=10**9)
+    return [p.strip() for p in paras if p.strip()]
+
+
+def _body_pair_count(en_side: SideParsed, sl_side: SideParsed) -> int:
+    """Count the body TUs the no-drop alignment would emit, without writing.
+
+    Mirrors ``_build_tmx``'s Pass-1 counting (positional 1:1 for the
+    overlapping prefix + excess paragraphs from the longer side as
+    language-only TUs). Used by ``process_pair``'s dry-run path so the
+    Preview shows the real body-pair count instead of 0 — the TMX file is
+    only written on the non-dry-run path, but the count is free to compute.
+    """
+    en_body = _body_paragraphs(en_side)
+    sl_body = _body_paragraphs(sl_side)
+    n_overlap = min(len(en_body), len(sl_body))
+    n = sum(1 for i in range(n_overlap) if en_body[i].strip() and sl_body[i].strip())
+    n += sum(1 for i in range(n_overlap, len(en_body)) if en_body[i].strip())
+    n += sum(1 for i in range(n_overlap, len(sl_body)) if sl_body[i].strip())
+    return n
+
 
 def _build_tmx(
     en_side: SideParsed,
     sl_side: SideParsed,
     container_work_id: str,
     output_path: Path,
-) -> Path:
-    """Write a simple sentence-aligned TMX from paired footnote texts.
+) -> tuple[Path, int, int]:
+    """Write a TMX aligning the FULL bilingual document pair.
 
-    Pairs are formed positionally on the smaller of the two footnote lists
-    — this is sentence-aligned only at the footnote-block granularity,
-    which is the strongest alignment available without VL on the DOCX
-    path. The manifest sidecar records the container + lang pair so
-    ``collect_from_tmx`` can later recover ``container_work_id`` without
-    being told.
+    Two alignment passes, both positional (1:1, capped at the smaller side):
+      1. **Body** — the literary text the translator translated. Every
+         paragraph of the original is paired with the same-position
+         paragraph of the translation. Footnote-definition blocks and the
+         bibliography section are stripped first (they are citation
+         matter, paired separately in pass 2 and routed to the KG).
+      2. **Footnotes** — the translated footnote text, paired by footnote
+         position.
+
+    The full body goes in — no abridging. The manifest sidecar records the
+    container + lang pair so ``collect_from_tmx`` can later recover
+    ``container_work_id`` without being told.
     """
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    n = min(len(en_side.footnotes), len(sl_side.footnotes))
+    en_body = _body_paragraphs(en_side)
+    sl_body = _body_paragraphs(sl_side)
+    en_fn = en_side.footnotes
+    sl_fn = sl_side.footnotes
+
     parts: list[str] = [_TMX_HEADER.format(srclang=en_side.lang)]
-    for i in range(n):
-        en_text = en_side.footnotes[i]["text"]
-        sl_text = sl_side.footnotes[i]["text"]
+
+    # ── Pass 1: full body. Positional 1:1 for the overlapping prefix, then
+    #    the EXCESS paragraphs from the longer side appended as unpaired TUs
+    #    (other side empty). NOTHING is dropped — the full bilingual document
+    #    goes in. A faithful literary translation preserves paragraph order,
+    #    so the prefix aligns correctly; trailing extras (e.g. a translator
+    #    credit line absent from the original) land as language-only TUs.
+    n_overlap = min(len(en_body), len(sl_body))
+    n_body = 0
+    for i in range(n_overlap):
+        en_text = en_body[i]
+        sl_text = sl_body[i]
         if not en_text.strip() or not sl_text.strip():
             continue
         parts.append(_tu_xml(en_side.lang, en_text, sl_side.lang, sl_text))
-    parts.append(_TMX_FOOTER)
+        n_body += 1
+    # Excess from the longer side — emitted, not dropped (no abridging).
+    for i in range(n_overlap, len(en_body)):
+        if not en_body[i].strip():
+            continue
+        parts.append(_tu_xml(en_side.lang, en_body[i], sl_side.lang, ""))
+        n_body += 1
+    for i in range(n_overlap, len(sl_body)):
+        if not sl_body[i].strip():
+            continue
+        parts.append(_tu_xml(en_side.lang, "", sl_side.lang, sl_body[i]))
+        n_body += 1
+    if len(en_body) != len(sl_body):
+        log.warning(
+            "Body paragraph counts differ (en=%d sl=%d); paired the "
+            "overlapping %d positionally and emitted the %d excess "
+            "paragraph(s) as language-only TUs (nothing dropped). Review "
+            "the TMX: a mid-document structural divergence (merged/split "
+            "paragraphs) will misalign from the divergence point onward.",
+            len(en_body), len(sl_body), n_overlap,
+            abs(len(en_body) - len(sl_body)),
+        )
 
+    # ── Pass 2: footnotes, paired by footnote position ─────────────────
+    n_fn = min(len(en_fn), len(sl_fn))
+    for i in range(n_fn):
+        en_text = en_fn[i]["text"]
+        sl_text = sl_fn[i]["text"]
+        if not en_text.strip() or not sl_text.strip():
+            continue
+        parts.append(_tu_xml(en_side.lang, en_text, sl_side.lang, sl_text))
+
+    parts.append(_TMX_FOOTER)
     output_path.write_text("".join(parts), encoding="utf-8")
 
     write_tmx_manifest(
@@ -692,66 +690,46 @@ def _build_tmx(
         target_lang=sl_side.lang,
     )
     log.info(
-        "TMX written: %s (%d translation units, container=%s)",
-        output_path,
-        n,
-        container_work_id,
+        "TMX written: %s (%d body + %d footnote TUs, container=%s)",
+        output_path, n_body, n_fn, container_work_id,
     )
-    return output_path
+    return output_path, n_body, n_fn
 
 # ── Orchestrator ─────────────────────────────────────────────────────────────
-def _wire_bridges_for_pair(
-    kg: "KnowledgeGraph",
-    *,
+def _bilingual_snippet_for_match(
+    match: CitationMatch,
+    en_side: SideParsed,
+    sl_side: SideParsed,
     container_work_id: str,
-    translator_agent_id: str,
-    en_side: "SideParsed",
-    sl_side: "SideParsed",
-) -> int:
-    """Wire bridge edges for this doc-pair run.
-    Ontology §3.3 defines two bridges off every translation_mapping:
-      * (mapping) -[attributed_to]-> (agent)        # translator/curator
-      * (mapping) -[instantiated_in]-> (source_text) # work it appeared in
-    In a single-translator KG every mapping is by definition attributed to
-    that translator, so we add the ``attributed_to`` edge for every mapping
-    that is missing it. ``instantiated_in`` is per-work and cannot be safely
-    attached to mappings without knowing which book each came from — that
-    backfill belongs to ``scripts/backfill_lineage_bridges.py``.
-    Returns the number of ``attributed_to`` edges added.
+) -> CitationSnippet:
+    """Build a bilingual CitationSnippet from one matched citation pair.
+
+    Mirrors ``collect_from_editor_segment``'s bilingual shape and origin
+    convention so the snippet flows through ``extract_and_ingest`` exactly
+    like an editor confirm. ``origin`` embeds the language pair
+    (``docpair_en-sl_<container>``) so ``smol_extractor._detect_source_lang``
+    recovers it; ``target_text`` carries the SL side → smol does bilingual
+    extraction. Only bilingual matches (``sl_record is not None``) produce
+    a snippet — EN-only citations stay in ``unmatched_en`` for the caller.
     """
-    if not translator_agent_id:
-        return 0
-    agent_node = (
-        translator_agent_id
-        if translator_agent_id.startswith("agent:")
-        else f"agent:{translator_agent_id.lower()}"
+    en_payload = (match.en_record or {}).get("payload") or {}
+    sl_payload = (match.sl_record or {}).get("payload") or {}
+    text = (en_payload.get("raw_text") or "").strip()
+    target = (sl_payload.get("raw_text") or "").strip()
+    fn_num = ((match.en_record or {}).get("source") or {}).get("footnote_number")
+    fmt = "footnote" if fn_num is not None else "bibliography"
+    origin = f"docpair_{en_side.lang}-{sl_side.lang}_{container_work_id}"
+    return CitationSnippet(
+        text=text,
+        origin=origin,
+        segment_idx=fn_num if isinstance(fn_num, int) else 0,
+        format=fmt,
+        container_work_id=container_work_id,
+        footnote_number=fn_num if isinstance(fn_num, int) else None,
+        target_text=target,
     )
-    if not kg.G.has_node(agent_node):
-        log.warning(
-            "Translator agent %s missing; skipping attributed_to wiring",
-            agent_node,
-        )
-        return 0
-    added = 0
-    mapping_ids = [
-        nid
-        for nid, nd in kg.G.nodes(data=True)
-        if nd.get("type") == "translation_mapping"
-    ]
-    for mid in mapping_ids:
-        if kg.G.has_edge(mid, agent_node):
-            continue
-        slug = agent_node.split(":", 1)[1] if ":" in agent_node else agent_node
-        if kg.link_attributed_to(mid, slug):
-            added += 1
-    if added:
-        log.info(
-            "process_pair: wired %d attributed_to bridges to %s (container=%s)",
-            added,
-            agent_node,
-            container_work_id,
-        )
-    return added
+
+
 # ── Orchestrator ─────────────────────────────────────────────────────────────
 def process_pair(
     en_doc_path: Path,
@@ -759,29 +737,45 @@ def process_pair(
     container_work_id: str,
     kg: KnowledgeGraph,
     *,
-    translator_agent_id: str = "urban-belina",
-    bridge_mappings: bool = True,
     dry_run: bool = False,
+    extractor: Optional[Callable[..., Optional[list[dict]]]] = None,
 ) -> PairResult:
     """Process a matched EN/SL document pair end-to-end.
 
-    Steps (no VL/LLM at any point):
+    The matching stage stays heuristic (its stated purpose: title text
+    strong enough to pair EN against SL). Only the **KG submit** is
+    modernized — matched pairs are routed through
+    ``citation_collector.extract_and_ingest`` (the same pipeline the
+    translation editor uses on confirm), so records flow through the
+    smol extractor → confidence tiers (O-10) → dedup → review queue.
+
+    Steps:
         1. Parse both sides → SideParsed (markdown + footnotes).
         2. Collect CitationSnippets from each side.
-        3. Build minimal "matching records" from snippet text via a small
-           heuristic.
+        3. Build minimal "matching records" via the surname/title heuristic.
         4. Match EN ↔ SL by (author_surname, title) token overlap.
-        5. For each match, write ONE merged source_text node carrying
-           both title_en and title_sl, link cited_in to the container.
-        6. Wire a publisher edge when a publisher was surfaced.
+        5. Build bilingual CitationSnippets from matched pairs and run
+           ``extract_and_ingest`` once (writes KG entities + review queue,
+           wires ``cited_in``→container via ``write_to_kg``).
+        6. Emit the TMX: full body (paragraph-aligned) + footnote pairs.
 
-    ``dry_run=True`` performs every parse + match step but writes nothing
-    to the KG and emits no TMX — the returned PairResult still reflects
-    what *would* have been done.
+    ``extractor`` has the ``smol_client.extract_entities`` contract; when
+    None the live Ollama client is used. Tests inject a fake. When the LLM
+    is unreachable, snippets count as ``errors`` and are left for the
+    offline batch pipeline (``run_entity_extraction.py``); the TMX is
+    still written.
+
+    ``container_work_id`` may be passed bare (``cesta-…``) or with the
+    ``source:`` prefix; it is normalised to the bare slug form so the
+    smol pipeline's container lookup (``write_to_kg`` → ``_route_record``
+    matches against bare lowercased slugs) and ``link_cited_in`` both
+    resolve it. This mirrors the editor confirm path, which passes the
+    bare ``_slugify_project`` slug as ``container_work_id``.
     """
+    # Normalise to the bare slug form the smol pipeline expects.
+    container_work_id = container_work_id.removeprefix("source:").lower()
     en_side = parse_side(en_doc_path, lang="en")
     sl_side = parse_side(sl_doc_path, lang="sl")
-
     en_snippets = _collect_side_snippets(en_side, container_work_id)
     sl_snippets = _collect_side_snippets(sl_side, container_work_id)
 
@@ -806,42 +800,37 @@ def process_pair(
     sl_only = len(unmatched_sl)
 
     tmx_path: Optional[Path] = None
+    ingest_report: Optional[IngestReport] = None
+    n_body_pairs = 0
     if not dry_run:
-        for m in matches:
-            if m.sl_record is None:
-                # EN-only citations still get written — but without title_sl
-                # the record violates O-5 for "bilingual" entries. We DO
-                # NOT write these here. They're reported in unmatched_en
-                # for the caller to decide whether to push through the
-                # standard typed pipeline.
-                continue
-            _ingest_match(
-                kg, m, container_work_id,
-                orig_lang=en_side.lang,
-                translation_lang=sl_side.lang,
-            )
-        # Wire termbase↔bibliography bridges for translation_mappings whose
-        # source/target terms participate in the citations we just ingested.
-        # Per ontology §3.3, bridges are written exclusively via
-        # KnowledgeGraph.link_translations_with_context.
-        if bridge_mappings:
-            try:
-                _wire_bridges_for_pair(
-                    kg,
-                    container_work_id=container_work_id,
-                    translator_agent_id=translator_agent_id,
-                    en_side=en_side,
-                    sl_side=sl_side,
-                )
-            except Exception:
-                log.exception("Bridge wiring failed for container=%s", container_work_id)
-        # Emit TMX next to the EN doc.
-        tmx_path = en_doc_path.with_suffix(".tmx")
+        from .citation_collector import extract_and_ingest
+
+        pair_snippets = [
+            _bilingual_snippet_for_match(m, en_side, sl_side, container_work_id)
+            for m in matches
+            if m.sl_record is not None
+        ]
+        # Empty batch → all-zero IngestReport (no smol calls, safe).
+        # Ollama down → per-snippet errors; records left for the offline batch.
+        ingest_report = extract_and_ingest(pair_snippets, kg, extractor=extractor)
+
+        # Emit TMX into the TM store (config.TM_DIR), named after the
+        # container work slug. TranslationMemory() globs data/tm/*.tmx on
+        # init, so the aligned pairs are picked up by fuzzy lookup
+        # automatically — no separate import step. Named after the text
+        # (e.g. lumerai-the-mother-snake.tmx), not the source filename.
+        import config as _config
+
+        tmx_path = _config.TM_DIR / f"{container_work_id}.tmx"
         try:
-            _build_tmx(en_side, sl_side, container_work_id, tmx_path)
+            tmx_path, n_body_pairs, _ = _build_tmx(en_side, sl_side, container_work_id, tmx_path)
         except Exception:
             log.exception("Failed to build TMX at %s", tmx_path)
             tmx_path = None
+    else:
+        # Dry run: don't write the TMX, but still report the body-pair count
+        # so Preview shows the real alignment size instead of 0.
+        n_body_pairs = _body_pair_count(en_side, sl_side)
 
     result = PairResult(
         container_work_id=container_work_id,
@@ -849,9 +838,11 @@ def process_pair(
         unmatched_en=unmatched_en,
         unmatched_sl=unmatched_sl,
         tmx_path=tmx_path,
+        n_body_pairs=n_body_pairs,
         n_bilingual=bilingual,
         n_en_only=en_only,
         n_sl_only=sl_only,
+        ingest_report=ingest_report,
     )
     log.info(
         "process_pair: container=%s bilingual=%d en_only=%d sl_only=%d",
@@ -860,6 +851,14 @@ def process_pair(
         en_only,
         sl_only,
     )
+    if ingest_report is not None:
+        log.info(
+            "process_pair: ingest written=%d queued=%d dropped=%d errors=%d",
+            ingest_report.written,
+            ingest_report.queued,
+            ingest_report.dropped,
+            ingest_report.errors,
+        )
     return result
 
 
