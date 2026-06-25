@@ -151,6 +151,25 @@ class TestHeuristicRecord:
         if rec is not None:
             assert rec.get("payload", {}).get("author") == ""
 
+    def test_empty_fields_get_unique_cited_id(self):
+        """Empty surname+title must not collide on source:unknown."""
+        from translate_core.citation_collector import CitationSnippet
+        from translate_core.entity_extraction.citation_types import CitationStyle
+        snippet1 = CitationSnippet(
+            text="Unrecognisable text.", origin="book1", segment_idx=0,
+            format="footnote", style_hint=CitationStyle.UNKNOWN,
+        )
+        snippet2 = CitationSnippet(
+            text="Other text.", origin="book2", segment_idx=0,
+            format="footnote", style_hint=CitationStyle.UNKNOWN,
+        )
+        rec1 = _heuristic_record(snippet1, lang="en")
+        rec2 = _heuristic_record(snippet2, lang="en")
+        assert rec1["payload"]["cited_id"] != rec2["payload"]["cited_id"], \
+            "Empty records from different origins must not share cited_id"
+        assert rec1["payload"]["cited_id"] != "unknown", \
+            "cited_id must not be 'unknown' for empty records"
+
 # ======================================================================
 # Tests: _score_pair
 # ======================================================================

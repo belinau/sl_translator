@@ -285,7 +285,7 @@ def _heuristic_record(
     """
     surname, title = _parse_author_and_title(snippet.text)
     payload: dict = {
-        "cited_id": _slugify(f"{surname}-{title}"),
+        "cited_id": _slugify(f"{surname}-{title}".strip("-") or f"unresolved-{snippet.origin}-{snippet.segment_idx}"),
         "raw_text": snippet.text,
         "author": surname,
         "authors": [surname] if surname else [],
