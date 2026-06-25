@@ -382,9 +382,8 @@ def generate_forms(lemma: str) -> set[str]:
     ``{lemma}`` for foreign / uncategorisable lemmas, so callers always get a
     usable set. Results are cached in a module-level dict.
     """
-    key = lemma.lower()
-    if lemma in _FORMS_CACHE:
-        return _FORMS_CACHE[lemma]
+    lemma = lemma.lower()
+    key = lemma
     if key in _FORMS_CACHE:
         return _FORMS_CACHE[key]
 

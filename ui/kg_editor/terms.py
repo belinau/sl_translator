@@ -108,7 +108,6 @@ async def page_terms():
 
             async def _on_delete():
                 await run.io_bound(kg.remove_node, term_id)
-                await run.io_bound(kg._rebuild_indices)
                 ui.notify("Deleted.", type="positive")
                 render_fn()
 

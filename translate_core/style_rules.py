@@ -81,20 +81,11 @@ CITATION_HINTS: dict[str, list[StyleHint]] = {
 ORTHO_HINTS: dict[str, list[StyleHint]] = {
     "sl": [
         StyleHint(
-            re.compile(r'["\u201c][^"\u201c\u201d\n]+["\u201d]'),
-            'Use Slovene quotes »…«',
-        ),
-        StyleHint(
             re.compile(r"(?<=\d)\s*-\s*(?=\d)"),
             'Use en-dash (\u2013) for ranges',
         ),
     ],
-    "en": [
-        StyleHint(
-            re.compile(r'[\u00bb\u00ab]'),
-            'Use English quotes \u201c\u2026\u201d',
-        ),
-    ],
+    "en": [],
 }
 
 

@@ -178,3 +178,14 @@ class TestCaching:
         second = generate_forms("delo")
         assert first is second
         assert "delo" in _FORMS_CACHE
+
+    def test_capitalized_lemma_does_not_poison_cache(self):
+        """Capitalized-lemma call must not store uppercase forms under the
+        lowercase cache key."""
+        _FORMS_CACHE.clear()
+        forms_cap = generate_forms("Knjiga")
+        forms_lower = generate_forms("knjiga")
+        # All forms must be lowercase
+        assert all(f == f.lower() for f in forms_lower), \
+            "Cache poisoning: capitalized call stored uppercase forms"
+        assert "knjiga" in forms_lower

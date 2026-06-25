@@ -110,17 +110,27 @@ class TestCitationHintsEN:
 
 class TestOrthographyHints:
     def test_sl_english_quotes_hint(self):
-        results = orthography_hints('Besedilo "citat" tukaj.', "sl")
+        """Quote detection is now in CITATION_HINTS, not ORTHO_HINTS."""
+        from translate_core.style_rules import citation_hints
+        results = citation_hints('Besedilo "citat" tukaj.', "sl")
         assert len(results) >= 1
-        assert any("»…«" in r["message"] for r in results)
+        assert any("…" in r["message"] for r in results)
+        # Orthography hints should NOT also flag quotes (no duplicate)
+        ortho = orthography_hints('Besedilo "citat" tukaj.', "sl")
+        assert not any("quote" in r["message"].lower() for r in ortho)
 
     def test_sl_range_dash_hint(self):
         results = orthography_hints("Strani 10-15.", "sl")
         assert any("en-dash" in r["message"] or "–" in r["message"] for r in results)
 
     def test_en_guillemets_hint(self):
-        results = orthography_hints("See »citat« here.", "en")
+        """Quote detection is now in CITATION_HINTS, not ORTHO_HINTS."""
+        from translate_core.style_rules import citation_hints
+        results = citation_hints("See »citat« here.", "en")
         assert any("English quotes" in r["message"] for r in results)
+        # Orthography hints should NOT also flag quotes (no duplicate)
+        ortho = orthography_hints("See »citat« here.", "en")
+        assert not any("quote" in r["message"].lower() for r in ortho)
 
 
 # ======================================================================
@@ -251,15 +261,14 @@ class TestCheckSegmentIntegration:
     def test_orthography_hints_always_present(self):
         from translate_core.qa import QAEngine
 
-        engine = QAEngine()
-        source = "Plain text."
+        source = "[^1]: Definition."
         target = 'Besedilo z "narekovaji".'
-        # Orthography hints fire regardless of pipeline
-        for pipeline in ("academic", "simple"):
-            warnings = engine.check_segment(source, target, pipeline=pipeline)
-            ortho = [w for w in warnings if "»…«" in w.get("message", "")]
-            assert len(ortho) >= 1, f"No orthography hints for pipeline={pipeline}"
-
+        engine = QAEngine()
+        # Quote detection is now in citation_hints (not ortho_hints) to avoid
+        # duplicate warnings. Academic pipeline includes citation_hints.
+        warnings = engine.check_segment(source, target, pipeline="academic")
+        quote_hints = [w for w in warnings if "…" in w.get("message", "")]
+        assert len(quote_hints) >= 1, "No quote hints for academic pipeline"
 
     def test_no_false_positive_on_markdown_bullet(self):
         """A markdown list bullet '* text' must not trigger unbalanced emphasis warning."""
