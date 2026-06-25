@@ -391,3 +391,21 @@ def test_update_term_node_applies_fields_and_returns_true(kg):
     assert result is True, "update_term_node must return True on success"
     assert kg.G.nodes["term:sl:test"]["is_animate"] is True
     assert kg.G.nodes["term:sl:test"]["is_phrase"] is True
+
+
+def test_commit_record_translated_work_requires_translator(kg):
+    """O-20: commit_record must reject translated_work without translator."""
+    from translate_core.kg_review_ops import commit_record
+    record = {
+        "kind": "translated_work",
+        "payload": {
+            "work_id": "source:test-book",
+            "name": "Test Book",
+            "title": "Test Book",
+            "year": 2020,
+            "project_type": "book_translation",
+        },
+    }
+    msg = commit_record(kg, record)
+    assert msg is not None, "commit_record must reject translated_work without translator"
+    assert "translator" in msg.lower()

@@ -171,7 +171,11 @@ def page_review():
                         remaining = []
                         for r in review_records:
                             if r["kind"] == bk and r.get("confidence", 0) >= bulk_min_conf.value:
-                                commit_record(kg, r)
+                                err = commit_record(kg, r)
+                                if err:
+                                    ui.notify(f"Skipped: {err}", type="warning")
+                                    remaining.append(r)
+                                    continue
                                 accepted += 1
                             else:
                                 remaining.append(r)
@@ -289,7 +293,10 @@ def page_review():
                                 ).classes("text-caption q-mb-xs")
                                 with ui.row().classes("q-gutter-sm"):
                                     async def _accept(_r=_r, _rr=_review_records):
-                                        commit_record(kg, _r)
+                                        err = commit_record(kg, _r)
+                                        if err:
+                                            ui.notify(err, type="negative")
+                                            return
                                         await run.io_bound(kg.save)
                                         drop_from_queue(_rr, _r)
                                         ui.notify("Committed.", type="positive")

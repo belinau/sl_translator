@@ -82,8 +82,10 @@ def review_slugify(text: str) -> str:
 # ---------------------------------------------------------------------------
 # Review-tier commit
 # ---------------------------------------------------------------------------
-def commit_record(kg, r: dict) -> None:
-    """Write a single review-tier record to the KG."""
+def commit_record(kg, r: dict) -> str | None:
+    """Write a single review-tier record to the KG.
+    Returns None on success, or an error string if the record cannot be
+    committed (e.g. translated_work without a translator — O-20)."""
     p = r["payload"]
     kind = r["kind"]
     if kind == "agent_person":
@@ -104,6 +106,9 @@ def commit_record(kg, r: dict) -> None:
             city=p.get("city"),
         )
     elif kind == "translated_work":
+        translator = (p.get("translator") or "").strip()
+        if not translator:
+            return "Cannot commit a translated_work without a translator (O-20). Add a translator name first."
         wid = p["work_id"]
         year = p.get("year")
         try:
