@@ -238,6 +238,13 @@ def commit_as(kg, target: str, f: dict) -> tuple[str | None, str | None]:
         if not term:
             return "Term is required.", None
         new_id = kg.add_term_node(term, f.get("lang", "en"), is_phrase=(" " in term))
+    elif target == "institution":
+        name = (f.get("name") or "").strip()
+        if not name:
+            return "Name is required for institution.", None
+        kind = (f.get("kind") or "publisher").strip()
+        inst_id = f"institution:{review_slugify(name)}"
+        new_id = kg.add_institution_node(inst_id, name, kind=kind, city=(f.get("city") or "").strip() or None)
     else:
         return f"Unknown target type: {target}", None
     return None, new_id

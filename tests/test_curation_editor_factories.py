@@ -11,6 +11,7 @@ Verifies:
 """
 
 from __future__ import annotations
+from pathlib import Path
 
 import os
 import tempfile
@@ -221,6 +222,34 @@ class TestHelpers(unittest.TestCase):
         from ui.kg_editor.sources import _has_translation
         s = {}
         self.assertFalse(_has_translation(s, has_translator=False))
+
+
+class TestCommitAsInstitution(unittest.TestCase):
+    """commit_as must create an institution node for target='institution'."""
+
+    def setUp(self):
+        import tempfile
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.kg = KnowledgeGraph(db_path=Path(self._tmpdir.name) / "test_kg.json")
+
+    def tearDown(self):
+        self._tmpdir.cleanup()
+
+    def test_commit_as_institution_creates_node(self):
+        from translate_core.kg_review_ops import commit_as
+        msg, node_id = commit_as(self.kg, "institution", {"name": "Test Publisher", "kind": "publisher"})
+        self.assertIsNone(msg, f"commit_as returned error: {msg}")
+        self.assertIsNotNone(node_id)
+        self.assertTrue(self.kg.G.has_node(node_id))
+        self.assertEqual(self.kg.G.nodes[node_id]["type"], "institution")
+        self.assertEqual(self.kg.G.nodes[node_id]["name"], "Test Publisher")
+        self.assertEqual(self.kg.G.nodes[node_id]["kind"], "publisher")
+
+    def test_commit_as_institution_requires_name(self):
+        from translate_core.kg_review_ops import commit_as
+        msg, node_id = commit_as(self.kg, "institution", {"name": "", "kind": "publisher"})
+        self.assertIsNotNone(msg)
+        self.assertIsNone(node_id)
 
 
 if __name__ == "__main__":

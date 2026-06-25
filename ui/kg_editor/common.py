@@ -250,5 +250,9 @@ def build_reclass_inputs(target: str, c: dict) -> dict:
     elif target == "term":
         f["term"] = ui.input("Term:", value=c.get("primary") or "")
         f["lang"] = ui.select(["en", "sl"], value="en", label="Language:").classes("w-full")
+    elif target == "institution":
+        f["name"] = ui.input("Name:", value=c.get("name") or c.get("primary") or "")
+        f["kind"] = ui.select(INSTITUTION_KINDS, value="publisher", label="Kind:").classes("w-full")
+        f["city"] = ui.input("City (optional):", value=c.get("city") or "")
 
     return f
