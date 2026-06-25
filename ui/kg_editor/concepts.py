@@ -233,12 +233,13 @@ def _concept_card(c: dict, kg, render_fn):
             ).props("flat color=negative")
 
 
-def _save_concept(
+async def _save_concept(
     c_id: str, label_input, domain_input, def_input,
     label_orig_input, label_trans_input, orig_lang_input, trans_lang_input,
     kg, render_fn,
 ):
-    kg.update_concept_metadata(
+    await run.io_bound(
+        kg.update_concept_metadata,
         c_id,
         label=label_input.value,
         domain=domain_input.value,
@@ -252,8 +253,8 @@ def _save_concept(
     render_fn()
 
 
-def _delete_concept(c_id: str, kg, render_fn):
-    kg.remove_node(c_id)
+async def _delete_concept(c_id: str, kg, render_fn):
+    await run.io_bound(kg.remove_node, c_id)
     ui.notify("Deleted.", type="positive")
     render_fn()
 
@@ -328,7 +329,7 @@ def _rhizome_section(kg, concepts_all: list, render_fn):
         ).props("flat color=primary").classes("w-full")
 
 
-def _connect_rhizome(select_a, select_b, rel_select, kg, render_fn):
+async def _connect_rhizome(select_a, select_b, rel_select, kg, render_fn):
     con_a = select_a.value
     con_b = select_b.value
     if not con_a or not con_b:
@@ -337,7 +338,7 @@ def _connect_rhizome(select_a, select_b, rel_select, kg, render_fn):
     if con_a == con_b:
         ui.notify("Cannot connect a concept to itself.", type="negative")
         return
-    kg.link_concepts_rhizomatic(con_a, con_b, rel_select.value)
+    await run.io_bound(kg.link_concepts_rhizomatic, con_a, con_b, rel_select.value)
     ui.notify("Connected.", type="positive")
     render_fn()
 
@@ -362,13 +363,14 @@ def _new_concept_section(kg, render_fn):
         ).props("flat color=primary").classes("w-full")
 
 
-def _create_concept(nc_id, nc_lbl, nc_dom, nc_def, kg, render_fn):
+async def _create_concept(nc_id, nc_lbl, nc_dom, nc_def, kg, render_fn):
     cid = nc_id.value.strip()
     clbl = nc_lbl.value.strip()
     if not cid or not clbl:
         ui.notify("Identifier and Display Name are required.", type="negative")
         return
-    kg.add_concept_node(
+    await run.io_bound(
+        kg.add_concept_node,
         f"concept:{cid.lower()}",
         label=clbl,
         domain=nc_dom.value.strip(),
