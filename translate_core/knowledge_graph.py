@@ -1749,8 +1749,8 @@ class KnowledgeGraph:
             node["confidence"] = confidence
         if year is not None:
             node["year"] = year
-        if verified is not None:
-            node["verified"] = verified
+        if verified:
+            node["verified"] = True
         return True
 
     def get_all_by_type(self, node_type: str) -> List[Dict]:

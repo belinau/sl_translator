@@ -366,3 +366,19 @@ def test_link_appears_in_self_loop_returns_false(kg):
     """O-17: chapter and book must be distinct."""
     kg.add_source_text_node("book", title="Book", project_type="book")
     assert kg.link_appears_in("book", "book") is False
+
+
+# ----- O-3: update_translation_mapping verified is monotonic ----------------
+
+def test_update_translation_mapping_verified_monotonic(kg):
+    """O-3: update_translation_mapping must never downgrade verified True→False."""
+    kg.add_term_node("test", "en")
+    kg.add_term_node("test", "sl")
+    mapping_id = kg.link_translations_with_context(
+        "term:en:test", "term:sl:test", confidence=1.0, verified=True
+    )
+    assert kg.G.nodes[mapping_id]["verified"] is True
+    # Attempt to downgrade to False — must NOT succeed
+    kg.update_translation_mapping(mapping_id, verified=False)
+    assert kg.G.nodes[mapping_id]["verified"] is True, \
+        "O-3 violation: verified was downgraded True→False"
