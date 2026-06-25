@@ -120,7 +120,7 @@ class TestEmphasisIntegrityExport:
 
     def test_odd_asterisk_warning(self):
         """Target with odd number of * characters → unbalanced warning."""
-        source = "Plain text."
+        source = "This has *italic* text."
         target = "This has * one asterisk."
         results = emphasis_integrity(source, target)
         assert any("Unbalanced" in r["message"] for r in results)
