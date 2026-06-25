@@ -509,3 +509,25 @@ def test_legacy_has_sl_edition_no_longer_scored():
         f"rename; old-key score {result_old.confidence} vs "
         f"no-edition reference {result_no_edition.confidence}"
     )
+
+
+def test_exhibition_catalogue_spelling_scores_same_as_catalog():
+    """score_record must handle 'exhibition_catalogue' (with 'ue') same as
+    'exhibition_catalog'. Ontology 2.4.1 uses 'exhibition_catalogue' for the
+    container type."""
+    signals = {
+        "has_title": True,
+        "has_venue": True,
+        "smol_extracted": True,
+        "verified_from_text": True,
+    }
+    result_ue = score_record("exhibition_catalogue", signals)
+    result_no_ue = score_record("exhibition_catalog", signals)
+    assert result_ue.confidence == pytest.approx(result_no_ue.confidence, abs=EPS), (
+        f"exhibition_catalogue ({result_ue.confidence}) must match "
+        f"exhibition_catalog ({result_no_ue.confidence})"
+    )
+    assert result_ue.confidence >= 0.55, (
+        f"exhibition_catalogue with title+venue must reach REVIEW tier, "
+        f"got {result_ue.confidence}"
+    )

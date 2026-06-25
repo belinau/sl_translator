@@ -230,7 +230,7 @@ def score_record(record_kind: str, signals: dict) -> ScoreResult:
         
         
 
-    elif record_kind == "exhibition_catalog":
+    elif record_kind in ("exhibition_catalog", "exhibition_catalogue"):
         if signals.get("has_title"):
             bump("has_title", 0.20)
         if signals.get("has_venue"):
@@ -370,7 +370,7 @@ def score_record(record_kind: str, signals: dict) -> ScoreResult:
     # Typed citation kind set (shared by verified_typed_pipeline and style_detected)
     _TYPED_KINDS = {
         "book", "book_chapter", "journal_article", "magazine_article",
-        "newspaper_article", "web_source", "exhibition_catalog",
+        "newspaper_article", "web_source", "exhibition_catalog", "exhibition_catalogue",
         "interview", "thesis_dissertation",
     }
 
