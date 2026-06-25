@@ -185,8 +185,8 @@ def emphasis_integrity(source: str, target: str) -> list[dict]:
         })
 
     # Odd number of bare asterisks means unbalanced markup
-    bare_star_count = target.count("*")
-    if bare_star_count % 2 != 0:
+    bare_star_count = target.count("*") - target.count("**") * 2
+    if (src_spans or tgt_spans) and bare_star_count % 2 != 0:
         warnings.append({
             "type": "warning",
             "message": "Unbalanced * marker \u2014 emphasis will not render",

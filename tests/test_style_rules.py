@@ -189,9 +189,9 @@ class TestEmphasisIntegrity:
         assert count_warnings == []
 
     def test_odd_star_count_warning(self):
-        """Odd number of * characters in target → unbalanced warning."""
-        source = "Plain text."
-        target = "To je *pomembno besedilo."  # Single * — odd count
+        """Odd number of * characters with emphasis spans present → unbalanced warning."""
+        source = "This has *italic* text."
+        target = "To je *pomembno besedilo."  # Single bare * — odd count, with emphasis in source
         results = emphasis_integrity(source, target)
         assert any("Unbalanced" in r["message"] for r in results)
 
@@ -259,6 +259,14 @@ class TestCheckSegmentIntegration:
             warnings = engine.check_segment(source, target, pipeline=pipeline)
             ortho = [w for w in warnings if "»…«" in w.get("message", "")]
             assert len(ortho) >= 1, f"No orthography hints for pipeline={pipeline}"
+
+
+    def test_no_false_positive_on_markdown_bullet(self):
+        """A markdown list bullet '* text' must not trigger unbalanced emphasis warning."""
+        warnings = emphasis_integrity("Some source text", "* This is a bullet point")
+        unbalanced = [w for w in warnings if "nbalanced" in w.get("message", "")]
+        assert len(unbalanced) == 0, \
+            f"False positive: markdown bullet triggered emphasis warning: {unbalanced}"
 
 
 if __name__ == "__main__":
