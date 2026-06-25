@@ -3,6 +3,7 @@ import logging
 import re
 from collections import Counter
 from typing import Any, Dict, List, Optional, Tuple
+from .sl_morph import generate_forms
 from .style_rules import citation_hints, emphasis_integrity, footnote_integrity, orthography_hints
 
 # ---------------------------------------------------------------------------
@@ -318,7 +319,6 @@ class QAEngine:
 
                 if not src_found:
                     continue
-
                 # --- Target side: does the target term appear (exact or lemma)? ---
                 tgt_found = bool(re.search(re.escape(tgt_term), target, re.IGNORECASE))
                 if not tgt_found:
@@ -326,6 +326,24 @@ class QAEngine:
                     if tgt_term_lemmas is None:
                         tgt_term_lemmas = tuple(_lemmatize(tgt_term, g_key[1]))
                     tgt_found = all(lm in tgt_text_lemmas for lm in tgt_term_lemmas)
+
+                # --- Target side fallback: Slovenian declension form generator ---
+                # Recovers matches the lemmatiser loses (stanza mis-lemmatises
+                # many Slovenian declined forms). Runs only for Slovenian
+                # targets and only adds matches -- it never clears an existing
+                # exact/lemma match, so prior violation-flagging tests stay
+                # valid. Safe against false positives: forms are built from the
+                # same lemma stem, so unrelated words never match.
+                if not tgt_found and g_key[1] == "sl":
+                    target_tokens = set(re.findall(r'\w+', target.lower()))
+                    term_words = tgt_term.split()
+                    matched = []
+                    for w in term_words:
+                        w_lemmas = _lemmatize(w, g_key[1])
+                        w_lemma = w_lemmas[0] if w_lemmas else w.lower()
+                        forms = generate_forms(w_lemma)
+                        matched.append(bool(forms & target_tokens))
+                    tgt_found = all(matched)
 
                 if not tgt_found:
                     warnings.append({
@@ -348,5 +366,13 @@ class QAEngine:
         if pipeline == "academic" and is_footnote:
             warnings.extend(citation_hints(target, tgt_lang))
         warnings.extend(orthography_hints(target, tgt_lang))
+
+        # 5. Double-space check (target only -- source is read-only).
+        if re.search(r' {2,}', target):
+            warnings.append({
+                "type": "warning",
+                "message": "Double space detected in target.",
+                "action": "fix_double_space",
+            })
 
         return warnings

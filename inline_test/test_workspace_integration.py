@@ -714,6 +714,45 @@ async def test_editor_status_badge_updates_on_done(user):
 
 
 # ---------------------------------------------------------------------------
+# Double-space QA warning + one-click Fix button
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_double_space_fix_button_collapses_spaces(user):
+    """A double space in the target surfaces a QA warning with a Fix button.
+    Clicking Fix drives the bound textarea via set_value (NiceGUI high-level
+    API) -> on_value_change -> state.set_target, and repaints the ghost
+    overlay. The textarea value and overlay must end up single-spaced."""
+    from translate_core.qa import QAEngine
+
+    state = _make_state(segments=[
+        {"id": 0, "source": "Hello world.", "target": "Hi  world.", "status": "pending"},
+    ])
+    refs: dict = {}
+
+    @ui.page("/edit_fix")
+    def page():
+        ui.add_head_html(f"<style>{ui_settings.SHARED_CSS}</style>")
+        refs.update(segment_editor.build(state, _deps(qa=QAEngine()), on_confirm=lambda: None))
+
+    await user.open("/edit_fix")
+    ta = refs["target_textarea"]
+    overlay = refs["ghost_overlay"]
+
+    # The QA refresh runs in a background task; wait for the Fix button.
+    await asyncio.sleep(0.4)
+    await user.should_see("Double space detected in target.")
+    await user.should_see("Fix")
+
+    user.find(kind=ui.button, content="Fix").click()
+    await asyncio.sleep(0.3)
+
+    assert ta.value == "Hi world.", f"textarea not fixed: {ta.value!r}"
+    assert "Hi  world." not in overlay.content
+    assert "Hi world." in overlay.content, f"overlay not repainted: {overlay.content!r}"
+
+
+# ---------------------------------------------------------------------------
 # Suggestion engine (Python-side)
 # ---------------------------------------------------------------------------
 

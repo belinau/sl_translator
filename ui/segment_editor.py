@@ -8,6 +8,7 @@ No raw HTML, no JS injection, no custom CSS.
 from __future__ import annotations
 
 import asyncio
+import re
 from typing import Callable
 
 import html as html_lib
@@ -216,7 +217,26 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
                 ):
                     ui.icon("error" if is_err else "warning", size="14px").props(
                         f"color={'negative' if is_err else 'warning'}")
-                    ui.label(w.get("message", "")).classes("text-xs font-medium")
+                    ui.label(w.get("message", "")).classes("text-xs font-medium flex-1 min-w-0")
+                    if w.get("action") == "fix_double_space":
+                        def _fix(_e):
+                            # High-level NiceGUI path: mutate the bound
+                            # textarea element. set_value fires
+                            # on_value_change -> _on_target_change ->
+                            # state.set_target, which syncs segments and
+                            # notifies "target" so QA re-runs and the
+                            # warning clears. The ghost overlay is repainted
+                            # via the documented external-mutation painter
+                            # (the JS runtime does not repaint on a
+                            # server-side set_value).
+                            fixed = re.sub(r' {2,}', ' ', target_textarea.value or "")
+                            if fixed == (target_textarea.value or ""):
+                                return
+                            target_textarea.set_value(fixed)
+                            _paint_overlay_full(fixed)
+                        ui.button("Fix", icon="auto_fix_high", on_click=_fix).props(
+                            "flat dense unelevated color=warning"
+                        ).classes("text-xs normal-case")
 
 
     def _on_active_change():

@@ -11,12 +11,18 @@ Covers:
 
 from unittest.mock import patch, MagicMock
 
+import pytest
+
 from translate_core.qa import (
     QAEngine,
+    HAS_STANZA,
+    HAS_CLASSLA,
     _lemmatize,
     _norm_lang,
     _SPACY_MODEL_NAMES,
 )
+
+_SL_NLP_AVAILABLE = HAS_STANZA or HAS_CLASSLA
 
 
 # ---------------------------------------------------------------------------
@@ -301,6 +307,126 @@ class TestQALemmaAware:
                 src_lang="fr", tgt_lang="en",
             )
             assert [w for w in warnings if "Glossary" in w["message"]] == []
+
+
+# ---------------------------------------------------------------------------
+# Double-space check (target only)
+# ---------------------------------------------------------------------------
+
+class TestDoubleSpace:
+    def setup_method(self):
+        self.engine = QAEngine()
+
+    def test_warns_on_double_space(self):
+        warnings = self.engine.check_segment("Hello.", "Hi  world.")
+        ds = [w for w in warnings if w.get("action") == "fix_double_space"]
+        assert len(ds) == 1
+        assert ds[0]["type"] == "warning"
+
+    def test_single_space_no_warning(self):
+        warnings = self.engine.check_segment("Hello.", "Hi world.")
+        assert not [w for w in warnings if w.get("action") == "fix_double_space"]
+
+    def test_source_not_scanned(self):
+        # Source has a double space, target does not -> no warning.
+        warnings = self.engine.check_segment("a  b", "ab")
+        assert not [w for w in warnings if w.get("action") == "fix_double_space"]
+
+    def test_triple_space_also_flagged(self):
+        warnings = self.engine.check_segment("Hi.", "a   b.")
+        assert len([w for w in warnings if w.get("action") == "fix_double_space"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# Slovenian declension fallback (real lemmatiser + generator)
+# ---------------------------------------------------------------------------
+
+class TestDeclensionFallback:
+    def setup_method(self):
+        self.engine = QAEngine()
+
+    @pytest.mark.skipif(not _SL_NLP_AVAILABLE,
+                        reason="no Slovenian NLP (stanza/classla) installed")
+    def test_declined_neuter_matches(self):
+        # The user's bug: term `knjižno delo`, target `V knjižnih delih je
+        # znanje.` was a false violation because stanza mis-lemmatised the
+        # declined forms. The generator recovers the match.
+        hits = [_entry("literary work", "knjižno delo")]
+        warnings = self.engine.check_segment(
+            "The literary work is known.", "V knjižnih delih je znanje.",
+            hits, src_lang="en", tgt_lang="sl",
+        )
+        assert [w for w in warnings if "Glossary" in w["message"]] == []
+
+    @pytest.mark.skipif(not _SL_NLP_AVAILABLE,
+                        reason="no Slovenian NLP (stanza/classla) installed")
+    def test_existing_violation_still_flagged(self):
+        # Generator must not over-match: an unrelated target word (pisatelj)
+        # does not satisfy the `avtor` term.
+        hits = [_entry("author", "avtor")]
+        warnings = self.engine.check_segment(
+            "The author wrote.", "Pisatelj je napisal.",
+            hits, src_lang="en", tgt_lang="sl",
+        )
+        gw = [w for w in warnings if "Glossary" in w["message"]]
+        assert len(gw) == 1
+        assert "avtor" in gw[0]["message"]
+
+    @pytest.mark.skipif(not _SL_NLP_AVAILABLE,
+                        reason="no Slovenian NLP (stanza/classla) installed")
+    def test_declined_adjective_matches(self):
+        # Adjective-only term declined through cases: `slovenski` -> `slovenska`.
+        hits = [_entry("Slovenian", "slovenski")]
+        warnings = self.engine.check_segment(
+            "The Slovenian author wrote.", "Slovenska pisateljica je napisala.",
+            hits, src_lang="en", tgt_lang="sl",
+        )
+        assert [w for w in warnings if "Glossary" in w["message"]] == []
+
+    @pytest.mark.skipif(not _SL_NLP_AVAILABLE,
+                        reason="no Slovenian NLP (stanza/classla) installed")
+    def test_declined_masc_em_matches(self):
+        # aktivizem (masc o-stem with fill -e-) declined to aktivizma (gen sg)
+        # must match -- the generator emits aktivizma from the lemma.
+        hits = [_entry("activism", "aktivizem")]
+        warnings = self.engine.check_segment(
+            "Activism is growing.", "Novi val aktivizma se širi.",
+            hits, src_lang="en", tgt_lang="sl",
+        )
+        assert [w for w in warnings if "Glossary" in w["message"]] == []
+
+    def test_generator_only_adds_matches(self):
+        # With a mocked lemmatiser that fails to find the term, the generator
+        # fallback must still not clear an existing successful exact match.
+        hits = [_entry("author", "avtor")]
+        mock = self._make_lemmatize(
+            src_map={"the author wrote.": ["the", "author", "write"]},
+            tgt_map={"avtor je napisal.": ["avtor", "biti", "napisati"]},
+            term_map={"author": ["author"], "avtor": ["avtor"]},
+        )
+        with patch("translate_core.qa._lemmatize", side_effect=mock):
+            warnings = self.engine.check_segment(
+                "The author wrote.", "Avtor je napisal.", hits,
+                src_lang="en", tgt_lang="sl",
+            )
+        assert [w for w in warnings if "Glossary" in w["message"]] == []
+
+    def _make_lemmatize(self, src_map=None, tgt_map=None, term_map=None):
+        src_map = src_map or {}
+        tgt_map = tgt_map or {}
+        term_map = term_map or {}
+
+        def mock_lemmatize(text, lang):
+            key = text.lower()
+            if lang.startswith("en") and key in src_map:
+                return src_map[key]
+            if lang.startswith("sl") and key in tgt_map:
+                return tgt_map[key]
+            if key in term_map:
+                return term_map[key]
+            return [w.lower() for w in text.split() if w.isalpha()]
+
+        return mock_lemmatize
 
 
 # ---------------------------------------------------------------------------
