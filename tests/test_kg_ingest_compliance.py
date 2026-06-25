@@ -382,3 +382,12 @@ def test_update_translation_mapping_verified_monotonic(kg):
     kg.update_translation_mapping(mapping_id, verified=False)
     assert kg.G.nodes[mapping_id]["verified"] is True, \
         "O-3 violation: verified was downgraded True→False"
+
+
+def test_update_term_node_applies_fields_and_returns_true(kg):
+    """update_term_node must apply is_animate/is_phrase and return True."""
+    kg.add_term_node("test", "sl")
+    result = kg.update_term_node("term:sl:test", is_animate=True, is_phrase=True)
+    assert result is True, "update_term_node must return True on success"
+    assert kg.G.nodes["term:sl:test"]["is_animate"] is True
+    assert kg.G.nodes["term:sl:test"]["is_phrase"] is True

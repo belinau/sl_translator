@@ -1621,6 +1621,10 @@ class KnowledgeGraph:
             return False
 
         node = self.G.nodes[term_id]
+        if is_animate is not None:
+            node["is_animate"] = is_animate
+        if is_phrase is not None:
+            node["is_phrase"] = is_phrase
         if display_form is not None:
             old_display = node.get("display_form")
             node["display_form"] = display_form
@@ -1632,6 +1636,8 @@ class KnowledgeGraph:
             if display_form and display_form.lower() != node.get("term", "").lower():
                 if display_form not in variants:
                     variants.append(display_form)
+                    self._exact_kp.add_keyword(display_form, term_id)
+        return True
 
     def update_agent_node(
         self,
