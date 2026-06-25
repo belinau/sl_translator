@@ -183,66 +183,15 @@ def page_translate(project_id: str):
     # Fire once so the indicator reflects the initial state (usually "saved").
     _update_save_status()
     # ------------------------------------------------------------------
-    # Chapter outline sidebar (from VL pipeline, if available)
+    # Right drawer: segment navigator + KG search
     # ------------------------------------------------------------------
-    outline_entries = []
-    project_data = load_project(state.project_id)
-    if project_data and "outline" in project_data:
-        outline_entries = project_data["outline"].get("entries", [])
-
     with (
         ui.right_drawer(value=True, fixed=True)
         .props('width=380 bordered :breakpoint="1280"')) as drawer:
         with ui.column().classes("w-full p-4 gap-2"):
-            # Chapter outline (VL-generated books only)
-            if outline_entries:
-                # Build chapter -> segment_index map from segments_meta.
-                # segments_meta[i] corresponds to segments[i] (same order, same length).
-                # We map each chapter_index to the first segment that belongs to it.
-                chapter_to_seg = {}  # chapter_index -> first segment id
-                if project_data and "segments_meta" in project_data:
-                    for i, sm in enumerate(project_data["segments_meta"]):
-                        ch_idx = sm.get("chapter_index", 0)
-                        if ch_idx not in chapter_to_seg:
-                            chapter_to_seg[ch_idx] = i  # segment id = index in segments list
-
-                toc_chapters = [e for e in outline_entries if e.get("kind") in ("chapter", "part", "front_matter")]
-
-                with ui.expansion("Chapters", icon="menu_book").classes(
-                    "w-full"
-                ).props("dense").classes("mb-2"):
-                    for entry in outline_entries:
-                        indent = entry.get("level", 1)
-                        kind = entry.get("kind", "chapter")
-                        number = entry.get("number", "")
-                        title = entry.get("title", "Untitled")
-                        prefix = f"{number}. " if number else ""
-                        icon_name = {
-                            "part": "bookmark",
-                            "front_matter": "article",
-                            "back_matter": "attachment",
-                        }.get(kind, "description")
-                        # Find the chapter index for this entry to enable click-to-navigate
-                        entry_ch_idx = None
-                        for ci, ch in enumerate(toc_chapters):
-                            if ch is entry:
-                                entry_ch_idx = ci
-                                break
-                        target_seg = chapter_to_seg.get(entry_ch_idx, 0) if entry_ch_idx is not None else 0
-
-                        with ui.row().classes(
-                            f"pl-{indent * 2} items-center gap-1 cursor-pointer hover:bg-blue-50 dark:hover:bg-slate-700 rounded"
-                        ).on(
-                            "click",
-                            handler=lambda idx=target_seg: state.set_active(int(idx)),
-                        ):
-                            ui.icon(icon_name, size="14px").classes("opacity-50")
-                            ui.label(f"{prefix}{title}").classes(
-                                "text-[11px] font-medium truncate"
-                            )
-
             segment_navigator.build(state)
             kg_search.build(state, deps)
+
 
     with ui.column().classes("w-full items-center gap-0"):
         with ui.column().classes("w-full max-w-4xl px-4 pt-2 pb-2 gap-2"):
