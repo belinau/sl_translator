@@ -311,8 +311,6 @@ def page_translate(project_id: str):
         # Concept promotion is gated to prose segments only. Apparatus types
         # (footnote, bibliography, metadata) produce noisy noun chunks; they are
         # still handled by the citation extraction path below.
-        domain = ""
-        context_text = seg["source"]
         _proj_slug = _slugify_project(state)
         should_promote = kg is not None and seg_type not in _CONCEPT_SKIP_TYPES
         try:
@@ -324,15 +322,9 @@ def page_translate(project_id: str):
                 await loop.run_in_executor(None, kg.reload_if_changed)
                 await loop.run_in_executor(
                     None,
-                    lambda: (
-                        _ensure_project_container(kg, _proj_slug, state.filename or _proj_slug, state.project_type),
-                        kg.promote_pair(
-                            seg["source"], seg["target"], src, tgt,
-                            verified=True, domain=domain, context=context_text,
-                            source_text_id=_proj_slug,
-                            agent_id="urban-belina",
-                        ),
-                    )[-1],  # promote_pair return value is what callers expect
+                    lambda: _ensure_project_container(
+                        kg, _proj_slug, state.filename or _proj_slug, state.project_type
+                    ),
                 )
                 request_kg_save(kg.save, delay=3.0)
 
