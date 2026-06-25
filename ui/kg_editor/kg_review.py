@@ -99,10 +99,11 @@ def page_kg_review():
                     "flat dense no-caps color=primary"
                 )
 
-                ui.label(
-                    "No review list yet (or empty). Press Scan / rescan KG."
-                ).classes("text-grey-6 q-pa-md italic")
-                return
+                if not items:
+                    ui.label(
+                        "No review list yet (or empty). Press Scan / rescan KG."
+                    ).classes("text-grey-6 q-pa-md italic")
+                    return
 
             # ── Reason filter ──────────────────────────────────────────────
             reasons = Counter(it.get("reason") for it in items)
