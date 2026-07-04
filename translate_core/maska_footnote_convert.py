@@ -31,9 +31,13 @@ _MONTHS = {"January":"1","February":"2","March":"3","April":"4","May":"5",
             "June":"6","July":"7","August":"8","September":"9","October":"10",
             "November":"11","December":"12"}
 _DATE_RE = re.compile(r'\b(' + "|".join(_MONTHS.keys()) + r')\s+(\d{1,2}),?\s+(\d{4})\b')
+# Month YYYY (no day) and month ranges left for manual review — Maska requires full DD. MM. YYYY
 _ACCESSED_RE = re.compile(
     r'\(?\s*(?:last\s+)?accessed\s+(' + "|".join(_MONTHS.keys()) + r')\s+(\d{1,2}),?\s+(\d{4})\b\s*\)?',
     re.IGNORECASE)
+# accessed Month YYYY (no day) — leave for manual review, Maska requires full DD. MM. YYYY
+# YEAR: PAGE (colon after year, no parens): "2010: 93" -> "2010, str. 93"
+_COLON_YEAR_PAGE_RE = re.compile(r'(\d{4})\s*:\s*((?:\d+\w*|\w+\d+)(?:[\u2013-]\w+)?)')
 _RANGE_RE = re.compile(r'(\d)-(\d)')
 _COMMON_WORDS = {
     "The","A","An","In","For","See","This","That","These","Those","While","When",
@@ -121,11 +125,18 @@ def convert_footnote_to_maska(text: str) -> str:
     t = _PAGE_RE.sub('str.', t)
     t = _IBID_RE.sub('*Ibid*.', t)
 
-    # 7-8. Dates (accessed before general)
+    # 7-8. Dates: accessed (with and without day), month ranges, month+year, full dates
+    # ALL English month names → numeric DD. MM. YYYY format per Maska
+
+    # accessed Month DD, YYYY -> (zadnji dostop DD. MM. YYYY)
     def _accessed_repl(m):
         month = next((v for k, v in _MONTHS.items() if k.lower() == m.group(1).lower()), '?')
         return f'(zadnji dostop {m.group(2)}. {month}. {m.group(3)})'
     t = _ACCESSED_RE.sub(_accessed_repl, t)
+
+    # (Month YYYY without day and month ranges left for manual review — Maska requires full DD. MM. YYYY)
+
+    # Month DD, YYYY -> DD. MM. YYYY (full date only)
     t = _DATE_RE.sub(lambda m: f"{m.group(2)}. {_MONTHS[m.group(1)]}. {m.group(3)}", t)
 
     # 9. En-dash
@@ -209,6 +220,9 @@ def convert_footnote_to_maska(text: str) -> str:
     t = _PAREN_PUBLISHER_RE.sub(r', \1', t)
     t = re.sub(r'\*\s*,', '*,', t)  # *Title , → *Title,
     t = re.sub(r',\s*,', ',', t)  # clean double commas
+    # 11h. YEAR: PAGE (colon after year — Chicago artifact, NEVER in Maska)
+    # Must run AFTER parens removal: "(...2010): 93" → "2010: 93" → "2010, str. 93"
+    t = _COLON_YEAR_PAGE_RE.sub(r'\1, str. \2', t)
     # 13. no./nos. → št.
     t = _NO_RE.sub('št. ', t)
 
