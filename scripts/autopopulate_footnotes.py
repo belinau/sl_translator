@@ -82,7 +82,12 @@ def autopopulate(project_id: str, apply: bool = False) -> None:
     }
 
     for fn_num, seg_indices in groups:
-        # Get full footnote source text
+        # Check if any segment in this group already has a non-empty target
+        if any(segments[k].get("target", "").strip() for k in seg_indices):
+            skipped_has_target += 1
+            continue
+
+        # Get joined source text (for stats + empty check)
         full_src = " ".join(
             segments[k].get("source", "").strip() for k in seg_indices
         )
@@ -90,23 +95,19 @@ def autopopulate(project_id: str, apply: bool = False) -> None:
             skipped_no_source += 1
             continue
 
-        # Check if target already has content (skip existing work)
-        existing_target = " ".join(
-            segments[k].get("target", "").strip() for k in seg_indices
-        ).strip()
-        if existing_target:
-            skipped_has_target += 1
-            continue
+        # Convert EACH segment's source individually so the target
+        # aligns 1:1 with the source segment boundaries. This preserves
+        # the editor's source/target alignment — no mismatched lengths.
+        per_segment_targets = [
+            convert_footnote_to_maska(segments[k].get("source", ""))
+            for k in seg_indices
+        ]
 
-        # Strip the [^N]: prefix, convert content, reattach prefix
+        # Track conversions on the joined text (for stats only)
         prefix_match = re.match(r"^(\[\^\d+\]:\s*)", full_src)
-        prefix = prefix_match.group(1) if prefix_match else ""
-        content = full_src[len(prefix):]
-
+        content = full_src[prefix_match.end():] if prefix_match else full_src
         converted = convert_footnote_to_maska(content)
-        target_text = prefix + converted
 
-        # Track conversions
         if "»" in converted and ('"' in content or "\u201c" in content):
             conversions_applied["quotes"] += 1
         if " v: *" in converted and " in *" in content:
@@ -128,12 +129,8 @@ def autopopulate(project_id: str, apply: bool = False) -> None:
             conversions_applied["italic"] += 1
 
         if apply:
-            # Write target into the def segment, clear continuation targets
-            segments[seg_indices[0]]["target"] = target_text
-            for k in seg_indices[1:]:
-                segments[k]["target"] = ""
-            # Set status to pending for review
-            for k in seg_indices:
+            for k_idx, k in enumerate(seg_indices):
+                segments[k]["target"] = per_segment_targets[k_idx]
                 if segments[k].get("status") != "done":
                     segments[k]["status"] = "pending"
 

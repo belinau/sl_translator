@@ -85,7 +85,8 @@ class TestAutopopulate:
         assert data["segments"][0]["target"] != ""
 
     def test_multi_segment_footnote(self, tmp_path, monkeypatch):
-        """Footnote spanning multiple segments: target written to def seg only."""
+        """Footnote spanning multiple segments: each segment's target is
+        converted from its own source, preserving 1:1 source/target alignment."""
         segs = [
             {"id": 0, "source": '[^1]: Author, "Title," in *Book*,', "target": "", "status": "pending"},
             {"id": 1, "source": "ed. Editor (City: Publisher, 2009), 5.", "target": "", "status": "pending"},
@@ -94,9 +95,13 @@ class TestAutopopulate:
         monkeypatch.setattr(ap, "PROJECTS_DIR", tmp_path)
         ap.autopopulate("test", apply=True)
         data = json.loads(p.read_text(encoding="utf-8"))
-        tgt = data["segments"][0]["target"]
-        assert "v: *Book*" in tgt
-        assert "ur. Editor" in tgt
+        # Seg 0: quote swap + v: conversion
+        assert "»Title«" in data["segments"][0]["target"]
+        assert "v: *Book*" in data["segments"][0]["target"]
+        # Seg 1: ed. → ur. conversion
+        assert "ur. Editor" in data["segments"][1]["target"]
+        # Source and target lengths should be close (no full-joined dump)
+        assert len(data["segments"][0]["target"]) < len(data["segments"][1]["source"]) * 5
 
     def test_backup_created(self, tmp_path, monkeypatch):
         """Apply creates a .bak backup."""
