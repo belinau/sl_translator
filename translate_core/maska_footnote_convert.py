@@ -43,7 +43,10 @@ _QUOTE_PAIR_RE = re.compile(r'\u201c([^\u201d]+)\u201d')
 _STRAIGHT_QUOTE_COMMA_RE = re.compile(r'"([^"]+),"')
 _STRAIGHT_QUOTE_PAIR_RE = re.compile(r'"([^"]+)"')
 
+# "in" → "v:" when followed by italic title (*Title*) OR by capitalized name(s)
+# then italic title. Maska B: "v: avtor/urednik, *naslov dela*"
 _IN_ITALIC_RE = re.compile(r'\bin\s+(\*[A-Z])')
+_IN_EDITOR_RE = re.compile(r'\bin\s+([A-Z][a-z]+(?:\s+[A-Z][a-z.]+)+(?:\s*(?:,\s*|\s+and\s+)[A-Z][a-z]+(?:\s+[A-Z][a-z.]+)+)*\s*)(?=\(ur\.\)|\*)')
 
 _ED_RE = re.compile(r'\beds?\.')
 _TRANS_RE = re.compile(r'\btrans\.')
@@ -59,8 +62,9 @@ _DATE_RE = re.compile(
     r'\b(' + "|".join(_MONTHS.keys()) + r')\s+(\d{1,2}),?\s+(\d{4})\b'
 )
 
+# Consume optional surrounding parens so we don't double-wrap: "(accessed ...)" → "(zadnji dostop ...)"
 _ACCESSED_RE = re.compile(
-    r'\b(?:last\s+)?accessed\s+(' + "|".join(_MONTHS.keys()) + r')\s+(\d{1,2}),?\s+(\d{4})\b',
+    r'\(?\s*(?:last\s+)?accessed\s+(' + "|".join(_MONTHS.keys()) + r')\s+(\d{1,2}),?\s+(\d{4})\b\s*\)?',
     re.IGNORECASE,
 )
 
@@ -83,6 +87,14 @@ _JOURNAL_PAREN_RE = re.compile(
 )
 _JOURNAL_NOPAREN_RE = re.compile(
     r'\*([^*]+)\*\s+(\d+)(?:,\s*no\.\s*(\d+(?:-\d+)?))?,\s*(\d{4}),\s*(\d+(?:-\d+)?)'
+)
+# *Journal* (YEAR): PAGE — no volume number
+_JOURNAL_NOVOL_PAREN_RE = re.compile(
+    r'\*([^*]+)\*\s*\((\d{4})\)\s*:\s*(\d+(?:-\d+)?)'
+)
+# *Journal* VOL (YEAR): PAGE — volume but no issue
+_JOURNAL_VOL_ONLY_PAREN_RE = re.compile(
+    r'\*([^*]+)\*\s+(\d+)\s*\((\d{4})\)\s*:\s*(\d+(?:-\d+)?)'
 )
 
 _PAREN_PUBLISHER_RE = re.compile(r'\(([A-Z][^)]+:\s*[^,]+,\s*\d{4})\)')
@@ -130,8 +142,10 @@ def convert_footnote_to_maska(text: str) -> str:
     t = _STRAIGHT_QUOTE_COMMA_RE.sub(r'»\1«,', t)
     t = _STRAIGHT_QUOTE_PAIR_RE.sub(r'»\1«', t)
 
-    # 2. "in *Title*" → "v: *Title*" (only when italic book title follows)
+    # 2. "in *Title*" → "v: *Title*" (chapter-in-collection with italic title)
     t = _IN_ITALIC_RE.sub(r'v: \1', t)
+    # 2b. "in Name Name (ur.)" or "in Name Name, *Title*" → "v: Name Name..."
+    t = _IN_EDITOR_RE.sub(lambda m: f'v: {m.group(1)}', t)
 
     # 3. ed. / eds. → ur.
     t = _ED_RE.sub('ur.', t)
@@ -182,8 +196,20 @@ def convert_footnote_to_maska(text: str) -> str:
         if issue:
             return f'*{journal}* {roman}/{issue}, {year}, str. {page}'
         return f'*{journal}* {roman}, {year}, str. {page}'
+
+    def _journal_novol_repl(m: re.Match) -> str:
+        journal, year, page = m.groups()
+        return f'*{journal}* {year}, str. {page}'
+
+    def _journal_vol_only_repl(m: re.Match) -> str:
+        journal, vol, year, page = m.groups()
+        roman = _to_roman(int(vol))
+        return f'*{journal}* {roman}, {year}, str. {page}'
+
     t = _JOURNAL_PAREN_RE.sub(_journal_repl, t)
     t = _JOURNAL_NOPAREN_RE.sub(_journal_repl, t)
+    t = _JOURNAL_VOL_ONLY_PAREN_RE.sub(_journal_vol_only_repl, t)
+    t = _JOURNAL_NOVOL_PAREN_RE.sub(_journal_novol_repl, t)
 
     # 12. (City: Publisher, Year) → City: Publisher, Year (remove parens)
     t = _PAREN_PUBLISHER_RE.sub(r'\1', t)
