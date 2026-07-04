@@ -2,14 +2,13 @@
 """Mechanical Maska citation-format conversion for footnotes.
 
 Applies the publisher's typographic conventions to footnote text WITHOUT
-translating any prose. The footnote stays in the source language; only
-the citation formatting is converted to Maska style.
-
-No LLM, no translation. Pure deterministic string transformation.
+translating any prose. No LLM, no translation. Pure deterministic string
+transformation.
 
 Rules (applied in order):
   1.  English quotes "..." / "..." → Slovenian »...« (comma outside)
-  2.  "in *Title*" → "v: *Title*" (chapter-in-collection, only after italic title)
+  2.  "in *Title*" → "v: *Title*" (chapter-in-collection with italic title)
+  2b. "in Name Name (ur.)" → "v: Name Name (ur.)" (chapter with editor)
   3.  ed. / eds. → ur.
   4.  trans. → prev.
   5.  p. / pp. → str.
@@ -17,9 +16,13 @@ Rules (applied in order):
   7.  "accessed Month DD, YYYY" → "(zadnji dostop DD. MM. YYYY)" (before date rule)
   8.  "Month DD, YYYY" → "DD. MM. YYYY"
   9.  Hyphen between digits → en-dash (page ranges)
-  10. "and" between author names → "in" (not inside italic, not common words)
+  10. "and" between author names → "in"
+  10b. "; and" connecting two citations → "; in"
   11. Journal: *Journal* VOL, no. ISSUE (YEAR): PAGE → *Journal* ROMAN/ISSUE, YEAR, str. PAGE
+  11b.*Journal* (YEAR): PAGE → *Journal* YEAR, str. PAGE (no volume)
+  11c.*Journal* VOL (YEAR): PAGE → *Journal* ROMAN, YEAR, str. PAGE (vol only)
   12. (City: Publisher, Year) → City: Publisher, Year (remove parens)
+  12b.(City) after *Journal* → remove (city in parens after journal name)
   13. no. → št.
   14. "See also" → "Glej tudi"
   15. "See, for example" → "Glej, na primer"
@@ -27,6 +30,8 @@ Rules (applied in order):
   17. et al. → idr.
   18. vol. → letn.
   19. *...* italic markers preserved unchanged
+  20. Add "str. " before bare page numbers at end of citation
+  21. Web: move URL before (zadnji dostop ...), fix spacing
 """
 
 from __future__ import annotations
@@ -43,15 +48,17 @@ _QUOTE_PAIR_RE = re.compile(r'\u201c([^\u201d]+)\u201d')
 _STRAIGHT_QUOTE_COMMA_RE = re.compile(r'"([^"]+),"')
 _STRAIGHT_QUOTE_PAIR_RE = re.compile(r'"([^"]+)"')
 
-# "in" → "v:" when followed by italic title (*Title*) OR by capitalized name(s)
-# then italic title. Maska B: "v: avtor/urednik, *naslov dela*"
 _IN_ITALIC_RE = re.compile(r'\bin\s+(\*[A-Z])')
-_IN_EDITOR_RE = re.compile(r'\bin\s+([A-Z][a-z]+(?:\s+[A-Z][a-z.]+)+(?:\s*(?:,\s*|\s+and\s+)[A-Z][a-z]+(?:\s+[A-Z][a-z.]+)+)*\s*)(?=\(ur\.\)|\*)')
+_IN_EDITOR_RE = re.compile(
+    r'\bin\s+([A-Z][a-z]+(?:\s+[A-Z][a-z.]+)+'
+    r'(?:\s*(?:,\s*|\s+and\s+)[A-Z][a-z]+(?:\s+[A-Z][a-z.]+)+)*\s*)'
+    r'(?=\(ur\.\)|\*)'
+)
 
 _ED_RE = re.compile(r'\beds?\.')
 _TRANS_RE = re.compile(r'\btrans\.')
 _PAGE_RE = re.compile(r'\bpp?\.')
-_IBID_RE = re.compile(r'\bIbid\.?')
+_IBID_RE = re.compile(r'(?<!\*)\bIbid\.?')
 
 _MONTHS = {
     "January": "1", "February": "2", "March": "3", "April": "4",
@@ -62,7 +69,6 @@ _DATE_RE = re.compile(
     r'\b(' + "|".join(_MONTHS.keys()) + r')\s+(\d{1,2}),?\s+(\d{4})\b'
 )
 
-# Consume optional surrounding parens so we don't double-wrap: "(accessed ...)" → "(zadnji dostop ...)"
 _ACCESSED_RE = re.compile(
     r'\(?\s*(?:last\s+)?accessed\s+(' + "|".join(_MONTHS.keys()) + r')\s+(\d{1,2}),?\s+(\d{4})\b\s*\)?',
     re.IGNORECASE,
@@ -88,14 +94,14 @@ _JOURNAL_PAREN_RE = re.compile(
 _JOURNAL_NOPAREN_RE = re.compile(
     r'\*([^*]+)\*\s+(\d+)(?:,\s*no\.\s*(\d+(?:-\d+)?))?,\s*(\d{4}),\s*(\d+(?:-\d+)?)'
 )
-# *Journal* (YEAR): PAGE — no volume number
 _JOURNAL_NOVOL_PAREN_RE = re.compile(
     r'\*([^*]+)\*\s*\((\d{4})\)\s*:\s*(\d+(?:-\d+)?)'
 )
-# *Journal* VOL (YEAR): PAGE — volume but no issue
 _JOURNAL_VOL_ONLY_PAREN_RE = re.compile(
     r'\*([^*]+)\*\s+(\d+)\s*\((\d{4})\)\s*:\s*(\d+(?:-\d+)?)'
 )
+# Remove (City) in parens after a journal name (not City: Publisher, Year)
+_JOURNAL_CITY_PAREN_RE = re.compile(r'\*([^*]+)\*\s*\([A-Z][a-z]+\)')
 
 _PAREN_PUBLISHER_RE = re.compile(r'\(([A-Z][^)]+:\s*[^,]+,\s*\d{4})\)')
 
@@ -107,6 +113,40 @@ _SEE_RE = re.compile(r'(?:(?:^|[,.]\s+)\s*)See\b(?!\s+also\b)(?!\s+, for example
 
 _ETAL_RE = re.compile(r'\bet al\.')
 _VOL_RE = re.compile(r'\bvol\.\s*', re.IGNORECASE)
+
+# Add "str. " before bare page numbers at end of citation or before ". " (new sentence)
+# Key: only match 1-3 digit page numbers (NOT 4-digit years, NOT dates DD. MM.).
+# Match the FULL page sequence: "36, 57" → "str. 36, 57" (one prefix).
+# Also match lowercase roman numerals (xi, xv, etc.) as page numbers.
+# Match at: end of string ($), or before ". " (period+space = new sentence)
+# Negative lookahead: don't match if followed by ". D" (date pattern like "4. 7.")
+_PAGE_SEQ = r'(\d{1,3}(?:\s*[\u2013-]\s*\d{1,3})?(?:,\s*\d{1,3})*|[ivxlcdm]{1,5})'
+_END = r'(?=\.?\s*$|\. (?![A-Z]\.|\d{1,2}\.))'
+_BARE_PAGE_RE = re.compile(
+    r'(,)\s+' + _PAGE_SEQ + _END
+)
+_BARE_PAGE_QUOTE_RE = re.compile(
+    r'(«,)\s+' + _PAGE_SEQ + _END
+)
+_BARE_PAGE_IBID_RE = re.compile(
+    r'(\*Ibid\*\.,)\s+' + _PAGE_SEQ + _END
+)
+_BARE_PAGE_AFTER_YEAR_RE = re.compile(
+    r'(\d{4},)\s+' + _PAGE_SEQ + _END
+)
+
+# "; and" connecting two citations → "; in" (Slovenian conjunction)
+_SEMICOLON_AND_RE = re.compile(r';\s+and\s+')
+
+# Web: "Title«,(zadnji dostop ...), URL" → "Title«, URL (zadnji dostop ...)"
+# Move URL before access date, fix spacing
+_WEB_ACCESS_AFTER_RE = re.compile(
+    r'«,?\s*(\(zadnji dostop [^)]+\)),?\s*(https?://\S+)'
+)
+# Also: ",(zadnji dostop ...), URL" without closing quote
+_WEB_ACCESS_AFTER_NOQUOTE_RE = re.compile(
+    r',?\s*(\(zadnji dostop [^)]+\)),?\s*(https?://\S+)'
+)
 
 
 # --------------------------------------------------------------------------
@@ -144,7 +184,7 @@ def convert_footnote_to_maska(text: str) -> str:
 
     # 2. "in *Title*" → "v: *Title*" (chapter-in-collection with italic title)
     t = _IN_ITALIC_RE.sub(r'v: \1', t)
-    # 2b. "in Name Name (ur.)" or "in Name Name, *Title*" → "v: Name Name..."
+    # 2b. "in Name Name (ur.)" → "v: Name Name (ur.)"
     t = _IN_EDITOR_RE.sub(lambda m: f'v: {m.group(1)}', t)
 
     # 3. ed. / eds. → ur.
@@ -184,12 +224,14 @@ def convert_footnote_to_maska(text: str) -> str:
             return m.group(0)  # inside italic
         return before + ' in ' + after
     t = re.sub(
-        r'(\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+and\s+([A-Z][a-z]+)',
+        r'(\b[A-Z][a-z]+(?:\s+[A-Z][a-z.]+)*)\s+and\s+([A-Z][a-z]+)',
         _and_repl, t,
     )
 
+    # 10b. "; and" connecting two citations → "; in"
+    t = _SEMICOLON_AND_RE.sub('; in ', t)
+
     # 11. Journal citation restructure:
-    # *Journal* VOL, no. ISSUE (YEAR): PAGE → *Journal* ROMAN/ISSUE, YEAR, str. PAGE
     def _journal_repl(m: re.Match) -> str:
         journal, vol, issue, year, page = m.groups()
         roman = _to_roman(int(vol))
@@ -213,6 +255,8 @@ def convert_footnote_to_maska(text: str) -> str:
 
     # 12. (City: Publisher, Year) → City: Publisher, Year (remove parens)
     t = _PAREN_PUBLISHER_RE.sub(r'\1', t)
+    # 12b. (City) after *Journal* → remove (city in parens after journal name)
+    t = _JOURNAL_CITY_PAREN_RE.sub(r'*\1*', t)
 
     # 13. no. → št.
     t = _NO_RE.sub('št. ', t)
@@ -228,6 +272,40 @@ def convert_footnote_to_maska(text: str) -> str:
     t = _ETAL_RE.sub('idr.', t)
     # 18. vol. → letn.
     t = _VOL_RE.sub('letn. ', t)
+
+    # 20. Add "str. " before bare page numbers at end of citation
+    # Apply in order: year-comma-page, Ibid-comma, quote-comma, general-comma
+    # The year-comma-page pattern runs first so "2006, 36, 57" → "2006, str. 36, 57"
+    # (not "str. 2006, 36, 57")
+    # 20. Add "str. " before bare page numbers at end of citation or before ". "
+    # Check str. presence NEAR the match position, not globally — a mid-text
+    # citation's "str." at the end shouldn't block a mid-text bare page.
+    def _add_str_prefix(text: str, pat: re.Pattern) -> str:
+        """Apply one str. insertion, checking no str. adjacent to the match."""
+        def _repl(m: re.Match) -> str:
+            # Check: is "str." already within 10 chars before the match?
+            before = text[max(0, m.start()-10):m.start()]
+            if 'str.' in before:
+                return m.group(0)
+            return m.group(1) + ' str. ' + m.group(2)
+        return pat.sub(_repl, text)
+
+    for pat in (_BARE_PAGE_AFTER_YEAR_RE, _BARE_PAGE_IBID_RE, _BARE_PAGE_QUOTE_RE, _BARE_PAGE_RE):
+        t = _add_str_prefix(t, pat)
+    # "Title«,(zadnji dostop ...), URL" → "Title«, URL (zadnji dostop ...)"
+    def _web_reorder_repl(m: re.Match) -> str:
+        access_date = m.group(1)
+        url = m.group(2)
+        return f'«, {url} {access_date}'
+    t = _WEB_ACCESS_AFTER_RE.sub(_web_reorder_repl, t)
+
+    # Also handle without closing quote: ",(zadnji dostop ...), URL"
+    def _web_reorder_noquote_repl(m: re.Match) -> str:
+        access_date = m.group(1)
+        url = m.group(2)
+        return f', {url} {access_date}'
+    # Only if there's a URL after the access date
+    t = _WEB_ACCESS_AFTER_NOQUOTE_RE.sub(_web_reorder_noquote_repl, t)
 
     return t
 
