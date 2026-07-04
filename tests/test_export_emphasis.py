@@ -93,6 +93,35 @@ class TestExportEmphasis:
         # The literal * markers should NOT appear
         assert "*Naslov" not in fn_xml, "Literal asterisks should not appear in footnotes XML"
 
+    def test_footnote_superscript_style_defined(self, tmp_path):
+        """Exported DOCX defines FootnoteReference style with superscript."""
+        import zipfile
+        md_body = "Body text [^1].\n\n[^1]: Footnote text."
+        output = tmp_path / "test_fn_style.docx"
+        DocumentParser().compile_to_designed_docx(md_body, output)
+        with zipfile.ZipFile(str(output), "r") as zf:
+            sx = zf.read("word/styles.xml").decode("utf-8")
+        assert "FootnoteReference" in sx, "FootnoteReference style missing from styles.xml"
+        assert "superscript" in sx, "FootnoteReference style lacks superscript vertAlign"
+        assert "FootnoteText" in sx, "FootnoteText paragraph style missing"
+
+    def test_footnote_text_size_from_typography(self, tmp_path):
+        """FootnoteText style uses footnote_size_pt from the typography profile."""
+        import zipfile
+        md_body = "Body [^1].\n\n[^1]: Text."
+        output = tmp_path / "test_fn_size.docx"
+        typo = {"body_font": "Times New Roman", "body_size_pt": 12,
+                "line_spacing": 1.5, "margins_in": 1.0, "space_after_pt": 0,
+                "para_first_line_indent_in": 0.0, "footnote_size_pt": 10,
+                "footnote_line_spacing": 1.0, "blockquote_size_pt": 11,
+                "blockquote_line_spacing": 1.0, "blockquote_indent_in": 0.5,
+                "h1_size_pt": 18, "h2_size_pt": 13}
+        DocumentParser().compile_to_designed_docx(md_body, output, house_typography=typo)
+        with zipfile.ZipFile(str(output), "r") as zf:
+            sx = zf.read("word/styles.xml").decode("utf-8")
+        # 10pt → w:sz="20" (half-points)
+        assert 'w:val="20"' in sx, f"FootnoteText size not 10pt (20 half-pts) in: {sx[:500]!r}"
+
 
 # ======================================================================
 # emphasis_integrity from style_rules

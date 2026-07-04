@@ -41,6 +41,7 @@ def _normalise(source: str) -> str:
     titles ("F e m i n i s t" -> "feminist"), collapse whitespace,
     casefold (extraction backends disagree on capitalisation)."""
     text = _FN_MARKER_RE.sub("", source)
+    text = re.sub(r"\*+([^*\n]+)\*+", r"\1", text)  # strip *...* emphasis for matching
     text = re.sub(r"^[#>\s]+", "", text)
     text = re.sub(r"\s*[—–-]\s*(?:\d{1,4}|[ivxlcdmIVXLCDM]{1,7})\s*$", "", text)
     # collapse single-letter spacing runs (title-page typography)
@@ -57,6 +58,10 @@ def main(argv=None) -> int:
     parser.add_argument(
         "--apply", action="store_true",
         help="Write the repaired project JSON (default: dry-run only)",
+    )
+    parser.add_argument(
+        "--force", action="store_true",
+        help="Apply even if some translations couldn't be verified (use with caution)",
     )
     args = parser.parse_args(argv)
 
@@ -325,15 +330,14 @@ def main(argv=None) -> int:
     if alignment["unreferenced_def_numbers"]:
         print(f"    Unreferenced defs: {alignment['unreferenced_def_numbers']}")
 
-    if not args.apply:
-        print("\n(dry-run — no changes written. Re-run with --apply to persist.)")
-        return 0
-
-    if missing_targets:
+    if missing_targets and not args.force:
         print("\nERROR: refusing to apply — not every translation could be "
               "carried over. Fix matching (or re-run dry-run) first; the "
-              "project on disk is untouched.")
+              "project on disk is untouched. Use --force to apply anyway.")
         return 1
+    if missing_targets and args.force:
+        print(f"\nWARNING: --force applied with {len(missing_targets)} "
+              "unverified translations. Review the MISSING list above.")
 
     # ── Apply: backup + write ────────────────────────────────────────────
     backup_path = PROJECTS_DIR / f"{project_id}.json.bak"

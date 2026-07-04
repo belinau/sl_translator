@@ -322,12 +322,47 @@ def page_translate(project_id: str):
     # Export
     # ------------------------------------------------------------------
     def _compile_md(use_target: bool) -> str:
-        lines = []
-        for s in state.segments:
-            if use_target and s["target"].strip():
-                lines.append(s["target"].strip())
+        """Build the markdown stream for DOCX export.
+
+        Footnote definitions that span multiple segments are joined with a
+        space into one line so compile_to_designed_docx's line-based
+        [^N]: parser sees the full footnote text. Without this, continuation
+        segments (no [^N]: prefix) fall through to body_lines and render as
+        orphan body paragraphs.
+        """
+        import re as _re
+        fn_def_re = _re.compile(r"^\[\^(\w+)\]:")
+        lines: list[str] = []
+        i = 0
+        segs = state.segments
+        while i < len(segs):
+            s = segs[i]
+            src = s.get("source", "").lstrip()
+            if fn_def_re.match(src):
+                # Collect this footnote's def + continuation segments.
+                j = i + 1
+                while j < len(segs):
+                    nxt = segs[j].get("source", "").lstrip()
+                    if fn_def_re.match(nxt):
+                        break
+                    j += 1
+                parts = []
+                for k in range(i, j):
+                    seg = segs[k]
+                    txt = seg.get("target", "").strip() if use_target else ""
+                    if not txt:
+                        txt = seg.get("source", "").strip()
+                    if txt:
+                        parts.append(txt)
+                lines.append(" ".join(parts))
+                i = j
             else:
-                lines.append(s["source"].strip())
+                txt = s.get("target", "").strip() if use_target else ""
+                if not txt:
+                    txt = s.get("source", "").strip()
+                if txt:
+                    lines.append(txt)
+                i += 1
         return "\n\n".join(lines)
 
     from translate_core.publisher_styles import resolve_typography

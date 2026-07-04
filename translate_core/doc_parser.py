@@ -150,7 +150,8 @@ def _build_footnotes_xml(footnotes: List[Tuple[int, str]]) -> bytes:
 
 
 def _inject_footnotes_part(
-    docx_path: Path, footnotes: List[Tuple[int, str]]
+    docx_path: Path, footnotes: List[Tuple[int, str]],
+    typo: dict | None = None,
 ) -> None:
     """Post-process a saved .docx to add a footnotes.xml part, its
     relationship in word/_rels/document.xml.rels, and the Content_Types
@@ -184,6 +185,40 @@ def _inject_footnotes_part(
         )
         files[ct_path] = ct_xml.encode("utf-8")
 
+    # Inject FootnoteText + FootnoteReference styles into styles.xml so
+    # footnote numbers render as superscript and footnote paragraphs use
+    # the correct font size/spacing from the publisher typography profile.
+    styles_path = "word/styles.xml"
+    if styles_path in files:
+        styles_xml = files[styles_path].decode("utf-8")
+        if "FootnoteReference" not in styles_xml:
+            fn_size = (typo or {}).get("footnote_size_pt", 10)
+            fn_spacing = (typo or {}).get("footnote_line_spacing", 1.0)
+            fn_size_twips = int(fn_size * 2)  # half-points → twips isn't right;
+            # Word uses w:sz in half-points, so 10pt → w:sz="20"
+            fn_size_hp = int(fn_size * 2)
+            # FootnoteText: paragraph style for footnote body text.
+            fn_text_style = (
+                '<w:style w:type="paragraph" w:styleId="FootnoteText">'
+                '<w:name w:val="footnote text"/>'
+                '<w:basedOn w:val="Normal"/>'
+                '<w:pPr><w:spacing w:line="' + str(int(fn_spacing * 240)) + '"'
+                ' w:lineRule="auto" w:after="0"/></w:pPr>'
+                '<w:rPr><w:sz w:val="' + str(fn_size_hp) + '"/>'
+                '<w:szCs w:val="' + str(fn_size_hp) + '"/></w:rPr>'
+                '</w:style>'
+            )
+            # FootnoteReference: character style with superscript vertAlign.
+            fn_ref_style = (
+                '<w:style w:type="character" w:styleId="FootnoteReference">'
+                '<w:name w:val="footnote reference"/>'
+                '<w:rPr><w:vertAlign w:val="superscript"/></w:rPr>'
+                '</w:style>'
+            )
+            styles_xml = styles_xml.replace(
+                "</w:styles>", fn_text_style + fn_ref_style + "</w:styles>"
+            )
+            files[styles_path] = styles_xml.encode("utf-8")
     with zipfile.ZipFile(docx_path, "w", zipfile.ZIP_DEFLATED) as zf:
         for name, data in files.items():
             zf.writestr(name, data)
@@ -635,6 +670,86 @@ class DocumentParser:
         )
         return md
 
+    def _pdf_dict_to_markdown_text(self, source: Path) -> str:
+        """Extract text from a PDF preserving italic/bold formatting as markdown.
+
+        Walks fitz get_text("dict") spans — the PDF equivalent of what
+        docx_to_markdown does for DOCX XML. Emits *italic*, **bold**,
+        ***bold-italic*** markers around spans whose font flags indicate
+        emphasis, so downstream reflow/renumber and DOCX export see the
+        same markdown emphasis the DOCX path produces.
+
+        Hyphenated line-breaks inside an italic span ("Encoun-" + "ters")
+        are joined during the walk so the emphasis marker wraps the whole
+        word: *Encounters with Strangers*.
+
+        Line structure (one physical line per fitz line) is preserved —
+        verified identical to get_text() output so _reflow_pdf_text and
+        _renumber_footnotes work unchanged.
+        """
+        try:
+            import fitz
+        except ImportError:
+            return ""
+        doc = fitz.open(str(source))
+        lines: List[str] = []
+        for page in doc:
+            page_dict = page.get_text("dict")
+            for block in page_dict.get("blocks", []):
+                if not isinstance(block, dict) or block.get("type", 0) != 0:
+                    continue
+                for line in block.get("lines", []):
+                    if not isinstance(line, dict):
+                        continue
+                    # Collect spans for this line, tracking italic/bold flags.
+                    raw_spans: List[Tuple[str, bool, bool]] = []
+                    for span in line.get("spans", []):
+                        if not isinstance(span, dict):
+                            continue
+                        txt = span.get("text", "")
+                        if not txt:
+                            continue
+                        flags = span.get("flags", 0)
+                        is_italic = bool(flags & 2)
+                        is_bold = bool(flags & 16)
+                        raw_spans.append((txt, is_italic, is_bold))
+                    if not raw_spans:
+                        continue
+                    # Join hyphen-broken italic continuations: an italic span
+                    # ending "X-" followed (after whitespace) by an italic span
+                    # starting with a letter → "XY", one merged span.
+                    merged: List[Tuple[str, bool, bool]] = []
+                    si = 0
+                    while si < len(raw_spans):
+                        txt, it, bd = raw_spans[si]
+                        if it and len(txt) >= 2 and txt.endswith("-") and txt[-2].isalpha():
+                            # Look ahead past whitespace-only spans for next italic.
+                            sj = si + 1
+                            while sj < len(raw_spans) and not raw_spans[sj][0].strip():
+                                sj += 1
+                            if (sj < len(raw_spans) and raw_spans[sj][1]
+                                    and raw_spans[sj][0][:1].isalpha()):
+                                joined = txt[:-1] + raw_spans[sj][0]
+                                merged.append((joined, True, raw_spans[sj][2] and bd))
+                                si = sj + 1
+                                continue
+                        merged.append((txt, it, bd))
+                        si += 1
+                    # Emit markdown emphasis markers around each span.
+                    line_text = ""
+                    for txt, it, bd in merged:
+                        if it and bd:
+                            line_text += f"***{txt}***"
+                        elif bd:
+                            line_text += f"**{txt}**"
+                        elif it:
+                            line_text += f"*{txt}*"
+                        else:
+                            line_text += txt
+                    if line_text.strip():
+                        lines.append(line_text)
+        doc.close()
+        return "\n".join(lines)
     def to_markdown_with_meta(
         self,
         source: Path,
@@ -657,9 +772,13 @@ class DocumentParser:
         if source.suffix.lower() == ".pdf":
             try:
                 import fitz
-                doc = fitz.open(str(source))
-                raw_text = "\n\n".join(doc[i].get_text() for i in range(len(doc)))
-                doc.close()
+                raw_text = self._pdf_dict_to_markdown_text(source)
+                if not raw_text:
+                    # Fallback: plain get_text if dict walk yields nothing
+                    # (shouldn't happen, but never break import on a PDF).
+                    fitz_doc = fitz.open(str(source))
+                    raw_text = "\n\n".join(fitz_doc[i].get_text() for i in range(len(fitz_doc)))
+                    fitz_doc.close()
             except ImportError:
                 pass
             raw_text = self._reflow_pdf_text(raw_text)
@@ -985,7 +1104,7 @@ class DocumentParser:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         doc.save(str(output_path))
         if footnotes_to_add:
-            _inject_footnotes_part(output_path, footnotes_to_add)
+            _inject_footnotes_part(output_path, footnotes_to_add, typo)
         print(f"[Parser] Styled Book compiled successfully to {output_path}")
 
     def _emit_heading(
