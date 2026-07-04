@@ -31,7 +31,16 @@ _MONTHS = {"January":"1","February":"2","March":"3","April":"4","May":"5",
             "June":"6","July":"7","August":"8","September":"9","October":"10",
             "November":"11","December":"12"}
 _DATE_RE = re.compile(r'\b(' + "|".join(_MONTHS.keys()) + r')\s+(\d{1,2}),?\s+(\d{4})\b')
-# Month YYYY (no day) and month ranges left for manual review — Maska requires full DD. MM. YYYY
+# Slovenian month names (lowercase). Translate months without day to Slovenian word.
+# "May" only translated when followed by digit (avoids modal verb false positive).
+_MONTHS_SL = {
+    "January": "januar", "February": "februar", "March": "marec", "April": "april",
+    "May": "maj", "June": "junij", "July": "julij", "August": "avgust",
+    "September": "september", "October": "oktober", "November": "november", "December": "december",
+}
+_OTHER_MONTHS_SL = {k: v for k, v in _MONTHS_SL.items() if k != "May"}
+_OTHER_MONTH_RE = re.compile(r'\b(' + "|".join(_OTHER_MONTHS_SL.keys()) + r')\b')
+_MAY_MONTH_RE = re.compile(r'\bMay\b(?=\s+\d)')
 _ACCESSED_RE = re.compile(
     r'\(?\s*(?:last\s+)?accessed\s+(' + "|".join(_MONTHS.keys()) + r')\s+(\d{1,2}),?\s+(\d{4})\b\s*\)?',
     re.IGNORECASE)
@@ -134,10 +143,11 @@ def convert_footnote_to_maska(text: str) -> str:
         return f'(zadnji dostop {m.group(2)}. {month}. {m.group(3)})'
     t = _ACCESSED_RE.sub(_accessed_repl, t)
 
-    # (Month YYYY without day and month ranges left for manual review — Maska requires full DD. MM. YYYY)
-
-    # Month DD, YYYY -> DD. MM. YYYY (full date only)
+    # Month DD, YYYY -> DD. MM. YYYY (full date with day)
     t = _DATE_RE.sub(lambda m: f"{m.group(2)}. {_MONTHS[m.group(1)]}. {m.group(3)}", t)
+    # Month YYYY (no day) -> Slovenian month word (lowercase). Runs after full-date conversion.
+    t = _OTHER_MONTH_RE.sub(lambda m: _OTHER_MONTHS_SL[m.group(1)], t)
+    t = _MAY_MONTH_RE.sub('maj', t)
 
     # 9. En-dash
     t = _RANGE_RE.sub(lambda m: m.group(1) + "\u2013" + m.group(2), t)
