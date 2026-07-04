@@ -49,14 +49,16 @@ _J_NAME = r'(?:\*([^*]+)\*|(?<![A-Za-z])([A-ZÀ-ÿ][A-Za-zÀ-ÿ.&]+(?:\s+[A-ZÀ-
 _ISSUE = r'(?:[,\s]+(?:nos?|št)\.\s*(\d+(?:[\u2013-]\d+)?))?'
 _VOL = r'(\d+|[IVXLCDM]+)'
 _PAGE = r'(\d+(?:[\u2013-]\d+)?)'
+# Paren year: handles (YEAR), (Season YEAR), (YEAR-RANGE)
+_PAREN_YEAR = r'\((?:(?:Spring|Summer|Fall|Autumn|Winter)\s+)?(\d{4}(?:-\d{2,4})?)\)'
 _JOURNAL_PAREN_RE = re.compile(
-    _J_NAME + r'\s+' + _VOL + _ISSUE + r'\s*\((\d{4}(?:-\d{2,4})?)\)\s*:\s*' + _PAGE)
+    _J_NAME + r'\s+' + _VOL + _ISSUE + r'\s*' + _PAREN_YEAR + r'\s*:\s*' + _PAGE)
 _JOURNAL_ISSUE_ONLY_PAREN_RE = re.compile(
-    _J_NAME + r'[,\s]+(?:nos?|št)\.\s*(\d+(?:[\u2013-]\d+)?)\s*\((\d{4})\)\s*:\s*' + _PAGE)
+    _J_NAME + r'[,\s]+(?:nos?|št)\.\s*(\d+(?:[\u2013-]\d+)?)\s*' + _PAREN_YEAR + r'\s*:\s*' + _PAGE)
 _JOURNAL_NOVOL_PAREN_RE = re.compile(
-    _J_NAME + r'\s*\((\d{4})\)\s*:\s*' + _PAGE)
+    _J_NAME + r'\s*' + _PAREN_YEAR + r'\s*:\s*' + _PAGE)
 _JOURNAL_VOL_ONLY_PAREN_RE = re.compile(
-    _J_NAME + r'\s+' + _VOL + r'\s*\((\d{4})\)\s*:\s*' + _PAGE)
+    _J_NAME + r'\s+' + _VOL + r'\s*' + _PAREN_YEAR + r'\s*:\s*' + _PAGE)
 _JOURNAL_NOPAREN_RE = re.compile(
     _J_NAME + r'\s+' + _VOL + r'(?:[,\s]+(?:nos?|št)\.\s*(\d+(?:[\u2013-]\d+)?))?,\s*(\d{4}),\s*' + _PAGE)
 
