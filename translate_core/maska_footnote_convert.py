@@ -49,8 +49,9 @@ _J_NAME = r'(?:\*([^*]+)\*|(?<![A-Za-z])([A-ZÀ-ÿ][A-Za-zÀ-ÿ.&]+(?:\s+[A-ZÀ-
 _ISSUE = r'(?:[,\s]+(?:nos?|št)\.\s*(\d+(?:[\u2013-]\d+)?))?'
 _VOL = r'(\d+|[IVXLCDM]+)'
 _PAGE = r'(\d+(?:[\u2013-]\d+)?)'
-# Paren year: handles (YEAR), (Season YEAR), (YEAR-RANGE)
-_PAREN_YEAR = r'\((?:(?:Spring|Summer|Fall|Autumn|Winter)\s+)?(\d{4}(?:-\d{2,4})?)\)'
+# Paren year: handles (YEAR), (Season YEAR), (YEAR-RANGE). Season is captured for translation.
+_SEASONS = {"Spring": "pomlad", "Summer": "poletje", "Fall": "jesen", "Autumn": "jesen", "Winter": "zima"}
+_PAREN_YEAR = r'\(((?:Spring|Summer|Fall|Autumn|Winter)\s+)?(\d{4}(?:-\d{2,4})?)\)'
 _JOURNAL_PAREN_RE = re.compile(
     _J_NAME + r'\s+' + _VOL + _ISSUE + r'\s*' + _PAREN_YEAR + r'\s*:\s*' + _PAGE)
 _JOURNAL_ISSUE_ONLY_PAREN_RE = re.compile(
@@ -61,6 +62,7 @@ _JOURNAL_VOL_ONLY_PAREN_RE = re.compile(
     _J_NAME + r'\s+' + _VOL + r'\s*' + _PAREN_YEAR + r'\s*:\s*' + _PAGE)
 _JOURNAL_NOPAREN_RE = re.compile(
     _J_NAME + r'\s+' + _VOL + r'(?:[,\s]+(?:nos?|št)\.\s*(\d+(?:[\u2013-]\d+)?))?,\s*(\d{4}),\s*' + _PAGE)
+_PAREN_PUBLISHER_RE = re.compile(r'\s*\(([A-Z][^)]+:\s*[^,]+,\s*\d{4})\)')
 
 # Generic fallback: remove (YEAR) parens in any context
 # Allow alphanumeric pages (c3, n17, 190n17) and end-of-string
@@ -69,7 +71,6 @@ _GEN_YEAR_COMMA_RE = re.compile(r'\s*\((\d{4})\)\s*,')
 _GEN_YEAR_SEMICOLON_RE = re.compile(r'\s*\((\d{4})\)\s*;')
 _GEN_YEAR_PERIOD_RE = re.compile(r'\s*\((\d{4})\)\.(?:\s|$)')
 
-_PAREN_PUBLISHER_RE = re.compile(r'\(([A-Z][^)]+:\s*[^,]+,\s*\d{4})\)')
 _NO_RE = re.compile(r'\bnos?\.\s*')
 _SEE_ALSO_RE = re.compile(r'\bSee also\b')
 _SEE_FOR_EXAMPLE_RE = re.compile(r'\bSee, for example\b')
@@ -139,40 +140,55 @@ def convert_footnote_to_maska(text: str) -> str:
     t = re.sub(r'(\b[A-ZÀ-ÿ][A-Za-zÀ-ÿ.]*(?:\s+[A-ZÀ-ÿ][A-Za-zÀ-ÿ.]*)*)\s+and\s+([A-ZÀ-ÿ][A-Za-zÀ-ÿ]+)', _and_repl, t)
     t = _SEMICOLON_AND_RE.sub('; in ', t)
 
-    # 11. Journal restructure (roman numerals, remove parens, str.)
+    # 11. Journal restructure (roman numerals, remove parens, str., translate seasons)
     def _jname(m):
         return m.group(1) or m.group(2)
 
+    def _season_str(m, season_group_idx):
+        """Extract and translate season from capture group, or return ''."""
+        season = m.group(season_group_idx)
+        if season:
+            season_name = season.strip()
+            return f'{_SEASONS.get(season_name, season_name)} '
+        return ''
+
     def _journal_repl(m):
+        # groups: 1=italic_j, 2=nonitalic_j, 3=vol, 4=issue, 5=season, 6=year, 7=page
+        j = _jname(m); italic = m.group(1) is not None
+        js = f'*{j}*' if italic else j
+        vol = m.group(3); issue = m.group(4); season = _season_str(m, 5); year = m.group(6); page = m.group(7)
+        roman = vol if not vol.isdigit() else _to_roman(int(vol))
+        if issue:
+            return f'{js} {roman}/{issue}, {season}{year}, str. {page}'
+        return f'{js} {roman}, {season}{year}, str. {page}'
+
+    def _journal_issue_only_repl(m):
+        # groups: 1=italic_j, 2=nonitalic_j, 3=issue, 4=season, 5=year, 6=page
+        j = _jname(m); italic = m.group(1) is not None
+        js = f'*{j}*' if italic else j
+        issue = m.group(3); season = _season_str(m, 4); year = m.group(5); page = m.group(6)
+        return f'{js} {issue}, {season}{year}, str. {page}'
+
+    def _journal_novol_repl(m):
+        # groups: 1=italic_j, 2=nonitalic_j, 3=season, 4=year, 5=page
+        j = _jname(m); italic = m.group(1) is not None
+        js = f'*{j}*' if italic else j
+        season = _season_str(m, 3); year = m.group(4); page = m.group(5)
+        return f'{js} {season}{year}, str. {page}'
+
+    def _journal_vol_only_repl(m):
+        # groups: 1=italic_j, 2=nonitalic_j, 3=vol, 4=season, 5=year, 6=page
+        j = _jname(m); italic = m.group(1) is not None
+        js = f'*{j}*' if italic else j
+        vol = m.group(3); season = _season_str(m, 4); year = m.group(5); page = m.group(6)
+        roman = vol if not vol.isdigit() else _to_roman(int(vol))
+        return f'{js} {roman}, {season}{year}, str. {page}'
+
+    def _journal_noparen_repl(m):
+        # groups: 1=italic_j, 2=nonitalic_j, 3=vol, 4=issue, 5=year, 6=page (no season — no parens)
         j = _jname(m); italic = m.group(1) is not None
         js = f'*{j}*' if italic else j
         vol = m.group(3); issue = m.group(4); year = m.group(5); page = m.group(6)
-        roman = vol if not vol.isdigit() else _to_roman(int(vol))
-        return f'{js} {roman}/{issue}, {year}, str. {page}' if issue else f'{js} {roman}, {year}, str. {page}'
-
-    def _journal_issue_only_repl(m):
-        j = _jname(m); italic = m.group(1) is not None
-        js = f'*{j}*' if italic else j
-        issue, year, page = m.group(3), m.group(4), m.group(5)
-        return f'{js} {issue}, {year}, str. {page}'
-
-    def _journal_novol_repl(m):
-        j = _jname(m); italic = m.group(1) is not None
-        js = f'*{j}*' if italic else j
-        year, page = m.group(3), m.group(4)
-        return f'{js} {year}, str. {page}'
-
-    def _journal_vol_only_repl(m):
-        j = _jname(m); italic = m.group(1) is not None
-        js = f'*{j}*' if italic else j
-        vol, year, page = m.group(3), m.group(4), m.group(5)
-        roman = vol if not vol.isdigit() else _to_roman(int(vol))
-        return f'{js} {roman}, {year}, str. {page}'
-
-    def _journal_noparen_repl(m):
-        j = _jname(m); italic = m.group(1) is not None
-        js = f'*{j}*' if italic else j
-        vol, issue, year, page = m.group(3), m.group(4), m.group(5), m.group(6)
         roman = vol if not vol.isdigit() else _to_roman(int(vol))
         return f'{js} {roman}/{issue}, {year}, str. {page}' if issue else f'{js} {roman}, {year}, str. {page}'
 
@@ -182,15 +198,17 @@ def convert_footnote_to_maska(text: str) -> str:
     t = _JOURNAL_NOVOL_PAREN_RE.sub(_journal_novol_repl, t)
     t = _JOURNAL_NOPAREN_RE.sub(_journal_noparen_repl, t)
 
-    # 11f-g. Generic fallback: remove (YEAR) parens
+    # 11f-g. Generic fallback: remove (YEAR) parens (add comma to replace opening paren)
     t = _GEN_YEAR_COLON_PAGE_RE.sub(r', \1, str. \2', t)
     t = _GEN_YEAR_COMMA_RE.sub(r', \1,', t)
     t = _GEN_YEAR_SEMICOLON_RE.sub(r', \1;', t)
     t = _GEN_YEAR_PERIOD_RE.sub(lambda m: f', {m.group(1)}. ' if m.group(0)[-1] == ' ' else f', {m.group(1)}.', t)
 
-    # 12. Remove (City: Publisher, Year) parens (NOT newspaper city distinguishers)
-    t = _PAREN_PUBLISHER_RE.sub(r'\1', t)
-
+    # 12. Remove (City: Publisher, Year) parens — comma replaces opening paren
+    # Maska: *Title*, City: Publisher, Year — comma AFTER closing *
+    t = _PAREN_PUBLISHER_RE.sub(r', \1', t)
+    t = re.sub(r'\*\s*,', '*,', t)  # *Title , → *Title,
+    t = re.sub(r',\s*,', ',', t)  # clean double commas
     # 13. no./nos. → št.
     t = _NO_RE.sub('št. ', t)
 
