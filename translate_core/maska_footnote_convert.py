@@ -22,7 +22,6 @@ Rules (applied in order):
   11b.*Journal* (YEAR): PAGE → *Journal* YEAR, str. PAGE (no volume)
   11c.*Journal* VOL (YEAR): PAGE → *Journal* ROMAN, YEAR, str. PAGE (vol only)
   12. (City: Publisher, Year) → City: Publisher, Year (remove parens)
-  12b.(City) after *Journal* → remove (city in parens after journal name)
   13. no. → št.
   14. "See also" → "Glej tudi"
   15. "See, for example" → "Glej, na primer"
@@ -100,8 +99,6 @@ _JOURNAL_NOVOL_PAREN_RE = re.compile(
 _JOURNAL_VOL_ONLY_PAREN_RE = re.compile(
     r'\*([^*]+)\*\s+(\d+)\s*\((\d{4})\)\s*:\s*(\d+(?:-\d+)?)'
 )
-# Remove (City) in parens after a journal name (not City: Publisher, Year)
-_JOURNAL_CITY_PAREN_RE = re.compile(r'\*([^*]+)\*\s*\([A-Z][a-z]+\)')
 
 _PAREN_PUBLISHER_RE = re.compile(r'\(([A-Z][^)]+:\s*[^,]+,\s*\d{4})\)')
 
@@ -255,10 +252,8 @@ def convert_footnote_to_maska(text: str) -> str:
 
     # 12. (City: Publisher, Year) → City: Publisher, Year (remove parens)
     t = _PAREN_PUBLISHER_RE.sub(r'\1', t)
-    # 12b. (City) after *Journal* → remove (city in parens after journal name)
-    t = _JOURNAL_CITY_PAREN_RE.sub(r'*\1*', t)
-
-    # 13. no. → št.
+    # (City) after *Journal* is KEPT — it's a newspaper distinguisher
+    # (e.g. *Sunday Times* (London) vs *Sunday Times* (UK))
     t = _NO_RE.sub('št. ', t)
 
     # 14. "See also" → "Glej tudi"
