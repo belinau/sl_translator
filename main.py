@@ -1,6 +1,6 @@
 # main.py
 #
-# Zen Translator — Main Application Entrypoint
+# Bel Translation Suite — Main Application Entrypoint
 # Fully integrated with advanced document pre-processing and compiled DOCX exports
 #
 
@@ -103,8 +103,12 @@ def save_project(ws: dict):
         "done": done,
         "segments": segs,
     }
-    for k in ("pipeline", "project_type", "segments_meta"):
-        if ws.get(k):
+    # Persist these unconditionally, not only when truthy. The prior
+    # `if ws.get(k)` guard silently dropped segments_meta when it was an
+    # empty list, losing role classification on round-trip. Per-segment
+    # manifest keys (pdf_para_idx, heading_level, …) ride inside `segments`.
+    for k in ("pipeline", "project_type", "segments_meta", "house_style"):
+        if k in ws:
             data[k] = ws[k]
     path = PROJECTS_DIR / f"{ws['project_id']}.json"
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -295,7 +299,7 @@ def page_home():
             with ui.row().classes("items-center gap-4"):
                 ui.icon("blur_on", size="56px").props("color=primary").classes("animate-pulse")
                 with ui.column().classes("gap-0"):
-                    ui.label("Zen Translator").classes(
+                    ui.label("Bel Translation Suite").classes(
                         "text-3xl font-black tracking-tighter"
                     )
                     ui.label("Professional Translation Workspace").classes(
@@ -479,17 +483,23 @@ async def handle_new_upload(e, lang_pair: str):
                 label="Project type (KG container)",
                 value=default_ptype,
             ).classes("w-full mt-2")
+            from translate_core.publisher_styles import get_style_options
+            style_select = ui.select(
+                get_style_options(),
+                label="Publisher house style",
+                value=config.DEFAULT_HOUSE_STYLE,
+            ).classes("w-full mt-2")
             with ui.row().classes("w-full justify-end mt-4"):
                 ui.button("Cancel", on_click=lambda: dialog.submit(None)).props("flat")
                 ui.button("Create project", on_click=lambda: dialog.submit(
-                    (pipeline_radio.value, ptype_select.value)
+                    (pipeline_radio.value, ptype_select.value, style_select.value)
                 )).props("color=positive")
     result = await dialog
     if result is None:
         saved_path.unlink(missing_ok=True)
         ui.notify("Import cancelled", type="info")
         return
-    pipeline, project_type = result
+    pipeline, project_type, house_style = result
 
     from ui.components import busy_overlay
 
@@ -520,13 +530,12 @@ async def handle_new_upload(e, lang_pair: str):
 
         ws = {
             "project_id": project_id,
-            "filename": name,
-            "lang_pair": lang_pair,
+            "project_type": project_type,
+            "house_style": house_style,
             "active_index": 0,
             "segments": segments,
             "segments_meta": build_segments_meta(segments),
             "pipeline": pipeline,
-            "project_type": project_type,
         }
 
         await run.io_bound(save_project, ws)
@@ -609,12 +618,33 @@ def _parse_academic_docx(parser: "DocumentParser", path: Path) -> list[dict]:
 def _parse_pdf(parser: "DocumentParser", path: Path, *, preprocess: bool = True) -> list[dict]:
     """Convert PDF to markdown and split into segments. Runs in a thread pool.
     preprocess=True applies endnote conversion + list remap (academic pipeline).
-    preprocess=False skips them (simple pipeline — short documents)."""
+    preprocess=False skips them (simple pipeline — short documents).
+
+    Captures a paragraph-formatting manifest from the PDF (font sizes for
+    heading detection, block alignment/indent) and aligns it to the resulting
+    segments as additive keys (pdf_para_idx, heading_level, para_align,
+    para_indent_in, is_blockquote). The manifest is purely metadata; it never
+    re-splits or re-merges segments — the translator's segmentation is frozen.
+    """
     from translate_core.book_outline import split_paragraphs
+    from translate_core.pdf_format_capture import (
+        capture_paragraph_manifest,
+        attach_manifest_to_segments,
+    )
     md_text, _ = parser.to_markdown_with_meta(path, preprocess=preprocess)
-    segments = []
+    segments: list[dict] = []
     for txt in split_paragraphs(md_text, max_chars=config.SEGMENT_MAX_CHARS):
         segments.append({"id": len(segments), "source": txt, "target": "", "status": "pending"})
+    # Attach the PDF paragraph manifest as additive metadata (never alters
+    # source/target/status/id). Unmatched segments (footnote defs, edge
+    # cases) simply lack pdf_para_idx and fall back to one-paragraph-per-segment
+    # at export — the current behavior.
+    try:
+        manifest = capture_paragraph_manifest(path)
+        if manifest.paragraphs:
+            attach_manifest_to_segments(segments, manifest)
+    except Exception as ex:
+        log.warning("pdf_format_capture failed (non-fatal): %s", ex)
     return segments
 
 
@@ -653,7 +683,7 @@ if __name__ in {"__main__", "__mp_main__"}:
     # storage_secret is required for app.storage.user (dark mode persistence).
     # Any non-empty string works for a single-user desktop app.
     ui.run(
-        title="Zen Translator",
+        title="Bel Translation Suite",
         favicon="✨",
         port=8080,
         show=True,

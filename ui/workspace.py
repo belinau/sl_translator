@@ -150,6 +150,12 @@ def page_translate(project_id: str):
                 ui.item("Translated Book (.docx)", on_click=lambda: _export_target_docx())
                 ui.item("Reorganized Source (.docx)", on_click=lambda: _export_source_docx())
                 ui.item("Plain .txt", on_click=lambda: _export_txt())
+                ui.separator()
+                _style_indicator = ui.label("").classes("text-xs opacity-60 px-2 py-1")
+                ui.item("Change house style…", on_click=lambda: _open_change_style_dialog(state, _style_indicator))
+                ui.item("Manage publisher styles…", on_click=lambda: _open_style_manager(state, _style_indicator))
+            from translate_core.publisher_styles import get_style_label
+            _style_indicator.set_text(f"Style: {get_style_label(state.house_style)}")
 
     def _update_progress():
         p = state.progress()
@@ -324,6 +330,10 @@ def page_translate(project_id: str):
                 lines.append(s["source"].strip())
         return "\n\n".join(lines)
 
+    from translate_core.publisher_styles import resolve_typography
+    _house_typo = resolve_typography(state.house_style)
+
+
     def _export_target_docx():
         if state.pipeline == "simple":
             # Simple pipeline: preserve original formatting via template
@@ -363,7 +373,7 @@ def page_translate(project_id: str):
             md = _compile_md(use_target=True)
             path = PROJECTS_DIR / f"compiled_target_{state.project_id}.docx"
             try:
-                doc_parser.compile_to_designed_docx(md, path)
+                doc_parser.compile_to_designed_docx(md, path, house_typography=_house_typo)
                 if path.exists():
                     ui.download(path.read_bytes(), f"translated_{state.filename}")
                     path.unlink(missing_ok=True)
@@ -385,7 +395,7 @@ def page_translate(project_id: str):
             md = _compile_md(use_target=True)
             path = PROJECTS_DIR / f"compiled_target_{state.project_id}.docx"
             try:
-                doc_parser.compile_to_designed_docx(md, path)
+                doc_parser.compile_to_designed_docx(md, path, segments=state.segments, house_typography=_house_typo)
                 if path.exists():
                     ui.download(path.read_bytes(), f"translated_{state.filename}")
                     path.unlink(missing_ok=True)
@@ -398,7 +408,7 @@ def page_translate(project_id: str):
             md = _compile_md(use_target=True)
             path = PROJECTS_DIR / f"compiled_target_{state.project_id}.docx"
             try:
-                doc_parser.compile_to_designed_docx(md, path)
+                doc_parser.compile_to_designed_docx(md, path, house_typography=_house_typo)
                 if path.exists():
                     ui.download(path.read_bytes(), f"translated_{state.filename}")
                     path.unlink(missing_ok=True)
@@ -411,7 +421,7 @@ def page_translate(project_id: str):
         md = _compile_md(use_target=False)
         path = PROJECTS_DIR / f"compiled_source_{state.project_id}.docx"
         try:
-            doc_parser.compile_to_designed_docx(md, path)
+            doc_parser.compile_to_designed_docx(md, path, house_typography=_house_typo)
             if path.exists():
                 ui.download(path.read_bytes(), f"reorganized_source_{state.filename}")
                 path.unlink(missing_ok=True)
@@ -547,4 +557,167 @@ def _open_glossary(state, glossary, config, parse_lang_pair, kg=None, qa_engine=
             ui.button("Cancel", on_click=dialog.close).props("flat")
             ui.button("Save & add another", on_click=_save_and_add).props("outline")
             ui.button("Save", on_click=_save).props("color=positive")
+    dialog.open()
+
+
+# ---------------------------------------------------------------------------
+# Publisher house-style dialogs (module-level, called from Export dropdown)
+# ---------------------------------------------------------------------------
+def _open_change_style_dialog(state, style_indicator):
+    """Dialog to switch the project's house_style to a different profile."""
+    from translate_core.publisher_styles import get_style_options, get_style_label
+
+    with ui.dialog() as dialog, ui.card().classes("min-w-[360px]"):
+        ui.label("Change house style").classes("text-lg font-bold mb-2")
+        options = get_style_options()
+        style_select = ui.select(
+            options,
+            label="Publisher",
+            value=state.house_style,
+        ).classes("w-full")
+
+        async def _apply():
+            chosen = style_select.value
+            if chosen and chosen != state.house_style:
+                state.house_style = chosen
+                state.request_autosave()
+                style_indicator.set_text(f"Style: {get_style_label(chosen)}")
+                ui.notify(f"House style set to {get_style_label(chosen)}", type="positive")
+            dialog.close()
+
+        with ui.row().classes("w-full justify-end mt-4"):
+            ui.button("Cancel", on_click=dialog.close).props("flat")
+            ui.button("Apply", on_click=_apply).props("color=positive")
+    dialog.open()
+
+
+def _open_style_manager(state, style_indicator):
+    """Dialog to create, edit, and delete publisher style profiles.
+
+    CRUD over data/publisher_styles.json. The 'maska' seed profile is
+    protected — it can be edited but not deleted.
+    """
+    from translate_core.publisher_styles import load_styles, save_styles
+
+    with ui.dialog() as dialog, ui.card().classes("min-w-[520px]"):
+        ui.label("Manage publisher styles").classes("text-lg font-bold mb-2")
+        ui.label(
+            "Create, edit, or delete typography profiles for different publishers. "
+            "The Maska seed profile can be edited but not deleted."
+        ).classes("text-caption opacity-70 mb-3")
+
+        list_column = ui.column().classes("w-full gap-1")
+
+        def _refresh_list():
+            list_column.clear()
+            styles_local = load_styles()
+            with list_column:
+                for key, prof in styles_local.items():
+                    with ui.row().classes("w-full items-center justify-between"):
+                        with ui.column().classes("flex-1"):
+                            ui.label(prof.get("label", key)).classes("text-sm font-bold")
+                            ui.label(
+                                f"{prof.get('body_font', '?')} {prof.get('body_size_pt', '?')}pt · "
+                                f"{prof.get('page_size', '?')} · {prof.get('margins_in', '?')}″"
+                            ).classes("text-[10px] opacity-60")
+                        with ui.row().classes("gap-1"):
+                            ui.button(
+                                "Edit",
+                                on_click=lambda k=key: _open_edit_form(k),
+                            ).props("flat dense size=sm")
+                            if key != "maska":
+                                ui.button(
+                                    "Delete",
+                                    on_click=lambda k=key: _delete_style(k),
+                                    color="negative",
+                                ).props("flat dense size=sm")
+                            else:
+                                ui.button("Delete").props("flat dense size=sm disable")
+            ui.button(
+                "+ Add new style",
+                on_click=lambda: _open_edit_form(None),
+            ).props("flat dense color=primary").classes("mt-2")
+
+        def _delete_style(key: str):
+            styles_local = load_styles()
+            if key in styles_local and key != "maska":
+                del styles_local[key]
+                save_styles(styles_local)
+                ui.notify(f"Style '{key}' deleted", type="info")
+                _refresh_list()
+
+        edit_form_column = ui.column().classes("w-full")
+
+        def _open_edit_form(key):
+            """Open an inline edit form for a profile (key=None for new)."""
+            edit_form_column.clear()
+            styles_local = load_styles()
+            prof = styles_local.get(key, {}) if key else {}
+            with edit_form_column:
+                ui.separator().classes("my-2")
+                ui.label("Edit style" if key else "New style").classes("text-sm font-bold mb-1")
+                key_input = ui.input(
+                    "Style key (slug, e.g. studia_humanitatis)",
+                    value=key or "",
+                ).props("outlined dense").classes("w-full")
+                key_input.set_enabled(key is None)  # can't rename existing
+                label_input = ui.input("Label", value=prof.get("label", "")).props("outlined dense").classes("w-full")
+                font_input = ui.input("Body font", value=prof.get("body_font", "Times New Roman")).props("outlined dense").classes("w-full")
+                with ui.row().classes("w-full gap-2"):
+                    body_size = ui.number("Body size (pt)", value=prof.get("body_size_pt", 12)).props("outlined dense").classes("w-full")
+                    line_spacing = ui.number("Line spacing", value=prof.get("line_spacing", 1.5)).props("outlined dense").classes("w-full")
+                with ui.row().classes("w-full gap-2"):
+                    page_size = ui.select(["A4", "Letter"], value=prof.get("page_size", "A4")).props("outlined dense").classes("w-full")
+                    margins = ui.number("Margins (inch)", value=prof.get("margins_in", 1.0)).props("outlined dense").classes("w-full")
+                space_after = ui.number("Space after (pt)", value=prof.get("space_after_pt", 0)).props("outlined dense").classes("w-full")
+                with ui.row().classes("w-full gap-2"):
+                    fn_size = ui.number("Footnote size (pt)", value=prof.get("footnote_size_pt", 10)).props("outlined dense").classes("w-full")
+                    fn_spacing = ui.number("Footnote line spacing", value=prof.get("footnote_line_spacing", 1.0)).props("outlined dense").classes("w-full")
+                with ui.row().classes("w-full gap-2"):
+                    bq_size = ui.number("Blockquote size (pt)", value=prof.get("blockquote_size_pt", 11)).props("outlined dense").classes("w-full")
+                    bq_indent = ui.number("Blockquote indent (inch)", value=prof.get("blockquote_indent_in", 0.5)).props("outlined dense").classes("w-full")
+                with ui.row().classes("w-full gap-2"):
+                    h1_size = ui.number("H1 size (pt)", value=prof.get("h1_size_pt", 18)).props("outlined dense").classes("w-full")
+                    h2_size = ui.number("H2 size (pt)", value=prof.get("h2_size_pt", 13)).props("outlined dense").classes("w-full")
+
+                def _save_form():
+                    slug = (key_input.value or "").strip()
+                    if not slug:
+                        ui.notify("Style key is required", type="negative")
+                        return
+                    if not (label_input.value or "").strip():
+                        ui.notify("Label is required", type="negative")
+                        return
+                    new_prof = {
+                        "label": label_input.value.strip(),
+                        "body_font": font_input.value or "Times New Roman",
+                        "body_size_pt": float(body_size.value or 12),
+                        "line_spacing": float(line_spacing.value or 1.5),
+                        "page_size": page_size.value or "A4",
+                        "margins_in": float(margins.value or 1.0),
+                        "space_after_pt": float(space_after.value or 0),
+                        "para_first_line_indent_in": 0.0,
+                        "footnote_size_pt": float(fn_size.value or 10),
+                        "footnote_line_spacing": float(fn_spacing.value or 1.0),
+                        "blockquote_size_pt": float(bq_size.value or 11),
+                        "blockquote_line_spacing": 1.0,
+                        "blockquote_indent_in": float(bq_indent.value or 0.5),
+                        "h1_size_pt": float(h1_size.value or 18),
+                        "h2_size_pt": float(h2_size.value or 13),
+                    }
+                    all_styles = load_styles()
+                    all_styles[slug] = new_prof
+                    save_styles(all_styles)
+                    ui.notify(f"Style '{slug}' saved", type="positive")
+                    edit_form_column.clear()
+                    _refresh_list()
+
+                with ui.row().classes("w-full justify-end mt-2 gap-2"):
+                    ui.button("Cancel", on_click=lambda: edit_form_column.clear()).props("flat")
+                    ui.button("Save", on_click=_save_form).props("color=positive")
+
+        _refresh_list()
+
+        with ui.row().classes("w-full justify-end mt-4"):
+            ui.button("Close", on_click=dialog.close).props("flat")
     dialog.open()

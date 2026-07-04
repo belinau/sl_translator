@@ -244,4 +244,42 @@ def resegment_pending(ws: dict, max_chars: int) -> dict:
     return {"before": len(old_segments), "after": len(new_segments), "split": split_count}
 
 
-__all__ = ["TOCEntry", "BookOutline", "split_paragraphs", "split_long_paragraph", "resegment_pending"]
+def group_segments_by_para(segments: list[dict]) -> list[list[dict]]:
+    """Group segments that share the same pdf_para_idx into one paragraph.
+
+    Segments without pdf_para_idx (footnote defs, unmatched edge cases) each
+    form their own one-element group, preserving the current one-paragraph-
+    per-segment export behavior for them. Segments with the same pdf_para_idx
+    are grouped in their original order so the export emits one DOCX paragraph
+    per original PDF paragraph.
+
+    Never reorders segments and never touches their contents.
+    """
+    groups: list[list[dict]] = []
+    current_idx: object = _SENTINEL
+    current_group: list[dict] = []
+    for seg in segments:
+        pi = seg.get("pdf_para_idx")
+        if pi is None:
+            # No manifest key → own group (fallback to per-segment paragraphs)
+            if current_group:
+                groups.append(current_group)
+                current_group = []
+            groups.append([seg])
+            current_idx = _SENTINEL
+            continue
+        if pi == current_idx:
+            current_group.append(seg)
+        else:
+            if current_group:
+                groups.append(current_group)
+            current_group = [seg]
+            current_idx = pi
+    if current_group:
+        groups.append(current_group)
+    return groups
+
+
+_SENTINEL = object()
+
+__all__ = ["TOCEntry", "BookOutline", "split_paragraphs", "split_long_paragraph", "resegment_pending", "group_segments_by_para"]

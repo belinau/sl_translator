@@ -111,6 +111,17 @@ def import_book(file_path: str, lang_pair: str = "en->sl",
         from translate_core.book_outline import split_paragraphs as _split
         for txt in _split(md_text, max_chars=config.SEGMENT_MAX_CHARS):
             segments.append({"id": len(segments), "source": txt, "target": "", "status": "pending"})
+        # Attach the PDF paragraph manifest as additive metadata.
+        try:
+            from translate_core.pdf_format_capture import (
+                capture_paragraph_manifest,
+                attach_manifest_to_segments,
+            )
+            manifest = capture_paragraph_manifest(path)
+            if manifest.paragraphs:
+                attach_manifest_to_segments(segments, manifest)
+        except Exception as ex:
+            log.warning(f"pdf_format_capture failed (non-fatal): {ex}")
 
     if not segments:
         log.error("No text extracted from document.")

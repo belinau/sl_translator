@@ -17,6 +17,8 @@ import re
 from collections.abc import Callable
 from typing import Any
 
+import config
+
 
 def infer_pipeline(ws: dict) -> str:
     """Explicit field wins; legacy projects: footnote defs or book-scale count → academic."""
@@ -34,8 +36,9 @@ class WorkspaceState:
         self.filename: str = ws.get("filename", "")
         self.lang_pair: str = ws.get("lang_pair", "en->sl")
         self.pipeline: str = infer_pipeline(ws)
-        self.project_type: str = ws.get("project_type") or ("book_translation" if self.pipeline == "academic" else "article_translation")
         self._segments_meta: list = ws.get("segments_meta", [])
+        self.house_style: str = ws.get("house_style") or config.DEFAULT_HOUSE_STYLE
+        self.project_type: str = ws.get("project_type") or ("book_translation" if self.pipeline == "academic" else "article_translation")
         self.segments: list[dict] = ws["segments"]
         self.active_index: int = max(0, min(ws.get("active_index", 0), len(self.segments) - 1)) if self.segments else 0
 
@@ -134,8 +137,10 @@ class WorkspaceState:
                 "active_index": self.active_index,
                 "segments": [dict(s) for s in self.segments],
             }
-            if self._segments_meta:
-                payload["segments_meta"] = self._segments_meta
+            # Persist segments_meta + house_style unconditionally so the
+            # round-trip doesn't drop them. save_project keys on `k in ws`.
+            payload["segments_meta"] = self._segments_meta
+            payload["house_style"] = self.house_style
             await asyncio.get_running_loop().run_in_executor(None, self._save_callback, payload)
             self.is_dirty = False
             self.save_status = "saved"

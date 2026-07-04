@@ -45,6 +45,43 @@ _MD_EMPHASIS_RE = re.compile(
 )
 
 
+# Legacy typography defaults (pre-Maska). Used when no segments/manifest is
+# provided so existing md_text-only exports don't change appearance.
+_LEGACY_TYPOGRAPHY = {
+    "body_font": "Georgia",
+    "body_size_pt": 11,
+    "line_spacing": 1.25,
+    "margins_in": 1.2,
+    "space_after_pt": 8,
+    "h1_size_pt": 18,
+    "h2_size_pt": 13,
+    "blockquote_size_pt": 11,
+    "blockquote_line_spacing": 1.0,
+    "blockquote_indent_in": 0.5,
+}
+
+
+def _apply_page_setup(doc, typo: dict) -> None:
+    """Set page size + margins on every section of doc.
+    Maska: A4, 1-inch margins all sides. Legacy: Letter, 1.2-inch margins."""
+    assert docx is not None and Inches is not None
+    margins = typo.get("margins_in", 1.2)
+    page_size = typo.get("page_size", "Letter")
+    for section in doc.sections:
+        section.top_margin = Inches(margins)
+        section.bottom_margin = Inches(margins)
+        section.left_margin = Inches(margins)
+        section.right_margin = Inches(margins)
+        if page_size == "A4":
+            # A4: 210mm x 297mm = 8.27in x 11.69in
+            section.page_width = Inches(8.27)
+            section.page_height = Inches(11.69)
+        else:
+            # Letter: 8.5in x 11in (python-docx default)
+            section.page_width = Inches(8.5)
+            section.page_height = Inches(11)
+
+
 def _xml_escape(s: str) -> str:
     return (
         s.replace("&", "&amp;")
@@ -802,12 +839,29 @@ class DocumentParser:
                 paragraph.add_run(span)
 
     def compile_to_designed_docx(
-        self, md_text: str, output_path: Path, house_font: str = "Georgia"
+        self,
+        md_text: str,
+        output_path: Path,
+        house_font: str = "Georgia",
+        segments: list[dict] | None = None,
+        house_typography: dict | None = None,
     ):
         """Compile markdown to a styled DOCX with true page-bottom Word footnotes.
 
-        Markdown emphasis *italic*, **bold**, ***both*** are rendered as real
+        Markdown emphasis *italic*, **bold*, ***both*** are rendered as real
         Word italic/bold runs in both body text and footnotes.
+
+        When ``segments`` is provided (a list of segment dicts carrying
+        pdf_para_idx/heading_level/para_align/para_indent_in/is_blockquote
+        manifest keys), the export reconstructs the original PDF paragraphs:
+        segments sharing the same pdf_para_idx are joined into one DOCX
+        paragraph, headings render at their detected level, and block quotes
+        get the house block-quote style. The translator's segmentation is
+        never changed — only grouped for paragraph reconstruction.
+
+        ``house_typography`` (default: config.MASKA_TYPOGRAPHY when segments
+        are given, else the legacy Georgia/11pt defaults) governs fonts,
+        sizes, margins, and spacing.
         """
         if not HAS_DOCX:
             print("[Parser Error] python-docx not installed. Writing plain text fallback.")
@@ -823,6 +877,20 @@ class DocumentParser:
             and qn is not None
         ), "HAS_DOCX is True but optional symbols are unbound"
 
+        # Resolve house typography. When segments carry a manifest we default
+        # to the Maska publisher style; legacy md_text-only exports keep the
+        # prior Georgia/11pt defaults for backwards compatibility.
+        if house_typography is None:
+            if segments is not None:
+                try:
+                    import config
+                    house_typography = config.MASKA_TYPOGRAPHY
+                except Exception:
+                    house_typography = _LEGACY_TYPOGRAPHY
+            else:
+                house_typography = _LEGACY_TYPOGRAPHY
+        typo = house_typography
+
         # 1. Parse footnote defs and separate them from the body stream.
         footnote_defs: Dict[str, str] = {}
         body_lines: List[str] = []
@@ -835,75 +903,79 @@ class DocumentParser:
 
         doc = docx.Document()
 
-        # 2. Margins + base typography.
-        for section in doc.sections:
-            section.top_margin = Inches(1.2)
-            section.bottom_margin = Inches(1.2)
-            section.left_margin = Inches(1.2)
-            section.right_margin = Inches(1.2)
+        # 2. Margins + base typography (Maska: A4, 1" margins, TNR 12pt, 1.5 line).
+        _apply_page_setup(doc, typo)
 
         from typing import cast
         from docx.styles.style import ParagraphStyle
 
         style_normal = cast(ParagraphStyle, doc.styles["Normal"])
-        style_normal.font.name = house_font
-        style_normal.font.size = Pt(11)
-        style_normal.paragraph_format.line_spacing = 1.25
-        style_normal.paragraph_format.space_after = Pt(8)
+        style_normal.font.name = typo.get("body_font", house_font)
+        style_normal.font.size = Pt(typo.get("body_size_pt", 11))
+        style_normal.paragraph_format.line_spacing = typo.get("line_spacing", 1.25)
+        # Maska SLOG ODSTAVKA: no space between paragraphs.
+        style_normal.paragraph_format.space_after = Pt(typo.get("space_after_pt", 8))
+        style_normal.paragraph_format.space_before = Pt(0)
 
-        # 3. Body
+        # 3. Body — manifest path (grouped paragraphs) or legacy md_text path.
         next_footnote_id = 1
         footnotes_to_add: List[Tuple[int, str]] = []
         is_first_chapter = True
 
-        for line in body_lines:
-            line_str = line.strip()
-            if not line_str:
-                continue
+        if segments is not None and any("pdf_para_idx" in s for s in segments):
+            # Manifest path: group segments by pdf_para_idx → one DOCX
+            # paragraph per original PDF paragraph.
+            from translate_core.book_outline import group_segments_by_para
+            groups = group_segments_by_para(segments)
+            for grp in groups:
+                # Join the group's target (or source fallback) into one text.
+                text = " ".join(
+                    (s.get("target", "").strip() or s.get("source", "").strip())
+                    for s in grp
+                ).strip()
+                if not text:
+                    continue
+                # Footnote-def segments (no pdf_para_idx) pass through as
+                # their own group; skip them here — they're in footnote_defs.
+                if text.lstrip().startswith("[^") and re.match(r"^\[\^(\w+)\]:", text.lstrip()):
+                    continue
+                heading_level = grp[0].get("heading_level", 0)
+                para_align = grp[0].get("para_align", "left")
+                is_bq = grp[0].get("is_blockquote", False)
 
-            if line_str.startswith("# "):
-                if not is_first_chapter:
-                    doc.add_section(WD_SECTION.NEW_PAGE)
-                is_first_chapter = False
-                title = line_str[2:]
-                p = doc.add_paragraph()
-                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                p.paragraph_format.space_before = Pt(36)
-                p.paragraph_format.space_after = Pt(24)
-                run = p.add_run(title)
-                run.bold = True
-                run.font.size = Pt(18)
-                continue
-
-            if line_str.startswith("## "):
-                title = line_str[3:]
-                p = doc.add_paragraph()
-                p.paragraph_format.space_before = Pt(18)
-                p.paragraph_format.space_after = Pt(8)
-                run = p.add_run(title)
-                run.bold = True
-                run.font.size = Pt(13)
-                continue
-
-            # Regular paragraph with inline [^N] footnote refs.
-            p = doc.add_paragraph()
-            pattern = re.compile(r"\[\^(\w+)\]")
-            last_idx = 0
-            for match in pattern.finditer(line_str):
-                start, end = match.span()
-                if start > last_idx:
-                    self._add_md_runs(p, line_str[last_idx:start])
-                fn_id = match.group(1)
-                citation_text = footnote_defs.get(
-                    fn_id, f"[missing footnote {fn_id}]"
+                if heading_level >= 1:
+                    self._emit_heading(doc, text, heading_level, typo, is_first_chapter)
+                    is_first_chapter = False
+                elif is_bq:
+                    self._emit_blockquote(
+                        doc, text, footnote_defs, footnotes_to_add,
+                        next_footnote_id, typo,
+                    )
+                    # footnote ids advanced inside _emit_blockquote
+                    next_footnote_id += text.count("[^")
+                else:
+                    next_footnote_id = self._emit_body_paragraph(
+                        doc, text, footnote_defs, footnotes_to_add,
+                        next_footnote_id, para_align,
+                    )
+        else:
+            # Legacy md_text path: one paragraph per body line.
+            for line in body_lines:
+                line_str = line.strip()
+                if not line_str:
+                    continue
+                if line_str.startswith("# "):
+                    self._emit_heading(doc, line_str[2:], 1, typo, is_first_chapter)
+                    is_first_chapter = False
+                    continue
+                if line_str.startswith("## "):
+                    self._emit_heading(doc, line_str[3:], 2, typo, is_first_chapter)
+                    is_first_chapter = False
+                    continue
+                next_footnote_id = self._emit_body_paragraph(
+                    doc, line_str, footnote_defs, footnotes_to_add,
+                    next_footnote_id, "left",
                 )
-                fn_global_id = next_footnote_id
-                next_footnote_id += 1
-                footnotes_to_add.append((fn_global_id, citation_text))
-                self._add_footnote_reference_run(p, fn_global_id)
-                last_idx = end
-            if last_idx < len(line_str):
-                self._add_md_runs(p, line_str[last_idx:])
 
         # 4. Configure per-section footnote restart.
         for section in doc.sections:
@@ -915,6 +987,118 @@ class DocumentParser:
         if footnotes_to_add:
             _inject_footnotes_part(output_path, footnotes_to_add)
         print(f"[Parser] Styled Book compiled successfully to {output_path}")
+
+    def _emit_heading(
+        self, doc, title: str, level: int, typo: dict, is_first_chapter: bool,
+    ) -> None:
+        """Emit a heading paragraph. Level 1 starts a new page section."""
+        assert docx is not None and Pt is not None and WD_SECTION is not None and WD_ALIGN_PARAGRAPH is not None
+        _pt = Pt  # narrowed local for pyright
+        _align = WD_ALIGN_PARAGRAPH  # narrowed local for pyright
+        if level >= 1 and not is_first_chapter:
+            doc.add_section(WD_SECTION.NEW_PAGE)
+        p = doc.add_paragraph()
+        p.alignment = _align.CENTER
+        p.paragraph_format.space_before = _pt(36 if level == 1 else 18)
+        p.paragraph_format.space_after = _pt(24 if level == 1 else 8)
+        run = p.add_run(title)
+        run.bold = True
+        run.font.size = _pt(typo.get("h1_size_pt", 18) if level == 1 else typo.get("h2_size_pt", 13))
+
+    def _emit_body_paragraph(
+        self, doc, text: str, footnote_defs: dict,
+        footnotes_to_add: list, next_fn_id: int, para_align: str,
+    ) -> int:
+        """Emit a regular body paragraph with inline [^N] footnote refs.
+        Returns the updated next footnote id."""
+        assert WD_ALIGN_PARAGRAPH is not None and Pt is not None and Inches is not None
+        _pt, _in = Pt, Inches  # narrowed locals for pyright
+        p = doc.add_paragraph()
+        align_map = {
+            "left": WD_ALIGN_PARAGRAPH.LEFT,
+            "center": WD_ALIGN_PARAGRAPH.CENTER,
+            "right": WD_ALIGN_PARAGRAPH.RIGHT,
+            "justify": WD_ALIGN_PARAGRAPH.JUSTIFY,
+        }
+        p.alignment = align_map.get(para_align, WD_ALIGN_PARAGRAPH.LEFT)
+        # Maska SLOG ODSTAVKA: no first-line indent, no space after.
+        p.paragraph_format.first_line_indent = _in(0)
+        p.paragraph_format.space_after = _pt(0)
+        pattern = re.compile(r"\[\^(\w+)\]")
+        last_idx = 0
+        fn_id_counter = next_fn_id
+        for match in pattern.finditer(text):
+            start, end = match.span()
+            if start > last_idx:
+                self._add_md_runs(p, text[last_idx:start])
+            fn_id = match.group(1)
+            citation_text = footnote_defs.get(fn_id, f"[missing footnote {fn_id}]")
+            footnotes_to_add.append((fn_id_counter, citation_text))
+            self._add_footnote_reference_run(p, fn_id_counter)
+            fn_id_counter += 1
+            last_idx = end
+        if last_idx < len(text):
+            self._add_md_runs(p, text[last_idx:])
+        return fn_id_counter
+
+    def _emit_blockquote(
+        self, doc, text: str, footnote_defs: dict,
+        footnotes_to_add: list, next_fn_id: int, typo: dict,
+    ) -> None:
+        """Emit a block-quote paragraph (Maska SLOG SAMOSTOJNEGA CITATA:
+        11pt, 1.0 line spacing, right-indented)."""
+        assert Pt is not None and Inches is not None and WD_ALIGN_PARAGRAPH is not None
+        _pt, _in = Pt, Inches  # narrowed locals for pyright
+        p = doc.add_paragraph()
+        p.paragraph_format.left_indent = _in(typo.get("blockquote_indent_in", 0.5))
+        p.paragraph_format.line_spacing = typo.get("blockquote_line_spacing", 1.0)
+        p.paragraph_format.space_after = _pt(0)
+        # Block-quote font size is applied per-run via _add_md_runs_sized
+        # below (the paragraph has no runs yet at this point).
+        # Re-emit with size override: add runs via _add_md_runs then resize.
+        pattern = re.compile(r"\[\^(\w+)\]")
+        last_idx = 0
+        fn_id_counter = next_fn_id
+        for match in pattern.finditer(text):
+            start, end = match.span()
+            if start > last_idx:
+                self._add_md_runs_sized(p, text[last_idx:start], typo.get("blockquote_size_pt", 11))
+            fn_id = match.group(1)
+            citation_text = footnote_defs.get(fn_id, f"[missing footnote {fn_id}]")
+            footnotes_to_add.append((fn_id_counter, citation_text))
+            self._add_footnote_reference_run(p, fn_id_counter)
+            fn_id_counter += 1
+            last_idx = end
+        if last_idx < len(text):
+            self._add_md_runs_sized(p, text[last_idx:], typo.get("blockquote_size_pt", 11))
+
+    def _add_md_runs_sized(self, paragraph, text: str, size_pt: float) -> None:
+        """Like _add_md_runs but sets an explicit font size on each run
+        (for block quotes that need a smaller size than Normal)."""
+        if not HAS_DOCX:
+            return
+        assert docx is not None and Pt is not None
+        _pt = Pt  # narrowed local for pyright
+        spans = _MD_EMPHASIS_RE.split(text)
+        for span in spans:
+            if not span:
+                continue
+            if span.startswith("***") and span.endswith("***"):
+                run = paragraph.add_run(span[3:-3])
+                run.bold = True
+                run.italic = True
+                run.font.size = _pt(size_pt)
+            elif span.startswith("**") and span.endswith("**"):
+                run = paragraph.add_run(span[2:-2])
+                run.bold = True
+                run.font.size = _pt(size_pt)
+            elif span.startswith("*") and span.endswith("*") and not span.startswith("**"):
+                run = paragraph.add_run(span[1:-1])
+                run.italic = True
+                run.font.size = _pt(size_pt)
+            else:
+                run = paragraph.add_run(span)
+                run.font.size = _pt(size_pt)
 
     def compile_from_template(
         self,
