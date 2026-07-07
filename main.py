@@ -530,6 +530,8 @@ async def handle_new_upload(e, lang_pair: str):
 
         ws = {
             "project_id": project_id,
+            "filename": name,
+            "lang_pair": lang_pair,
             "project_type": project_type,
             "house_style": house_style,
             "active_index": 0,
