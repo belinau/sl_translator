@@ -12,6 +12,7 @@ segments — translation flow needs fresh hits each time.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 
 from nicegui import background_tasks, run, ui
 
@@ -336,6 +337,67 @@ def _truncate(text: str, n: int = 90) -> str:
     return text if len(text) <= n else text[: n - 1] + "…"
 
 
+def _render_hit_fn(h: dict, _insert: Callable[[str], None]) -> None:
+    """One bilingual hit with its alt/sibling chips inline — a single
+    wrapping row instead of hit row + indented cluster row.
+
+    Module-level so both intel_panel.build() and the reviewer page can
+    reuse the exact same rendering logic.
+    """
+    t_term = h["tgt_term"]
+    tgt_alts = [tr["term"] for tr in h.get("alt_translations", []) or []]
+    tgt_sibs = [
+        r for r in h.get("related", []) or []
+        if r.get("lang") == h["tgt_lang"]
+    ]
+    src_sibs = [
+        r for r in h.get("related", []) or []
+        if r.get("lang") != h["tgt_lang"]
+    ]
+    with ui.row().classes("w-full items-center gap-x-1.5 gap-y-0.5 flex-wrap"):
+        with ui.row().classes(
+            "items-center gap-2 no-wrap cursor-pointer hover:bg-primary/5 rounded"
+        ).on("click", lambda _e, t=t_term: _insert(t)):
+            ui.label(h["src_term"]).classes("text-sm opacity-70")
+            ui.label("→").classes("text-xs opacity-30")
+            tgt_style = "color: var(--q-positive)" if h.get("verified") else ""
+            ui.label(t_term).classes("font-bold text-sm").style(tgt_style)
+            if h["verified"]:
+                ui.icon("verified", size="13px").props("color=positive")
+            else:
+                ui.badge(
+                    f"{int((h.get('confidence') or 0) * 100)}%",
+                    color="primary",
+                ).classes("text-[9px] px-1")
+        if not (tgt_alts or tgt_sibs or src_sibs):
+            return
+        ui.label("·").classes("text-xs opacity-30")
+        for alt_t in tgt_alts[:2]:
+            ui.button(
+                alt_t,
+                on_click=lambda _e, t=alt_t: _insert(t),
+            ).props("flat dense rounded color=positive").classes(
+                "text-[10px] normal-case h-5 px-1.5"
+            )
+        for sib in tgt_sibs[:3]:
+            ui.button(
+                sib["term"],
+                on_click=lambda _e, t=sib["term"]: _insert(t),
+            ).props("flat dense rounded color=positive").classes(
+                "text-[10px] normal-case h-5 px-1.5"
+            ).tooltip(
+                f"{sib.get('lang', '')} — {sib.get('freq', 0)}× in corpus"
+            )
+        for sib in src_sibs[:2]:
+            ui.button(
+                sib["term"],
+                on_click=lambda _e, t=sib["term"]: _insert(t),
+            ).props("flat dense rounded color=positive").classes(
+                "text-[10px] normal-case h-5 px-1.5"
+            ).tooltip(
+                f"{sib.get('lang', '')} — {sib.get('freq', 0)}× in corpus"
+            )
+
 def build(
     state: WorkspaceState,
     deps: dict,
@@ -416,67 +478,8 @@ def build(
     # most of the everyday translation work in humanities corpora).
     # ------------------------------------------------------------------
     def _render_hit(h: dict):
-        """One bilingual hit with its alt/sibling chips inline — a single
-        wrapping row instead of hit row + indented cluster row."""
-        t_term = h["tgt_term"]
-        # Colours encode direction:
-        #   positive = alternative renderings of the same source term
-        #   positive = target-lang concept siblings (clickable to insert)
-        #   positive = source-lang concept siblings (context only)
-        tgt_alts = [tr["term"] for tr in h.get("alt_translations", []) or []]
-        tgt_sibs = [
-            r for r in h.get("related", []) or []
-            if r.get("lang") == h["tgt_lang"]
-        ]
-        src_sibs = [
-            r for r in h.get("related", []) or []
-            if r.get("lang") != h["tgt_lang"]
-        ]
-        with ui.row().classes("w-full items-center gap-x-1.5 gap-y-0.5 flex-wrap"):
-            # Clickable hit — handler lives on this no-wrap sub-row only, so
-            # chip clicks (siblings, not children) never double-insert.
-            with ui.row().classes(
-                "items-center gap-2 no-wrap cursor-pointer hover:bg-primary/5 rounded"
-            ).on("click", lambda _e, t=t_term: _insert(t)):
-                ui.label(h["src_term"]).classes("text-sm opacity-70")
-                ui.label("→").classes("text-xs opacity-30")
-                tgt_style = "color: var(--q-positive)" if h.get("verified") else ""
-                ui.label(t_term).classes("font-bold text-sm").style(tgt_style)
-                if h["verified"]:
-                    ui.icon("verified", size="13px").props("color=positive")
-                else:
-                    ui.badge(
-                        f"{int((h.get('confidence') or 0) * 100)}%",
-                        color="primary",
-                    ).classes("text-[9px] px-1")
-            if not (tgt_alts or tgt_sibs or src_sibs):
-                return
-            ui.label("·").classes("text-xs opacity-30")
-            for alt_t in tgt_alts[:2]:
-                ui.button(
-                    alt_t,
-                    on_click=lambda _e, t=alt_t: _insert(t),
-                ).props("flat dense rounded color=positive").classes(
-                    "text-[10px] normal-case h-5 px-1.5"
-                )
-            for sib in tgt_sibs[:3]:
-                ui.button(
-                    sib["term"],
-                    on_click=lambda _e, t=sib["term"]: _insert(t),
-                ).props("flat dense rounded color=positive").classes(
-                    "text-[10px] normal-case h-5 px-1.5"
-                ).tooltip(
-                    f"{sib.get('lang', '')} — {sib.get('freq', 0)}× in corpus"
-                )
-            for sib in src_sibs[:2]:
-                ui.button(
-                    sib["term"],
-                    on_click=lambda _e, t=sib["term"]: _insert(t),
-                ).props("flat dense rounded color=positive").classes(
-                    "text-[10px] normal-case h-5 px-1.5"
-                ).tooltip(
-                    f"{sib.get('lang', '')} — {sib.get('freq', 0)}× in corpus"
-                )
+        _render_hit_fn(h, _insert)
+
 
     async def _refresh_kg():
         seg = _current_seg()

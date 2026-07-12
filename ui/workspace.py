@@ -130,6 +130,10 @@ def page_translate(project_id: str):
                 icon="menu_book",
                 on_click=lambda: _open_glossary(state, glossary, config, parse_lang_pair, kg, qa_engine, _slugify_project(state)),
             ).props("flat round dense size=sm color=grey-6").tooltip("Add Glossary Term")
+            ui.button(
+                icon="rate_review",
+                on_click=lambda: ui.navigate.to(f"/review/{state.project_id}"),
+            ).props("flat round dense size=sm color=grey-6").tooltip("Review")
 
         with ui.column().classes("w-44 items-center gap-0.5"):
             progress_pct_label = ui.label(f"{int(state.progress() * 100)}%").classes(

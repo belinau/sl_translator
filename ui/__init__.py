@@ -8,17 +8,18 @@ from . import (  # noqa: F401
     components,
     intel_panel,
     predictions,
+    review,
     segment_editor,
     segment_navigator,
     settings,
     state,
     workspace,
 )
-
 __all__ = [
     "components",
     "intel_panel",
     "predictions",
+    "review",
     "segment_editor",
     "segment_navigator",
     "settings",

@@ -60,6 +60,17 @@ def validate_project_id(project_id: str) -> None:
         raise ValueError(f"Invalid project_id: {project_id!r}")
 
 
+def _is_review_expired(r: dict) -> bool:
+    """Check if a review clone's funnel has expired."""
+    exp = r.get("funnel_expires_at", "")
+    if not exp:
+        return True
+    try:
+        return datetime.fromisoformat(exp) <= datetime.now()
+    except Exception:
+        return True
+
+
 def parse_lang_pair(pair: str) -> Tuple[str, str]:
     """Return (src, tgt) from 'src->tgt'. Defaults to ('en', 'sl')."""
     if not pair or "->" not in pair:
@@ -372,34 +383,35 @@ def render_project_list(container: ui.column, client):
         ui.label("RECENT PROJECTS").classes(
             "text-[10px] font-black uppercase tracking-[0.3em] px-2 mb-2 opacity-60"
         )
-        with ui.grid(columns=2).classes("w-full gap-4"):
+        with ui.element("div").classes("w-full flex flex-col gap-4"):
             for p in projects:
                 pct = int(p["done"] / p["total"] * 100) if p["total"] else 0
                 with (
                     ui.card()
                     .props("flat bordered")
-                    .classes("p-6 rounded-2xl flex flex-col gap-4 cursor-pointer hover:shadow-lg transition")
+                    .classes("p-4 rounded-2xl flex flex-row gap-4 cursor-pointer hover:shadow-lg transition h-full break-inside-avoid")
                     .on(
                         "click", lambda pid=p["id"]: ui.navigate.to(f"/translate/{pid}")
                     )
                 ):
-                    with ui.row().classes("w-full justify-between items-start"):
-                        with ui.column().classes("gap-0.5 flex-1"):
-                            ui.label(p["filename"]).classes(
-                                "text-base font-bold truncate leading-tight"
-                            )
-                            ui.label(p["lang_pair"]).classes(
-                                "text-[10px] font-black uppercase tracking-widest text-primary"
-                            )
-                        ui.button(
-                            icon="delete",
-                            on_click=lambda e, pid=p["id"], c=container: (
-                                delete_and_refresh(pid, c, client)
-                            ),
-                        ).props("flat round dense size=sm color=grey-5").on("click.stop")
+                    # ── LEFT: project info (title, progress, saved date) ──
+                    with ui.column().classes("flex-1 min-w-0 gap-2"):
+                        with ui.row().classes("w-full items-start justify-between"):
+                            with ui.column().classes("gap-0.5 flex-1 min-w-0"):
+                                ui.label(p["filename"]).classes(
+                                    "text-base font-bold leading-tight break-words line-clamp-2"
+                                )
+                                ui.label(p["lang_pair"]).classes(
+                                    "text-[10px] font-black uppercase tracking-widest text-primary"
+                                )
+                            ui.button(
+                                icon="delete",
+                                on_click=lambda e, pid=p["id"], c=container: (
+                                    delete_and_refresh(pid, c, client)
+                                ),
+                            ).props("flat round dense size=sm color=grey-5").on("click.stop")
 
-                    with ui.row().classes("w-full items-center gap-4 mt-2"):
-                        with ui.column().classes("flex-1 gap-1"):
+                        with ui.column().classes("w-full gap-1"):
                             ui.linear_progress(value=pct / 100, color="positive").props(
                                 "size=8px rounded"
                             ).classes("w-full")
@@ -408,42 +420,91 @@ def render_project_list(container: ui.column, client):
                                     f"{p['done']} / {p['total']} segments"
                                 ).classes("text-[10px] font-medium opacity-60")
                                 ui.label(f"{pct}%").classes("text-[10px] font-bold")
+                        ui.label(
+                            f"Saved {p['saved_at'][:16].replace('T', ' ')}"
+                        ).classes("text-[9px] font-medium italic opacity-50")
 
-                with ui.row().classes("w-full pt-1 items-center justify-between"):
-                    ui.label(
-                        f"Saved {p['saved_at'][:16].replace('T', ' ')}"
-                    ).classes("text-[9px] font-medium italic opacity-50")
-                    with ui.row().classes("gap-1 items-center"):
-                        ui.button(
-                            icon="content_cut",
-                            on_click=lambda e, pid=p["id"], c=container: resplit_and_refresh(pid, c, client),
-                        ).props("flat round dense size=sm color=grey-5").on("click.stop").tooltip("Re-split large segments")
-                        ui.icon("arrow_forward", size="14px").props("color=primary")
+                    # ── RIGHT: review/funnel status ──
+                    from translate_core import review_manager as _rm
+                    _reviews = _rm.list_reviews(original_project_id=p["id"])
+                    _active = [r for r in _reviews if r.get("funnel_active") and not _is_review_expired(r)]
+                    _inactive = [r for r in _reviews if not r.get("funnel_active") or _is_review_expired(r)]
+                    _completed = [r for r in _reviews if r.get("reviewer_completed")]
+
+                    with ui.column().classes("w-64 shrink-0 gap-1.5 items-end text-right"):
+                        # Review button always at top right
+                        with ui.row().classes("gap-1 items-center"):
+                            if _completed:
+                                ui.icon("task_alt", size="12px").props("color=positive")
+                                ui.label("Review done").classes(
+                                    "text-[9px] font-bold text-positive"
+                                )
+                            elif _active:
+                                ui.icon("sensors", size="12px").props("color=positive").classes("animate-pulse")
+                                ui.label("Funnel live").classes(
+                                    "text-[9px] font-bold text-positive"
+                                )
+                            elif _inactive:
+                                ui.icon("pause_circle", size="12px").props("color=amber-6")
+                                ui.label(f"{len(_inactive)} paused").classes(
+                                    "text-[9px] font-medium text-amber-600"
+                                )
+                            ui.button(
+                                icon="rate_review",
+                                on_click=lambda e, pid=p["id"]: ui.navigate.to(f"/review/{pid}"),
+                            ).props("flat round dense size=sm color=grey-5").on("click.stop").tooltip("Review")
+
+                        # Reviewer-completed details: timestamp
+                        if _completed:
+                            for r in _completed[:1]:
+                                _comp_at = r.get("reviewer_completed_at", "")
+                                _comp_short = _comp_at[:16].replace("T", " ") if _comp_at else ""
+                                _rev = r.get("reviewer_name", "") or "unnamed"
+                                with ui.column().classes("w-full gap-0.5 items-end text-right"):
+                                    with ui.row().classes("gap-1 items-center justify-end"):
+                                        ui.icon("person", size="10px").props("color=grey-6")
+                                        ui.label(_rev).classes("text-[9px] opacity-60")
+                                    if _comp_short:
+                                        with ui.row().classes("gap-1 items-center justify-end"):
+                                            ui.icon("event_available", size="10px").props("color=positive")
+                                            ui.label(f"done {_comp_short}").classes("text-[9px] text-positive opacity-80")
+                                    ui.label("Ready to merge").classes("text-[9px] font-bold text-positive")
+
+                        # Active funnel details: reviewer, expiry, URL
+                        if _active:
+                            for r in _active[:2]:
+                                _exp = r.get("funnel_expires_at", "")
+                                _exp_short = _exp[:16].replace("T", " ") if _exp else "—"
+                                _rev = r.get("reviewer_name", "") or "unnamed"
+                                _url = f"{r.get('funnel_url', '')}/review/ext/{r['review_id']}"
+                                with ui.column().classes("w-full gap-0.5 items-end text-right"):
+                                    with ui.row().classes("gap-1 items-center justify-end"):
+                                        ui.icon("person", size="10px").props("color=grey-6")
+                                        ui.label(_rev).classes("text-[9px] opacity-60")
+                                    with ui.row().classes("gap-1 items-center justify-end"):
+                                        ui.icon("schedule", size="10px").props("color=grey-6")
+                                        ui.label(f"until {_exp_short}").classes("text-[9px] opacity-60")
+                                    with ui.row().classes("w-full gap-1 items-center justify-end"):
+                                        ui.label(_url).classes(
+                                            "text-[9px] font-mono opacity-50 flex-1 min-w-0 text-right"
+                                        ).style("word-break: break-all; white-space: normal;")
+                                        ui.button(
+                                            icon="content_copy",
+                                            on_click=lambda e, t=_url: ui.run_javascript(
+                                                f"navigator.clipboard.writeText({json.dumps(t)})"
+                                            ),
+                                        ).props("flat round dense size=sm color=grey-6").on("click.stop").tooltip("Copy review link")
+                        elif not _reviews:
+                            ui.label("No reviews").classes(
+                                "text-[9px] italic opacity-40"
+                            )
+
+                        ui.icon("arrow_forward", size="14px").props("color=primary").classes("mt-auto")
 
 
 def delete_and_refresh(project_id: str, container: ui.column, client):
     ui.notify("Deleted", type="warning", timeout=1200)
     delete_project(project_id)
-    render_project_list(container, client)
-
-def resplit_and_refresh(project_id: str, container: ui.column, client):
-    from translate_core.book_outline import resegment_pending
-    data = load_project(project_id)
-    if data is None:
-        ui.notify("Project not found", type="negative")
-        return
-    # Backup before mutating
-    backup_path = PROJECTS_DIR / f"{project_id}.json.bak"
-    backup_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-
-    ws = dict(data)
-    ws["project_id"] = project_id
-    stats = resegment_pending(ws, config.SEGMENT_MAX_CHARS)
-    if stats["split"] == 0:
-        ui.notify("No segments needed splitting", type="info")
-        return
-    save_project(ws)
-    ui.notify(f"Split {stats['split']} segments: {stats['before']} → {stats['after']}", type="positive")
     render_project_list(container, client)
 
 
@@ -657,7 +718,8 @@ def _parse_pdf(parser: "DocumentParser", path: Path, *, preprocess: bool = True)
 from ui import workspace as _zen_workspace  # noqa: E402, F401  # pyright: ignore[reportUnusedImport]
 from ui import kg_editor as _kg_editor  # noqa: E402, F401  # pyright: ignore[reportUnusedImport]
 from ui import aligner as _zen_aligner  # noqa: E402, F401  # pyright: ignore[reportUnusedImport]
-_ = _zen_workspace, _kg_editor, _zen_aligner  # mark the bindings as deliberately consumed
+from ui import review as _zen_review  # noqa: E402, F401  # pyright: ignore[reportUnusedImport]
+_ = _zen_workspace, _kg_editor, _zen_aligner, _zen_review  # mark the bindings as deliberately consumed
 
 
 # Publish module-level functions to app_state once they're all defined.
