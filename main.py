@@ -429,12 +429,18 @@ def render_project_list(container: ui.column, client):
                     _reviews = _rm.list_reviews(original_project_id=p["id"])
                     _active = [r for r in _reviews if r.get("funnel_active") and not _is_review_expired(r)]
                     _inactive = [r for r in _reviews if not r.get("funnel_active") or _is_review_expired(r)]
-                    _completed = [r for r in _reviews if r.get("reviewer_completed")]
+                    _completed = [r for r in _reviews if r.get("reviewer_completed") and r.get("status") != "merged"]
+                    _merged = [r for r in _reviews if r.get("status") == "merged"]
 
                     with ui.column().classes("w-64 shrink-0 gap-1.5 items-end text-right"):
                         # Review button always at top right
                         with ui.row().classes("gap-1 items-center"):
-                            if _completed:
+                            if _merged:
+                                ui.icon("check_circle", size="12px").props("color=positive")
+                                ui.label(f"{len(_merged)} merged").classes(
+                                    "text-[9px] font-bold text-positive"
+                                )
+                            elif _completed:
                                 ui.icon("task_alt", size="12px").props("color=positive")
                                 ui.label("Review done").classes(
                                     "text-[9px] font-bold text-positive"
@@ -453,6 +459,19 @@ def render_project_list(container: ui.column, client):
                                 icon="rate_review",
                                 on_click=lambda e, pid=p["id"]: ui.navigate.to(f"/review/{pid}"),
                             ).props("flat round dense size=sm color=grey-5").on("click.stop").tooltip("Review")
+
+                        # Merged review details
+                        if _merged:
+                            for r in _merged[:1]:
+                                _rev = r.get("reviewer_name", "") or "unnamed"
+                                _rounds = r.get("round_trip_count", 0) + 1
+                                with ui.column().classes("w-full gap-0.5 items-end text-right"):
+                                    with ui.row().classes("gap-1 items-center justify-end"):
+                                        ui.icon("person", size="10px").props("color=grey-6")
+                                        ui.label(_rev).classes("text-[9px] opacity-60")
+                                    ui.label(f"Merged ({_rounds} round{'s' if _rounds != 1 else ''})").classes(
+                                        "text-[9px] font-bold text-positive opacity-80"
+                                    )
 
                         # Reviewer-completed details: timestamp
                         if _completed:

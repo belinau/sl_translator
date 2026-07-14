@@ -70,8 +70,9 @@ def _resources() -> dict[str, Any] | None:
     config = app_state.config
     load_project = app_state.load_project
     save_project = app_state.save_project
+    save_pair_to_tm = app_state.save_pair_to_tm
 
-    needed = (tm, glossary, kg, qa_engine, parse_lang_pair, config, load_project, save_project)
+    needed = (tm, glossary, kg, qa_engine, parse_lang_pair, config, load_project, save_project, save_pair_to_tm)
     if any(x is None for x in needed):
         return None
     return {
@@ -83,6 +84,7 @@ def _resources() -> dict[str, Any] | None:
         "config": config,
         "load_project": load_project,
         "save_project": save_project,
+        "save_pair_to_tm": save_pair_to_tm,
     }
 
 
@@ -494,57 +496,45 @@ def _stop_funnel(r: dict, container, project_id, client) -> None:
     _render_reviews(container, project_id, client)
 
 
-def _restart_funnel(r: dict, container, project_id, client) -> None:
+async def _restart_funnel(r: dict, container, project_id, client) -> None:
     validity = r.get("funnel_validity_days", rm.DEFAULT_VALIDITY_DAYS)
-
-    async def _do():
-        try:
-            async with busy_overlay("Restarting funnel…"):
-                url, expires = await asyncio.get_running_loop().run_in_executor(
-                    None, lambda: rm.start_funnel(8080, validity)
-                )
-            r["funnel_url"] = url
-            r["funnel_expires_at"] = expires
-            r["funnel_active"] = True
-            rm.save_review(r)
-            ui.notify("Funnel restarted", type="positive")
-        except Exception as e:
-            ui.notify(f"Failed: {e}", type="negative")
-        _render_reviews(container, project_id, client)
-
-    background_tasks.create(_do(), name="restart_funnel")
+    try:
+        async with busy_overlay("Restarting funnel…"):
+            url, expires = await asyncio.get_running_loop().run_in_executor(
+                None, lambda: rm.start_funnel(8080, validity)
+            )
+        r["funnel_url"] = url
+        r["funnel_expires_at"] = expires
+        r["funnel_active"] = True
+        rm.save_review(r)
+        ui.notify("Funnel restarted", type="positive")
+    except Exception as e:
+        ui.notify(f"Failed: {e}", type="negative")
+    _render_reviews(container, project_id, client)
 
 
-def _reopen_review(r: dict, container, project_id, client) -> None:
+async def _reopen_review(r: dict, container, project_id, client) -> None:
     validity = r.get("funnel_validity_days", rm.DEFAULT_VALIDITY_DAYS)
-
-    async def _do():
-        try:
-            async with busy_overlay("Reopening review…"):
-                url = await asyncio.get_running_loop().run_in_executor(
-                    None, lambda: rm.reopen_review(r, validity)
-                )
-            ui.notify(f"Review reopened. Funnel: {url}", type="positive", timeout=5000)
-        except Exception as e:
-            ui.notify(f"Failed: {e}", type="negative")
-        _render_reviews(container, project_id, client)
-
-    background_tasks.create(_do(), name="reopen_review")
+    try:
+        async with busy_overlay("Reopening review…"):
+            url = await asyncio.get_running_loop().run_in_executor(
+                None, lambda: rm.reopen_review(r, validity)
+            )
+        ui.notify(f"Review reopened. Funnel: {url}", type="positive", timeout=5000)
+    except Exception as e:
+        ui.notify(f"Failed: {e}", type="negative")
+    _render_reviews(container, project_id, client)
 
 
-def _delete_review(review_id: str, container, project_id, client) -> None:
+async def _delete_review(review_id: str, container, project_id, client) -> None:
     from ui.components import confirm_dialog
-
-    async def _do():
-        if await confirm_dialog(
-            f"Delete review {review_id}? This cannot be undone.",
-            confirm_label="Delete",
-        ):
-            rm.delete_review(review_id)
-            ui.notify("Review deleted", type="warning")
-            _render_reviews(container, project_id, client)
-
-    background_tasks.create(_do(), name="delete_review")
+    if await confirm_dialog(
+        f"Delete review {review_id}? This cannot be undone.",
+        confirm_label="Delete",
+    ):
+        rm.delete_review(review_id)
+        ui.notify("Review deleted", type="warning")
+        _render_reviews(container, project_id, client)
 
 
 # ======================================================================
@@ -617,12 +607,37 @@ def page_review_ext(review_id: str):
                 )
 
         with ui.row().classes("gap-2 items-center"):
+            # Save indicator — same pattern as workspace.py:174-194
+            # but driven by the reviewer's own save calls (rm.save_review)
+            # rather than WorkspaceState's autosave, since the reviewer
+            # page doesn't use WorkspaceState for segment persistence.
+            save_label = ui.label("✓ Saved").classes(
+                "text-[9px] font-bold uppercase tracking-wider text-positive"
+            )
+
+            def _set_save_status(status: str):
+                try:
+                    with page_client:
+                        if status == "saved":
+                            text, color = "✓ Saved", "text-positive"
+                        elif status == "saving":
+                            text, color = "Saving…", "text-amber-500"
+                        else:
+                            text, color = "● Unsaved", "text-grey-500"
+                        save_label.set_text(text)
+                        save_label.classes(
+                            remove="text-positive text-amber-500 text-grey-500",
+                            add=color,
+                        )
+                except Exception:
+                    pass
+
             # Reviewer name input
             reviewer_input = ui.input(
                 placeholder="Your name",
                 value=clone.get("reviewer_name", ""),
             ).props("outlined dense").classes("w-40 text-xs")
-            ui.button(icon="save", on_click=lambda: _save_reviewer_name(clone, reviewer_input)).props(
+            ui.button(icon="save", on_click=lambda: _save_reviewer_name(clone, reviewer_input, _set_save_status)).props(
                 "flat round dense color=positive"
             ).tooltip("Save your name")
             from ui import settings as ui_settings
@@ -824,7 +839,7 @@ def page_review_ext(review_id: str):
             ui.label("Review segments — suggest changes in the edit field, leave comments if needed. Use 'Copy' to start from the current translation.").classes(
                 "text-[10px] opacity-50 px-2 pb-2"
             )
-            _build_review_segment_list(clone, state, deps, page_client)
+            _build_review_segment_list(clone, state, deps, page_client, _set_save_status)
 
         # ── Review completed button ──
         # When the reviewer is truly done, they click this to signal
@@ -857,14 +872,18 @@ def page_review_ext(review_id: str):
                     ).tooltip("Click when you are done reviewing all segments")
 
 
-def _save_reviewer_name(clone: dict, input_el) -> None:
+def _save_reviewer_name(clone: dict, input_el, set_save_status=None) -> None:
     clone["reviewer_name"] = input_el.value or ""
+    if set_save_status:
+        set_save_status("saving")
     rm.save_review(clone)
+    if set_save_status:
+        set_save_status("saved")
     ui.notify("Name saved", type="positive", timeout=1000)
 
 
 def _build_review_segment_list(
-    clone: dict, state, deps: dict, page_client
+    clone: dict, state, deps: dict, page_client, set_save_status=None,
 ) -> None:
     """Build the scrollable list of fully-expanded review segment cards.
 
@@ -879,11 +898,12 @@ def _build_review_segment_list(
     with scroll:
         with ui.column().classes("w-full gap-1"):
             for i, seg in enumerate(clone["segments"]):
-                _build_segment_card(seg, i, clone, state, deps, page_client)
+                _build_segment_card(seg, i, clone, state, deps, page_client, set_save_status)
 
 
 def _build_segment_card(
-    seg: dict, idx: int, clone: dict, state, deps: dict, page_client
+    seg: dict, idx: int, clone: dict, state, deps: dict, page_client,
+    set_save_status=None,
 ) -> None:
     """Build one fully-expanded review segment card.
 
@@ -1016,7 +1036,8 @@ def _build_segment_card(
 
     copy_btn.on_click(_do_copy)
 
-    # Autosave on edit
+    # Autosave on edit — updates the save indicator (same pattern as
+    # workspace.py's WorkspaceState save_status subscriber).
     def _on_suggest_change(e):
         seg["reviewer_target"] = e.value or ""
         if seg["reviewer_target"].strip():
@@ -1025,7 +1046,11 @@ def _build_segment_card(
             seg["reviewer_status"] = "commented"
         else:
             seg["reviewer_status"] = "pending"
+        if set_save_status:
+            set_save_status("saving")
         rm.save_review(clone)
+        if set_save_status:
+            set_save_status("saved")
 
     def _on_comment_change(e):
         seg["reviewer_comment"] = e.value or ""
@@ -1035,7 +1060,11 @@ def _build_segment_card(
             seg["reviewer_status"] = "commented"
         else:
             seg["reviewer_status"] = "pending"
+        if set_save_status:
+            set_save_status("saving")
         rm.save_review(clone)
+        if set_save_status:
+            set_save_status("saved")
 
     suggestion_input.on_value_change(_on_suggest_change)
     comment_input.on_value_change(_on_comment_change)
@@ -1122,6 +1151,18 @@ def page_review_merge(review_id: str):
                 async with busy_overlay("Merging…"):
                     rm.merge_review_into_original(original, clone, accepted)
                     res["save_project"](original)
+                    # Upsert each accepted segment to TM — same as the
+                    # editor's confirm button does via save_pair_to_tm.
+                    lang_pair = original.get("lang_pair", "en->sl")
+                    _save_pairs_to_tm = res["save_pair_to_tm"]
+                    orig_map = {s["id"]: s for s in original["segments"]}
+                    for cseg in clone["segments"]:
+                        oid = cseg.get("original_id")
+                        if oid not in accepted:
+                            continue
+                        orig_seg = orig_map.get(oid)
+                        if orig_seg and orig_seg.get("target", "").strip() and orig_seg.get("source", "").strip():
+                            _save_pairs_to_tm(orig_seg["source"], orig_seg["target"], lang_pair)
                     rm.stop_funnel()
                     clone["status"] = rm.STATUS_MERGED
                     clone["funnel_active"] = False
@@ -1143,6 +1184,18 @@ def page_review_merge(review_id: str):
                 async with busy_overlay("Merging & reopening…"):
                     rm.merge_review_into_original(original, clone, accepted)
                     res["save_project"](original)
+                    # Upsert each accepted segment to TM — same as the
+                    # editor's confirm button does via save_pair_to_tm.
+                    lang_pair = original.get("lang_pair", "en->sl")
+                    _save_pairs_to_tm = res["save_pair_to_tm"]
+                    orig_map = {s["id"]: s for s in original["segments"]}
+                    for cseg in clone["segments"]:
+                        oid = cseg.get("original_id")
+                        if oid not in accepted:
+                            continue
+                        orig_seg = orig_map.get(oid)
+                        if orig_seg and orig_seg.get("target", "").strip() and orig_seg.get("source", "").strip():
+                            _save_pairs_to_tm(orig_seg["source"], orig_seg["target"], lang_pair)
                     validity = clone.get("funnel_validity_days", rm.DEFAULT_VALIDITY_DAYS)
                     url = await asyncio.get_running_loop().run_in_executor(
                         None, lambda: rm.reopen_review(clone, validity)
