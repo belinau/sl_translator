@@ -27,21 +27,21 @@ def tm(tmp_path) -> TranslationMemory:
 
 class TestIndexSync:
     def test_upserted_entries_visible_without_reload(self, tm):
-        hits = tm.search_concordance("choreography", top_n=5)
+        hits = tm.search_concordance("choreography", "en", "sl", top_n=5)
         assert hits, "entry added via upsert_runtime_pair must be findable"
         assert "koreografiji" in hits[0]["target"]
 
     def test_direct_append_visible(self, tm):
-        # main.py historically appended straight to tm.entries; lazy
-        # _sync_index must pick the tail up at the next query.
-        tm.entries.append({
-            "source": "An entirely novel zugzwang situation",
-            "target": "Povsem nova zugzwang situacija",
-            "origin": "working.tmx",
-            "source_lang": "en", "target_lang": "sl",
-            "raw_index": len(tm.entries), "t_index": len(tm.entries),
-        })
-        hits = tm.search_concordance("zugzwang", top_n=5)
+        # Runtime confirms arrive via upsert_runtime_pair (the production
+        # path in main.py), which writes to _entries_by_pair and
+        # invalidates the oriented query cache. A direct self.entries
+        # append no longer reaches the oriented query path.
+        tm.upsert_runtime_pair(
+            "An entirely novel zugzwang situation",
+            "Povsem nova zugzwang situacija",
+            "en", "sl",
+        )
+        hits = tm.search_concordance("zugzwang", "en", "sl", top_n=5)
         assert len(hits) == 1
 
     def test_in_place_target_update_reindexed(self, tm):
@@ -50,10 +50,10 @@ class TestIndexSync:
             "Plesalke so se v tišini premikale po odru",  # changed target
             "en", "sl",
         )
-        hits = tm.search_concordance("plesalke", top_n=5)
+        hits = tm.search_concordance("plesalke", "en", "sl", top_n=5)
         assert hits and "Plesalke" in hits[0]["target"]
         fuzzy = tm.lookup_fuzzy(
-            "The dancers moved across the stage in silence", threshold=95.0
+            "The dancers moved across the stage in silence", "en", "sl", threshold=95.0
         )
         assert fuzzy and "Plesalke" in fuzzy[0]["target"]
 
@@ -69,7 +69,7 @@ class TestIndexSync:
         # Query ONLY tokens that exist in the NEW target: without the
         # _reindex_entry hook they have no postings in _inv (stale index)
         # and candidate generation returns nothing at all.
-        hits = tm.search_concordance("povsem nova", top_n=5)
+        hits = tm.search_concordance("povsem nova", "en", "sl", top_n=5)
         assert hits and hits[0]["target"] == "Povsem nova opomba o koreografiji"
 
 
@@ -134,11 +134,11 @@ class TestIndexStructures:
 class TestConcordance:
     def test_prefix_match(self, tm):
         # 'dance' must hit the entry containing 'dancers' (token prefix).
-        hits = tm.search_concordance("dance", top_n=5)
+        hits = tm.search_concordance("dance", "en", "sl", top_n=5)
         assert any("dancers" in h["source"] for h in hits)
 
     def test_result_shape_unchanged(self, tm):
-        hits = tm.search_concordance("choreography dramaturgy", top_n=5)
+        hits = tm.search_concordance("choreography dramaturgy", "en", "sl", top_n=5)
         assert hits
         h = hits[0]
         for key in ("source", "target", "relevance", "_seg_len",
@@ -150,13 +150,13 @@ class TestConcordance:
         tm.upsert_runtime_pair(
             "Only choreography here", "Samo koreografija tukaj", "en", "sl"
         )
-        hits = tm.search_concordance("choreography dramaturgy", top_n=5)
+        hits = tm.search_concordance("choreography dramaturgy", "en", "sl", top_n=5)
         rels = [h["relevance"] for h in hits]
         assert rels == sorted(rels, reverse=True)
         assert "dramaturgy" in hits[0]["source"]
 
     def test_no_index_tokens_returns_empty(self, tm):
-        assert tm.search_concordance("qqqqxyzzy", top_n=5) == []
+        assert tm.search_concordance("qqqqxyzzy", "en", "sl", top_n=5) == []
 
     def test_long_query_capped_by_rarity(self, tm):
         # >12 unique words forces the max_words rarity trim; the rare
@@ -166,14 +166,14 @@ class TestConcordance:
             "been about into over under"
         )
         assert len(set(noise.split())) > 12  # guard: branch actually taken
-        hits = tm.search_concordance(noise + " choreography", top_n=5)
+        hits = tm.search_concordance(noise + " choreography", "en", "sl", top_n=5)
         assert any("choreography" in h["source"] for h in hits)
 
 
 class TestFuzzy:
     def test_exact_hit_carries_score_and_entry_keys(self, tm):
         hits = tm.lookup_fuzzy(
-            "The dancers moved across the stage in silence", threshold=95.0
+            "The dancers moved across the stage in silence", "en", "sl", threshold=95.0
         )
         assert hits
         assert hits[0]["score"] >= 95.0
@@ -183,12 +183,12 @@ class TestFuzzy:
     def test_short_segment_recall(self, tm):
         # Headings/titles: the old dynamic min_src_len allowed short
         # sources for short queries; the prebuilt list must too.
-        hits = tm.lookup_fuzzy("Uvod", threshold=90.0)
+        hits = tm.lookup_fuzzy("Uvod", "sl", "en", threshold=90.0)
         assert hits, "short TM entries must remain fuzzy-matchable"
 
     def test_threshold_prunes(self, tm):
         assert tm.lookup_fuzzy("completely unrelated quantum text",
-                               threshold=90.0) == []
+                               "en", "sl", threshold=90.0) == []
 
     def test_limit_respected(self, tm):
         for k in range(6):
@@ -198,5 +198,5 @@ class TestFuzzy:
                 "en", "sl",
             )
         hits = tm.lookup_fuzzy("Repeated sentence about dancers number 0",
-                               threshold=75.0, limit=3)
+                               "en", "sl", threshold=75.0, limit=3)
         assert len(hits) == 3

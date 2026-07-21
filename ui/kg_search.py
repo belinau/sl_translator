@@ -106,7 +106,7 @@ def build(state: WorkspaceState, deps: dict) -> dict:
             with results:
                 ui.spinner(size="sm").classes("self-center").style("margin: 0.5rem 0")
 
-            _src_lang, tgt_lang = parse_lang_pair(state.lang_pair)
+            src_lang, tgt_lang = parse_lang_pair(state.lang_pair)
             loop = asyncio.get_running_loop()
 
             # ── KG: term keyword search ──────────────────────────────────────
@@ -131,7 +131,7 @@ def build(state: WorkspaceState, deps: dict) -> dict:
             # ── TM: concordance ──────────────────────────────────────────────
             try:
                 tm_hits = await loop.run_in_executor(
-                    None, lambda: tm.search_concordance(q, top_n=25) if tm else []
+                    None, lambda: tm.search_concordance(q, src_lang, tgt_lang, top_n=25) if tm else []
                 )
             except Exception as e:
                 tm_hits = []

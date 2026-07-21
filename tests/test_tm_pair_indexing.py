@@ -333,3 +333,131 @@ def test_upsert_existing_source_updates_target(tm_dir_en_sl_only):
     entries_hello = [e for e in tm.entries if e.get("source") == "hello"]
     assert len(entries_hello) == 1
     assert entries_hello[0]["target"] == "pozdravljeni"
+
+
+# ---------------------------------------------------------------------------
+# G. Direction-aware query API (any European language combo)
+# ---------------------------------------------------------------------------
+# These tests pin the post-compat-shim contract: lookup_fuzzy /
+# search_concordance / search_prefix take (src_lang, tgt_lang) and return
+# hits oriented so that `source` = src-lang text and `target` = tgt-lang text
+# (the insertable text). No hardcoded EN/SL.
+# ---------------------------------------------------------------------------
+
+
+def test_oriented_lookup_forward_en_sl(tm_dir_en_sl_only):
+    """en->sl project: EN source returns SL target hits."""
+    from translate_core.tm import TranslationMemory
+
+    tm = TranslationMemory(tm_dir=tm_dir_en_sl_only)
+    hits = tm.lookup_fuzzy("hello A", "en", "sl", threshold=90.0, limit=5)
+    assert hits, "en->sl fuzzy lookup must hit on the EN source fixture"
+    h = hits[0]
+    assert h["source_lang"] == "en"
+    assert h["target_lang"] == "sl"
+    assert h["source"].startswith("hello")
+    assert h["target"].startswith("pozdrav")
+
+
+def test_oriented_lookup_reversed_sl_en(tm_dir_sl_en_only):
+    """sl->en project: SL source returns EN target hits (the live bug repro).
+
+    Under the old compat-shim, self.entries was 100% forced to ('en','sl'),
+    so an SL source string was unsearchable as fuzzy and concordance
+    returned EN-source/SL-target hits (inverted for an sl->en translator).
+    """
+    from translate_core.tm import TranslationMemory
+
+    tm = TranslationMemory(tm_dir=tm_dir_sl_en_only)
+    hits = tm.lookup_fuzzy("slovenski izvor A", "sl", "en", threshold=90.0, limit=5)
+    assert hits, "sl->en fuzzy lookup must hit on the SL source fixture"
+    h = hits[0]
+    assert h["source_lang"] == "sl"
+    assert h["target_lang"] == "en"
+    assert h["source"].startswith("slovenski izvor")
+    assert h["target"].startswith("english target")
+
+
+def test_oriented_concordance_reversed_sl_en(tm_dir_sl_en_only):
+    """sl->en concordance: SL source token matches, target is EN."""
+    from translate_core.tm import TranslationMemory
+
+    tm = TranslationMemory(tm_dir=tm_dir_sl_en_only)
+    hits = tm.search_concordance("slovenski", "sl", "en", top_n=5)
+    assert hits, "sl->en concordance must match on the SL source token"
+    for h in hits:
+        assert h["source_lang"] == "sl"
+        assert h["target_lang"] == "en"
+        assert "slovenski" in h["source"].lower()
+        assert "english" in h["target"].lower()
+
+
+def test_oriented_lookup_third_combo(tmp_path):
+    """Any European combo (de->en here) returns oriented hits — the
+    'any language combo' guarantee. Under the old compat-shim, a non-EN/SL
+    bucket produced an empty self.entries and zero hits."""
+    from translate_core.tm import TranslationMemory
+
+    tmx = tmp_path / "de_en.tmx"
+    tmx.write_text(
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<tmx version="1.4"><header creationtool="t" srclang="DE"/>'
+        "<body><tu>"
+        '<tuv xml:lang="DE"><seg>Hallo Welt</seg></tuv>'
+        '<tuv xml:lang="EN"><seg>Hello world</seg></tuv>'
+        "</tu></body></tmx>",
+        encoding="utf-8",
+    )
+    tm_dir = tmp_path / "tm"
+    tm_dir.mkdir(exist_ok=True)
+    shutil.copy(tmx, tm_dir / "de_en.tmx")
+    tm = TranslationMemory(tm_dir=tm_dir)
+    hits = tm.lookup_fuzzy("Hallo Welt", "de", "en", threshold=90.0, limit=5)
+    assert hits, "de->en fuzzy lookup must hit on the DE source fixture"
+    assert hits[0]["source_lang"] == "de"
+    assert hits[0]["target_lang"] == "en"
+    assert hits[0]["source"].startswith("Hallo")
+    assert hits[0]["target"].startswith("Hello")
+
+
+def test_oriented_lookup_both_buckets_no_dupes(tmp_path):
+    """When the same pair exists in both orientations across two TMX files,
+    an oriented query must not return duplicate (source,target) hits and
+    must present each in the requested orientation."""
+    from translate_core.tm import TranslationMemory
+
+    tm_dir = tmp_path / "tm"
+    tm_dir.mkdir()
+    shutil.copy(EN_SL_FIXTURE, tm_dir / "en_sl.tmx")
+    shutil.copy(SL_EN_FIXTURE, tm_dir / "sl_en.tmx")
+    tm = TranslationMemory(tm_dir=tm_dir)
+
+    # en->sl query: the EN-SL fixture contributes 'hello A'->'pozdrav A';
+    # the SL-EN fixture reversed contributes 'slovenski izvor A'->'english target A'.
+    hits = tm.lookup_fuzzy("hello A", "en", "sl", threshold=90.0, limit=10)
+    sources = [h["source"] for h in hits]
+    # No (source,target) pair repeated
+    pairs = [(h["source"], h["target"]) for h in hits]
+    assert len(pairs) == len(set(pairs)), "duplicate oriented hits"
+    # All hits oriented en->sl
+    for h in hits:
+        assert h["source_lang"] == "en"
+        assert h["target_lang"] == "sl"
+    # The EN-SL fixture's 'hello A' is present and oriented correctly
+    assert any(s.startswith("hello A") for s in sources)
+
+
+def test_runtime_upsert_preserves_orientation(tm_dir_sl_en_only):
+    """upsert_runtime_pair('sl','en',...) must be findable via an sl->en
+    oriented query and NOT swapped to en->sl."""
+    from translate_core.tm import TranslationMemory
+
+    tm = TranslationMemory(tm_dir=tm_dir_sl_en_only)
+    tm.upsert_runtime_pair("nov slovenski vir", "new english target", "sl", "en")
+    hits = tm.lookup_fuzzy("nov slovenski vir", "sl", "en", threshold=90.0, limit=5)
+    assert hits, "runtime upsert (sl,en) must be findable via sl->en query"
+    h = hits[0]
+    assert h["source_lang"] == "sl"
+    assert h["target_lang"] == "en"
+    assert h["source"] == "nov slovenski vir"
+    assert h["target"] == "new english target"

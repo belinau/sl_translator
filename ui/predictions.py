@@ -248,7 +248,7 @@ async def push_bundle(textarea_id: int, source_text: str, src: str, tgt: str,
             print(f"[predictions glossary] {e}")
         try:
             if tm:
-                for m in tm.lookup_fuzzy(source_text, threshold=70.0, limit=3) or []:
+                for m in tm.lookup_fuzzy(source_text, src, tgt, threshold=70.0, limit=3) or []:
                     t = m.get("target")
                     if t:
                         candidates.append(t)

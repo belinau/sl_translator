@@ -86,6 +86,15 @@ class TranslationMemory:
         self._fuzzy_sources: List[str] = []
         self._fuzzy_ids: List[int] = []
         self._indexed_len = 0
+        # Direction-aware query index cache. Keyed by (src_lang, tgt_lang)
+        # as given to lookup_fuzzy/search_concordance/search_prefix. Built
+        # lazily from _entries_by_pair on first query for a pair, and
+        # invalidated on upsert_runtime_pair. Each entry is a shallow-copy
+        # oriented so `source` = src_lang text, `target` = tgt_lang text
+        # (reversed-bucket entries are swapped). The legacy self.entries
+        # EN/SL compat view + _sync_index stay untouched for the offline
+        # citation-extraction scripts that assume source=EN/target=SL.
+        self._oriented: Dict[Tuple[str, str], Dict[str, Any]] = {}
 
     def _load_all(self):
         if not self.tm_dir.exists():
@@ -326,6 +335,9 @@ class TranslationMemory:
                     if ce.get("source") == source and ce.get("origin") == origin:
                         ce["target"] = target
                         self._reindex_entry(ci)
+                # In-place target update changes the oriented view's target
+                # text for this pair; invalidate so the next query rebuilds.
+                self._oriented.clear()
                 return
 
         # Compute next raw_index / t_index (highest + 1)
@@ -345,6 +357,9 @@ class TranslationMemory:
         }
         bucket.append(new_entry)
         self.entries.append(new_entry)
+        # New pair/entry invalidates any cached oriented query view that
+        # draws from this bucket or its reverse.
+        self._oriented.clear()
 
     def iter_chronological(
         self, origin: Optional[str] = None
@@ -371,55 +386,172 @@ class TranslationMemory:
             else [e for e in flat if e.get("origin") == origin]
         )
         yield from sorted(sel, key=lambda e: e["t_index"])
+    def _oriented_view(self, src_lang: str, tgt_lang: str) -> Dict[str, Any]:
+        """Build (and cache) the oriented query view for a (src_lang, tgt_lang)
+        pair, drawn from ``_entries_by_pair``.
+
+        The view is a dict with:
+          - ``entries``: list of shallow-copied dicts oriented so
+            ``source`` = src_lang text, ``target`` = tgt_lang text, with
+            ``source_lang``/``target_lang`` set to (src_lang, tgt_lang).
+            Forward-bucket entries are copied as-is; reversed-bucket
+            entries have source/target swapped. Deduped by
+            (source, target) so a pair present in both orientations across
+            two TMX files does not double-count.
+          - ``src_low``/``tgt_low``/``inv``/``inv_tokens``/``fuzzy_sources``/
+            ``fuzzy_ids``: the same index structures ``_sync_index`` builds
+            over ``self.entries``, but over the oriented view. Built once
+            per (src_lang, tgt_lang) and cached in ``self._oriented``.
+
+        This is the query surface for ``lookup_fuzzy`` /
+        ``search_concordance`` / ``search_prefix``. The legacy
+        ``self.entries`` EN/SL compat view + ``_sync_index`` stay
+        untouched for the offline citation-extraction scripts that assume
+        source=EN/target=SL.
+        """
+        key = (src_lang, tgt_lang)
+        cached = self._oriented.get(key)
+        if cached is not None:
+            return cached
+
+        fwd = self._entries_by_pair.get(key, [])
+        rev_key = (tgt_lang, src_lang)
+        rev = self._entries_by_pair.get(rev_key, [])
+
+        seen: set = set()
+        entries: List[Dict[str, Any]] = []
+        for e in fwd:
+            pair = (e.get("source"), e.get("target"))
+            if pair in seen:
+                continue
+            seen.add(pair)
+            entries.append(dict(e))
+        for e in rev:
+            # Reversed bucket: swap source/target so the view is oriented
+            # to (src_lang, tgt_lang). Shallow-copy; never mutate the
+            # _entries_by_pair source of truth.
+            swapped = dict(e)
+            swapped["source"] = e.get("target")
+            swapped["target"] = e.get("source")
+            swapped["source_lang"] = src_lang
+            swapped["target_lang"] = tgt_lang
+            pair = (swapped["source"], swapped["target"])
+            if pair in seen:
+                continue
+            seen.add(pair)
+            entries.append(swapped)
+
+        # Build the index structures (mirrors _sync_index over self.entries).
+        src_low: List[str] = []
+        tgt_low: List[str] = []
+        inv: Dict[str, List[int]] = {}
+        fuzzy_sources: List[str] = []
+        fuzzy_ids: List[int] = []
+        for i, e in enumerate(entries):
+            src = e.get("source") or ""
+            tgt = e.get("target") or ""
+            sl, tl = src.lower(), tgt.lower()
+            src_low.append(sl)
+            tgt_low.append(tl)
+            for w in set(_TOKEN_RE.findall(sl)) | set(_TOKEN_RE.findall(tl)):
+                if len(w) >= 2:
+                    inv.setdefault(w, []).append(i)
+            if src:
+                fuzzy_sources.append(src)
+                fuzzy_ids.append(i)
+
+        view = {
+            "entries": entries,
+            "src_low": src_low,
+            "tgt_low": tgt_low,
+            "inv": inv,
+            "inv_tokens": sorted(inv),
+            "fuzzy_sources": fuzzy_sources,
+            "fuzzy_ids": fuzzy_ids,
+        }
+        self._oriented[key] = view
+        return view
+
+    @staticmethod
+    def _prefix_postings_in(
+        inv_tokens: List[str], inv: Dict[str, List[int]], w: str
+    ) -> List[int]:
+        """Posting ids for ``w`` expanded over token PREFIXES (at most 50
+        vocabulary tokens scanned), against a given oriented index."""
+        ids: List[int] = []
+        lo = bisect.bisect_left(inv_tokens, w)
+        for tok in inv_tokens[lo : lo + 50]:
+            if not tok.startswith(w):
+                break
+            ids.extend(inv[tok])
+        return ids
+
 
     def lookup_fuzzy(
-        self, text: str, threshold: float = 90.0, limit: int = 3
+        self,
+        text: str,
+        src_lang: str,
+        tgt_lang: str,
+        threshold: float = 90.0,
+        limit: int = 3,
     ) -> List[Dict]:
-        """Whole-segment fuzzy lookup via rapidfuzz ``fuzz.ratio``.
+        """Whole-segment fuzzy lookup via rapidfuzz ``fuzz.ratio``, oriented
+        to the project's (src_lang, tgt_lang).
 
-        Uses the prebuilt ``_fuzzy_sources`` choice list and rapidfuzz's
-        ``score_cutoff`` pruning (massively faster than post-filtering),
-        and recovers the matched entry through ``_fuzzy_ids`` using the
-        index rapidfuzz returns — the old implementation re-scanned all
-        of ``self.entries`` per match.
+        Returns hits whose ``source`` = src_lang text and ``target`` =
+        tgt_lang text (the insertable text). Draws from the forward
+        ``(src_lang, tgt_lang)`` bucket as-is and the reversed
+        ``(tgt_lang, src_lang)`` bucket with source/target swapped, so an
+        sl->en project sees SL source / EN target hits even when the TMX
+        was authored en->sl.
 
         No minimum-source-length prefilter: with ``fuzz.ratio`` a short
         entry cannot spuriously score high against a long query (length
         mismatch tanks the ratio), and filtering would drop legitimate
         short segments such as headings.
         """
-        self._sync_index()
-        if not text or not self._fuzzy_sources:
+        view = self._oriented_view(src_lang, tgt_lang)
+        fuzzy_sources = view["fuzzy_sources"]
+        if not text or not fuzzy_sources:
             return []
         matches = process.extract(
             text,
-            self._fuzzy_sources,
+            fuzzy_sources,
             scorer=fuzz.ratio,
             limit=limit,
             score_cutoff=threshold,
         )
         return [
-            {**self.entries[self._fuzzy_ids[idx]], "score": score}
+            {**view["entries"][view["fuzzy_ids"][idx]], "score": score}
             for _src, score, idx in matches
         ]
 
     def search_concordance(
-        self, text: str, top_n: int = 5, max_words: int = 12
+        self,
+        text: str,
+        src_lang: str,
+        tgt_lang: str,
+        top_n: int = 5,
+        max_words: int = 12,
     ) -> List[Dict]:
-        """Concordance search over the inverted index.
+        """Concordance search over the oriented inverted index.
 
-        Candidate generation: token-PREFIX lookup per query word (>=2
-        chars) via ``_candidates_for``. Scoring: word coverage descending,
-        then segment length ascending (shorter = more precise). KWIC
-        excerpts (``kwic_source``/``kwic_target``) are built ONLY for the
-        final ``top_n`` — the old implementation built them for every
-        matching entry, which together with per-query ``.lower()`` over
-        the whole corpus made long queries take seconds.
+        Oriented to (src_lang, tgt_lang): ``source`` = src_lang text,
+        ``target`` = tgt_lang text. Candidate generation: token-PREFIX
+        lookup per query word (>=2 chars). Scoring: word coverage
+        descending, then segment length ascending (shorter = more
+        precise). KWIC excerpts (``kwic_source``/``kwic_target``) are
+        built ONLY for the final ``top_n``.
 
         Queries longer than ``max_words`` keep their rarest (most
         informative) words, by document frequency.
         """
-        self._sync_index()
+        view = self._oriented_view(src_lang, tgt_lang)
+        inv = view["inv"]
+        inv_tokens = view["inv_tokens"]
+        src_low = view["src_low"]
+        tgt_low = view["tgt_low"]
+        entries = view["entries"]
         words = [w.lower() for w in _TOKEN_RE.findall(text) if len(w) >= 2]
         if not words:
             return []
@@ -429,7 +561,7 @@ class TranslationMemory:
             # corpus token can never produce a candidate — drop it rather
             # than let df=0 masquerade as "rarest" and displace real rare
             # words. Keep the max_words rarest of the remainder.
-            dfs = {w: len(self._prefix_postings(w)) for w in uniq}
+            dfs = {w: len(self._prefix_postings_in(inv_tokens, inv, w)) for w in uniq}
             uniq = sorted(
                 (w for w in uniq if dfs[w] > 0),
                 key=lambda w: dfs[w],
@@ -438,9 +570,18 @@ class TranslationMemory:
         if not words:
             return []
 
+        # Candidate generation: union of prefix-expanded postings, rarest
+        # words first (same logic as _candidates_for over self.entries).
+        postings = [self._prefix_postings_in(inv_tokens, inv, w) for w in words]
+        cand: set = set()
+        for ids in sorted(postings, key=len):
+            cand.update(ids)
+            if len(cand) >= 20000:
+                break
+
         scored: List[tuple] = []
-        for i in self._candidates_for(words):
-            sl, tl = self._src_low[i], self._tgt_low[i]
+        for i in cand:
+            sl, tl = src_low[i], tgt_low[i]
             sp = tp = -1
             matched = 0
             for w in words:
@@ -456,14 +597,14 @@ class TranslationMemory:
             if matched:
                 scored.append((
                     -matched / len(words),
-                    len(self.entries[i]["source"]),
+                    len(entries[i]["source"]),
                     i, sp, tp,
                 ))
 
         scored.sort()
         results: List[Dict] = []
         for neg_rel, seg_len, i, sp, tp in scored[:top_n]:
-            e = self.entries[i]
+            e = entries[i]
             results.append({
                 **e,
                 "relevance": -neg_rel,
@@ -475,16 +616,20 @@ class TranslationMemory:
             })
         return results
 
-    def search_prefix(self, prefix: str) -> List[str]:
-        """
-        Quickly find completions starting with the given prefix.
-        Limits results to short phrases (max 3 words) to avoid 'sausage' predictions.
-        """
+    def search_prefix(
+        self, prefix: str, src_lang: str, tgt_lang: str
+    ) -> List[str]:
+        """Quickly find target-language completions starting with the given
+        prefix, oriented to (src_lang, tgt_lang). The prefix is matched
+        against the oriented ``target`` field (the tgt-lang insertable
+        text). Limits results to short phrases (max 3 words) to avoid
+        'sausage' predictions."""
         if not prefix or len(prefix) < 2:
             return []
+        view = self._oriented_view(src_lang, tgt_lang)
         prefix_low = prefix.lower()
         matches = []
-        for e in self.entries:
+        for e in view["entries"]:
             target_words = e["target"].split()
             for i, w in enumerate(target_words):
                 if w.lower().startswith(prefix_low):

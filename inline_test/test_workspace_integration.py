@@ -90,10 +90,10 @@ class StubTM:
         self._fuzzy = fuzzy or []
         self._conc = conc or []
 
-    def lookup_fuzzy(self, text, threshold=70.0, limit=5):
+    def lookup_fuzzy(self, text, src_lang, tgt_lang, threshold=70.0, limit=5):
         return list(self._fuzzy)
 
-    def search_concordance(self, text, top_n=5):
+    def search_concordance(self, text, src_lang, tgt_lang, top_n=5):
         return list(self._conc)
 
 
@@ -248,7 +248,7 @@ def _build_humanities_state():
 class ThresholdRespectingTM(StubTM):
     """TM stub that actually filters by the threshold parameter, unlike the
     base StubTM which returns all matches regardless."""
-    def lookup_fuzzy(self, text, threshold=70.0, limit=5):
+    def lookup_fuzzy(self, text, src_lang, tgt_lang, threshold=70.0, limit=5):
         return [m for m in self._fuzzy if m.get("score", 0) >= threshold]
 
 
@@ -422,7 +422,7 @@ async def test_intel_panel_repaints_on_segment_switch(user):
     state = _make_state()
 
     class TwoSegmentTM(StubTM):
-        def lookup_fuzzy(self, text, threshold=70.0, limit=5):
+        def lookup_fuzzy(self, text, src_lang, tgt_lang, threshold=70.0, limit=5):
             if "How" in text:
                 return [{"source": "How?", "target": "Kako?", "score": 96}]
             return []

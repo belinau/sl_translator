@@ -579,15 +579,18 @@ def build(
         if seg is None or tm is None:
             return
         idx = state.active_index
+        src, tgt = parse_lang_pair(state.lang_pair)
         try:
             # Canonical CAT-tool lookup: whole-segment fuzzy + concordance.
             # Both calls hop to NiceGUI's thread pool via run.io_bound (the
-            # high-level API) — main event loop stays responsive.
+            # high-level API) — main event loop stays responsive. Both are
+            # oriented to the project's (src, tgt) so an sl->en project
+            # gets SL source / EN target hits.
             fuzzy = await run.io_bound(
-                tm.lookup_fuzzy, seg["source"], threshold=75.0, limit=5
+                tm.lookup_fuzzy, seg["source"], src, tgt, threshold=75.0, limit=5
             ) or []
             concord = await run.io_bound(
-                tm.search_concordance, seg["source"], top_n=5
+                tm.search_concordance, seg["source"], src, tgt, top_n=3
             ) or []
         except Exception as e:
             print(f"[intel TM] {e}")
@@ -664,10 +667,10 @@ def build(
                         .on("click", lambda _e, t=c.get("target", ""): _insert(t))
                     ):
                         with ui.column().classes("gap-0.5 flex-1 min-w-0"):
-                            ui.label(c.get("kwic_source") or c.get("source", "")).classes(
+                            ui.label(c.get("source", "")).classes(
                                 "text-[11px] italic leading-snug opacity-60"
                             ).style("white-space:normal;word-break:break-word")
-                            ui.label(c.get("kwic_target") or c.get("target", "")).classes(
+                            ui.label(c.get("target", "")).classes(
                                 "text-[13px] font-bold leading-snug"
                             ).style("white-space:normal;word-break:break-word")
                         ui.icon("content_paste", size="18px").props("color=grey-5")
