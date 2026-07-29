@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from nicegui import ui
 
+from translate_core import comments as cm
+
 from .state import WorkspaceState
 
 
@@ -24,12 +26,16 @@ def _rows(state: WorkspaceState) -> list[dict]:
     out = []
     for s in state.segments:
         is_active = s["id"] == active
+        n_comments = len(cm.ensure_comments(s))
+        status = "✓" if s["status"] == "done" else ("●" if is_active else "")
+        if n_comments:
+            status = f"\U0001f4ac{n_comments} " + status
         out.append({
             "id": s["id"],
             # leading marker makes the active row unmistakable without slots/JS
             "n": (f"▶ {s['id'] + 1}" if is_active else str(s["id"] + 1)),
             "preview": ("▸ " if is_active else "") + (s["target"] or s["source"] or "")[:120],
-            "status": "✓" if s["status"] == "done" else ("●" if is_active else ""),
+            "status": status,
         })
     return out
 

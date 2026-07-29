@@ -131,9 +131,14 @@ def load_project(project_id: str):
     if not path.exists():
         return None
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return None
+    if data is not None:
+        from translate_core import comments as cm
+        for seg in data.get("segments", []):
+            cm.migrate_legacy_segment(seg)
+    return data
 
 
 def delete_project(project_id: str):
