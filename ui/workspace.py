@@ -92,11 +92,6 @@ def page_translate(project_id: str):
             ui.button("← Back to projects", on_click=lambda: ui.navigate.to("/")).classes("mt-4")
         return
 
-    # Migrate legacy review_comment strings into the comments list.
-    # Idempotent: segments already carrying `comments` are untouched.
-    from translate_core import comments as cm
-    for seg in data.get("segments", []):
-        cm.migrate_legacy_segment(seg)
 
     # Persistence layer stores 'id' but WorkspaceState wants 'project_id'.
     # Normalize and inject the URL parameter as the canonical id.

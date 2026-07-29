@@ -104,7 +104,7 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
         # --- Comments zone (translator notes + reviewer history) ---
         comments_zone = ui.column().classes("w-full px-4 pb-1 gap-1 shrink-0")
         with comments_zone:
-            comments_handle = build_comments_panel(on_change=lambda: state.request_autosave())
+            comments_handle = build_comments_panel(on_change=lambda: (state.notify("segments"), state.request_autosave()))
         # --- Footer (confirm bar) ---
         with ui.row().classes("w-full px-4 py-2 justify-between items-center shrink-0"):
             with ui.row().classes("items-center gap-4"):
