@@ -1253,11 +1253,10 @@ def _build_merge_row(seg: dict, clone: dict, update_count) -> None:
     orig_id: int = _oid if _oid is not None else seg.get("id", 0)
     target = seg.get("target", "")
     reviewer_target = seg.get("reviewer_target", "")
-    reviewer_comment = seg.get("reviewer_comment", "")
 
     # Skip segments with no suggestion and no comment
     has_suggestion = bool(reviewer_target.strip())
-    has_comment = bool(reviewer_comment.strip())
+    has_comment = bool(cm.ensure_comments(seg))
 
     if not has_suggestion and not has_comment:
         # Still show it, but greyed out — no changes suggested.
@@ -1318,12 +1317,17 @@ def _build_merge_row(seg: dict, clone: dict, update_count) -> None:
                 'font-family: "Inter", sans-serif; line-height: 1.625;'
             )
 
-        # Comment
+        # Comments — full history, read-only
         if has_comment:
-            with ui.row().classes("w-full items-start gap-2 mt-1"):
-                ui.icon("comment", size="14px").props("color=info").classes("shrink-0 mt-1")
-                ui.label(reviewer_comment).classes(
-                    "text-xs italic bg-blue-500/10 px-3 py-2 rounded-lg flex-1"
+            with ui.column().classes("w-full mt-1 gap-1"):
+                ui.label("COMMENTS").classes(
+                    "text-[9px] font-black tracking-[0.2em] uppercase opacity-50"
+                )
+                panel = build_comments_panel(editable=False)
+                panel["rebuild"](
+                    seg, cm.AUTHOR_REVIEWER,
+                    round=seg.get("_clone_round", 1),
+                    review_id=clone.get("review_id", ""),
                 )
 
 
