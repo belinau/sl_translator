@@ -94,6 +94,7 @@ def _render_editable_text(c: dict, seg: dict, on_change, rebuild, author: str, r
     def _on_edit(e):
         new_text = (e.value or "").strip()
         if not new_text:
+            inp.set_value(c.get("text", ""))
             return
         cm.update_comment(seg, c["id"], new_text)
         if on_change:
