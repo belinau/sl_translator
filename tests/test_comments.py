@@ -149,6 +149,12 @@ class TestCRUD:
         s = _seg()
         assert not cm.delete_comment(s, "nope")
 
+    def test_update_blank_text_rejected(self):
+        s = _seg()
+        c = cm.add_comment(s, "translator", 0, "A")
+        assert not cm.update_comment(s, c["id"], "   ")
+        assert s["comments"][0]["text"] == "A"
+
     def test_blank_text_not_added(self):
         s = _seg()
         assert not cm.add_comment(s, "translator", 0, "   ")

@@ -41,17 +41,9 @@ def migrate_legacy_segment(seg: dict) -> None:
         return
     legacy = seg.get("review_comment")
     if legacy and legacy.strip():
-        seg["comments"] = [
-            {
-                "id": "c-" + uuid.uuid4().hex[:8],
-                "author": AUTHOR_REVIEWER,
-                "round": 0,
-                "text": legacy.strip(),
-                "created_at": datetime.now().isoformat(timespec="seconds"),
-                "review_id": "",
-                "mutable": False,
-            }
-        ]
+        c = new_comment(AUTHOR_REVIEWER, 0, legacy)
+        c["mutable"] = False
+        seg["comments"] = [c]
         seg.pop("review_comment", None)
     else:
         seg.pop("review_comment", None)
@@ -76,7 +68,9 @@ def add_comment(seg: dict, author: str, round: int, text: str, review_id: str = 
 
 
 def update_comment(seg: dict, comment_id: str, text: str) -> bool:
-    """Update a mutable comment's text. Returns False if not found/frozen."""
+    """Update a mutable comment's text. Returns False if not found/frozen/blank."""
+    if not text or not text.strip():
+        return False
     for c in ensure_comments(seg):
         if c["id"] == comment_id and c.get("mutable") is True:
             c["text"] = text.strip()
