@@ -42,6 +42,8 @@ def build(
     handle: dict[str, Any] = {"container": container}
 
     def rebuild(seg: dict, author: str, round: int, review_id: str = "") -> None:
+        if container.is_deleted:
+            return
         container.clear()
         cs = cm.ensure_comments(seg)
         with container:
@@ -90,7 +92,10 @@ def _render_editable_text(c: dict, seg: dict, on_change) -> None:
     ).classes("w-full text-xs")
 
     def _on_edit(e):
-        cm.update_comment(seg, c["id"], e.value or "")
+        new_text = (e.value or "").strip()
+        if not new_text:
+            return
+        cm.update_comment(seg, c["id"], new_text)
         if on_change:
             on_change()
 
