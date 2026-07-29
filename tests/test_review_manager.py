@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
+from translate_core import comments as cm
 from translate_core import review_manager as rm
 
 
@@ -87,10 +88,9 @@ class TestCreateReviewClone:
         proj = _make_project(n=3, done=3)
         clone = rm.create_review_clone(proj)
         for seg in clone["segments"]:
-            assert "reviewer_target" in seg
-            assert seg["reviewer_target"] == ""
-            assert "reviewer_comment" in seg
-            assert seg["reviewer_comment"] == ""
+            assert "comments" in seg
+            assert seg["comments"] == []
+            assert "_clone_round" in seg
             assert "reviewer_status" in seg
             assert seg["reviewer_status"] == "pending"
 
@@ -176,7 +176,10 @@ class TestApplyReviewerChanges:
         proj = _make_project(n=3, done=3)
         clone = rm.create_review_clone(proj)
         rm.apply_reviewer_changes(clone, {1: {"reviewer_comment": "Check this"}})
-        assert clone["segments"][1]["reviewer_comment"] == "Check this"
+        cs = clone["segments"][1]["comments"]
+        assert len(cs) == 1
+        assert cs[0]["text"] == "Check this"
+        assert cs[0]["author"] == "reviewer"
         assert clone["segments"][1]["reviewer_status"] == "commented"
 
     def test_empty_changes_resets_to_pending(self, fresh_reviews_dir):
@@ -224,7 +227,6 @@ class TestMerge:
         rm.merge_review_into_original(proj, clone, accepted_original_ids={0, 1, 2})
         for i in range(3):
             assert proj["segments"][i]["target"] == f"Target text {i}"
-
     def test_merge_preserves_comments(self, fresh_reviews_dir):
         proj = _make_project(n=3, done=3)
         clone = rm.create_review_clone(proj)
@@ -233,7 +235,12 @@ class TestMerge:
             {0: {"reviewer_target": "Better", "reviewer_comment": "Grammar fix"}},
         )
         rm.merge_review_into_original(proj, clone, accepted_original_ids={0})
-        assert proj["segments"][0]["review_comment"] == "Grammar fix"
+        cs = proj["segments"][0]["comments"]
+        assert len(cs) == 1
+        assert cs[0]["text"] == "Grammar fix"
+        assert cs[0]["author"] == "reviewer"
+        assert cs[0]["mutable"] is False
+        assert "review_comment" not in proj["segments"][0]
 
     def test_merge_orphaned_segment_skipped(self, fresh_reviews_dir):
         proj = _make_project(n=3, done=3)
@@ -256,9 +263,48 @@ class TestMerge:
         clone2 = rm.create_review_clone(proj)
         rm.apply_reviewer_changes(clone2, {0: {"reviewer_target": "V2", "reviewer_comment": "C2"}})
         rm.merge_review_into_original(proj, clone2, {0})
-        assert "C1" in proj["segments"][0]["review_comment"]
-        assert "C2" in proj["segments"][0]["review_comment"]
+        texts = [c["text"] for c in proj["segments"][0]["comments"]]
+        assert "C1" in texts
+        assert "C2" in texts
+        assert all(not c["mutable"] for c in proj["segments"][0]["comments"])
 
+
+
+# ---------------------------------------------------------------------------
+# Comments integration
+# ---------------------------------------------------------------------------
+
+class TestCommentsIntegration:
+    def test_clone_seeds_immutable_history(self, fresh_reviews_dir):
+        proj = _make_project(n=2, done=2)
+        cm.add_comment(proj["segments"][0], "translator", 0, "T-note")
+        clone = rm.create_review_clone(proj)
+        seg = clone["segments"][0]
+        assert seg["comments"][0]["text"] == "T-note"
+        assert seg["comments"][0]["mutable"] is False
+        assert seg["_clone_round"] == 1
+
+    def test_merge_appends_reviewer_comment_frozen(self, fresh_reviews_dir):
+        proj = _make_project(n=2, done=2)
+        clone = rm.create_review_clone(proj)
+        rm.apply_reviewer_changes(clone, {0: {"reviewer_comment": "Needs work"}})
+        rm.merge_review_into_original(proj, clone, {0})
+        cs = proj["segments"][0]["comments"]
+        assert len(cs) == 1
+        assert cs[0]["text"] == "Needs work"
+        assert cs[0]["author"] == "reviewer"
+        assert cs[0]["mutable"] is False
+        assert "review_comment" not in proj["segments"][0]
+
+    def test_reopen_retains_history_clears_mutable(self, fresh_reviews_dir):
+        proj = _make_project(n=2, done=2)
+        clone = rm.create_review_clone(proj)
+        rm.apply_reviewer_changes(clone, {0: {"reviewer_comment": "R1"}})
+        rm.merge_review_into_original(proj, clone, {0})
+        clone2 = rm.create_review_clone(proj)
+        seg = clone2["segments"][0]
+        assert any(c["text"] == "R1" and not c["mutable"] for c in seg["comments"])
+        assert seg["_clone_round"] == 2
 
 # ---------------------------------------------------------------------------
 # Reopen

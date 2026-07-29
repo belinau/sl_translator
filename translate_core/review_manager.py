@@ -26,6 +26,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from translate_core import comments as cm
+
 log = logging.getLogger(__name__)
 
 # -----------------------------------------------------------------------
@@ -86,6 +88,7 @@ def create_review_clone(
     now = datetime.now()
 
     segs = original_project.get("segments", [])
+    clone_round = original_project.get("round_trip_count", 0) + 1
     if segment_ids is None:
         selected = [s for s in segs if s.get("status") == "done"]
     else:
@@ -113,10 +116,16 @@ def create_review_clone(
                         "source",
                         "target",
                         "status",
+                        "review_comment",
+                        "comments",
                     )
                 },
                 "reviewer_target": "",
-                "reviewer_comment": "",
+                "comments": cm.clone_comments_for_review(
+                    cm.ensure_comments(dict(s)), clone_round, review_id
+                ),
+                "_clone_round": clone_round,
+                "_clone_review_id": review_id,
                 "reviewer_status": RS_PENDING,
             }
         )
@@ -128,6 +137,7 @@ def create_review_clone(
         meta = [m for m in meta if m.get("index") in id_set]
 
     clone: dict[str, Any] = {
+        "round": clone_round,
         "review_id": review_id,
         "original_project_id": original_project.get("project_id")
         or original_project.get("id"),
@@ -219,14 +229,29 @@ def apply_reviewer_changes(
         if "reviewer_target" in ch:
             seg["reviewer_target"] = ch["reviewer_target"]
         if "reviewer_comment" in ch:
-            seg["reviewer_comment"] = ch["reviewer_comment"]
-        # Derive reviewer_status when not explicitly given.
+            text = (ch["reviewer_comment"] or "").strip()
+            cs = cm.ensure_comments(seg)
+            cs[:] = [c for c in cs if not (
+                c.get("author") == cm.AUTHOR_REVIEWER
+                and c.get("round") == seg.get("_clone_round", 1)
+                and c.get("mutable", False)
+            )]
+            if text:
+                cm.add_comment(seg, cm.AUTHOR_REVIEWER,
+                               seg.get("_clone_round", 1), text,
+                               review_id=seg.get("_clone_review_id", ""))
         if "reviewer_status" in ch:
             seg["reviewer_status"] = ch["reviewer_status"]
         else:
-            if seg["reviewer_target"].strip():
+            has_target = bool(seg.get("reviewer_target", "").strip())
+            has_comment = any(
+                c.get("author") == cm.AUTHOR_REVIEWER
+                and c.get("round") == seg.get("_clone_round", 1)
+                for c in cm.ensure_comments(seg)
+            )
+            if has_target:
                 seg["reviewer_status"] = RS_SUGGESTED
-            elif seg["reviewer_comment"].strip():
+            elif has_comment:
                 seg["reviewer_status"] = RS_COMMENTED
             else:
                 seg["reviewer_status"] = RS_PENDING
@@ -253,8 +278,8 @@ def merge_review_into_original(
     For each accepted segment whose ``original_id`` is in
     *accepted_original_ids* and whose ``reviewer_target`` is non-empty,
     the original's ``target`` is replaced by the reviewer's suggestion.
-    Comments are stored in a ``review_comment`` field on the original
-    segment (non-breaking addition).
+    Comments are appended to the original segment's ``comments`` list as
+    frozen reviewer entries (preserving history across rounds).
     """
     orig_map = {s["id"]: s for s in original_project.get("segments", [])}
     for cseg in clone["segments"]:
@@ -271,14 +296,11 @@ def merge_review_into_original(
         if rt:
             orig["target"] = rt
             cseg["reviewer_status"] = RS_APPROVED
-        rc = cseg.get("reviewer_comment", "").strip()
-        if rc:
-            # Preserve history if multiple rounds.
-            existing = orig.get("review_comment")
-            if existing:
-                orig["review_comment"] = existing + "\n" + rc
-            else:
-                orig["review_comment"] = rc
+        cm.migrate_legacy_segment(orig)
+        cm.merge_reviewer_comments(orig, cseg)
+    original_project["round_trip_count"] = (
+        original_project.get("round_trip_count", 0) + 1
+    )
     return original_project
 
 
@@ -291,7 +313,12 @@ def reset_for_reopen(clone: dict) -> None:
     for seg in clone["segments"]:
         if seg.get("reviewer_status") != RS_APPROVED:
             seg["reviewer_target"] = ""
-            seg["reviewer_comment"] = ""
+            cs = cm.ensure_comments(seg)
+            cs[:] = [c for c in cs if not (
+                c.get("author") == cm.AUTHOR_REVIEWER
+                and c.get("round") == seg.get("_clone_round", 1)
+                and c.get("mutable", False)
+            )]
             seg["reviewer_status"] = RS_PENDING
     clone["round_trip_count"] = clone.get("round_trip_count", 0) + 1
     clone["status"] = STATUS_REOPEN
