@@ -887,14 +887,28 @@ def _save_reviewer_name(clone: dict, input_el, set_save_status=None) -> None:
 def _on_comments_change(seg, clone, set_save_status):
     """Persist the review after the comments panel mutates a segment.
 
-    The shared panel re-renders itself on add/delete; this callback only
-    needs to save the clone so reviewer comments survive a reload.
+    The shared panel re-renders itself on add/delete; this callback
+    re-derives reviewer_status (a comment-only change can flip the
+    status between 'commented' and 'pending') and saves the clone.
     """
+    has_target = bool(seg.get("reviewer_target", "").strip())
+    has_comment = any(
+        c.get("author") == cm.AUTHOR_REVIEWER
+        and c.get("round") == seg.get("_clone_round", 1)
+        for c in cm.ensure_comments(seg)
+    )
+    if has_target:
+        seg["reviewer_status"] = "suggested"
+    elif has_comment:
+        seg["reviewer_status"] = "commented"
+    else:
+        seg["reviewer_status"] = "pending"
     if set_save_status:
         set_save_status("saving")
     rm.save_review(clone)
     if set_save_status:
         set_save_status("saved")
+
 
 def _build_review_segment_list(
     clone: dict, state, deps: dict, page_client, set_save_status=None,
@@ -1073,8 +1087,6 @@ def _build_segment_card(
         rm.save_review(clone)
         if set_save_status:
             set_save_status("saved")
-
-
 
     suggestion_input.on_value_change(_on_suggest_change)
 
