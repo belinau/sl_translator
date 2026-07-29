@@ -51,15 +51,15 @@ def build(
                 ui.label("No comments.").classes("text-[10px] italic opacity-40")
                 return
             for c in cs:
-                _render_entry(c, seg, on_change)
+                _render_entry(c, seg, on_change, rebuild, author, round, review_id)
             if editable:
-                _render_input(seg, author, round, review_id, on_change)
+                _render_input(seg, author, round, review_id, on_change, rebuild)
 
     handle["rebuild"] = rebuild
     return handle
 
 
-def _render_entry(c: dict, seg: dict, on_change) -> None:
+def _render_entry(c: dict, seg: dict, on_change, rebuild, author: str, round: int, review_id: str = "") -> None:
     icon, color = _AUTHOR_ICON.get(c.get("author", ""), ("comment", "grey-6"))
     mutable = c.get("mutable", False)
     with ui.row().classes("w-full items-start gap-2 px-1"):
@@ -75,7 +75,7 @@ def _render_entry(c: dict, seg: dict, on_change) -> None:
                 if not mutable:
                     ui.badge("history", color="grey-6").classes("text-[8px]")
             if mutable:
-                _render_editable_text(c, seg, on_change)
+                _render_editable_text(c, seg, on_change, rebuild, author, round, review_id)
             else:
                 ui.label(c.get("text", "")).classes(
                     "text-xs leading-relaxed w-full"
@@ -86,7 +86,7 @@ def _render_entry(c: dict, seg: dict, on_change) -> None:
                 ui.label(c["created_at"]).classes("text-[8px] opacity-30")
 
 
-def _render_editable_text(c: dict, seg: dict, on_change) -> None:
+def _render_editable_text(c: dict, seg: dict, on_change, rebuild, author: str, round: int, review_id: str = "") -> None:
     inp = ui.textarea(value=c.get("text", "")).props(
         "outlined dense autogrow"
     ).classes("w-full text-xs")
@@ -105,13 +105,14 @@ def _render_editable_text(c: dict, seg: dict, on_change) -> None:
         cm.delete_comment(seg, c["id"])
         if on_change:
             on_change()
+        rebuild(seg, author, round, review_id)
 
     ui.button(icon="delete", on_click=_del).props(
         "flat round dense size=xs color=grey-5"
     ).tooltip("Delete comment")
 
 
-def _render_input(seg: dict, author: str, round: int, review_id: str, on_change) -> None:
+def _render_input(seg: dict, author: str, round: int, review_id: str, on_change, rebuild) -> None:
     """Render the add-comment input for the current (author, round)."""
     with ui.row().classes("w-full items-start gap-2 px-1 pt-1"):
         ui.icon("add_comment", size="14px").props("color=primary").classes("shrink-0 mt-1")
@@ -127,6 +128,7 @@ def _render_input(seg: dict, author: str, round: int, review_id: str, on_change)
             inp.set_value("")
             if on_change:
                 on_change()
+            rebuild(seg, author, round, review_id)
 
         ui.button(icon="send", on_click=_on_add).props(
             "flat round dense size=xs color=primary"

@@ -155,6 +155,7 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
             return
         seg = state.segments[state.active_index]
         comments_handle["rebuild"](seg, cm.AUTHOR_TRANSLATOR, round=0, review_id="")
+
     def _refresh_strips() -> None:
         """Update prev/next context strip text and visibility."""
         if not state.segments:
