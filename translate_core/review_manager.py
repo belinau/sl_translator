@@ -12,7 +12,8 @@ enriched with review-specific fields:
     funnel_url, funnel_expires_at, funnel_validity_days, funnel_active,
     round_trip_count,
     segments (each carries ``original_id`` + ``reviewer_target`` +
-              ``reviewer_comment`` + ``reviewer_status``)
+              ``comments`` + ``_clone_round`` + ``_clone_review_id`` +
+              ``reviewer_status``)
 """
 from __future__ import annotations
 
