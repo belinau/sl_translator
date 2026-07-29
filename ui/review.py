@@ -23,6 +23,8 @@ from typing import Any
 from nicegui import background_tasks, ui
 
 from translate_core import review_manager as rm
+from translate_core import comments as cm
+from ui.comments_panel import build as build_comments_panel
 from ui.components import busy_overlay
 
 log = logging.getLogger(__name__)
@@ -882,6 +884,18 @@ def _save_reviewer_name(clone: dict, input_el, set_save_status=None) -> None:
     ui.notify("Name saved", type="positive", timeout=1000)
 
 
+def _on_comments_change(seg, clone, set_save_status):
+    """Persist the review after the comments panel mutates a segment.
+
+    The shared panel re-renders itself on add/delete; this callback only
+    needs to save the clone so reviewer comments survive a reload.
+    """
+    if set_save_status:
+        set_save_status("saving")
+    rm.save_review(clone)
+    if set_save_status:
+        set_save_status("saved")
+
 def _build_review_segment_list(
     clone: dict, state, deps: dict, page_client, set_save_status=None,
 ) -> None:
@@ -924,7 +938,6 @@ def _build_segment_card(
     source = seg.get("source", "")
     target = seg.get("target", "")
     reviewer_target = seg.get("reviewer_target", "")
-    reviewer_comment = seg.get("reviewer_comment", "")
     reviewer_status = seg.get("reviewer_status", "pending")
 
     # Status badge
@@ -987,16 +1000,19 @@ def _build_segment_card(
                 value=reviewer_target,
                 placeholder="Type your suggested translation here…",
             ).props("outlined dense autogrow").classes("w-full text-sm")
-
-        # Comment (editable input, always visible)
+        # Comments — history (read-only) + reviewer's current-round input
         with ui.column().classes("w-full px-3 pt-1 pb-2 gap-1"):
-            ui.label("COMMENT").classes(
+            ui.label("COMMENTS").classes(
                 "text-[9px] font-black tracking-[0.2em] uppercase opacity-50"
             )
-            comment_input = ui.input(
-                value=reviewer_comment,
-                placeholder="Leave a comment (optional)…",
-            ).props("outlined dense").classes("w-full text-sm")
+            comments_handle = build_comments_panel(
+                on_change=lambda: _on_comments_change(seg, clone, set_save_status)
+            )
+            comments_handle["rebuild"](
+                seg, cm.AUTHOR_REVIEWER,
+                round=seg.get("_clone_round", 1),
+                review_id=clone.get("review_id", ""),
+            )
 
     # ------------------------------------------------------------------
     # Focus tracking — when the reviewer clicks into a suggestion
@@ -1040,9 +1056,15 @@ def _build_segment_card(
     # workspace.py's WorkspaceState save_status subscriber).
     def _on_suggest_change(e):
         seg["reviewer_target"] = e.value or ""
-        if seg["reviewer_target"].strip():
+        has_target = bool(seg["reviewer_target"].strip())
+        has_comment = any(
+            c.get("author") == cm.AUTHOR_REVIEWER
+            and c.get("round") == seg.get("_clone_round", 1)
+            for c in cm.ensure_comments(seg)
+        )
+        if has_target:
             seg["reviewer_status"] = "suggested"
-        elif seg["reviewer_comment"].strip():
+        elif has_comment:
             seg["reviewer_status"] = "commented"
         else:
             seg["reviewer_status"] = "pending"
@@ -1052,22 +1074,9 @@ def _build_segment_card(
         if set_save_status:
             set_save_status("saved")
 
-    def _on_comment_change(e):
-        seg["reviewer_comment"] = e.value or ""
-        if seg["reviewer_target"].strip():
-            seg["reviewer_status"] = "suggested"
-        elif seg["reviewer_comment"].strip():
-            seg["reviewer_status"] = "commented"
-        else:
-            seg["reviewer_status"] = "pending"
-        if set_save_status:
-            set_save_status("saving")
-        rm.save_review(clone)
-        if set_save_status:
-            set_save_status("saved")
+
 
     suggestion_input.on_value_change(_on_suggest_change)
-    comment_input.on_value_change(_on_comment_change)
 
 
 # ======================================================================

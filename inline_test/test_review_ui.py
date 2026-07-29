@@ -85,7 +85,10 @@ async def test_review_manager_clone_and_merge_roundtrip(fresh_reviews_dir, sampl
     # 4. Merge — accept only segment 0 (original_id=0)
     rm.merge_review_into_original(sample_project, clone, accepted_original_ids={0})
     assert sample_project["segments"][0]["target"] == "Pozdravljen svet."
-    assert sample_project["segments"][0]["review_comment"] == "More formal"
+    cs = sample_project["segments"][0]["comments"]
+    assert len(cs) == 1
+    assert cs[0]["text"] == "More formal"
+    assert cs[0]["author"] == "reviewer"
     # Segment 1 should be unchanged
     assert sample_project["segments"][1]["target"] == "Kako si?"
 
