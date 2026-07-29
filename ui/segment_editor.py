@@ -16,7 +16,9 @@ import html as html_lib
 from nicegui import background_tasks, ui
 
 from . import predictions
+from .comments_panel import build as build_comments_panel
 from .state import WorkspaceState
+from translate_core import comments as cm
 
 
 def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> dict:
@@ -98,6 +100,11 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
         # --- QA zone (below target so warnings don't shift the focal field) ---
         qa_row = ui.column().classes("w-full px-4 gap-1 shrink-0")
 
+
+        # --- Comments zone (translator notes + reviewer history) ---
+        comments_zone = ui.column().classes("w-full px-4 pb-1 gap-1 shrink-0")
+        with comments_zone:
+            comments_handle = build_comments_panel(on_change=lambda: state.request_autosave())
         # --- Footer (confirm bar) ---
         with ui.row().classes("w-full px-4 py-2 justify-between items-center shrink-0"):
             with ui.row().classes("items-center gap-4"):
@@ -131,6 +138,7 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
         "status_badge": status_badge,
         "source_label": source_label,
         "qa_row": qa_row,
+        "comments_zone": comments_zone,
         "target_textarea": target_textarea,
         "ghost_overlay": ghost_overlay,
         "confirm_btn": confirm_btn,
@@ -141,6 +149,12 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
         "next_label": next_label,
         "next_caption": next_caption,
     }
+
+    def _rebuild_comments() -> None:
+        if not state.segments:
+            return
+        seg = state.segments[state.active_index]
+        comments_handle["rebuild"](seg, cm.AUTHOR_TRANSLATOR, round=0, review_id="")
     def _refresh_strips() -> None:
         """Update prev/next context strip text and visibility."""
         if not state.segments:
@@ -264,6 +278,7 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
             name="push_bundle",
         )
         background_tasks.create(_refresh_qa(), name="qa_refresh")
+        _rebuild_comments()
 
     def _on_status_change():
         if not state.segments:
@@ -299,6 +314,7 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
         src, tgt = _src_tgt()
         await predictions.push_bundle(target_textarea.id, seg_now["source"], src, tgt, tm, glossary, kg, client=state.client)
         await _refresh_qa()
+        _rebuild_comments()
 
     background_tasks.create(_initial(), name="editor_initial")
 
