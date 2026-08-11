@@ -130,7 +130,7 @@ class TestKGIntegrity(unittest.TestCase):
         kg.link_translations(en_id, sl_id, provenance="auto")
         kg.save()
 
-        raw = json.loads(open(self.db_path, encoding="utf-8").read())
+        raw = {"edges": list(kg._store.iter_edges())}
 
         valid_prefixes = ("term:", "concept:", "coll:", "segment:", "domain:",
                           "map:", "agent:", "source:", "institution:")

@@ -210,6 +210,7 @@ def _token_boundary_match(term: str, text: str) -> bool:
 class KnowledgeGraph:
     def __init__(self, db_path: pathlib.Path = config.KG_DB_PATH):
         self.db_path = pathlib.Path(db_path)
+        self.sqlite_path = self.db_path.with_suffix(".sqlite")
         self.G: nx.DiGraph = nx.DiGraph()
         self._exact_kp = KeywordProcessor(case_sensitive=False)
         self._norm_kp = KeywordProcessor(case_sensitive=False)
@@ -221,93 +222,52 @@ class KnowledgeGraph:
         self.nlp_en = None
         self.nlp_sl = None
 
-        self._disk_mtime: float | None = None
-        self._load()
+        self._disk_mtime: float | None = None  # kept for API compat (no-op)
+
+        # One-time migration from the old JSON file to SQLite. Only attempt
+        # if the file is non-empty and contains valid JSON (an empty temp
+        # file from a test should not trigger migration).
+        if self.db_path.exists() and not self.sqlite_path.exists() and self.db_path.stat().st_size > 0:
+            try:
+                import json as _json
+                _json.loads(self.db_path.read_text(encoding="utf-8"))
+                from .kg_sqlite import KGStore
+                KGStore.migrate_from_json(self.db_path, self.sqlite_path)
+            except (json.JSONDecodeError, Exception):
+                pass  # Not a valid JSON KG — start with an empty SQLite DB
+
+        # Open the SQLite store and load the in-memory graph from it.
+        from .kg_sqlite import KGStore
+        self._store = KGStore(self.sqlite_path)
+        self._load_from_sqlite()
+
+    def _load_from_sqlite(self):
+        """Populate the in-memory nx.DiGraph + flashtext indices from SQLite."""
+        for node in self._store.iter_nodes():
+            self.G.add_node(node["id"], **node)
+            if node.get("type") == "term":
+                self._index_term_node(node["id"], node)
+        for edge in self._store.iter_edges():
+            self.G.add_edge(
+                edge["source"],
+                edge["target"],
+                **{k: v for k, v in edge.items() if k not in ("source", "target")},
+            )
 
     def _load(self):
-        if not self.db_path.exists():
-            return
-        try:
-            raw = json.loads(self.db_path.read_text(encoding="utf-8"))
-            for node in raw.get("nodes", []):
-                self.G.add_node(node["id"], **node)
-                if node.get("type") == "term":
-                    self._index_term_node(node["id"], node)
-            for edge in raw.get("edges", []):
-                self.G.add_edge(
-                    edge["source"],
-                    edge["target"],
-                    **{k: v for k, v in edge.items() if k not in ("source", "target")},
-                )
-        except Exception as exc:
-            print(f"[KG] Warning: could not load graph — starting fresh. ({exc})")
-            self.G.clear()
-        try:
-            self._disk_mtime = self.db_path.stat().st_mtime
-        except OSError:
-            self._disk_mtime = None
+        """Legacy alias — now loads from SQLite."""
+        self._load_from_sqlite()
 
     def reload_if_changed(self) -> bool:
-        """If data/knowledge.db was modified on disk by another process (e.g. a
-        maintenance script) since we last read/wrote it, discard the in-memory
-        graph and reload the current disk state. Returns True if a reload
-        happened. This makes the editor's saves write ON TOP of external edits
-        instead of clobbering them."""
-        try:
-            if not self.db_path.exists():
-                return False
-            m = self.db_path.stat().st_mtime
-        except OSError:
-            return False
-        if self._disk_mtime is not None and abs(m - self._disk_mtime) < 1e-6:
-            return False
-        # Build into fresh structures, then swap. Keep the old graph so a failed
-        # read (or one producing an empty graph) never blanks the live KG.
-        prev_G, prev_ex, prev_nm = self.G, self._exact_kp, self._norm_kp
-        self.G = nx.DiGraph()
-        self._exact_kp = KeywordProcessor(case_sensitive=False)
-        self._norm_kp = KeywordProcessor(case_sensitive=False)
-        self._load()
-        if self.G.number_of_nodes() == 0 and prev_G.number_of_nodes() > 0:
-            self.G, self._exact_kp, self._norm_kp = prev_G, prev_ex, prev_nm
-            return False
-        return True
+        """No-op under SQLite — concurrent access is handled by the database
+        engine. Kept for API compatibility with callers that call it."""
+        return False
 
     def save(self):
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        data = {
-            "nodes": [{"id": n, **self.G.nodes[n]} for n in self.G.nodes],
-            "edges": [
-                {"source": u, "target": v, **self.G.edges[u, v]}
-                for u, v in self.G.edges
-            ],
-        }
-        payload = json.dumps(data, ensure_ascii=False, indent=2)
-
-        # Create a .bak copy as secondary protection
-        if self.db_path.exists():
-            bak_path = self.db_path.with_suffix(self.db_path.suffix + ".bak")
-            os.replace(str(self.db_path), str(bak_path))
-
-        # Atomic write: write to temp file in same dir, then replace
-        fd, tmp_path = tempfile.mkstemp(
-            dir=str(self.db_path.parent), suffix=".tmp"
-        )
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                f.write(payload)
-            os.replace(tmp_path, str(self.db_path))
-            try:
-                self._disk_mtime = self.db_path.stat().st_mtime
-            except OSError:
-                self._disk_mtime = None
-        except BaseException:
-            # Clean up the temp file on any failure
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
-            raise
+        """No-op under SQLite — each factory method writes through to the
+        database incrementally. Kept for API compatibility with the
+        ``request_kg_save`` debounce and all existing callers."""
+        pass
 
     def _index_term_node(self, node_id: str, data: Dict):
         term = data.get("term", "")
@@ -335,6 +295,51 @@ class KnowledgeGraph:
             if data.get("type") == "term":
                 self._index_term_node(node_id, data)
 
+    def _persist_node(self, node_id: str) -> None:
+        """Sync a single node from the in-memory graph to SQLite."""
+        data = self.G.nodes[node_id]
+        self._store.upsert_node(node_id, data.get("type", ""), dict(data))
+        if data.get("type") == "term":
+            # Rebuild term keywords for this node
+            self._store.delete_term_keywords(node_id)
+            for kw in self._iter_term_keywords(node_id, data):
+                self._store.upsert_term_keyword(kw[0], node_id, normalized=kw[1])
+
+    def _persist_edge(self, source: str, target: str) -> None:
+        """Sync a single edge from the in-memory graph to SQLite."""
+        self._store.upsert_edge(source, target, dict(self.G.edges[source, target]))
+
+    def _delete_edge_persist(self, source: str, target: str) -> None:
+        self._store.delete_edge(source, target)
+
+    def _delete_node_persist(self, node_id: str) -> None:
+        self._store.delete_node(node_id)
+
+    @staticmethod
+    def _iter_term_keywords(node_id: str, data: dict) -> list[tuple[str, bool]]:
+        """Return [(keyword, normalized)] for a term node from in-memory data."""
+        kws: list[tuple[str, bool]] = []
+        term = data.get("term", "")
+        lang = data.get("lang", "")
+        if term:
+            kws.append((term, False))
+            if lang != "sl":
+                kws.append((_normalize(term), True))
+        display = data.get("display_form", "")
+        if display:
+            kws.append((display, False))
+            if lang != "sl":
+                kws.append((_normalize(display), True))
+        for variant in data.get("variants", []):
+            if variant:
+                kws.append((variant, False))
+                if lang != "sl":
+                    kws.append((_normalize(variant), True))
+        for strat_val in (data.get("gender_strategies") or {}).values():
+            if strat_val:
+                kws.append((strat_val, False))
+        return kws
+
     # ------------------------------------------------------------------
     # Node / Edge Factories
     # ------------------------------------------------------------------
@@ -360,6 +365,7 @@ class KnowledgeGraph:
                 created_at=_get_timestamp(),
                 **kwargs,
             )
+            self._persist_node(node_id)
         return node_id
 
     def add_source_text_node(
@@ -381,10 +387,12 @@ class KnowledgeGraph:
                 created_at=_get_timestamp(),
                 **kwargs,
             )
+            self._persist_node(node_id)
         if author_id:
             auth_node = f"agent:{author_id.lower()}"
             if self.G.has_node(auth_node) and not self.G.has_edge(node_id, auth_node):
                 self.G.add_edge(node_id, auth_node, relation="written_by")
+                self._persist_edge(node_id, auth_node)
         return node_id
 
     def add_concept_node(
@@ -406,6 +414,7 @@ class KnowledgeGraph:
                 created_at=_get_timestamp(),
                 **kwargs,
             )
+            self._persist_node(concept_id)
         return concept_id
 
     def link_concepts_rhizomatic(
@@ -423,6 +432,7 @@ class KnowledgeGraph:
             self.G.add_edge(
                 concept_a, concept_b, relation=rel, last_updated=_get_timestamp()
             )
+            self._persist_edge(concept_a, concept_b)
 
     def add_term_node(
         self,
@@ -461,6 +471,7 @@ class KnowledgeGraph:
                 node_data["variants"] = [display_form]
             self.G.add_node(node_id, **node_data)
             self._index_term_node(node_id, self.G.nodes[node_id])
+            self._persist_node(node_id)
         else:
             node = self.G.nodes[node_id]
             node["frequency"] = node.get("frequency", 1) + 1
@@ -479,10 +490,12 @@ class KnowledgeGraph:
                     variants.append(display_form)
                     node["variants"] = variants
                     self._exact_kp.add_keyword(display_form, node_id)
+        self._persist_node(node_id)
 
         if concept_id and self.G.has_node(concept_id):
             if not self.G.has_edge(node_id, concept_id):
                 self.G.add_edge(node_id, concept_id, relation="instantiates_concept")
+                self._persist_edge(node_id, concept_id)
         return node_id
 
     def _parse_gender_strategies(self, text: str) -> Dict[str, str]:
@@ -525,6 +538,7 @@ class KnowledgeGraph:
                 created_at=_get_timestamp(),
                 **kwargs,
             )
+            self._persist_node(node_id)
         return node_id
 
     def link_translated_by(self, source_text_id: str, agent_id: str) -> bool:
@@ -534,6 +548,7 @@ class KnowledgeGraph:
             return False
         if not self.G.has_edge(src_node, agent_node):
             self.G.add_edge(src_node, agent_node, relation="translated_by")
+            self._persist_edge(src_node, agent_node)
         return True
 
     def link_cited_in(self, cited_source_id: str, container_source_id: str) -> bool:
@@ -545,6 +560,7 @@ class KnowledgeGraph:
             return False
         if not self.G.has_edge(cited, container):
             self.G.add_edge(cited, container, relation="cited_in")
+            self._persist_edge(cited, container)
         return True
 
     def link_appears_in(self, chapter_source_id: str, book_source_id: str) -> bool:
@@ -561,6 +577,7 @@ class KnowledgeGraph:
             return False
         if not self.G.has_edge(chapter, book):
             self.G.add_edge(chapter, book, relation="appears_in")
+            self._persist_edge(chapter, book)
         return True
 
     def link_published_by(self, source_text_id: str, institution_id: str) -> bool:
@@ -570,6 +587,7 @@ class KnowledgeGraph:
             return False
         if not self.G.has_edge(src_node, inst_node):
             self.G.add_edge(src_node, inst_node, relation="published_by")
+            self._persist_edge(src_node, inst_node)
         return True
 
     def link_translation_published_by(self, source_text_id: str, institution_id: str) -> bool:
@@ -579,6 +597,7 @@ class KnowledgeGraph:
             return False
         if not self.G.has_edge(src_node, inst_node):
             self.G.add_edge(src_node, inst_node, relation="translation_published_by")
+            self._persist_edge(src_node, inst_node)
         return True
 
     def link_hosted_by(self, source_text_id: str, institution_id: str) -> bool:
@@ -588,6 +607,7 @@ class KnowledgeGraph:
             return False
         if not self.G.has_edge(src_node, inst_node):
             self.G.add_edge(src_node, inst_node, relation="hosted_by")
+            self._persist_edge(src_node, inst_node)
         return True
 
     def link_written_by(self, source_text_id: str, agent_id: str) -> bool:
@@ -598,6 +618,7 @@ class KnowledgeGraph:
             return False
         if not self.G.has_edge(src, ag):
             self.G.add_edge(src, ag, relation="written_by")
+            self._persist_edge(src, ag)
         return True
 
     def link_edited_by(self, source_text_id: str, agent_id: str) -> bool:
@@ -608,6 +629,7 @@ class KnowledgeGraph:
             return False
         if not self.G.has_edge(src, ag):
             self.G.add_edge(src, ag, relation="edited_by")
+            self._persist_edge(src, ag)
         return True
 
     def link_performed_by(self, source_text_id: str, agent_id: str) -> bool:
@@ -619,6 +641,7 @@ class KnowledgeGraph:
             return False
         if not self.G.has_edge(src, ag):
             self.G.add_edge(src, ag, relation="performed_by")
+            self._persist_edge(src, ag)
         return True
 
     def link_attributed_to(self, source_id: str, agent_id: str) -> bool:
@@ -630,6 +653,7 @@ class KnowledgeGraph:
             return False
         if not self.G.has_edge(source_id, ag):
             self.G.add_edge(source_id, ag, relation="attributed_to")
+            self._persist_edge(source_id, ag)
         return True
     def link_instantiated_in(
         self, mapping_id: str, source_text_id: str
@@ -650,6 +674,7 @@ class KnowledgeGraph:
             return False
         if not self.G.has_edge(mapping_id, src):
             self.G.add_edge(mapping_id, src, relation="instantiated_in")
+            self._persist_edge(mapping_id, src)
         return True
     # ------------------------------------------------------------------
     # Context-Aware Translation Mapping Node
@@ -686,6 +711,7 @@ class KnowledgeGraph:
                 verified=verified,
                 created_at=_get_timestamp(),
             )
+            self._persist_node(mapping_id)
         else:
             node = self.G.nodes[mapping_id]
             node["confidence"] = min(0.99, node.get("confidence", 0.5) + 0.05)
@@ -695,19 +721,22 @@ class KnowledgeGraph:
                 node["year"] = year
             # Verified is monotonic: once a curator has blessed this
             # mapping the flag stays True, even if a later auto-seed call
-            # passes verified=False. The confirm pipeline depends on this.
             if verified:
                 node["verified"] = True
+            self._persist_node(mapping_id)
 
         if not self.G.has_edge(src_term_id, mapping_id):
             self.G.add_edge(src_term_id, mapping_id, relation="has_mapping")
+            self._persist_edge(src_term_id, mapping_id)
         if not self.G.has_edge(mapping_id, tgt_term_id):
             self.G.add_edge(mapping_id, tgt_term_id, relation="maps_to")
+            self._persist_edge(mapping_id, tgt_term_id)
 
         if source_text_id:
             src_node = f"source:{source_text_id.lower()}"
             if self.G.has_node(src_node) and not self.G.has_edge(mapping_id, src_node):
                 self.G.add_edge(mapping_id, src_node, relation="instantiated_in")
+                self._persist_edge(mapping_id, src_node)
 
         if agent_id:
             agent_node = f"agent:{agent_id.lower()}"
@@ -715,6 +744,7 @@ class KnowledgeGraph:
                 mapping_id, agent_node
             ):
                 self.G.add_edge(mapping_id, agent_node, relation="attributed_to")
+                self._persist_edge(mapping_id, agent_node)
 
         legacy_data = {
             "confidence": confidence,
@@ -726,9 +756,11 @@ class KnowledgeGraph:
             self.G.add_edge(
                 src_term_id, tgt_term_id, relation="translates_to", **legacy_data
             )
+            self._persist_edge(src_term_id, tgt_term_id)
             self.G.add_edge(
                 tgt_term_id, src_term_id, relation="translates_to", **legacy_data
             )
+            self._persist_edge(tgt_term_id, src_term_id)
         elif verified:
             # Existing legacy edge — still mirror the verified bump so
             # downstream code that reads translates_to edges sees the
@@ -768,6 +800,7 @@ class KnowledgeGraph:
             variants.append(variant)
             self.G.nodes[term_id]["variants"] = variants
             self._exact_kp.add_keyword(variant, term_id)
+            self._persist_node(term_id)
 
     def _protect_gender_tokens(self, text: str) -> Tuple[str, Dict[str, str]]:
         mappings = {}
@@ -1182,6 +1215,7 @@ class KnowledgeGraph:
         for tid in (src_term_id, tgt_term_id):
             if self.G.has_node(tid) and not self.G.has_edge(tid, cid):
                 self.G.add_edge(tid, cid, relation="instantiates_concept")
+                self._persist_edge(tid, cid)
         return cid
 
     def get_inline_hints(
@@ -1404,6 +1438,7 @@ class KnowledgeGraph:
 
         node_type = self.G.nodes[node_id].get("type")
         self.G.remove_node(node_id)
+        self._delete_node_persist(node_id)
 
         # If we deleted a term, rebuild search indices to prevent dead reference hits
         if node_type == "term":
@@ -1434,6 +1469,7 @@ class KnowledgeGraph:
         if self.G.nodes[concept_id].get("type") != "concept":
             return False
         self.G.remove_node(concept_id)
+        self._delete_node_persist(concept_id)
         return True
 
 
@@ -1466,7 +1502,7 @@ class KnowledgeGraph:
                     seen.add(r.get("global_idx"))
                     existing.append(r)
             data["tm_segment_refs"] = existing
-
+        self._persist_node(node_id)
     # ------------------------------------------------------------------
     # Generic node reclassification factory
     # ------------------------------------------------------------------
@@ -1481,10 +1517,13 @@ class KnowledgeGraph:
         for _u, tgt, edata in list(self.G.out_edges(old_id, data=True)):
             if tgt != new_id and not self.G.has_edge(new_id, tgt):
                 self.G.add_edge(new_id, tgt, **edata)
+                self._persist_edge(new_id, tgt)
         for src, _v, edata in list(self.G.in_edges(old_id, data=True)):
             if src != new_id and not self.G.has_edge(src, new_id):
                 self.G.add_edge(src, new_id, **edata)
+                self._persist_edge(src, new_id)
         self.G.remove_node(old_id)
+        self._delete_node_persist(old_id)
         return True
 
     # ------------------------------------------------------------------
@@ -1520,6 +1559,7 @@ class KnowledgeGraph:
                 continue  # drop self-loop
             if not self.G.has_edge(canonical_id, tgt):
                 self.G.add_edge(canonical_id, tgt, **edata)
+                self._persist_edge(canonical_id, tgt)
 
         # ── Re-point in-edges (source → duplicate) ──
         for src, _, edata in list(self.G.in_edges(duplicate_id, data=True)):
@@ -1527,6 +1567,7 @@ class KnowledgeGraph:
                 continue  # drop self-loop
             if not self.G.has_edge(src, canonical_id):
                 self.G.add_edge(src, canonical_id, **edata)
+                self._persist_edge(src, canonical_id)
 
         # ── Merge metadata ──
         def _union_list(a: list | None, b: list | None) -> list:
@@ -1563,8 +1604,11 @@ class KnowledgeGraph:
         if can_role in ("", "agent") and dup_role not in ("", "agent"):
             can_data["role"] = dup_role
 
+        self._persist_node(canonical_id)
+
         # ── Remove duplicate node ──
         self.G.remove_node(duplicate_id)
+        self._delete_node_persist(duplicate_id)
         return True
 
     def update_concept_metadata(
@@ -1607,6 +1651,7 @@ class KnowledgeGraph:
         ]:
             if value is not ...:
                 node[field] = value
+        self._persist_node(concept_id)
         return True
 
     def update_term_node(
@@ -1637,6 +1682,7 @@ class KnowledgeGraph:
                 if display_form not in variants:
                     variants.append(display_form)
                     self._exact_kp.add_keyword(display_form, term_id)
+        self._persist_node(term_id)
         return True
 
     def update_agent_node(
@@ -1672,8 +1718,8 @@ class KnowledgeGraph:
         node.setdefault("alt_spellings", [node.get("name", "")])
         node.setdefault("all_roles", [node.get("role", "agent")])
         node.setdefault("mention_count", node.get("mention_count", 1))
+        self._persist_node(agent_id)
         return True
-
     def update_source_text_node(
         self,
         source_id: str,
@@ -1725,9 +1771,12 @@ class KnowledgeGraph:
             for _, target, edata in list(self.G.out_edges(source_id, data=True)):
                 if edata.get("relation") == "written_by":
                     self.G.remove_edge(source_id, target)
+                    self._delete_edge_persist(source_id, target)
             if self.G.has_node(auth_node):
                 if not self.G.has_edge(source_id, auth_node):
                     self.G.add_edge(source_id, auth_node, relation="written_by")
+                    self._persist_edge(source_id, auth_node)
+        self._persist_node(source_id)
         return True
 
     def update_translation_mapping(
@@ -1757,6 +1806,7 @@ class KnowledgeGraph:
             node["year"] = year
         if verified:
             node["verified"] = True
+        self._persist_node(mapping_id)
         return True
 
     def get_all_by_type(self, node_type: str) -> List[Dict]:
@@ -1785,6 +1835,7 @@ class KnowledgeGraph:
                 current_lineage = data.get("lineage", "general")
                 if current_lineage in old_lineages:
                     data["lineage"] = new_lineage
+                    self._persist_node(node_id)
                     updated_count += 1
         return updated_count
 
@@ -1818,5 +1869,6 @@ class KnowledgeGraph:
                         correct_lineage = glossary_lookup[match_key]
                         if data.get("lineage") != correct_lineage:
                             data["lineage"] = correct_lineage
+                            self._persist_node(node_id)
                             updated_count += 1
         return updated_count

@@ -18,14 +18,19 @@ def _fast_backends(monkeypatch):
 
         def _fast_kg_init(self, db_path=None):
             import networkx as nx
+            import tempfile
+            from pathlib import Path
             from flashtext import KeywordProcessor
             self.db_path = db_path
+            self.sqlite_path = Path(tempfile.mktemp(suffix=".sqlite"))
             self.G = nx.DiGraph()
             self._exact_kp = KeywordProcessor(case_sensitive=False)
             self._norm_kp = KeywordProcessor(case_sensitive=False)
             self.nlp_en = None
             self.nlp_sl = None
-
+            self._disk_mtime = None
+            from translate_core.kg_sqlite import KGStore
+            self._store = KGStore(self.sqlite_path)
         monkeypatch.setattr(_kg.KnowledgeGraph, "__init__", _fast_kg_init)
     except Exception:
         pass
