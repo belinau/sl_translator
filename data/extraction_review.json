@@ -1,1 +1,2892 @@
-[]
+[
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "MGLC Grad Tivoli",
+      "name_translation": "MGLC Tivoli Mansion",
+      "kind": "museum",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_43cb8915",
+          "segment_idx": 1
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_43cb8915",
+      "segment_idx": 1,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Mednarodni grafični likovni center",
+      "name_translation": "International Centre of Graphic Arts",
+      "kind": "museum",
+      "city": "Ljubljana",
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_43cb8915",
+          "segment_idx": 2
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_43cb8915",
+      "segment_idx": 2,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "MOL trojček",
+      "name_translation": "Municipality of Ljubljana trio",
+      "kind": "sponsor",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_43cb8915",
+          "segment_idx": 8
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_43cb8915",
+      "segment_idx": 8,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Ministrstvo za kulturo",
+      "name_translation": "Ministry of Culture RS",
+      "kind": "organization",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_43cb8915",
+          "segment_idx": 8
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_43cb8915",
+      "segment_idx": 8,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Mladina",
+      "name_translation": "Mladina",
+      "kind": "journal",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_43cb8915",
+          "segment_idx": 8
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_43cb8915",
+      "segment_idx": 8,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "DPG",
+      "name_translation": "DPG",
+      "kind": "organization",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_43cb8915",
+          "segment_idx": 8
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_43cb8915",
+      "segment_idx": 8,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "AC/E",
+      "name_translation": "AC/E",
+      "kind": "organization",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_43cb8915",
+          "segment_idx": 8
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_43cb8915",
+      "segment_idx": 8,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Institut Ramon LLuLL",
+      "name_translation": "Institut Ramon LLuLL",
+      "kind": "organization",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_43cb8915",
+          "segment_idx": 8
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_43cb8915",
+      "segment_idx": 8,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Tti",
+      "name_translation": "Tti",
+      "kind": "organization",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_43cb8915",
+          "segment_idx": 8
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_43cb8915",
+      "segment_idx": 8,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "International Art Services",
+      "name_translation": "International Art Services",
+      "kind": "organization",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_43cb8915",
+          "segment_idx": 8
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_43cb8915",
+      "segment_idx": 8,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "MOL",
+      "name_translation": "Municipality of Ljubljana",
+      "kind": "organization",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_43cb8915",
+          "segment_idx": 8
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_43cb8915",
+      "segment_idx": 8,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "MSUM",
+      "name_translation": "MSUM",
+      "kind": "museum",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_a4c8e4be",
+          "segment_idx": 1
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_a4c8e4be",
+      "segment_idx": 1,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Politics of Touch collective",
+      "name_translation": "kolektivom Politics of Touch",
+      "kind": "organization",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_a4c8e4be",
+          "segment_idx": 2
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_a4c8e4be",
+      "segment_idx": 2,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "GDR",
+      "name_translation": "Nemška demokratična republika (NDR)",
+      "kind": "country",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_a4c8e4be",
+          "segment_idx": 6
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_a4c8e4be",
+      "segment_idx": 6,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Mexico",
+      "name_translation": "Mehika",
+      "kind": "country",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_a4c8e4be",
+          "segment_idx": 7
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_a4c8e4be",
+      "segment_idx": 7,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Germany",
+      "name_translation": "Nemčija",
+      "kind": "country",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_a4c8e4be",
+          "segment_idx": 7
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_a4c8e4be",
+      "segment_idx": 7,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "former Yugoslavia",
+      "name_translation": "nekdanja Jugoslavija",
+      "kind": "country",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_a4c8e4be",
+          "segment_idx": 7
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_a4c8e4be",
+      "segment_idx": 7,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Politics of Touch",
+      "name_translation": "Politics of Touch",
+      "kind": "organization",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_a4c8e4be",
+          "segment_idx": 9
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_a4c8e4be",
+      "segment_idx": 9,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Archival Chain Reactions",
+      "name_translation": "Arhivske verižne reakcije",
+      "kind": "other",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_a4c8e4be",
+          "segment_idx": 10
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_a4c8e4be",
+      "segment_idx": 10,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": false,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.55,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Pinto mi Raya",
+      "name_translation": "Pinto mi Raya",
+      "kind": "organization",
+      "city": "Mexico City",
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_a4c8e4be",
+          "segment_idx": 11
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_a4c8e4be",
+      "segment_idx": 11,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "re.act.feminism",
+      "name_translation": "re.act.feminism",
+      "kind": "organization",
+      "city": "Berlin",
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_a4c8e4be",
+          "segment_idx": 11
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_a4c8e4be",
+      "segment_idx": 11,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "City of Women",
+      "name_translation": "Mesto žensk",
+      "kind": "festival",
+      "city": "Ljubljana",
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_a4c8e4be",
+          "segment_idx": 11
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_a4c8e4be",
+      "segment_idx": 11,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "United States",
+      "name_translation": "Združene države Amerike",
+      "kind": "country",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_9f6cbcc5",
+          "segment_idx": 212
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_9f6cbcc5",
+      "segment_idx": 212,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Foundation for a Better Life (FBL)",
+      "name_translation": "Foundation for a Better Life (FBL)",
+      "kind": "organization",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_9f6cbcc5",
+          "segment_idx": 227
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_9f6cbcc5",
+      "segment_idx": 227,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "FBL",
+      "name_translation": "FBL",
+      "kind": "organization",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_9f6cbcc5",
+          "segment_idx": 228
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_9f6cbcc5",
+      "segment_idx": 228,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Socialist Review",
+      "name_translation": "Socialist Review",
+      "kind": "journal",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_9f6cbcc5",
+          "segment_idx": 235
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_9f6cbcc5",
+      "segment_idx": 235,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "cited_work",
+    "payload": {
+      "cited_id": "those-were-strange-days-my-dear-2026",
+      "title_orig": "Those were strange days, my dear",
+      "title_translation": "To so bili čudni dnevi, draga moja",
+      "orig_lang": "en",
+      "translation_lang": "sl",
+      "year": 2026,
+      "project_type": "cited_work",
+      "container_work_id": "humhumhum-labels-v4-docx-31-07-2026-en-docx",
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_b43aacc9",
+          "segment_idx": 0
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_b43aacc9",
+      "segment_idx": 0,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_typed_pipeline": true,
+      "verified_from_text": true,
+      "has_author": false,
+      "has_title": true,
+      "has_year": true,
+      "has_bilingual_title": true,
+      "has_publisher": false,
+      "has_target_lang_edition": false,
+      "smol_verified_classification": true,
+      "title_bilingual": true,
+      "container_attached": true,
+      "project_type_typed": false
+    },
+    "confidence": 1.0,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "composite_2of3",
+      "has_title",
+      "has_year"
+    ],
+    "tier": "direct_write",
+    "_route_reason": "container_not_found"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "La Eriza",
+      "name_translation": "La Eriza",
+      "kind": "publisher",
+      "city": "Madrid",
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_b43aacc9",
+          "segment_idx": 5
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_b43aacc9",
+      "segment_idx": 5,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Iran",
+      "name_translation": "Iran",
+      "kind": "country",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_b43aacc9",
+          "segment_idx": 7
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_b43aacc9",
+      "segment_idx": 7,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Iraq",
+      "name_translation": "Irak",
+      "kind": "country",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_b43aacc9",
+          "segment_idx": 7
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_b43aacc9",
+      "segment_idx": 7,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Pionirski dom – Center za kulturo mladih Art center Pionirskega doma",
+      "name_translation": "Pionirski dom – Centre for Youth Culture, Art Centre of Pionirski dom",
+      "kind": "organization",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_999fbd77",
+          "segment_idx": 3
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_999fbd77",
+      "segment_idx": 3,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Spain",
+      "name_translation": "Španija",
+      "kind": "country",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_b43aacc9",
+          "segment_idx": 22
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_b43aacc9",
+      "segment_idx": 22,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "agent_person",
+    "payload": {
+      "name": "Shirin",
+      "role": "agent",
+      "all_roles": [
+        "agent"
+      ],
+      "dedup_group": "shirin",
+      "norm": "shirin",
+      "origins": [
+        "editor_en-sl_b43aacc9"
+      ],
+      "mention_count": 1,
+      "alt_spellings": [
+        "Shirin"
+      ],
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_b43aacc9",
+          "segment_idx": 30
+        }
+      ]
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "bilingual_name": false,
+      "plausible_person_name": true,
+      "role_attribution_context": false,
+      "smol_verified_classification": true,
+      "multi_mention": false,
+      "multi_origin": false,
+      "ner_person_match": false
+    },
+    "source": {
+      "origin": "editor_en-sl_b43aacc9",
+      "segment_idx": 30,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "confidence": 0.8,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "plausible_person_name"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "agent_person",
+    "payload": {
+      "name": "Alicia",
+      "role": "agent",
+      "all_roles": [
+        "agent"
+      ],
+      "dedup_group": "alicia",
+      "norm": "alicia",
+      "origins": [
+        "editor_en-sl_b43aacc9"
+      ],
+      "mention_count": 1,
+      "alt_spellings": [
+        "Alicia"
+      ],
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_b43aacc9",
+          "segment_idx": 64
+        }
+      ]
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "bilingual_name": false,
+      "plausible_person_name": true,
+      "role_attribution_context": false,
+      "smol_verified_classification": true,
+      "multi_mention": false,
+      "multi_origin": false,
+      "ner_person_match": false
+    },
+    "source": {
+      "origin": "editor_en-sl_b43aacc9",
+      "segment_idx": 64,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "confidence": 0.8,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "plausible_person_name"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "cited_work",
+    "payload": {
+      "cited_id": "milengagua",
+      "title_orig": "Milengaguá",
+      "title_translation": "Milengaguá",
+      "project_type": "cited_work",
+      "container_work_id": "humhumhum-labels-v4-docx-31-07-2026-en-docx",
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_b43aacc9",
+          "segment_idx": 101
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_b43aacc9",
+      "segment_idx": 101,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_typed_pipeline": true,
+      "verified_from_text": true,
+      "has_author": false,
+      "has_title": true,
+      "has_year": false,
+      "has_bilingual_title": true,
+      "has_publisher": false,
+      "has_target_lang_edition": false,
+      "smol_verified_classification": true,
+      "title_bilingual": true,
+      "container_attached": true,
+      "project_type_typed": false
+    },
+    "confidence": 1.0,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "composite_2of3",
+      "has_title"
+    ],
+    "tier": "direct_write",
+    "_route_reason": "language_pair_undetermined"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "whatsapp",
+      "name_translation": "whatsappa",
+      "kind": "organization",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_b43aacc9",
+          "segment_idx": 7
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_b43aacc9",
+      "segment_idx": 7,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Mesto žensk / City of Women 2026",
+      "name_translation": "City of Women 2026",
+      "kind": "festival",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_e19e72c9",
+          "segment_idx": 0
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_e19e72c9",
+      "segment_idx": 0,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "32. mednarodni festival sodobnih umetnosti",
+      "name_translation": "32nd International Festival of Contemporary Arts",
+      "kind": "festival",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_e19e72c9",
+          "segment_idx": 1
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_e19e72c9",
+      "segment_idx": 1,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "www.mestozensk.si",
+      "name_translation": "www.mestozensk.org",
+      "kind": "organization",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_e19e72c9",
+          "segment_idx": 4
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_e19e72c9",
+      "segment_idx": 4,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Cukrarna",
+      "name_translation": "Cukrarna",
+      "kind": "gallery",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_e19e72c9",
+          "segment_idx": 7
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_e19e72c9",
+      "segment_idx": 7,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "TO)pot",
+      "name_translation": "TO)pot",
+      "kind": "festival",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_e19e72c9",
+          "segment_idx": 9
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_e19e72c9",
+      "segment_idx": 9,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "32. mednarodni festival sodobnihih umetnosti",
+      "name_translation": "32nd International Festival of Contemporary Arts",
+      "kind": "festival",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_c46bd5f8",
+          "segment_idx": 1
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_c46bd5f8",
+      "segment_idx": 1,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "www.mestozensk.si",
+      "name_translation": "www.mestozensk.org",
+      "kind": "other",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_c46bd5f8",
+          "segment_idx": 4
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_c46bd5f8",
+      "segment_idx": 4,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": false,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.55,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Cukrarna",
+      "name_translation": "Cukrarna",
+      "kind": "other",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_c46bd5f8",
+          "segment_idx": 7
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_c46bd5f8",
+      "segment_idx": 7,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": false,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.55,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Kinodvor",
+      "name_translation": "Kinodvor",
+      "kind": "other",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_c46bd5f8",
+          "segment_idx": 13
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_c46bd5f8",
+      "segment_idx": 13,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": false,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.55,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Stara mestna elektrarna – Elektro Ljubljana",
+      "name_translation": "The Old Power Station",
+      "kind": "other",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_c46bd5f8",
+          "segment_idx": 17
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_c46bd5f8",
+      "segment_idx": 17,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": false,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.55,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "DUM",
+      "name_translation": "Project Space DUM",
+      "kind": "gallery",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_c46bd5f8",
+          "segment_idx": 21
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_c46bd5f8",
+      "segment_idx": 21,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Galerija Škuc",
+      "name_translation": "ŠKUC Gallery",
+      "kind": "gallery",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_c46bd5f8",
+          "segment_idx": 25
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_c46bd5f8",
+      "segment_idx": 25,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "BAZA, Center mladih Ljubljana",
+      "name_translation": "BAZA, Youth Centre Ljubljana",
+      "kind": "organization",
+      "city": "Ljubljana",
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_c46bd5f8",
+          "segment_idx": 30
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_c46bd5f8",
+      "segment_idx": 30,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Kino Šiška, Katedrala",
+      "name_translation": "Kino Šiška, Katedrala",
+      "kind": "other",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_c46bd5f8",
+          "segment_idx": 35
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_c46bd5f8",
+      "segment_idx": 35,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": false,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.55,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Channel Zero",
+      "name_translation": "Channel Zero",
+      "kind": "other",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_c46bd5f8",
+          "segment_idx": 39
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_c46bd5f8",
+      "segment_idx": 39,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": false,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.55,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Flinta klub",
+      "name_translation": "Flinta club",
+      "kind": "other",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_c46bd5f8",
+          "segment_idx": 40
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_c46bd5f8",
+      "segment_idx": 40,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": false,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.55,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Fitnes Fitcity",
+      "name_translation": "Fitcity Fitness",
+      "kind": "other",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_c46bd5f8",
+          "segment_idx": 52
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_c46bd5f8",
+      "segment_idx": 52,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": false,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.55,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Španski borci",
+      "name_translation": null,
+      "kind": "theatre",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_c46bd5f8",
+          "segment_idx": 57
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_c46bd5f8",
+      "segment_idx": 57,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Španski borci",
+      "name_translation": null,
+      "kind": "other",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_c46bd5f8",
+          "segment_idx": 61
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_c46bd5f8",
+      "segment_idx": 61,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": false,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.55,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Gosposka dvorana ZRC SAZU",
+      "name_translation": "Gosposka Hall ZRC SAZU",
+      "kind": "organization",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_c46bd5f8",
+          "segment_idx": 66
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_c46bd5f8",
+      "segment_idx": 66,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Stara mestna Elektrarna – Elektro Ljubljana",
+      "name_translation": "The Old Power Station",
+      "kind": "theatre",
+      "city": "Ljubljana",
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_c46bd5f8",
+          "segment_idx": 70
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_c46bd5f8",
+      "segment_idx": 70,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Kinoteka",
+      "name_translation": null,
+      "kind": "organization",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_c46bd5f8",
+          "segment_idx": 88
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_c46bd5f8",
+      "segment_idx": 88,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Kinoteka",
+      "name_translation": "Kinoteka",
+      "kind": "other",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_c46bd5f8",
+          "segment_idx": 93
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_c46bd5f8",
+      "segment_idx": 93,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": false,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.55,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "festival Indigo",
+      "name_translation": "Indigo Festival",
+      "kind": "festival",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_c46bd5f8",
+          "segment_idx": 99
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_c46bd5f8",
+      "segment_idx": 99,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Fakulteta za družbene vede",
+      "name_translation": "Faculty for Social Sciences",
+      "kind": "university",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_c46bd5f8",
+          "segment_idx": 113
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_c46bd5f8",
+      "segment_idx": 113,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Clay Theatre Ljubljana",
+      "name_translation": null,
+      "kind": "theatre",
+      "city": "Ljubljana",
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_c46bd5f8",
+          "segment_idx": 126
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_c46bd5f8",
+      "segment_idx": 126,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "agent_person",
+    "payload": {
+      "name": "Mai Zetterling",
+      "role": "agent",
+      "all_roles": [
+        "agent"
+      ],
+      "dedup_group": "m.zetterling",
+      "norm": "mai-zetterling",
+      "origins": [
+        "editor_sl-en_c46bd5f8"
+      ],
+      "mention_count": 1,
+      "alt_spellings": [
+        "Mai Zetterling"
+      ],
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_c46bd5f8",
+          "segment_idx": 132
+        }
+      ]
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "bilingual_name": false,
+      "plausible_person_name": true,
+      "role_attribution_context": false,
+      "smol_verified_classification": true,
+      "multi_mention": false,
+      "multi_origin": false,
+      "ner_person_match": false
+    },
+    "source": {
+      "origin": "editor_sl-en_c46bd5f8",
+      "segment_idx": 132,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "confidence": 0.8,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "plausible_person_name"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Kinoteka",
+      "name_translation": null,
+      "kind": "theatre",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_c46bd5f8",
+          "segment_idx": 135
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_c46bd5f8",
+      "segment_idx": 135,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Švicarija",
+      "name_translation": "Švicarija",
+      "kind": "other",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_999fbd77",
+          "segment_idx": 21
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_999fbd77",
+      "segment_idx": 21,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": false,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.55,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Grad Tivoli",
+      "name_translation": "Tivoli Mansion",
+      "kind": "museum",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_999fbd77",
+          "segment_idx": 22
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_999fbd77",
+      "segment_idx": 22,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Grad Tivoli",
+      "name_translation": "Tivoli Mansion",
+      "kind": "other",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_999fbd77",
+          "segment_idx": 23
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_999fbd77",
+      "segment_idx": 23,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": false,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.55,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Art center Pionirskega doma",
+      "name_translation": "Art Centre of Pionirski dom",
+      "kind": "other",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_999fbd77",
+          "segment_idx": 24
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_999fbd77",
+      "segment_idx": 24,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": false,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.55,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "MGLC",
+      "name_translation": "MGLC",
+      "kind": "museum",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_999fbd77",
+          "segment_idx": 25
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_999fbd77",
+      "segment_idx": 25,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Art centra Pionirskega doma",
+      "name_translation": "Art Centre of Pionirski dom",
+      "kind": "organization",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_999fbd77",
+          "segment_idx": 26
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_999fbd77",
+      "segment_idx": 26,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Pionirski dom",
+      "name_translation": "Pionirski dom",
+      "kind": "organization",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_999fbd77",
+          "segment_idx": 27
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_999fbd77",
+      "segment_idx": 27,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Art center Pionirskega doma",
+      "name_translation": "Art Centre of Pionirski dom",
+      "kind": "organization",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_999fbd77",
+          "segment_idx": 29
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_999fbd77",
+      "segment_idx": 29,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Potenciali povezovanja 2026",
+      "name_translation": "Potential for Networking 2026",
+      "kind": "other",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_999fbd77",
+          "segment_idx": 30
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_999fbd77",
+      "segment_idx": 30,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": false,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.55,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Kulturni bazar",
+      "name_translation": null,
+      "kind": "organization",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_999fbd77",
+          "segment_idx": 30
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_999fbd77",
+      "segment_idx": 30,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Cankarjev dom",
+      "name_translation": null,
+      "kind": "other",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_999fbd77",
+          "segment_idx": 30
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_999fbd77",
+      "segment_idx": 30,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": false,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.55,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Art center Pionirskega doma",
+      "name_translation": "Art Centre of Pionirski dom",
+      "kind": "gallery",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_999fbd77",
+          "segment_idx": 30
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_999fbd77",
+      "segment_idx": 30,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Pionirski dom – Center za kulturo mladih",
+      "name_translation": "Pionirski dom – Centre for Youth Culture",
+      "kind": "organization",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_999fbd77",
+          "segment_idx": 32
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_999fbd77",
+      "segment_idx": 32,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Pionirski dom – Center za kulturo mladih v Ljubljani",
+      "name_translation": "Pionirski dom – the Centre for Youth Culture in Ljubljana",
+      "kind": "organization",
+      "city": "Ljubljana",
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_999fbd77",
+          "segment_idx": 7
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_999fbd77",
+      "segment_idx": 7,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Grafični bienale jugoslovanskih otrok",
+      "name_translation": "Yugoslav Children’s Biennale of Graphic Arts",
+      "kind": "festival",
+      "city": "Kostanjevica na Krki",
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_999fbd77",
+          "segment_idx": 8
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_999fbd77",
+      "segment_idx": 8,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Švicarija",
+      "name_translation": "Švicarija",
+      "kind": "gallery",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_999fbd77",
+          "segment_idx": 21
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_999fbd77",
+      "segment_idx": 21,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "DUM – projektni prostor",
+      "name_translation": "Project Space DUM",
+      "kind": "gallery",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_c46bd5f8",
+          "segment_idx": 21
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_c46bd5f8",
+      "segment_idx": 21,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  }
+]
