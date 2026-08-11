@@ -491,9 +491,9 @@ def _do_prolong(r: dict, extra_days: int, dialog, container, project_id, client)
 
 
 def _stop_funnel(r: dict, container, project_id, client) -> None:
-    rm.stop_funnel()
     r["funnel_active"] = False
     rm.save_review(r)
+    rm.stop_funnel()
     ui.notify("Funnel stopped", type="warning")
     _render_reviews(container, project_id, client)
 
@@ -1184,10 +1184,10 @@ def page_review_merge(review_id: str):
                         orig_seg = orig_map.get(oid)
                         if orig_seg and orig_seg.get("target", "").strip() and orig_seg.get("source", "").strip():
                             _save_pairs_to_tm(orig_seg["source"], orig_seg["target"], lang_pair)
-                    rm.stop_funnel()
                     clone["status"] = rm.STATUS_MERGED
                     clone["funnel_active"] = False
                     rm.save_review(clone)
+                    rm.stop_funnel()
                 ui.notify("Merge complete. Review closed.", type="positive")
                 ui.navigate.to(f"/review/{clone['original_project_id']}")
 

@@ -350,26 +350,52 @@ def get_machine_name() -> str:
         return ""
 
 
+def _funnel_is_running(port: int = 8080) -> bool:
+    """Check if a Tailscale funnel is already active on *port*."""
+    if not _tailscale_available():
+        return False
+    try:
+        result = subprocess.run(
+            ["tailscale", "funnel", "status", "--json"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode != 0:
+            return False
+        data = json.loads(result.stdout)
+        # Check if any handler proxies to our port
+        for host, cfg in data.get("Web", {}).items():
+            for path, handler in cfg.get("Handlers", {}).items():
+                proxy = handler.get("Proxy", "")
+                if f"127.0.0.1:{port}" in proxy or f"localhost:{port}" in proxy:
+                    return True
+        return False
+    except Exception:
+        return False
+
+
 def start_funnel(port: int = 8080, validity_days: int = DEFAULT_VALIDITY_DAYS) -> tuple[str, str]:
     """Start a Tailscale funnel for the NiceGUI port.
 
     Returns ``(url, expires_at_iso)``.
 
-    Tailscale has no built-in expiry flag, so the validity is tracked in
-    the clone JSON and enforced by :func:`_start_watchdog`.
+    Tailscale funnels are single-port: only one funnel exists at a time,
+    and ALL reviews share the same URL.  If a funnel is already running
+    on *port*, reuse it instead of resetting — resetting kills the
+    funnel for every other active review.
     """
     if not _tailscale_available():
         raise RuntimeError("Tailscale is not installed")
-    # Single-port limitation — reset first.
-    subprocess.run(["tailscale", "funnel", "reset"], capture_output=True, timeout=5)
-    result = subprocess.run(
-        ["tailscale", "funnel", "--bg", str(port)],
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"tailscale funnel failed: {result.stderr.strip()}")
+    # Reuse an existing funnel on the same port if one is already active.
+    # The reset→restart cycle in the old code killed all other active
+    # reviews' funnels for 1-2 seconds (or permanently if the restart failed).
+    if not _funnel_is_running(port):
+        subprocess.run(["tailscale", "funnel", "reset"], capture_output=True, timeout=5)
+        result = subprocess.run(
+            ["tailscale", "funnel", "--bg", str(port)],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"tailscale funnel failed: {result.stderr.strip()}")
     machine = get_machine_name()
     url = f"https://{machine}"
     expires_at = (
@@ -380,8 +406,17 @@ def start_funnel(port: int = 8080, validity_days: int = DEFAULT_VALIDITY_DAYS) -
 
 
 def stop_funnel() -> None:
-    """Tear down the Tailscale funnel.  Idempotent."""
+    """Tear down the Tailscale funnel — but only if no other active
+    reviews remain.  Since all reviews share a single-port funnel,
+    resetting it here would kill every other active reviewer's URL.
+    """
     global _watchdog_task
+    # Check if any other review is still active.  If so, keep the funnel.
+    others_active = any(
+        r.get("funnel_active") for r in list_reviews()
+    )
+    if others_active:
+        return
     if _watchdog_task and not _watchdog_task.done():
         _watchdog_task.cancel()
         _watchdog_task = None
@@ -458,28 +493,35 @@ def _start_watchdog() -> None:
 
 
 async def _watchdog_loop() -> None:
-    """Every 60 s, check all active reviews for expired funnels.
+    """Every 60 s, mark expired reviews and tear down the funnel only
+    when NO active reviews remain.
 
-    Single-port funnel: once we tear down, no other review is active
-    either, so we break after the first expiry.
+    Tailscale funnels are single-port and shared by all reviews.  Tearing
+    down the funnel when one review expires kills it for every other
+    active review.  Instead: mark each expired review inactive, and only
+    call ``stop_funnel()`` when zero reviews remain active.
     """
     try:
         while True:
             await asyncio.sleep(60)
+            any_active = False
             for r in list_reviews():
                 if not r.get("funnel_active"):
                     continue
                 expires = r.get("funnel_expires_at")
                 if not expires:
+                    any_active = True
                     continue
                 try:
                     if datetime.fromisoformat(expires) <= datetime.now():
-                        stop_funnel()
                         r["funnel_active"] = False
                         save_review(r)
-                        break
+                    else:
+                        any_active = True
                 except Exception:
-                    continue
+                    any_active = True
+            if not any_active:
+                stop_funnel()
     except asyncio.CancelledError:
         pass
     except Exception as e:
