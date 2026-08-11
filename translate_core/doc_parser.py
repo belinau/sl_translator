@@ -224,6 +224,9 @@ def _inject_footnotes_part(
             zf.writestr(name, data)
 
 
+
+
+
 def footnote_alignment_report(segments: list) -> dict:
     """Count footnote defs vs inline refs in segments.
 
@@ -1224,13 +1227,21 @@ class DocumentParser:
         template_path: Path,
         output_path: Path,
         segments: List[dict],
+        comments_mode: str = "none",
     ) -> None:
         """Compile a translated DOCX by cloning the original and replacing
         text in-place, preserving all paragraph styles, run formatting,
-        and document structure."""
+        and document structure.
+
+        When *comments_mode* is not ``"none"``, segment comments are
+        inserted as new paragraphs immediately after the paragraph they
+        belong to, prefixed with » to distinguish them from body text.
+        """
         if not HAS_DOCX:
             raise RuntimeError("python-docx not installed")
-        assert docx is not None
+        assert docx is not None and OxmlElement is not None and qn is not None
+
+        from translate_core import comments as cm
 
         doc = docx.Document(str(template_path))
 
@@ -1241,6 +1252,7 @@ class DocumentParser:
                 idx_to_segs.setdefault(pi, []).append(seg)
 
         paragraphs = doc.paragraphs
+        insertions: list[tuple[int, str]] = []
         for para_idx, para in enumerate(paragraphs):
             segs = idx_to_segs.get(para_idx)
             if segs is None:
@@ -1252,9 +1264,57 @@ class DocumentParser:
                 for seg in segs
             )
             self._replace_paragraph_text(para, replacement)
+            if comments_mode != cm.EXPORT_NONE:
+                for seg in segs:
+                    c_text = cm.format_comments_for_export(seg, comments_mode)
+                    if c_text:
+                        insertions.append((para_idx, c_text))
+
+        if insertions:
+            for para_idx, c_text in reversed(insertions):
+                self._insert_comment_paragraph_after(paragraphs[para_idx], c_text)
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
         doc.save(str(output_path))
+
+    @staticmethod
+    def _insert_comment_paragraph_after(para, comment_text: str) -> None:
+        """Insert a comment paragraph immediately after *para*.
+
+        The comment is prefixed with » to distinguish it from body text.
+        Multiple comments in one segment are separated by line breaks.
+        """
+        _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+        p_el = para._element
+        new_p = OxmlElement("w:p")
+        pPr = OxmlElement("w:pPr")
+        ind = OxmlElement("w:ind")
+        ind.set(qn("w:left"), "720")
+        pPr.append(ind)
+        spacing = OxmlElement("w:spacing")
+        spacing.set(qn("w:before"), "120")
+        spacing.set(qn("w:after"), "120")
+        pPr.append(spacing)
+        new_p.append(pPr)
+        lines = [ln.lstrip("> ").rstrip() for ln in comment_text.strip().splitlines() if ln.strip()]
+        for i, line in enumerate(lines):
+            if i > 0:
+                br_r = OxmlElement("w:r")
+                br = OxmlElement("w:br")
+                br_r.append(br)
+                new_p.append(br_r)
+            run = OxmlElement("w:r")
+            rPr = OxmlElement("w:rPr")
+            sz = OxmlElement("w:sz")
+            sz.set(qn("w:val"), "20")
+            rPr.append(sz)
+            run.append(rPr)
+            t = OxmlElement("w:t")
+            t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+            t.text = f"» {line}" if i == 0 else line
+            run.append(t)
+            new_p.append(run)
+        p_el.addnext(new_p)
 
     @staticmethod
     def _replace_paragraph_text(paragraph, new_text: str) -> None:

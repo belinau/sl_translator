@@ -13,6 +13,7 @@ existing autosave/clone/merge flows.
 from __future__ import annotations
 
 import copy
+import re
 import uuid
 from datetime import datetime
 
@@ -120,3 +121,60 @@ def merge_reviewer_comments(orig_seg: dict, clone_seg: dict) -> None:
 def comment_count(segments: list[dict]) -> int:
     """Total number of comments across all segments."""
     return sum(len(ensure_comments(s)) for s in segments)
+
+
+# ---------------------------------------------------------------------------
+# Export formatting
+# ---------------------------------------------------------------------------
+EXPORT_NONE = "none"
+EXPORT_TRANSLATOR_ONLY = "translator"
+EXPORT_ALL = "all"
+EXPORT_MODES = (EXPORT_NONE, EXPORT_TRANSLATOR_ONLY, EXPORT_ALL)
+
+
+def format_comments_for_export(
+    seg: dict,
+    mode: str = EXPORT_ALL,
+) -> str:
+    """Format a segment's comments into a markdown block for export.
+
+    Returns an empty string when *mode* is ``EXPORT_NONE`` or the segment
+    has no matching comments.
+
+    For footnote-definition segments (``[^N]:`` prefix) the formatted
+    comments are returned as a plain-text suffix (no markdown heading) so
+    the caller can append them directly to the footnote definition text —
+    they will render inside the footnote at the bottom of the page, next
+    to their footnote number.
+
+    For body segments the comments are returned as a separate markdown
+    block (prefixed with a comment-header line) that the caller appends
+    as a new paragraph after the segment's body text.
+    """
+    if mode == EXPORT_NONE:
+        return ""
+    comments = ensure_comments(seg)
+    if not comments:
+        return ""
+    filtered = [
+        c for c in comments
+        if mode == EXPORT_ALL or c.get("author") == AUTHOR_TRANSLATOR
+    ]
+    if not filtered:
+        return ""
+    src = seg.get("source", "").lstrip()
+    is_footnote = bool(re.match(r"^\[\^(\w+)\]:", src)) if src else False
+    lines: list[str] = []
+    for c in filtered:
+        author = c.get("author", "?")
+        label = "Translator" if author == AUTHOR_TRANSLATOR else "Reviewer"
+        if c.get("round", 0) > 0:
+            label += f" (R{c['round']})"
+        text = c.get("text", "")
+        lines.append(f"[{label}] {text}")
+    if is_footnote:
+        # Footnote segments: return as plain-text suffix joined with
+        # a separator so it renders inside the footnote body.
+        return "  ▸ " + "  ▸ ".join(lines)
+    # Body segments: return as a blockquote-style block.
+    return "\n> " + "\n> ".join(lines)
