@@ -136,8 +136,12 @@ def load_project(project_id: str):
         return None
     if data is not None:
         from translate_core import comments as cm
-        for seg in data.get("segments", []):
-            cm.migrate_legacy_segment(seg)
+        segs = data.get("segments", [])
+        # Only run migration if any segment lacks the "comments" key.
+        # After the first load, all segments carry "comments" and this is a no-op.
+        if segs and any("comments" not in s for s in segs):
+            for seg in segs:
+                cm.migrate_legacy_segment(seg)
     return data
 
 

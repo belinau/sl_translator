@@ -19,8 +19,8 @@ from nicegui import background_tasks, ui
 
 from . import intel_panel, kg_search, predictions, segment_editor, segment_navigator, settings as ui_settings
 from .state import WorkspaceState, request_kg_save
-
 from translate_core.entity_extraction.ingest_helpers import ensure_agent
+from translate_core import comments as cm
 # Segment types excluded from concept promotion (noun-chunk noise). They still
 # save to TM and run citation extraction. Defined at module level so tests and
 # importers can reference the same vocabulary without loading the page function.
@@ -152,9 +152,9 @@ def page_translate(project_id: str):
             with ui.dropdown_button("Export", icon="file_download", auto_close=True).props(
                 "rounded unelevated dense color=positive"
             ):
-                ui.item("Translated Book (.docx)", on_click=lambda: _export_target_docx())
-                ui.item("Reorganized Source (.docx)", on_click=lambda: _export_source_docx())
-                ui.item("Plain .txt", on_click=lambda: _export_txt())
+                ui.item("Translated Book (.docx)", on_click=lambda: _open_export_dialog("target_docx"))
+                ui.item("Reorganized Source (.docx)", on_click=lambda: _open_export_dialog("source_docx"))
+                ui.item("Plain .txt", on_click=lambda: _open_export_dialog("txt"))
                 ui.separator()
                 _style_indicator = ui.label("").classes("text-xs opacity-60 px-2 py-1")
                 ui.item("Change house style…", on_click=lambda: _open_change_style_dialog(state, _style_indicator))
@@ -251,11 +251,9 @@ def page_translate(project_id: str):
         loop = asyncio.get_running_loop()
 
         seg_meta = None
-        project_data = load_project(state.project_id)
-        if project_data and "segments_meta" in project_data:
-            meta_list = project_data["segments_meta"]
-            if 0 <= seg_index < len(meta_list):
-                seg_meta = meta_list[seg_index]
+        meta_list = state._segments_meta
+        if 0 <= seg_index < len(meta_list):
+            seg_meta = meta_list[seg_index]
 
         seg_type = seg_meta.get("type") if seg_meta else None
 
@@ -273,20 +271,25 @@ def page_translate(project_id: str):
         # still handled by the citation extraction path below.
         _proj_slug = _slugify_project(state)
         should_promote = kg is not None and seg_type not in _CONCEPT_SKIP_TYPES
+        # reload_if_changed is only useful on the first confirm after page load
+        # (to pick up maintenance-script edits). After that, the only writer to
+        # knowledge.db is this process via the debounced kg.save, whose mtime
+        # we track — so subsequent stat checks are wasted work.
+        if not getattr(state, "_kg_reloaded", False):
+            await loop.run_in_executor(None, kg.reload_if_changed)
+            state._kg_reloaded = True
+        _needs_kg_save = False
         try:
             if should_promote:
-                # Pick up any external KG edits (maintenance scripts) before we
-                # promote + save, so the editor's save merges on top instead of
-                # clobbering them. Also ensure the project container exists with
-                # correct project_type and translated_by edge (O-20).
-                await loop.run_in_executor(None, kg.reload_if_changed)
+                # Ensure the project container exists with correct project_type
+                # and translated_by edge (O-20).
                 await loop.run_in_executor(
                     None,
                     lambda: _ensure_project_container(
                         kg, _proj_slug, state.filename or _proj_slug, state.project_type
                     ),
                 )
-                request_kg_save(kg.save, delay=3.0)
+                _needs_kg_save = True
 
             # Live smol entity extraction runs for every segment. Apparatus
             # segments now have a correct ``type`` in ``segments_meta`` so
@@ -317,16 +320,23 @@ def page_translate(project_id: str):
                                     f"{report.queued} queued for review",
                                     type="positive",
                                 )
-                        request_kg_save(kg.save, delay=1.0)
+                        _needs_kg_save = True
                 except Exception as e:
                     log.warning(f"promote_pair entity extraction: {e}")
+
+            # Single coalesced save with a generous debounce so the 50MB
+            # serialize-and-write doesn't fire while the user is mid-keystroke
+            # on the next segment. Multiple confirms within the window collapse
+            # into one disk write.
+            if _needs_kg_save:
+                request_kg_save(kg.save, delay=5.0)
         except Exception as e:
             log.error(f"promote_pair: {e}")
 
     # ------------------------------------------------------------------
     # Export
     # ------------------------------------------------------------------
-    def _compile_md(use_target: bool) -> str:
+    def _compile_md(use_target: bool, comments_mode: str = cm.EXPORT_NONE) -> str:
         """Build the markdown stream for DOCX export.
 
         Footnote definitions that span multiple segments are joined with a
@@ -334,6 +344,14 @@ def page_translate(project_id: str):
         [^N]: parser sees the full footnote text. Without this, continuation
         segments (no [^N]: prefix) fall through to body_lines and render as
         orphan body paragraphs.
+
+        When *comments_mode* is not ``EXPORT_NONE``, segment comments are
+        injected into the markdown stream:
+        - footnote-definition segments: comments are appended to the
+          footnote text (rendered at the bottom of the page next to their
+          footnote number);
+        - body segments: comments are appended as a blockquote paragraph
+          immediately after the segment text.
         """
         import re as _re
         fn_def_re = _re.compile(r"^\[\^(\w+)\]:")
@@ -359,7 +377,15 @@ def page_translate(project_id: str):
                         txt = seg.get("source", "").strip()
                     if txt:
                         parts.append(txt)
-                lines.append(" ".join(parts))
+                # Inject comments into footnote definition text.
+                fn_text = " ".join(parts)
+                if comments_mode != cm.EXPORT_NONE:
+                    for k in range(i, j):
+                        seg = segs[k]
+                        c_text = cm.format_comments_for_export(seg, comments_mode)
+                        if c_text:
+                            fn_text += c_text
+                lines.append(fn_text)
                 i = j
             else:
                 txt = s.get("target", "").strip() if use_target else ""
@@ -367,6 +393,11 @@ def page_translate(project_id: str):
                     txt = s.get("source", "").strip()
                 if txt:
                     lines.append(txt)
+                # Inject body-segment comments as a blockquote paragraph.
+                if comments_mode != cm.EXPORT_NONE:
+                    c_text = cm.format_comments_for_export(s, comments_mode)
+                    if c_text:
+                        lines.append(c_text)
                 i += 1
         return "\n\n".join(lines)
 
@@ -374,7 +405,39 @@ def page_translate(project_id: str):
     _house_typo = resolve_typography(state.house_style)
 
 
-    def _export_target_docx():
+    def _open_export_dialog(export_type: str) -> None:
+        """Dialog with comments-in-export options before running the export."""
+        with ui.dialog() as dialog, ui.card().classes("min-w-[420px]"):
+            ui.label("Export options").classes("text-h6")
+            ui.label(
+                "Comments can be embedded in the exported document:"
+            ).classes("text-xs opacity-70 mt-1")
+            mode = ui.toggle(
+                {
+                    cm.EXPORT_NONE: "No comments (clean)",
+                    cm.EXPORT_TRANSLATOR_ONLY: "Translator only",
+                    cm.EXPORT_ALL: "All comments",
+                },
+                value=cm.EXPORT_NONE,
+            ).classes("w-full mt-2")
+            with ui.row().classes("w-full justify-end gap-2 mt-3"):
+                ui.button("Cancel", on_click=lambda: dialog.close()).props("flat")
+                ui.button(
+                    "Export",
+                    icon="file_download",
+                    on_click=lambda: (_run_export(export_type, mode.value), dialog.close()),
+                ).props("unelevated color=positive")
+        dialog.open()
+
+    def _run_export(export_type: str, comments_mode: str) -> None:
+        if export_type == "target_docx":
+            _export_target_docx(comments_mode)
+        elif export_type == "source_docx":
+            _export_source_docx(comments_mode)
+        elif export_type == "txt":
+            _export_txt(comments_mode)
+
+    def _export_target_docx(comments_mode: str = cm.EXPORT_NONE):
         if state.pipeline == "simple":
             # Simple pipeline: preserve original formatting via template
             template = PROJECTS_DIR / f"{state.project_id}.docx"
@@ -397,6 +460,7 @@ def page_translate(project_id: str):
                 try:
                     doc_parser.compile_from_template(
                         template, out, state.segments,
+                        comments_mode=comments_mode,
                     )
                     if out.exists():
                         ui.download(out.read_bytes(), f"translated_{state.filename}")
@@ -410,7 +474,7 @@ def page_translate(project_id: str):
                     type="warning",
                 )
             # Fallback: academic-style DOCX compilation
-            md = _compile_md(use_target=True)
+            md = _compile_md(use_target=True, comments_mode=comments_mode)
             path = PROJECTS_DIR / f"compiled_target_{state.project_id}.docx"
             try:
                 doc_parser.compile_to_designed_docx(md, path, house_typography=_house_typo)
@@ -432,7 +496,7 @@ def page_translate(project_id: str):
                     "run scripts/repair_book_footnotes.py",
                     type="warning",
                 )
-            md = _compile_md(use_target=True)
+            md = _compile_md(use_target=True, comments_mode=comments_mode)
             path = PROJECTS_DIR / f"compiled_target_{state.project_id}.docx"
             try:
                 doc_parser.compile_to_designed_docx(md, path, segments=state.segments, house_typography=_house_typo)
@@ -445,7 +509,7 @@ def page_translate(project_id: str):
             ui.notify("Export failed", type="negative")
         else:
             # Unknown pipeline — same as simple fallback
-            md = _compile_md(use_target=True)
+            md = _compile_md(use_target=True, comments_mode=comments_mode)
             path = PROJECTS_DIR / f"compiled_target_{state.project_id}.docx"
             try:
                 doc_parser.compile_to_designed_docx(md, path, house_typography=_house_typo)
@@ -457,8 +521,8 @@ def page_translate(project_id: str):
                 log.error(f"export target: {e}")
             ui.notify("Export failed", type="negative")
 
-    def _export_source_docx():
-        md = _compile_md(use_target=False)
+    def _export_source_docx(comments_mode: str = cm.EXPORT_NONE):
+        md = _compile_md(use_target=False, comments_mode=comments_mode)
         path = PROJECTS_DIR / f"compiled_source_{state.project_id}.docx"
         try:
             doc_parser.compile_to_designed_docx(md, path, house_typography=_house_typo)
@@ -470,8 +534,8 @@ def page_translate(project_id: str):
             log.error(f"export source: {e}")
         ui.notify("Export failed", type="negative")
 
-    def _export_txt():
-        content = _compile_md(use_target=True)
+    def _export_txt(comments_mode: str = cm.EXPORT_NONE):
+        content = _compile_md(use_target=True, comments_mode=comments_mode)
         ui.download(content.encode("utf-8"), f"translated_{state.filename}.txt")
 
     # ------------------------------------------------------------------
@@ -569,7 +633,7 @@ def _open_glossary(state, glossary, config, parse_lang_pair, kg=None, qa_engine=
                                 source_text_id=slug,
                             )
                         await loop.run_in_executor(None, _do)
-                        request_kg_save(kg.save, delay=1.0)
+                        request_kg_save(kg.save, delay=5.0)
                         if qa_engine is not None and glossary is not None:
                             await loop.run_in_executor(None, lambda: qa_engine.build_lemma_index(glossary.entries))
                         with state.client:

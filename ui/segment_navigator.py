@@ -8,12 +8,12 @@ from __future__ import annotations
 
 from nicegui import ui
 
-from translate_core import comments as cm
 
 from .state import WorkspaceState
 
 
 _COLUMNS = [
+    {"name": "comments", "label": "", "field": "comments", "align": "left"},
     {"name": "n", "label": "#", "field": "n", "align": "right",
      "classes": "text-[10px] font-black opacity-50"},
     {"name": "preview", "label": "Segment", "field": "preview", "align": "left"},
@@ -26,18 +26,26 @@ def _rows(state: WorkspaceState) -> list[dict]:
     out = []
     for s in state.segments:
         is_active = s["id"] == active
-        n_comments = len(cm.ensure_comments(s))
+        n_comments = len(s.get("comments") or ())
         status = "✓" if s["status"] == "done" else ("●" if is_active else "")
-        if n_comments:
-            status = f"\U0001f4ac{n_comments} " + status
         out.append({
             "id": s["id"],
-            # leading marker makes the active row unmistakable without slots/JS
             "n": (f"▶ {s['id'] + 1}" if is_active else str(s["id"] + 1)),
             "preview": ("▸ " if is_active else "") + (s["target"] or s["source"] or "")[:120],
             "status": status,
+            "comments": n_comments,
         })
     return out
+
+
+_COMMENTS_SLOT = """
+<q-td :props="props" style="width: 28px; padding-right: 2px">
+  <q-icon v-if="props.row.comments > 0" name="chat" size="16px" color="amber-8">
+    <q-badge v-if="props.row.comments > 0" color="amber-8" text-color="white"
+             floating rounded :label="props.row.comments" />
+  </q-icon>
+</q-td>
+"""
 
 
 def build(state: WorkspaceState) -> dict:
@@ -60,6 +68,7 @@ def build(state: WorkspaceState) -> dict:
             .props("virtual-scroll dense flat bordered hide-header hide-bottom :rows-per-page-options='[0]'")
             .classes("w-full rounded-xl h-[58vh] max-h-[900px]")
         )
+        table.add_slot("body-cell-comments", _COMMENTS_SLOT)
 
     def _on_row_click(e):
         # e.args = [event_dict, row_dict, index]
