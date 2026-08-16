@@ -246,11 +246,34 @@ def _render_review_card(
                 ui.label(url_text).classes(
                     "text-xs font-mono opacity-70 flex-1 min-w-0 truncate"
                 )
+                def _do_copy(_, t=url_text):
+                    ui.run_javascript(
+                        f"""(function() {{
+                            var text = {json.dumps(t)};
+                            if (navigator.clipboard && navigator.clipboard.writeText) {{
+                                navigator.clipboard.writeText(text).catch(function() {{
+                                    _fallbackCopy(text);
+                                }});
+                            }} else {{
+                                _fallbackCopy(text);
+                            }}
+                            function _fallbackCopy(text) {{
+                                var ta = document.createElement('textarea');
+                                ta.value = text;
+                                ta.style.position = 'fixed';
+                                ta.style.opacity = '0';
+                                document.body.appendChild(ta);
+                                ta.select();
+                                try {{ document.execCommand('copy'); }} catch(e) {{}}
+                                document.body.removeChild(ta);
+                            }}
+                        }})()"""
+                    )
+                    ui.notify("Link copied to clipboard", type="positive", timeout=2000)
+
                 ui.button(
                     icon="content_copy",
-                    on_click=lambda _, t=url_text: ui.run_javascript(
-                        f"navigator.clipboard.writeText({json.dumps(t)})"
-                    ),
+                    on_click=_do_copy,
                 ).props("flat round dense size=sm color=grey-6").tooltip("Copy link")
             if funnel_active and not expired:
                 ui.label(f"Valid until: {expires[:16].replace('T', ' ')} ({_fmt_remaining(expires)})").classes(
