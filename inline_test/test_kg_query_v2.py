@@ -359,10 +359,14 @@ async def test_unigram_without_concept_surfaces_in_terms_group(user):
 @pytest.mark.asyncio
 async def test_push_bundle_includes_target_vocab_pool(monkeypatch):
     """A target term whose source equivalent is NOT in the current segment
-    must still surface in the bundle's candidate list so ghost text can
-    complete it by prefix. This is the regression that the screenshot
-    feedback exposed: typing 'intersek' should land on 'intersekcionalnost'
-    even when 'intersectionality' is nowhere in the source paragraph."""
+    must still surface in the vocab pool so ghost text can complete it by
+    prefix. With the split architecture, push_vocab sends the full target
+    vocab once (on page load) and push_bundle sends only source-aligned
+    candidates per segment switch. This test verifies both:
+      1. push_bundle includes the source-aligned hit but NOT the off-segment
+         term (it's in the vocab pool, not the per-segment bundle).
+      2. push_vocab includes the off-segment KG-known term.
+    """
     captured: list[str] = []
 
     def fake_run_javascript(code):
@@ -383,6 +387,27 @@ async def test_push_bundle_includes_target_vocab_pool(monkeypatch):
     )
 
     source_text = "The biopolitics of capacity already demarcate the population."
+
+    # ── push_vocab: sends the full target vocab pool ───────────────────
+    # Clear the vocab cache so _get_vocab rebuilds from this fresh KG.
+    from ui.predictions import _vocab_cache, _vocab_cache_keys
+    _vocab_cache.clear()
+    _vocab_cache_keys.clear()
+
+    await predictions.push_vocab(kg, "sl")
+    assert len(captured) >= 1
+    vocab_js = captured[-1]
+    assert "setVocab(" in vocab_js
+    start = vocab_js.index("setVocab(") + len("setVocab(")
+    end = vocab_js.index(");", start)
+    vocab = json.loads(vocab_js[start:end])
+    assert "intersekcionalnost" in vocab, (
+        "off-segment KG term missing from vocab pool — "
+        f"ghost text won't complete it. Got {len(vocab)} terms."
+    )
+
+    # ── push_bundle: sends only source-aligned candidates ──────────────
+    captured.clear()
     await predictions.push_bundle(
         textarea_id=99,
         source_text=source_text,
@@ -408,10 +433,12 @@ async def test_push_bundle_includes_target_vocab_pool(monkeypatch):
     cands = bundle.get("candidates") or []
     # Source-aligned hit is present.
     assert "zmožnost" in cands
-    # And the off-segment KG-known term lands in the vocab pool.
-    assert "intersekcionalnost" in cands, (
-        "background vocab missing — predictor won't complete off-segment "
-        f"KG terms. Got {len(cands)} candidates."
+    # The off-segment term is NOT in the per-segment bundle — it lives in
+    # the vocab pool sent by push_vocab. The JS runtime merges both at
+    # match time via _findMatch.
+    assert "intersekcionalnost" not in cands, (
+        "off-segment vocab should not be in the per-segment bundle — "
+        f"it's sent once via push_vocab. Got {len(cands)} candidates."
     )
 
 

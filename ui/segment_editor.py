@@ -274,9 +274,10 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
         _refresh_strips()
 
         src, tgt = _src_tgt()
-        background_tasks.create(
+        sid = id(state)
+        background_tasks.create_lazy(
             predictions.push_bundle(target_textarea.id, seg_now["source"], src, tgt, tm, glossary, kg, client=state.client),
-            name="push_bundle",
+            name=f"push_bundle_{sid}",
         )
         background_tasks.create(_refresh_qa(), name="qa_refresh")
         _rebuild_comments()
@@ -306,13 +307,17 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
     state.subscribe("segments", _on_status_change)
     state.subscribe("target", _on_target_notify)
 
+
     async def _initial():
         seg_now = state.segments[state.active_index] if state.segments else None
         if seg_now is None:
             _refresh_strips()
             return
-        _refresh_strips()
         src, tgt = _src_tgt()
+        # Send the full target vocab pool ONCE — the JS runtime stores it
+        # for O(log n) binary-search prefix matching. Subsequent segment
+        # switches only send ~40 source-aligned candidates via push_bundle.
+        await predictions.push_vocab(kg, tgt, client=state.client)
         await predictions.push_bundle(target_textarea.id, seg_now["source"], src, tgt, tm, glossary, kg, client=state.client)
         await _refresh_qa()
         _rebuild_comments()
