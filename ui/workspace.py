@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 
 from nicegui import background_tasks, ui
 
-from . import intel_panel, kg_search, predictions, segment_editor, segment_navigator, settings as ui_settings
+from . import intel_panel, kg_search, predictions, segment_editor, segment_navigator, settings as ui_settings, target_search
 from .state import WorkspaceState, request_kg_save
 from translate_core.entity_extraction.ingest_helpers import ensure_agent
 from translate_core import comments as cm
@@ -219,6 +219,9 @@ def page_translate(project_id: str):
             kg_zone = ui.column().classes("w-full")
 
             intel_panel.build(state, deps, tm_gl_slot=tm_gl_zone, kg_slot=kg_zone)
+
+            # Find & Replace in target segments — below KG.
+            target_search.build(state, deps)
 
 
     # ------------------------------------------------------------------

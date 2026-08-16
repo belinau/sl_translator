@@ -65,4 +65,12 @@ SHARED_CSS = """
 .ghost-prediction-overlay .ghost-fragment { opacity: 0.55; }
 .target-zone { transition: border-color .15s ease; }
 .target-zone:focus-within { border-color: var(--q-primary) !important; }
+/* Orange highlight for search query matches — readable in dark + light mode. */
+.search-hit-mark {
+    background-color: #f97316;
+    color: #141414;
+    border-radius: 2px;
+    padding: 0 2px;
+    font-weight: 600;
+}
 """

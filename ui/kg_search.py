@@ -11,11 +11,33 @@ Click a result to insert it at the cursor.
 from __future__ import annotations
 
 import asyncio
+import html as html_lib
 import json
+import re
 
 from nicegui import background_tasks, ui
 
 from .state import WorkspaceState
+
+
+def highlight_query(text: str | None, query: str | None) -> str:
+    """HTML-escape text, then wrap case-insensitive query matches in a
+    ``<mark class="search-hit-mark">`` span so they stand out in the results.
+
+    Shared by the sidebar KG/TM search and the target find/replace panel.
+    Escaping runs before highlighting so KG/TM content can never inject HTML.
+    """
+    text = text or ""
+    query = (query or "").strip()
+    esc = html_lib.escape(text)
+    if not query:
+        return esc
+    q_esc = html_lib.escape(query)
+    return re.sub(
+        re.compile(re.escape(q_esc), re.IGNORECASE),
+        lambda m: f'<mark class="search-hit-mark">{m.group(0)}</mark>',
+        esc,
+    )
 
 
 def build(state: WorkspaceState, deps: dict) -> dict:
@@ -156,7 +178,7 @@ def build(state: WorkspaceState, deps: dict) -> dict:
                             "w-full rounded-lg p-2 gap-1"
                         ):
                             # Source term header
-                            ui.label(term_label).classes(
+                            ui.html(highlight_query(term_label, q)).classes(
                                 "text-xs font-bold opacity-80"
                             )
 
@@ -202,14 +224,14 @@ def build(state: WorkspaceState, deps: dict) -> dict:
                                     ).on("click", lambda _e, t=tgt_text: _insert(t)):
                                         ui.label("→").classes("text-[10px] opacity-30 mt-0.5")
                                         with ui.column().classes("gap-0"):
-                                            ui.label(tgt_text).classes(
+                                            ui.html(highlight_query(tgt_text, q)).classes(
                                                 "text-xs font-semibold"
                                             )
                                             ui.label(meta_str).classes(
                                                 "text-[10px] opacity-50"
                                             ).style("white-space:normal;word-break:break-word")
                                             if gloss:
-                                                ui.label(gloss).classes(
+                                                ui.html(highlight_query(gloss, q)).classes(
                                                     "text-[10px] italic opacity-40"
                                                 ).style("white-space:normal;word-break:break-word")
                             else:
@@ -245,13 +267,13 @@ def build(state: WorkspaceState, deps: dict) -> dict:
                             "w-full rounded-lg p-2 gap-1"
                         ):
                             with ui.row().classes("items-baseline gap-2"):
-                                ui.label(label).classes("text-xs font-bold")
+                                ui.html(highlight_query(label, q)).classes("text-xs font-bold")
                                 if domain:
                                     ui.label(domain).classes(
                                         "text-[10px] opacity-50 italic"
                                     )
                             if definition:
-                                ui.label(definition).classes(
+                                ui.html(highlight_query(definition, q)).classes(
                                     "text-[11px] opacity-60 leading-snug"
                                 ).style("white-space:normal;word-break:break-word")
                             if en_terms or sl_terms:
@@ -274,10 +296,10 @@ def build(state: WorkspaceState, deps: dict) -> dict:
                         with ui.card().props("flat bordered").classes(
                             "w-full rounded-lg p-2 cursor-pointer hover:bg-primary/5"
                         ).on("click", lambda _e, t=m.get("target", ""): _insert(t)):
-                            ui.label(m.get("source", "")).classes(
+                            ui.html(highlight_query(m.get("source", ""), q)).classes(
                                 "text-[11px] italic leading-snug opacity-60"
                             ).style("white-space:normal;word-break:break-word")
-                            ui.label(m.get("target", "")).classes(
+                            ui.html(highlight_query(m.get("target", ""), q)).classes(
                                 "text-[12px] font-medium leading-snug"
                             ).style("white-space:normal;word-break:break-word")
 
