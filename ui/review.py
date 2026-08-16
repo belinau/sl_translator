@@ -343,7 +343,7 @@ def _open_new_review_dialog(data: dict, container: ui.column, client) -> None:
             {
                 "all_done": f"All completed ({len(done_segs)})",
                 "range": "Range",
-                "cherry": "Cherry-pick",
+                "commented": "Only with comments",
             },
             value="all_done",
         ).classes("w-full")
@@ -357,31 +357,12 @@ def _open_new_review_dialog(data: dict, container: ui.column, client) -> None:
             range_to = ui.number(value=len(segs) - 1, min=0, max=len(segs) - 1).props("outlined dense").classes("w-20")
         range_row.set_visibility(False)
 
-        # Cherry-pick table
-        cherry_container = ui.column().classes("w-full")
-        cherry_container.set_visibility(False)
-        with cherry_container:
-            cherry_table = ui.table(
-                columns=[
-                    {"name": "sel", "label": "", "field": "sel", "align": "center"},
-                    {"name": "n", "label": "#", "field": "n", "align": "right", "classes": "text-[10px] font-black opacity-50"},
-                    {"name": "preview", "label": "Segment", "field": "preview", "align": "left"},
-                    {"name": "status", "label": "Status", "field": "status", "align": "right"},
-                ],
-                rows=[
-                    {
-                        "id": s["id"],
-                        "sel": s.get("status") == "done",
-                        "n": s["id"] + 1,
-                        "preview": (s.get("target") or s.get("source", ""))[:100],
-                        "status": s.get("status", "pending"),
-                    }
-                    for s in segs
-                ],
-                row_key="id",
-            ).props("virtual-scroll dense flat bordered hide-bottom").classes(
-                "w-full h-[300px]"
-            )
+        # Commented-only info
+        commented_segs = [s for s in segs if s.get("comments")]
+        commented_info = ui.label(
+            f"{len(commented_segs)} segment{'s' if len(commented_segs) != 1 else ''} with comments"
+        ).classes("text-xs opacity-70")
+        commented_info.set_visibility(False)
 
         selected_count_label = ui.label(f"{len(done_segs)} segments selected").classes(
             "text-xs font-medium opacity-70"
@@ -389,22 +370,20 @@ def _open_new_review_dialog(data: dict, container: ui.column, client) -> None:
 
         def _on_mode_change(e):
             range_row.set_visibility(e.value == "range")
-            cherry_container.set_visibility(e.value == "cherry")
+            commented_info.set_visibility(e.value == "commented")
             if e.value == "all_done":
                 selected_count_label.set_text(f"{len(done_segs)} segments selected")
             elif e.value == "range":
                 _update_range_count()
-            elif e.value == "cherry":
-                _update_cherry_count()
+            elif e.value == "commented":
+                selected_count_label.set_text(
+                    f"{len(commented_segs)} segments selected"
+                )
 
         def _update_range_count():
             f = int(range_from.value or 0)
             t = int(range_to.value or 0)
             count = max(0, t - f + 1)
-            selected_count_label.set_text(f"{count} segments selected")
-
-        def _update_cherry_count():
-            count = sum(1 for r in cherry_table.rows if r.get("sel"))
             selected_count_label.set_text(f"{count} segments selected")
 
         mode.on_value_change(_on_mode_change)
@@ -434,8 +413,10 @@ def _open_new_review_dialog(data: dict, container: ui.column, client) -> None:
                     f = int(range_from.value or 0)
                     t = int(range_to.value or 0)
                     selected_ids = list(range(f, t + 1))
+                elif mode.value == "commented":
+                    selected_ids = [s["id"] for s in segs if s.get("comments")]
                 else:
-                    selected_ids = [r["id"] for r in cherry_table.rows if r.get("sel")]
+                    selected_ids = [s["id"] for s in done_segs]
 
                 if not selected_ids:
                     ui.notify("Select at least one segment", type="warning")
