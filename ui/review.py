@@ -646,17 +646,15 @@ def page_review_ext(review_id: str):
             ui_settings.dark_toggle_button(dm)
 
     # ------------------------------------------------------------------
-    # Main content — Glossary + KG intel section, then segment list.
-    # Built inline (not via intel_panel.build) so TM/concordance are
-    # never created — no hidden cards, no wasted refresh tasks. The
-    # rendering patterns (card, label, container, run.io_bound refresh,
-    # background_tasks.create_lazy, state.subscribe) are identical to
-    # intel_panel.build — just without the TM section.
-    # No right drawer: Glossary + KG live in the main column so the
-    # reviewer can never get stuck without them.
+    # Main content — Glossary + Find & Replace, then segment list.
+    # KG is intentionally excluded: it confuses reviewers who only need
+    # the glossary for terminology and a search/replace tool for bulk
+    # edits across their suggested translations.
     # ------------------------------------------------------------------
-    from ui.intel_panel import _kg_query, _render_hit_fn, _truncate
+    from ui.intel_panel import _truncate
+    from ui.kg_search import highlight_query
     from nicegui import run
+    import re
 
     glossary = deps["glossary"]
     kg = deps["kg"]
@@ -673,19 +671,36 @@ def page_review_ext(review_id: str):
                     )
                 gl_container = ui.column().classes("w-full gap-2")
 
-            # ---------------------------------------------------- KG
+            # ---------------------------------------- Find & Replace in targets
             with ui.card().props("flat bordered").classes("w-full p-4 rounded-2xl"):
                 with ui.row().classes("w-full items-center gap-2 mb-2"):
-                    ui.icon("account_tree", size="16px").props("color=primary")
-                    ui.label("KNOWLEDGE GRAPH").classes(
+                    ui.icon("find_replace", size="16px").props("color=primary")
+                    ui.label("FIND & REPLACE IN REVIEW EDITS").classes(
                         "text-[10px] font-black tracking-[.3em] opacity-70"
                     )
-                kg_container = ui.column().classes("w-full gap-2")
+                fr_find_input = (
+                    ui.input(placeholder="Find in your suggested edits")
+                    .props("dense outlined clearable")
+                    .classes("w-full")
+                )
+                fr_replace_input = (
+                    ui.input(placeholder="Replace with")
+                    .props("dense outlined clearable")
+                    .classes("w-full")
+                )
+                with ui.row().classes("w-full items-center gap-2 mt-1"):
+                    fr_match_case = ui.checkbox("Match case", value=False).classes("text-xs")
+                    fr_search_btn = ui.button("Search", icon="search").props(
+                        "flat dense color=primary"
+                    ).classes("text-xs")
+                    fr_replace_btn = ui.button(
+                        "Replace All", icon="find_replace"
+                    ).props("flat dense color=warning").classes("text-xs")
+                fr_results = ui.column().classes("w-full gap-1 mt-2")
 
             # ----------------------------------------------------------------
             # Insert helper — routes through the predictor's JS runtime
             # so click-to-insert targets the focused suggestion textarea.
-            # Same pattern as intel_panel._insert.
             # ----------------------------------------------------------------
             def _insert(text: str) -> None:
                 if not text:
@@ -696,94 +711,6 @@ def page_review_ext(review_id: str):
                     )
                 except Exception as ex:
                     print(f"[review insert] {ex}")
-
-            # ----------------------------------------------------------------
-            # KG refresh — exact same logic as intel_panel._refresh_kg
-            # ----------------------------------------------------------------
-            async def _refresh_kg():
-                if not state.segments or kg is None:
-                    return
-                idx = state.active_index
-                seg = state.segments[idx]
-                src_lang, tgt_lang = parse_lang_pair(state.lang_pair)
-                try:
-                    hits = await run.io_bound(
-                        _kg_query, seg["source"], src_lang, tgt_lang, kg,
-                    )
-                except Exception as e:
-                    print(f"[review KG] {e}")
-                    return
-                if state.active_index != idx or kg_container.is_deleted:
-                    return
-                kg_container.clear()
-                with kg_container:
-                    if not hits:
-                        ui.label("No KG matches for this segment.").classes(
-                            "text-xs italic opacity-90"
-                        )
-                        return
-                    by_concept: dict[str, list[dict]] = {}
-                    order: list[str] = []
-                    concept_by_id: dict[str, dict] = {}
-                    orphans: list[dict] = []
-                    for h in hits:
-                        c = h.get("concept")
-                        if c and c.get("id"):
-                            cid = c["id"]
-                            if cid not in by_concept:
-                                by_concept[cid] = []
-                                order.append(cid)
-                                concept_by_id[cid] = c
-                            by_concept[cid].append(h)
-                        else:
-                            orphans.append(h)
-                    groups: list[tuple[dict | None, list[dict]]] = [
-                        (concept_by_id[cid], by_concept[cid]) for cid in order
-                    ]
-                    if orphans:
-                        groups.append((None, orphans))
-                    for concept, group_hits in groups:
-                        with ui.card().props("flat bordered").classes(
-                            "w-full p-3 rounded-2xl"
-                        ):
-                            with ui.row().classes(
-                                "w-full items-center gap-x-2 gap-y-1 mb-1 flex-wrap"
-                            ):
-                                ui.icon("hub", size="13px").props("color=primary")
-                                if concept is None:
-                                    ui.label("TERMS").classes(
-                                        "text-[10px] font-black tracking-[.3em] opacity-90"
-                                    )
-                                else:
-                                    ui.label(
-                                        str(concept.get("label") or "").upper()
-                                    ).classes(
-                                        "text-[10px] font-black tracking-[.3em] opacity-90"
-                                    )
-                                    if concept.get("domain"):
-                                        ui.badge(
-                                            concept["domain"], color="grey-5",
-                                        ).classes("text-[9px] px-1")
-                                    for th in concept.get("theorists", []):
-                                        ui.badge(th, color="purple-4").props(
-                                            "outline"
-                                        ).classes("text-[9px] px-1").tooltip(
-                                            "thinker who uses this concept"
-                                        )
-                                    for ln in concept.get("lineages", []):
-                                        if ln not in concept.get("theorists", []):
-                                            ui.badge(ln, color="grey-5").props(
-                                                "outline"
-                                            ).classes("text-[9px] px-1").tooltip("lineage")
-                                    for ct in concept.get("containers", []):
-                                        ui.badge(ct, color="teal-5").props(
-                                            "outline"
-                                        ).classes("text-[9px] px-1").tooltip(
-                                            "you translated this term in this work"
-                                        )
-                            with ui.column().classes("w-full gap-1"):
-                                for h in group_hits:
-                                    _render_hit_fn(h, _insert)
 
             # ----------------------------------------------------------------
             # Glossary refresh — exact same logic as intel_panel._refresh_gl
@@ -825,12 +752,160 @@ def page_review_ext(review_id: str):
                             )
 
             # ----------------------------------------------------------------
-            # Refresh Glossary + KG on segment change — same pattern as
-            # intel_panel._refresh_all but without the TM refresh.
+            # Find & Replace — searches reviewer_target across all segments
+            # in this review. Replace All mutates the clone and saves.
+            # ----------------------------------------------------------------
+            def _fr_matches(text: str, q: str) -> bool:
+                if not q:
+                    return False
+                if fr_match_case.value:
+                    return q in (text or "")
+                return q.lower() in (text or "").lower()
+
+            def _fr_count(text: str, q: str) -> int:
+                if not q:
+                    return 0
+                flags = 0 if fr_match_case.value else re.IGNORECASE
+                return len(re.findall(re.escape(q), text or "", flags))
+
+            def _fr_replace(text: str, q: str, repl: str) -> str:
+                if not q:
+                    return text
+                flags = 0 if fr_match_case.value else re.IGNORECASE
+                return re.sub(re.escape(q), lambda m: repl, text or "", flags=flags)
+
+            def _fr_run_search() -> None:
+                q = (fr_find_input.value or "").strip()
+                fr_results.clear()
+                if not q:
+                    return
+                hits: list[tuple[int, dict, int]] = []
+                for i, s in enumerate(clone["segments"]):
+                    t = s.get("reviewer_target", "")
+                    if _fr_matches(t, q):
+                        hits.append((i, s, _fr_count(t, q)))
+                with fr_results:
+                    if not hits:
+                        ui.label("No suggested edits match.").classes(
+                            "text-xs italic opacity-60"
+                        )
+                        return
+                    total_occ = sum(n for _, _, n in hits)
+                    ui.label(
+                        f"{total_occ} match{'es' if total_occ != 1 else ''} "
+                        f"in {len(hits)} segment{'s' if len(hits) != 1 else ''}"
+                    ).classes("text-[10px] font-bold opacity-70 mb-1")
+                    for idx, s, n_occ in hits:
+                        with ui.card().props("flat bordered").classes(
+                            "w-full rounded-lg p-2 cursor-pointer hover:bg-primary/5"
+                        ).on("click", lambda _e, i=idx: state.set_active(i)):
+                            with ui.row().classes(
+                                "w-full items-center gap-2 mb-0.5"
+                            ):
+                                _oid = s.get("original_id")
+                                orig_id: int = _oid if _oid is not None else s.get("id", idx)
+                                ui.label(f"#{orig_id + 1}").classes(
+                                    "text-[10px] font-black tabular-nums opacity-50"
+                                )
+                                ui.label(f"{n_occ}×").classes(
+                                    "text-[9px] opacity-50"
+                                )
+                            ui.html(
+                                highlight_query(s.get("reviewer_target", ""), q)
+                            ).classes("text-xs leading-snug").style(
+                                "white-space:normal;word-break:break-word"
+                            )
+
+            def _fr_run_replace() -> None:
+                q = (fr_find_input.value or "").strip()
+                repl = fr_replace_input.value or ""
+                if not q:
+                    ui.notify("Enter a search term first.", type="warning")
+                    return
+                matched: list[tuple[int, dict, int]] = []
+                for i, s in enumerate(clone["segments"]):
+                    t = s.get("reviewer_target", "")
+                    if _fr_matches(t, q):
+                        matched.append((i, s, _fr_count(t, q)))
+                if not matched:
+                    ui.notify("No matches to replace.", type="info")
+                    return
+                total_occ = sum(n for _, _, n in matched)
+
+                with ui.dialog() as dialog, ui.card().classes("min-w-[420px] p-4 gap-3"):
+                    ui.label("Confirm Replace All").classes("text-base font-bold")
+                    ui.label(
+                        f"Replace {total_occ} occurrence"
+                        f"{'s' if total_occ != 1 else ''} of "
+                        f"\u201c{q}\u201d with \u201c{repl}\u201d "
+                        f"in {len(matched)} suggested edit"
+                        f"{'s' if len(matched) != 1 else ''}?"
+                    ).classes("text-sm opacity-80").style(
+                        "white-space:normal;word-break:break-word"
+                    )
+                    ui.label("Preview:").classes("text-[10px] font-bold opacity-60 mt-1")
+                    with ui.column().classes("w-full gap-1"):
+                        for idx, s, _n in matched[:3]:
+                            old_t = s.get("reviewer_target", "")
+                            new_t = _fr_replace(old_t, q, repl)
+                            with ui.row().classes("w-full gap-1 items-start"):
+                                _oid = s.get("original_id")
+                                orig_id: int = _oid if _oid is not None else s.get("id", idx)
+                                ui.label(f"#{orig_id + 1}").classes(
+                                    "text-[9px] opacity-50 shrink-0 w-8"
+                                )
+                                with ui.column().classes("flex-1 min-w-0 gap-0"):
+                                    ui.html(
+                                        highlight_query(old_t, q)
+                                    ).classes("text-[10px] opacity-60 line-through").style(
+                                        "white-space:normal;word-break:break-word"
+                                    )
+                                    ui.label(new_t).classes(
+                                        "text-[10px] font-semibold"
+                                    ).style(
+                                        "white-space:normal;word-break:break-word"
+                                    )
+                        if len(matched) > 3:
+                            ui.label(
+                                f"… and {len(matched) - 3} more"
+                            ).classes("text-[9px] italic opacity-50")
+
+                    with ui.row().classes("w-full justify-end gap-2 mt-2"):
+                        ui.button("Cancel", on_click=dialog.close).props(
+                            "flat dense color=grey-6"
+                        )
+                        def _confirm() -> None:
+                            dialog.close()
+                            for i, s, _n in matched:
+                                old_t = s.get("reviewer_target", "")
+                                s["reviewer_target"] = _fr_replace(old_t, q, repl)
+                                if s["reviewer_target"].strip():
+                                    s["reviewer_status"] = "suggested"
+                            rm.save_review(clone)
+                            ui.notify(
+                                f"Replaced {total_occ} occurrence"
+                                f"{'s' if total_occ != 1 else ''} "
+                                f"in {len(matched)} edit"
+                                f"{'s' if len(matched) != 1 else ''}.",
+                                type="positive",
+                            )
+                            if _set_save_status:
+                                _set_save_status("saved")
+                            _fr_run_search()
+                        ui.button("Replace", on_click=_confirm).props(
+                            "unelevated dense color=warning"
+                        )
+                    dialog.open()
+
+            fr_search_btn.on("click", lambda _e: _fr_run_search())
+            fr_find_input.on("keydown.enter", lambda _e: _fr_run_search())
+            fr_replace_btn.on("click", lambda _e: _fr_run_replace())
+
+            # ----------------------------------------------------------------
+            # Refresh Glossary on segment change.
             # ----------------------------------------------------------------
             def _refresh_all():
                 sid = id(state)
-                background_tasks.create_lazy(_refresh_kg(), name=f"review_kg_refresh_{sid}")
                 background_tasks.create_lazy(_refresh_gl(), name=f"review_gl_refresh_{sid}")
 
             state.subscribe("active_index", _refresh_all)
@@ -917,10 +992,9 @@ def _build_review_segment_list(
 
     Every segment is shown in full — no collapse/expand. When the
     reviewer focuses a suggestion textarea, state.set_active(idx) fires
-    so the intel panel (Glossary + KG) populates for that segment, and
+    so the glossary panel populates for that segment, and
     predictions.push_bundle seeds the ghost-text predictor for that
-    textarea — exactly the same pattern as the main editor's
-    _on_active_change.
+    textarea.
     """
     scroll = ui.scroll_area().classes("w-full h-[80vh]")
     with scroll:
@@ -1030,11 +1104,10 @@ def _build_segment_card(
 
     # ------------------------------------------------------------------
     # Focus tracking — when the reviewer clicks into a suggestion
-    # textarea, fire state.set_active(idx) so the intel panel
-    # (Glossary + KG) populates for this segment. Also push a
-    # prediction bundle so the ghost-text predictor tracks this
-    # textarea (making click-to-insert from glossary/KG work).
-    # This is the exact same pattern as segment_editor._on_active_change.
+    # textarea, fire state.set_active(idx) so the glossary panel
+    # populates for this segment. Also push a prediction bundle so the
+    # ghost-text predictor tracks this textarea (making click-to-insert
+    # from glossary work).
     # ------------------------------------------------------------------
     def _on_focus(_=None, i=idx, s=seg, si=suggestion_input):
         # CRITICAL: Do NOT set state.current["target"] to the suggestion
@@ -1042,18 +1115,17 @@ def _build_segment_card(
         # back to the old active segment's "target" field — if we set it
         # to the suggestion value (or empty), set_active would clobber
         # the old segment's original translation. Only call set_active
-        # so the intel panel refreshes for this segment's source text.
+        # so the glossary refreshes for this segment's source text.
         state.set_active(i)
         # Seed the predictor so insertAtCursor targets this textarea.
         src, tgt = parse_lang_pair(state.lang_pair)
-        background_tasks.create(
+        background_tasks.create_lazy(
             predictions.push_bundle(
                 si.id, s.get("source", ""), src, tgt,
                 tm, glossary, kg, client=page_client,
             ),
-            name=f"review_push_bundle_{i}",
+            name=f"review_push_bundle_{id(state)}",
         )
-
     suggestion_input.on("focus", _on_focus)
 
     # Wire the Copy button — copies current translation into suggestion.
