@@ -113,6 +113,11 @@ def _clean_translations(translations: list[dict]) -> list[dict]:
     confidence descending. NO confidence floor: humanities corpora often
     sit at 0.18-0.29 from Dice seeding, and a hard cutoff silently
     discards real curator-authored material.
+
+    Carries through mapping-level metadata (lineage, register, gloss,
+    sources, agents, mapping_id) so the hit rendering can surface the
+    theoretical school, curator note, work provenance, and translator
+    attribution per ontology §2.3 and §3.3.
     """
     out: list[dict] = []
     for tr in translations:
@@ -132,6 +137,10 @@ def _clean_translations(translations: list[dict]) -> list[dict]:
             "verified": bool(tr.get("verified")),
             "lineage": tr.get("lineage") or "",
             "register": tr.get("register") or "",
+            "gloss": (tr.get("gloss") or "").strip(),
+            "sources": tr.get("sources") or [],
+            "agents": tr.get("agents") or [],
+            "mapping_id": tr.get("mapping_id") or "",
         })
     out.sort(key=lambda t: (not t["verified"], -t["confidence"]))
     return out[:6]
@@ -363,6 +372,14 @@ def _kg_query(
             "freq": ent.get("frequency", 0),
             "related": related,
             "concept": concept,
+            # Mapping-level metadata (ontology §2.3, §3.3)
+            "lineage": best.get("lineage", ""),
+            "gloss": best.get("gloss", ""),
+            "sources": best.get("sources", []),
+            "agents": best.get("agents", []),
+            # Entity-level data (ontology §2.1)
+            "variants": ent.get("variants") or [],
+            "display_form": ent.get("display_form") or "",
         })
 
     # Concept-first ranking: phrases with concepts > phrases without >
@@ -438,17 +455,15 @@ def _related_via_concept(
 def _truncate(text: str, n: int = 90) -> str:
     text = (text or "").strip()
     return text if len(text) <= n else text[: n - 1] + "…"
-
-
 def _render_hit_fn(h: dict, _insert: Callable[[str], None]) -> None:
-    """One bilingual hit with its alt/sibling chips inline — a single
-    wrapping row instead of hit row + indented cluster row.
+    """One bilingual hit with mapping metadata — lineage, gloss, frequency,
+    variants, source provenance, and translator attribution.
 
     Module-level so both intel_panel.build() and the reviewer page can
     reuse the exact same rendering logic.
     """
     t_term = h["tgt_term"]
-    tgt_alts = [tr["term"] for tr in h.get("alt_translations", []) or []]
+    tgt_alts = h.get("alt_translations") or []
     tgt_sibs = [
         r for r in h.get("related", []) or []
         if r.get("lang") == h["tgt_lang"]
@@ -457,6 +472,8 @@ def _render_hit_fn(h: dict, _insert: Callable[[str], None]) -> None:
         r for r in h.get("related", []) or []
         if r.get("lang") != h["tgt_lang"]
     ]
+
+    # ── Main hit row: src → tgt with confidence/verified ──
     with ui.row().classes("w-full items-center gap-x-1.5 gap-y-0.5 flex-wrap"):
         with ui.row().classes(
             "items-center gap-2 no-wrap cursor-pointer hover:bg-primary/5 rounded"
@@ -472,34 +489,93 @@ def _render_hit_fn(h: dict, _insert: Callable[[str], None]) -> None:
                     f"{int((h.get('confidence') or 0) * 100)}%",
                     color="primary",
                 ).classes("text-[9px] px-1")
-        if not (tgt_alts or tgt_sibs or src_sibs):
-            return
-        ui.label("·").classes("text-xs opacity-30")
-        for alt_t in tgt_alts[:2]:
-            ui.button(
-                alt_t,
-                on_click=lambda _e, t=alt_t: _insert(t),
-            ).props("flat dense rounded color=positive").classes(
-                "text-[10px] normal-case h-5 px-1.5"
-            )
-        for sib in tgt_sibs[:3]:
-            ui.button(
-                sib["term"],
-                on_click=lambda _e, t=sib["term"]: _insert(t),
-            ).props("flat dense rounded color=positive").classes(
-                "text-[10px] normal-case h-5 px-1.5"
-            ).tooltip(
-                f"{sib.get('lang', '')} — {sib.get('freq', 0)}× in corpus"
-            )
-        for sib in src_sibs[:2]:
-            ui.button(
-                sib["term"],
-                on_click=lambda _e, t=sib["term"]: _insert(t),
-            ).props("flat dense rounded color=positive").classes(
-                "text-[10px] normal-case h-5 px-1.5"
-            ).tooltip(
-                f"{sib.get('lang', '')} — {sib.get('freq', 0)}× in corpus"
-            )
+        # Lineage badge (theoretical school — ontology §2.3)
+        lineage = h.get("lineage") or ""
+        if lineage and lineage.lower() not in ("general", "glossary", ""):
+            ui.badge(lineage, color="blue-grey-4").props("outline").classes(
+                "text-[8px] px-1 normal-case"
+            ).tooltip("theoretical lineage of this translation")
+        # Frequency (corpus attestation — ontology §2.1)
+        freq = h.get("freq") or 0
+        if freq:
+            ui.label(f"×{freq}").classes(
+                "text-[8px] tabular-nums opacity-40"
+            ).tooltip("times seen in corpus")
+        # Translator attribution (ontology §3.3)
+        agents = h.get("agents") or []
+        if agents and h.get("verified"):
+            for ag in agents[:1]:
+                if isinstance(ag, str) and ag.strip():
+                    ui.label(f"↪ {ag}").classes(
+                        "text-[8px] opacity-40"
+                    ).tooltip("verified by")
+
+    # ── Alt translations with lineage labels ──
+    if tgt_alts or tgt_sibs or src_sibs:
+        with ui.row().classes("w-full items-center gap-x-1 gap-y-0.5 flex-wrap pl-4"):
+            for alt in tgt_alts[:3]:
+                alt_term = alt.get("term", "") if isinstance(alt, dict) else str(alt)
+                if not alt_term:
+                    continue
+                alt_lin = alt.get("lineage", "") if isinstance(alt, dict) else ""
+                tooltip_parts = []
+                if alt_lin and alt_lin.lower() not in ("general", "glossary", ""):
+                    tooltip_parts.append(f"lineage: {alt_lin}")
+                if isinstance(alt, dict) and alt.get("verified"):
+                    tooltip_parts.append("verified")
+                ui.button(
+                    alt_term,
+                    on_click=lambda _e, t=alt_term: _insert(t),
+                ).props("flat dense rounded color=positive").classes(
+                    "text-[10px] normal-case h-5 px-1.5"
+                ).tooltip(" | ".join(tooltip_parts) if tooltip_parts else alt_term)
+                # Show lineage on alt if different from main
+                if isinstance(alt, dict) and alt_lin and alt_lin.lower() not in ("general", "glossary", lineage.lower(), ""):
+                    ui.label(alt_lin).classes(
+                        "text-[7px] opacity-40"
+                    )
+            for sib in tgt_sibs[:3]:
+                ui.button(
+                    sib["term"],
+                    on_click=lambda _e, t=sib["term"]: _insert(t),
+                ).props("flat dense rounded color=positive").classes(
+                    "text-[10px] normal-case h-5 px-1.5"
+                ).tooltip(
+                    f"{sib.get('lang', '')} — {sib.get('freq', 0)}× in corpus"
+                )
+            for sib in src_sibs[:2]:
+                ui.button(
+                    sib["term"],
+                    on_click=lambda _e, t=sib["term"]: _insert(t),
+                ).props("flat dense rounded color=positive").classes(
+                    "text-[10px] normal-case h-5 px-1.5"
+                ).tooltip(
+                    f"{sib.get('lang', '')} — {sib.get('freq', 0)}× in corpus"
+                )
+
+    # ── Gloss (curator note — ontology §2.3) ──
+    gloss = h.get("gloss") or ""
+    if gloss:
+        ui.label(gloss).classes(
+            "text-[9px] leading-relaxed italic opacity-50 pl-4 mt-0.5"
+        ).tooltip("curator's translation note")
+
+    # ── Source provenance (instantiated_in — ontology §3.3) ──
+    sources = h.get("sources") or []
+    if sources:
+        source_str = " · ".join(str(s) for s in sources[:2] if s)
+        if source_str:
+            ui.label(f"↳ {source_str}").classes(
+                "text-[8px] opacity-40 pl-4"
+            ).tooltip("attested in this work")
+
+    # ── Term variants (ontology §2.1) ──
+    variants = h.get("variants") or []
+    if variants:
+        var_str = ", ".join(variants[:3])
+        ui.label(f"also: {var_str}").classes(
+            "text-[8px] opacity-30 pl-4"
+        ).tooltip("known surface form variants")
 
 def build(
     state: WorkspaceState,
