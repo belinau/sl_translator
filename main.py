@@ -79,11 +79,25 @@ def parse_lang_pair(pair: str) -> Tuple[str, str]:
     return (src or "en"), (tgt or "sl")
 
 
+def _count_target_text(segments: list) -> tuple[int, int, float]:
+    """Return (chars_with_spaces, chars_without_spaces, pages) from target text.
+
+    Counts ONLY seg["target"] — never source, comments, or metadata.
+    pages = chars_without_spaces / 1500 (exact decimal).
+    """
+    chars_with = sum(len(s.get("target", "")) for s in segments)
+    chars_without = sum(len(re.sub(r"\s+", "", s.get("target", ""))) for s in segments)
+    pages = chars_without / 1500 if chars_without else 0.0
+    return chars_with, chars_without, pages
+
+
 def list_projects() -> list:
     projects = []
     for p in PROJECTS_DIR.glob("*.json"):
         try:
             data = json.loads(p.read_text(encoding="utf-8"))
+            segs = data.get("segments", [])
+            chars_with, chars_without, pages = _count_target_text(segs)
             projects.append(
                 {
                     "id": data["id"],
@@ -92,6 +106,10 @@ def list_projects() -> list:
                     "saved_at": data["saved_at"],
                     "total": data["total"],
                     "done": data["done"],
+                    "chars_with": chars_with,
+                    "chars_without": chars_without,
+                    "pages": pages,
+                    "billing_rate": data.get("billing_rate"),
                 }
             )
         except Exception:
@@ -118,7 +136,7 @@ def save_project(ws: dict):
     # `if ws.get(k)` guard silently dropped segments_meta when it was an
     # empty list, losing role classification on round-trip. Per-segment
     # manifest keys (pdf_para_idx, heading_level, …) ride inside `segments`.
-    for k in ("pipeline", "project_type", "segments_meta", "house_style"):
+    for k in ("pipeline", "project_type", "segments_meta", "house_style", "billing_rate"):
         if k in ws:
             data[k] = ws[k]
     path = PROJECTS_DIR / f"{ws['project_id']}.json"
@@ -151,6 +169,20 @@ def delete_project(project_id: str):
         p = PROJECTS_DIR / f"{project_id}{suffix}"
         if p.exists():
             p.unlink()
+
+
+def _save_billing_rate(project_id: str, rate: float | None) -> None:
+    """Patch billing_rate into a project JSON without rewriting segments."""
+    validate_project_id(project_id)
+    path = PROJECTS_DIR / f"{project_id}.json"
+    if not path.exists():
+        return
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["billing_rate"] = rate
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -389,145 +421,300 @@ def render_project_list(container: ui.column, client):
                 ui.label("No active projects").classes("text-lg font-bold")
             return
 
+        # ── Shared billing state: { project_id: {"rate": float, "project": dict} } ──
+        billing_state: dict[str, dict] = {}
+        # Track checkbox UI elements for the export bar
+        selected: dict[str, bool] = {}
+
         ui.label("RECENT PROJECTS").classes(
             "text-[10px] font-black uppercase tracking-[0.3em] px-2 mb-2 opacity-60"
         )
+
+        # ── Export bar ──
+        with ui.row().classes("w-full items-center justify-between px-2 mb-1"):
+            with ui.row().classes("items-center gap-2"):
+                ui.icon("receipt_long", size="18px").props("color=primary")
+                _selection_label = ui.label("Select projects below to export a billing report").classes(
+                    "text-[10px] font-medium opacity-60"
+                )
+
+            with ui.row().classes("items-center gap-1"):
+                _pdf_btn = ui.button("PDF", icon="picture_as_pdf").props(
+                    "flat dense no-caps color=primary size=sm"
+                ).classes("text-[10px]").tooltip("Export selected projects as PDF invoice")
+                _xlsx_btn = ui.button("XLSX", icon="table_chart").props(
+                    "flat dense no-caps color=primary size=sm"
+                ).classes("text-[10px]").tooltip("Export selected projects as XLSX spreadsheet")
+
+        def _get_selected_projects() -> list:
+            """Collect billing dicts for all checked projects."""
+            out = []
+            for pid, st in billing_state.items():
+                if st.get("_checked"):
+                    p = st["project"]
+                    out.append({
+                        "filename": p["filename"],
+                        "lang_pair": p["lang_pair"],
+                        "chars_with": p["chars_with"],
+                        "chars_without": p["chars_without"],
+                        "pages": p["pages"],
+                        "rate": st.get("rate", 0.0) or 0.0,
+                    })
+            return out
+
+        def _update_selection_label():
+            n = sum(1 for st in billing_state.values() if st.get("_checked"))
+            if n == 0:
+                _selection_label.set_text("Select projects below to export a billing report")
+                _selection_label.classes(remove="text-primary")
+            else:
+                _selection_label.set_text(f"{n} project{'s' if n != 1 else ''} selected for export")
+                _selection_label.classes(add="text-primary")
+
+        def _export_pdf():
+            sel = _get_selected_projects()
+            if not sel:
+                ui.notify("Select at least one project first.", type="warning")
+                return
+            from translate_core.billing_report import generate_pdf
+            data = generate_pdf(sel)
+            ts = datetime.now().strftime("%Y%m%d_%H%M")
+            ui.download(data, filename=f"billing_report_{ts}.pdf")
+            ui.notify(f"PDF exported: {len(sel)} projects", type="positive")
+
+        def _export_xlsx():
+            sel = _get_selected_projects()
+            if not sel:
+                ui.notify("Select at least one project first.", type="warning")
+                return
+            from translate_core.billing_report import generate_xlsx
+            data = generate_xlsx(sel)
+            ts = datetime.now().strftime("%Y%m%d_%H%M")
+            ui.download(data, filename=f"billing_report_{ts}.xlsx")
+            ui.notify(f"XLSX exported: {len(sel)} projects", type="positive")
+
+        _pdf_btn.on("click", _export_pdf)
+        _xlsx_btn.on("click", _export_xlsx)
+
         with ui.element("div").classes("w-full flex flex-col gap-4"):
             for p in projects:
                 pct = int(p["done"] / p["total"] * 100) if p["total"] else 0
-                with (
-                    ui.card()
-                    .props("flat bordered")
-                    .classes("p-4 rounded-2xl flex flex-row gap-4 cursor-pointer hover:shadow-lg transition h-full break-inside-avoid")
-                    .on(
-                        "click", lambda pid=p["id"]: ui.navigate.to(f"/translate/{pid}")
-                    )
-                ):
-                    # ── LEFT: project info (title, progress, saved date) ──
-                    with ui.column().classes("flex-1 min-w-0 gap-2"):
-                        with ui.row().classes("w-full items-start justify-between"):
-                            with ui.column().classes("gap-0.5 flex-1 min-w-0"):
-                                ui.label(p["filename"]).classes(
-                                    "text-base font-bold leading-tight break-words line-clamp-2"
-                                )
-                                ui.label(p["lang_pair"]).classes(
-                                    "text-[10px] font-black uppercase tracking-widest text-primary"
-                                )
-                            ui.button(
-                                icon="delete",
-                                on_click=lambda e, pid=p["id"], c=container: (
-                                    delete_and_refresh(pid, c, client)
-                                ),
-                            ).props("flat round dense size=sm color=grey-5").on("click.stop")
-
-                        with ui.column().classes("w-full gap-1"):
-                            ui.linear_progress(value=pct / 100, color="positive").props(
-                                "size=8px rounded"
-                            ).classes("w-full")
-                            with ui.row().classes("w-full justify-between items-center"):
-                                ui.label(
-                                    f"{p['done']} / {p['total']} segments"
-                                ).classes("text-[10px] font-medium opacity-60")
-                                ui.label(f"{pct}%").classes("text-[10px] font-bold")
-                        ui.label(
-                            f"Saved {p['saved_at'][:16].replace('T', ' ')}"
-                        ).classes("text-[9px] font-medium italic opacity-50")
-
-                    # ── RIGHT: review/funnel status ──
-                    from translate_core import review_manager as _rm
-                    _reviews = _rm.list_reviews(original_project_id=p["id"])
-                    _active = [r for r in _reviews if r.get("funnel_active") and not _is_review_expired(r)]
-                    _inactive = [r for r in _reviews if not r.get("funnel_active") or _is_review_expired(r)]
-                    _completed = [r for r in _reviews if r.get("reviewer_completed") and r.get("status") != "merged"]
-                    _merged = [r for r in _reviews if r.get("status") == "merged"]
-
-                    with ui.column().classes("w-64 shrink-0 gap-1.5 items-end text-right"):
-                        # Review button always at top right
-                        with ui.row().classes("gap-1 items-center"):
-                            if _merged:
-                                ui.icon("check_circle", size="12px").props("color=positive")
-                                ui.label(f"{len(_merged)} merged").classes(
-                                    "text-[9px] font-bold text-positive"
-                                )
-                            elif _completed:
-                                ui.icon("task_alt", size="12px").props("color=positive")
-                                ui.label("Review done").classes(
-                                    "text-[9px] font-bold text-positive"
-                                )
-                            elif _active:
-                                ui.icon("sensors", size="12px").props("color=positive").classes("animate-pulse")
-                                ui.label("Funnel live").classes(
-                                    "text-[9px] font-bold text-positive"
-                                )
-                            elif _inactive:
-                                ui.icon("pause_circle", size="12px").props("color=amber-6")
-                                ui.label(f"{len(_inactive)} paused").classes(
-                                    "text-[9px] font-medium text-amber-600"
-                                )
-                            ui.button(
-                                icon="rate_review",
-                                on_click=lambda e, pid=p["id"]: ui.navigate.to(f"/review/{pid}"),
-                            ).props("flat round dense size=sm color=grey-5").on("click.stop").tooltip("Review")
-
-                        # Merged review details
-                        if _merged:
-                            for r in _merged[:1]:
-                                _rev = r.get("reviewer_name", "") or "unnamed"
-                                _rounds = r.get("round_trip_count", 0) + 1
-                                with ui.column().classes("w-full gap-0.5 items-end text-right"):
-                                    with ui.row().classes("gap-1 items-center justify-end"):
-                                        ui.icon("person", size="10px").props("color=grey-6")
-                                        ui.label(_rev).classes("text-[9px] opacity-60")
-                                    ui.label(f"Merged ({_rounds} round{'s' if _rounds != 1 else ''})").classes(
-                                        "text-[9px] font-bold text-positive opacity-80"
+                with ui.row().classes("w-full gap-3 items-stretch"):
+                    # ── Project card (clickable → open workspace) ──
+                    with (
+                        ui.card()
+                        .props("flat bordered")
+                        .classes("flex-1 p-4 rounded-2xl flex flex-row gap-4 cursor-pointer hover:shadow-lg transition break-inside-avoid")
+                        .on(
+                            "click", lambda pid=p["id"]: ui.navigate.to(f"/translate/{pid}")
+                        )
+                    ):
+                        # ── LEFT: project info (title, progress, saved date) ──
+                        with ui.column().classes("flex-1 min-w-0 gap-2"):
+                            with ui.row().classes("w-full items-start justify-between"):
+                                with ui.column().classes("gap-0.5 flex-1 min-w-0"):
+                                    ui.label(p["filename"]).classes(
+                                        "text-base font-bold leading-tight break-words line-clamp-2"
                                     )
+                                    ui.label(p["lang_pair"]).classes(
+                                        "text-[10px] font-black uppercase tracking-widest text-primary"
+                                    )
+                                ui.button(
+                                    icon="delete",
+                                    on_click=lambda e, pid=p["id"], c=container: (
+                                        delete_and_refresh(pid, c, client)
+                                    ),
+                                ).props("flat round dense size=sm color=grey-5").on("click.stop")
 
-                        # Reviewer-completed details: timestamp
-                        if _completed:
-                            for r in _completed[:1]:
-                                _comp_at = r.get("reviewer_completed_at", "")
-                                _comp_short = _comp_at[:16].replace("T", " ") if _comp_at else ""
-                                _rev = r.get("reviewer_name", "") or "unnamed"
-                                with ui.column().classes("w-full gap-0.5 items-end text-right"):
-                                    with ui.row().classes("gap-1 items-center justify-end"):
-                                        ui.icon("person", size="10px").props("color=grey-6")
-                                        ui.label(_rev).classes("text-[9px] opacity-60")
-                                    if _comp_short:
+                            with ui.column().classes("w-full gap-1"):
+                                ui.linear_progress(value=pct / 100, color="positive").props(
+                                    "size=8px rounded"
+                                ).classes("w-full")
+                                with ui.row().classes("w-full justify-between items-center"):
+                                    ui.label(
+                                        f"{p['done']} / {p['total']} segments"
+                                    ).classes("text-[10px] font-medium opacity-60")
+                                    ui.label(f"{pct}%").classes("text-[10px] font-bold")
+                            ui.label(
+                                f"Saved {p['saved_at'][:16].replace('T', ' ')}"
+                            ).classes("text-[9px] font-medium italic opacity-50")
+
+                        # ── RIGHT: review/funnel status ──
+                        from translate_core import review_manager as _rm
+                        _reviews = _rm.list_reviews(original_project_id=p["id"])
+                        _active = [r for r in _reviews if r.get("funnel_active") and not _is_review_expired(r)]
+                        _inactive = [r for r in _reviews if not r.get("funnel_active") or _is_review_expired(r)]
+                        _completed = [r for r in _reviews if r.get("reviewer_completed") and r.get("status") != "merged"]
+                        _merged = [r for r in _reviews if r.get("status") == "merged"]
+
+                        with ui.column().classes("w-64 shrink-0 gap-1.5 items-end text-right"):
+                            # Review button always at top right
+                            with ui.row().classes("gap-1 items-center"):
+                                if _merged:
+                                    ui.icon("check_circle", size="12px").props("color=positive")
+                                    ui.label(f"{len(_merged)} merged").classes(
+                                        "text-[9px] font-bold text-positive"
+                                    )
+                                elif _completed:
+                                    ui.icon("task_alt", size="12px").props("color=positive")
+                                    ui.label("Review done").classes(
+                                        "text-[9px] font-bold text-positive"
+                                    )
+                                elif _active:
+                                    ui.icon("sensors", size="12px").props("color=positive").classes("animate-pulse")
+                                    ui.label("Funnel live").classes(
+                                        "text-[9px] font-bold text-positive"
+                                    )
+                                elif _inactive:
+                                    ui.icon("pause_circle", size="12px").props("color=amber-6")
+                                    ui.label(f"{len(_inactive)} paused").classes(
+                                        "text-[9px] font-medium text-amber-600"
+                                    )
+                                ui.button(
+                                    icon="rate_review",
+                                    on_click=lambda e, pid=p["id"]: ui.navigate.to(f"/review/{pid}"),
+                                ).props("flat round dense size=sm color=grey-5").on("click.stop").tooltip("Review")
+
+                            # Merged review details
+                            if _merged:
+                                for r in _merged[:1]:
+                                    _rev = r.get("reviewer_name", "") or "unnamed"
+                                    _rounds = r.get("round_trip_count", 0) + 1
+                                    with ui.column().classes("w-full gap-0.5 items-end text-right"):
                                         with ui.row().classes("gap-1 items-center justify-end"):
-                                            ui.icon("event_available", size="10px").props("color=positive")
-                                            ui.label(f"done {_comp_short}").classes("text-[9px] text-positive opacity-80")
-                                    ui.label("Ready to merge").classes("text-[9px] font-bold text-positive")
+                                            ui.icon("person", size="10px").props("color=grey-6")
+                                            ui.label(_rev).classes("text-[9px] opacity-60")
+                                        ui.label(f"Merged ({_rounds} round{'s' if _rounds != 1 else ''})").classes(
+                                            "text-[9px] font-bold text-positive opacity-80"
+                                        )
 
-                        # Active funnel details: reviewer, expiry, URL
-                        if _active:
-                            for r in _active[:2]:
-                                _exp = r.get("funnel_expires_at", "")
-                                _exp_short = _exp[:16].replace("T", " ") if _exp else "—"
-                                _rev = r.get("reviewer_name", "") or "unnamed"
-                                _url = f"{r.get('funnel_url', '')}/review/ext/{r['review_id']}"
-                                with ui.column().classes("w-full gap-0.5 items-end text-right"):
-                                    with ui.row().classes("gap-1 items-center justify-end"):
-                                        ui.icon("person", size="10px").props("color=grey-6")
-                                        ui.label(_rev).classes("text-[9px] opacity-60")
-                                    with ui.row().classes("gap-1 items-center justify-end"):
-                                        ui.icon("schedule", size="10px").props("color=grey-6")
-                                        ui.label(f"until {_exp_short}").classes("text-[9px] opacity-60")
-                                    with ui.row().classes("w-full gap-1 items-center justify-end"):
-                                        ui.label(_url).classes(
-                                            "text-[9px] font-mono opacity-50 flex-1 min-w-0 text-right"
-                                        ).style("word-break: break-all; white-space: normal;")
-                                        ui.button(
-                                            icon="content_copy",
-                                            on_click=lambda e, t=_url: ui.run_javascript(
-                                                f"navigator.clipboard.writeText({json.dumps(t)})"
-                                            ),
-                                        ).props("flat round dense size=sm color=grey-6").on("click.stop").tooltip("Copy review link")
-                        elif not _reviews:
-                            ui.label("No reviews").classes(
-                                "text-[9px] italic opacity-40"
+                            # Reviewer-completed details: timestamp
+                            if _completed:
+                                for r in _completed[:1]:
+                                    _comp_at = r.get("reviewer_completed_at", "")
+                                    _comp_short = _comp_at[:16].replace("T", " ") if _comp_at else ""
+                                    _rev = r.get("reviewer_name", "") or "unnamed"
+                                    with ui.column().classes("w-full gap-0.5 items-end text-right"):
+                                        with ui.row().classes("gap-1 items-center justify-end"):
+                                            ui.icon("person", size="10px").props("color=grey-6")
+                                            ui.label(_rev).classes("text-[9px] opacity-60")
+                                        if _comp_short:
+                                            with ui.row().classes("gap-1 items-center justify-end"):
+                                                ui.icon("event_available", size="10px").props("color=positive")
+                                                ui.label(f"done {_comp_short}").classes("text-[9px] text-positive opacity-80")
+                                        ui.label("Ready to merge").classes("text-[9px] font-bold text-positive")
+
+                            # Active funnel details: reviewer, expiry, URL
+                            if _active:
+                                for r in _active[:2]:
+                                    _exp = r.get("funnel_expires_at", "")
+                                    _exp_short = _exp[:16].replace("T", " ") if _exp else "—"
+                                    _rev = r.get("reviewer_name", "") or "unnamed"
+                                    _url = f"{r.get('funnel_url', '')}/review/ext/{r['review_id']}"
+                                    with ui.column().classes("w-full gap-0.5 items-end text-right"):
+                                        with ui.row().classes("gap-1 items-center justify-end"):
+                                            ui.icon("person", size="10px").props("color=grey-6")
+                                            ui.label(_rev).classes("text-[9px] opacity-60")
+                                        with ui.row().classes("gap-1 items-center justify-end"):
+                                            ui.icon("schedule", size="10px").props("color=grey-6")
+                                            ui.label(f"until {_exp_short}").classes("text-[9px] opacity-60")
+                                        with ui.row().classes("w-full gap-1 items-center justify-end"):
+                                            ui.label(_url).classes(
+                                                "text-[9px] font-mono opacity-50 flex-1 min-w-0 text-right"
+                                            ).style("word-break: break-all; white-space: normal;")
+                                            ui.button(
+                                                icon="content_copy",
+                                                on_click=lambda e, t=_url: ui.run_javascript(
+                                                    f"navigator.clipboard.writeText({json.dumps(t)})"
+                                                ),
+                                            ).props("flat round dense size=sm color=grey-6").on("click.stop").tooltip("Copy review link")
+                            elif not _reviews:
+                                ui.label("No reviews").classes(
+                                    "text-[9px] italic opacity-40"
+                                )
+
+                            ui.icon("arrow_forward", size="14px").props("color=primary").classes("mt-auto")
+
+                    # ── Billing card (separate, NOT clickable) ──
+                    with ui.card().props("flat bordered").classes(
+                        "shrink-0 p-3 rounded-2xl w-64 flex flex-col gap-2 justify-center"
+                    ):
+                        # Selection checkbox + BILLING header
+                        with ui.row().classes("w-full items-center justify-between"):
+                            ui.label("BILLING").classes(
+                                "text-[8px] font-black uppercase tracking-[0.2em] opacity-50"
+                            )
+                            _pid = p["id"]
+                            billing_state[_pid] = {"project": p, "rate": p.get("billing_rate"), "_checked": False}
+                            _cb = ui.checkbox("Select", value=False).props(
+                                "dense size=sm"
+                            ).classes("text-[9px]")
+
+                            def _on_check(e, _pid=_pid):
+                                billing_state[_pid]["_checked"] = bool(e.value)
+                                _update_selection_label()
+
+                            _cb.on_value_change(_on_check)
+
+                        with ui.row().classes("w-full justify-between items-end"):
+                            with ui.column().classes("gap-0"):
+                                ui.label(f"{p['chars_with']:,}").classes(
+                                    "text-[11px] font-bold tabular-nums"
+                                )
+                                ui.label("chars w/ spaces").classes(
+                                    "text-[7px] uppercase tracking-wider opacity-50"
+                                )
+                            with ui.column().classes("gap-0"):
+                                ui.label(f"{p['chars_without']:,}").classes(
+                                    "text-[11px] font-bold tabular-nums"
+                                )
+                                ui.label("chars no spaces").classes(
+                                    "text-[7px] uppercase tracking-wider opacity-50"
+                                )
+                        with ui.row().classes("w-full items-baseline justify-between"):
+                            ui.label("pages (÷1500)").classes(
+                                "text-[8px] uppercase tracking-wider opacity-50"
+                            )
+                            ui.label(f"{p['pages']:.2f}").classes(
+                                "text-sm font-black tabular-nums text-primary"
+                            )
+                        ui.separator().classes("opacity-30")
+                        with ui.row().classes("w-full items-center gap-1"):
+                            _saved_rate = p.get("billing_rate")
+                            _rate_input = ui.number(
+                                label="€/page",
+                                value=_saved_rate,
+                                min=0,
+                                step=0.5,
+                                format="%.2f",
+                            ).props("outlined dense").classes("flex-1 text-xs")
+                            _total_label = ui.label("").classes(
+                                "text-base font-black tabular-nums text-positive"
                             )
 
-                        ui.icon("arrow_forward", size="14px").props("color=primary").classes("mt-auto")
+                            # Initialise total from saved rate so it shows on page load
+                            if _saved_rate:
+                                _total_label.set_text(
+                                    f"€{round(p['pages'] * float(_saved_rate), 2):,.2f}"
+                                )
+                            else:
+                                _total_label.set_text("€0.00")
+
+                            def _update_total(e, _pid=_pid, _pages=p["pages"], _lbl=_total_label):
+                                val = getattr(e, "value", e)
+                                try:
+                                    rate = float(val) if val is not None else 0.0
+                                except (TypeError, ValueError):
+                                    rate = 0.0
+                                total = round(_pages * rate, 2)
+                                _lbl.set_text(f"€{total:,.2f}")
+                                # Persist rate in shared state for export
+                                billing_state[_pid]["rate"] = rate
+                                # Save to project JSON so it survives restart
+                                _save_billing_rate(_pid, rate if rate else None)
+
+                            _rate_input.on_value_change(_update_total)
+
 
 
 def delete_and_refresh(project_id: str, container: ui.column, client):
@@ -760,9 +947,9 @@ app_state.parse_lang_pair = parse_lang_pair
 
 def apply_colors():
     ui.colors(
-        primary="#0f172a",
+        primary="#22c55e",
         secondary="#334155",
-        positive="#10b981",
+        positive="#22c55e",
         accent="#3b82f6",
         negative="#ef4444",
     )

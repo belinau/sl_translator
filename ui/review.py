@@ -600,7 +600,7 @@ def page_review_ext(review_id: str):
     # Top bar — compact, reviewer-focused
     # ------------------------------------------------------------------
     with ui.card().classes(
-        "w-full flex-row items-center justify-between rounded-none px-5 py-2 shrink-0"
+        "w-full flex-row items-center justify-between rounded-none px-5 py-2 shrink-0 sticky top-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm"
     ).props("flat bordered"):
         with ui.row().classes("items-center gap-3"):
             ui.icon("rate_review", size="20px").props("color=primary")
