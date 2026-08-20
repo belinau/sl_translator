@@ -29,7 +29,7 @@ def _prepare_rows(projects: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Normalise project dicts for the report, filling defaults."""
     rows = []
     for p in projects:
-        pages = p.get("pages", 0.0) or 0.0
+        pages = round(p.get("pages", 0.0) or 0.0, 2)
         rate = p.get("rate") or 0.0
         total = round(pages * rate, 2)
         rows.append({
