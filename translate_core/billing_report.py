@@ -225,14 +225,14 @@ def generate_xlsx(projects: list[dict[str, Any]]) -> bytes:
         pages_cell = ws.cell(row=row_num, column=6, value=float(r["pages"]))
         pages_cell.alignment = right_align
         pages_cell.number_format = "0.00"
-        # Rate — float so €0.00 format renders
+        # Rate — universal 2-decimal format (€ prefix in header, not cell)
         rate_cell = ws.cell(row=row_num, column=7, value=float(r["rate"]))
         rate_cell.alignment = right_align
-        rate_cell.number_format = "€0.00"
-        # Total — pre-computed float
+        rate_cell.number_format = "0.00"
+        # Total — universal 2-decimal format
         total_cell = ws.cell(row=row_num, column=8, value=float(r["total"]))
         total_cell.alignment = right_align
-        total_cell.number_format = "€#,##0.00"
+        total_cell.number_format = "#,##0.00"
         # Borders
         for col in range(1, 9):
             ws.cell(row=row_num, column=col).border = thin_border
@@ -255,7 +255,7 @@ def generate_xlsx(projects: list[dict[str, Any]]) -> bytes:
     gp_cell.alignment = right_align
     # Sum total — pre-computed
     gt_cell = ws.cell(row=total_row, column=8, value=float(grand_total))
-    gt_cell.number_format = "€#,##0.00"
+    gt_cell.number_format = "#,##0.00"
     gt_cell.font = total_font
     gt_cell.alignment = right_align
 
