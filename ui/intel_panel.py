@@ -21,15 +21,87 @@ from .state import WorkspaceState
 
 # Generic stop-words/noise that pollute single-word KG hits in academic text.
 # Multi-word phrases never match these, so this only filters 1-grams.
+# Minimum confidence for unigram hits.  Phrases (n>=2) have no floor —
+# they are almost always curated multi-word terms.  Unigrams below this
+# are almost always Dice-seeded noise (function words, common verbs, etc.).
+_UNIGRAM_MIN_CONFIDENCE = 0.50
+
 _NOISE_UNIGRAMS = frozenset({
+    # function words
     "the", "a", "an", "and", "or", "but", "is", "are", "was", "were",
     "be", "been", "being", "have", "has", "had", "do", "does", "did",
     "of", "in", "on", "at", "to", "for", "with", "from", "by", "as",
     "this", "that", "these", "those", "it", "its", "they", "their",
     "would", "could", "should", "may", "might", "can", "will",
     "not", "no", "yes", "so", "if", "then", "than", "when", "where",
+    "which", "who", "whom", "what", "whose", "how", "why",
+    "i", "you", "he", "she", "we", "him", "her", "us", "my", "your",
+    "his", "our", "me", "him", "them",
+    # common nouns that are translation noise in humanities corpora
     "common", "thing", "things", "way", "ways", "people", "time",
-    "concept", "text", "and", "such",
+    "concept", "text", "such", "one", "need", "years", "hands",
+    "thoughts", "answers", "months", "days", "weeks", "parts",
+    "side", "sides", "case", "cases", "point", "points", "line",
+    "lines", "word", "words", "name", "names", "place", "places",
+    "work", "works", "form", "forms", "body", "bodies", "head",
+    "fact", "facts", "sort", "kind", "kinds", "type", "types",
+    "matter", "sense", "senses", "field", "fields", "area", "areas",
+    "level", "levels", "process", "processes", "term", "terms",
+    "issue", "issues", "question", "questions", "problem", "problems",
+    "reason", "reasons", "result", "results", "effect", "effects",
+    "change", "changes", "role", "roles", "part", "parts",
+    "story", "stories", "book", "books", "page", "pages",
+    "first", "second", "third", "last", "next", "new", "old",
+    "good", "bad", "great", "small", "large", "big", "little",
+    "same", "different", "other", "another", "every", "each",
+    "all", "some", "any", "few", "many", "much", "more", "most",
+    "less", "least", "own", "own", "whole", "half",
+    "here", "there", "now", "then", "always", "never", "often",
+    "sometimes", "again", "still", "already", "yet", "just",
+    "only", "even", "also", "too", "very", "quite", "rather",
+    "between", "among", "through", "during", "before", "after",
+    "above", "below", "up", "down", "out", "off", "over", "under",
+    "again", "further", "once", "twice",
+    "make", "makes", "made", "making", "take", "takes", "took",
+    "taking", "get", "got", "getting", "give", "gave", "giving",
+    "go", "goes", "went", "going", "come", "came", "coming",
+    "see", "saw", "seeing", "know", "knew", "knowing",
+    "think", "thought", "thinking", "say", "said", "saying",
+    "tell", "told", "telling", "ask", "asked", "asking",
+    "find", "found", "finding", "use", "used", "using",
+    "seem", "seemed", "seeming", "become", "became",
+    "leave", "left", "leaving", "feel", "felt", "feeling",
+    "try", "tried", "trying", "let", "let", "lets", "letting",
+    "begin", "began", "beginning", "keep", "kept", "keeping",
+    "want", "wanted", "wanting", "mean", "meant", "meaning",
+    "show", "showed", "showing", "put", "putting", "bring",
+    "brought", "bringing", "play", "played", "playing",
+    "read", "reading", "write", "wrote", "writing",
+    "live", "lived", "living", "sit", "sat", "sitting",
+    "stand", "stood", "standing", "turn", "turned", "turning",
+    "look", "looked", "looking", "seem", "seemed", "seeming",
+    "happen", "happened", "happening", "hold", "held", "holding",
+    "open", "opened", "opening", "close", "closed", "closing",
+    "start", "started", "starting", "stop", "stopped", "stopping",
+    "talk", "talked", "talking", "hear", "heard", "hearing",
+    "remember", "remembered", "forget", "forgot", "forgetting",
+    "believe", "believed", "believing", "consider", "considered",
+    "perhaps", "maybe", "might", "must", "shall",
+    "both", "either", "neither", "whether", "upon",
+    "while", "though", "although", "unless", "since", "because",
+    "about", "around", "against", "within", "without", "across",
+    "toward", "towards", "amongst", "amidst",
+    "someone", "something", "anything", "nothing", "everything",
+    "anyone", "everyone", "somehow", "somewhere", "nowhere",
+    "anywhere", "everywhere",
+    # common SL equivalents that leak as unigram hits
+    "je", "v", "na", "za", "iz", "od", "do", "pri", "o", "s", "z",
+    "in", "ali", "toda", "kot", "da", "ki", "bil", "bila", "bilo",
+    "so", "sem", "bo", "bi", "naj", "ne", "ni", "niso",
+    "ta", "to", "ti", "te", "tisti", "tista", "tisto",
+    "njegov", "njena", "njihov", "moj", "tvoj",
+    "tudi", "še", "že", "le", "tudi", "spet", "vedno", "nikoli",
+    "zdaj", "potem", "tukaj", "tam", "zmeraj",
 })
 
 
@@ -178,7 +250,14 @@ def _concept_context(G, concept_id: str) -> tuple[list[str], list[str], list[str
 
 
 def _concept_for(G, term_node_id: str) -> dict | None:
-    """Return concept attrs (id, label, domain) + theory lineages/theorists."""
+    """Return concept attrs + theory context + rhizomatic related concepts.
+
+    Per ontology §2.2: concepts are language-independent meanings.
+    Per ontology §3.4: concept-to-concept edges (extends, critiques,
+    redefines, reappropriates, related_to) form the rhizomatic network.
+    We surface these so the translator sees conceptual relationships,
+    not just term-translation pairs.
+    """
     if not G.has_node(term_node_id):
         return None
     for _u, v, d in G.out_edges(term_node_id, data=True):
@@ -188,13 +267,37 @@ def _concept_for(G, term_node_id: str) -> dict | None:
         if nd.get("type") != "concept":
             continue
         lineages, theorists, containers = _concept_context(G, v)
+        # Rhizomatic concept-to-concept edges (§3.4)
+        related_concepts: list[dict] = []
+        seen: set[str] = set()
+        for _s, tgt, ed in G.out_edges(v, data=True):
+            rel = ed.get("relation")
+            if rel not in ("extends", "critiques", "redefines", "reappropriates", "related_to"):
+                continue
+            tgt_nd = G.nodes.get(tgt, {})
+            if tgt_nd.get("type") != "concept":
+                continue
+            label = tgt_nd.get("label") or tgt
+            if label in seen:
+                continue
+            seen.add(label)
+            related_concepts.append({
+                "label": label,
+                "relation": rel,
+                "domain": tgt_nd.get("domain") or "",
+            })
+            if len(related_concepts) >= 6:
+                break
         return {
             "id": v,
             "label": nd.get("label") or v,
             "domain": nd.get("domain") or "",
+            "definition": (nd.get("definition") or "").strip(),
+            "label_translation": (nd.get("label_translation") or "").strip(),
             "lineages": lineages,
             "theorists": theorists,
             "containers": containers,
+            "related_concepts": related_concepts,
         }
     return None
 
@@ -202,27 +305,11 @@ def _concept_for(G, term_node_id: str) -> dict | None:
 def _kg_query(
     source: str, src_lang: str, tgt_lang: str, kg, *, max_hits: int = 8,
 ) -> list[dict]:
-    """Strategic bilingual KG lookup for translation flow.
+    """Concept-first bilingual KG lookup for humanities translation.
 
-    Driven by the KG's own entity index — extract_entities composes
-    flashtext maximal-munch over multi-word phrases, lemmas, display
-    forms, variants, and gender forms, and resolves translations via the
-    has_mapping -> map -> maps_to edge walk (with translates_to fallback).
-    We do not re-tokenise the source here; the KG knows its own surface
-    forms better than any regex would.
-
-    Each hit carries:
-      - src_term/tgt_term/src_lang/tgt_lang (bilingual core)
-      - confidence/verified (curator signal)
-      - alt_translations (other renderings of the same source term)
-      - related (concept-sibling terms, target-lang first)
-      - concept ({id, label, domain} | None) so the panel can group hits
-      - n (word count of src_term) for the phrase/unigram bucket split
-      - freq (corpus frequency, ranking tiebreaker)
-
-    Phrases (n >= 2) and unigrams (n == 1) each get half of max_hits so
-    the unigram bucket — the everyday workhorse of humanities translation —
-    is never starved by a flood of bigram matches, and vice versa.
+    Prioritises phrases and concept-linked terms over noise unigrams.
+    Unigrams below _UNIGRAM_MIN_CONFIDENCE are filtered. Phrases get 60%
+    of the hit quota because they carry the most conceptual weight.
     """
     if kg is None or not source.strip():
         return []
@@ -249,11 +336,20 @@ def _kg_query(
         src_term = ent.get("display_form") or term_text
         node_lang = ent.get("lang") or src_lang
         node_id = f"term:{node_lang}:{term_text}"
+        n_words = len(src_term.split())
+        best = translations[0]
+
+        # Noise filtering is via the expanded _NOISE_UNIGRAMS set above.
+        # No confidence floor — verified and low-confidence unigrams both
+        # pass.  The noise list handles function words and common vocabulary
+        # that would otherwise drown conceptual hits.  Per ontology §2.1,
+        # terms are surface forms; concepts are language-independent meanings.
+        # We surface both, grouped by concept.
+
         concept = _concept_for(G, node_id)
         related = _related_via_concept(
             G, node_id, preferred_lang=tgt_lang, max_siblings=6,
         )
-        best = translations[0]
         hits.append({
             "id": node_id,
             "src_term": src_term,
@@ -263,27 +359,34 @@ def _kg_query(
             "confidence": best["confidence"],
             "verified": best["verified"],
             "alt_translations": translations[1:4],
-            "n": len(src_term.split()),
+            "n": n_words,
             "freq": ent.get("frequency", 0),
             "related": related,
             "concept": concept,
         })
 
-    # Quota split: phrases (n>=2) and unigrams (n==1) each take roughly
-    # half of max_hits; whichever bucket is thin yields its slack to the
-    # other so we always return up to max_hits total when material exists.
+    # Concept-first ranking: phrases with concepts > phrases without >
+    # unigrams with concepts > unigrams without. Within each tier,
+    # verified-first, then confidence, then frequency.
     def _rank(h: dict) -> tuple:
-        return (not h["verified"], -(h["confidence"] or 0), -(h["freq"] or 0))
+        has_concept = h.get("concept") is not None
+        return (
+            not h["verified"],
+            -(h["confidence"] or 0),
+            0 if has_concept else 1,  # concept-linked first
+            -(h["freq"] or 0),
+        )
 
     phrases = sorted([h for h in hits if h["n"] >= 2], key=_rank)
     unigrams = sorted([h for h in hits if h["n"] == 1], key=_rank)
-    half = max_hits // 2
-    chosen = phrases[:half]
+    # Phrases get 60% of slots — they carry the most conceptual weight.
+    # Unigrams fill the rest.
+    phrase_quota = int(max_hits * 0.6)
+    chosen = phrases[:phrase_quota]
     chosen += unigrams[: max_hits - len(chosen)]
     if len(chosen) < max_hits:
-        chosen += phrases[half : half + (max_hits - len(chosen))]
+        chosen += phrases[phrase_quota : phrase_quota + (max_hits - len(chosen))]
     if len(chosen) < max_hits:
-        # Fall back: any remaining unigrams beyond the first slice.
         already = {id(h) for h in chosen}
         chosen += [h for h in unigrams if id(h) not in already][
             : max_hits - len(chosen)
@@ -541,15 +644,29 @@ def build(
                                 "text-[10px] font-black tracking-[.3em] opacity-90"
                             )
                         else:
-                            ui.label(
-                                str(concept.get("label") or "").upper()
-                            ).classes(
-                                "text-[10px] font-black tracking-[.3em] opacity-90"
-                            )
+                            # Bilingual concept label — the central organizing unit
+                            label = str(concept.get("label") or "").upper()
+                            label_tr = concept.get("label_translation") or ""
+                            if label_tr:
+                                ui.label(f"{label} · {label_tr}").classes(
+                                    "text-[10px] font-black tracking-[.2em] opacity-90"
+                                )
+                            else:
+                                ui.label(label).classes(
+                                    "text-[10px] font-black tracking-[.3em] opacity-90"
+                                )
                             if concept.get("domain"):
                                 ui.badge(
                                     concept["domain"], color="grey-5",
                                 ).classes("text-[9px] px-1")
+                    # Concept definition (if curated)
+                    if concept and concept.get("definition"):
+                        ui.label(concept["definition"]).classes(
+                            "text-[10px] leading-relaxed opacity-70 mb-1"
+                        )
+                    # Theorists + lineages + containers as badges
+                    if concept:
+                        with ui.row().classes("w-full gap-1 flex-wrap mb-1"):
                             for th in concept.get("theorists", []):
                                 ui.badge(th, color="purple-4").props(
                                     "outline"
@@ -567,6 +684,28 @@ def build(
                                 ).classes("text-[9px] px-1").tooltip(
                                     "you translated this term in this work"
                                 )
+                        # Related concepts (rhizomatic network — §3.4)
+                        rel_concepts = concept.get("related_concepts", [])
+                        if rel_concepts:
+                            with ui.row().classes("w-full gap-1 flex-wrap mb-1"):
+                                ui.label("→").classes(
+                                    "text-[9px] opacity-40 shrink-0"
+                                )
+                                for rc in rel_concepts:
+                                    rel_label = rc.get("label", "")
+                                    rel_type = rc.get("relation", "related_to")
+                                    tooltip_text = {
+                                        "extends": "extends this concept",
+                                        "critiques": "critiques this concept",
+                                        "redefines": "redefines this concept",
+                                        "reappropriates": "reappropriates this concept",
+                                        "related_to": "related concept",
+                                    }.get(rel_type, "related concept")
+                                    ui.badge(
+                                        rel_label, color="blue-grey-4",
+                                    ).props("outline").classes(
+                                        "text-[9px] px-1"
+                                    ).tooltip(tooltip_text)
                     with ui.column().classes("w-full gap-1"):
                         for h in group_hits:
                             _render_hit(h)
