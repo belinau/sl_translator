@@ -362,21 +362,30 @@ def page_browser():
 
         ui.button("Link", icon="link", on_click=_do_add).props("color=primary dense unelevated").classes("w-full mt-1")
 
-    async def _add_edge_async(src: str, tgt: str, rel: str):
-        if not kg.G.has_edge(src, tgt):
-            kg.G.add_edge(src, tgt, relation=rel)
-            kg._persist_edge(src, tgt)
-        ui.notify("Edge added.", type="positive")
+    async def _add_edge(src: str, tgt: str, rel: str):
+        def _do_add():
+            if not kg.G.has_edge(src, tgt):
+                kg.G.add_edge(src, tgt, relation=rel)
+                kg._persist_edge(src, tgt)
+                return True
+            return False
+        added = await run.io_bound(_do_add)
+        if added:
+            ui.notify("Edge added.", type="positive")
+        else:
+            ui.notify("Edge already exists.", type="info")
         _render_edit_panel()
 
     async def _remove_edge(u: str, v: str):
-        await run.io_bound(_remove_edge_async, u, v)
-
-    async def _remove_edge_async(u: str, v: str):
-        if kg.G.has_edge(u, v):
-            kg.G.remove_edge(u, v)
-            kg._delete_edge_persist(u, v)
-        ui.notify("Edge removed.", type="positive")
+        def _do_remove():
+            if kg.G.has_edge(u, v):
+                kg.G.remove_edge(u, v)
+                kg._delete_edge_persist(u, v)
+                return True
+            return False
+        removed = await run.io_bound(_do_remove)
+        if removed:
+            ui.notify("Edge removed.", type="positive")
         _render_edit_panel()
 
     def _node_label(node_id: str) -> str:
