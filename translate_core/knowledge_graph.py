@@ -1783,6 +1783,30 @@ class KnowledgeGraph:
                     self._persist_edge(source_id, auth_node)
         self._persist_node(source_id)
         return True
+    def update_institution_node(
+        self,
+        institution_id: str,
+        name: Optional[str] = None,
+        kind: Optional[str] = None,
+        city: Optional[str] = None,
+    ) -> bool:
+        """Update mutable fields on an existing institution node.
+
+        Only name, kind, and city are mutable. kind MUST be one of the
+        O-14 allowlist values but this method does not enforce it —
+        the UI layer validates before calling.
+        """
+        if not self.G.has_node(institution_id):
+            return False
+        node = self.G.nodes[institution_id]
+        if name is not None:
+            node["name"] = name
+        if kind is not None:
+            node["kind"] = kind
+        if city is not None:
+            node["city"] = city
+        self._persist_node(institution_id)
+        return True
 
     def update_translation_mapping(
         self,
