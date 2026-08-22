@@ -73,16 +73,23 @@ def page_browser():
     def _build_chips():
         chips_row.clear()
         with chips_row:
-            ui.button("All", icon="apps", on_click=lambda: _select_type(None)
-                      ).props("dense no-caps outline color=primary").classes("text-xs")
+            # "All" chip — acts as reset to category overview
+            all_active = active_type["value"] is None
+            ui.button("All categories", icon="apps", on_click=lambda: _select_type(None)
+                      ).props(
+                          f"dense no-caps {'unelevated color=primary' if all_active else 'outline color=grey-7'}"
+                      ).classes("text-xs")
             for t in NODE_TYPES:
                 count = len(cached_lists.get(t, [])) if t in cached_lists else None
                 label = _TYPE_LABELS.get(t, t)
                 if count is not None:
                     label += f" ({count:,})"
+                is_active = active_type["value"] == t
                 ui.button(label, icon=_TYPE_ICONS.get(t, "circle"),
                           on_click=lambda tt=t: _select_type(tt)
-                          ).props("dense no-caps outline color=grey-7").classes("text-xs")
+                          ).props(
+                              f"dense no-caps {'unelevated color=primary' if is_active else 'outline color=grey-7'}"
+                          ).classes("text-xs")
 
     def _ensure_cached(ntype: str):
         if ntype not in cached_lists:
@@ -95,6 +102,7 @@ def page_browser():
         search_query["value"] = ""
         if ntype is not None:
             _ensure_cached(ntype)
+        _build_chips()
         _render_results()
 
     def _render_results():
