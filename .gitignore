@@ -42,3 +42,10 @@ uv.lock
 old_tms/
 .ruff_cache/
 .github/workflows/
+# KG data dumps and visualization artifacts (must not be tracked)
+kg_data.js
+kg_canvas_*.html
+data/knowledge.db
+
+# Stray artifacts
+sl
