@@ -6,6 +6,7 @@ or keep. Run a scan to (re)build the list.
 """
 from __future__ import annotations
 
+import html as html_lib
 import json
 from collections import Counter
 
@@ -190,13 +191,13 @@ def page_kg_review():
             # ── Type-specific summary ─────────────────────────────────────
             if ntype == "source_text":
                 ui.markdown(
-                    f"**title:** `{it.get('title')}`  ·  **orig:** `{it.get('title_orig')}`  ·  "
-                    f"**translation:** `{it.get('title_translation')}`  ·  **year:** `{it.get('year')}`  ·  "
-                    f"**type:** `{it.get('project_type')}`"
+                    f"**title:** `{html_lib.escape(str(it.get('title', '')), quote=False)}`  ·  **orig:** `{html_lib.escape(str(it.get('title_orig', '')), quote=False)}`  ·  "
+                    f"**translation:** `{html_lib.escape(str(it.get('title_translation', '')), quote=False)}`  ·  **year:** `{html_lib.escape(str(it.get('year', '')), quote=False)}`  ·  "
+                    f"**type:** `{html_lib.escape(str(it.get('project_type', '')), quote=False)}`"
                 ).classes("text-sm")
             elif ntype == "agent":
                 ui.markdown(
-                    f"**name:** `{it.get('name')}`  ·  **role:** `{it.get('role')}`"
+                    f"**name:** `{html_lib.escape(str(it.get('name', '')), quote=False)}`  ·  **role:** `{html_lib.escape(str(it.get('role', '')), quote=False)}`"
                 ).classes("text-sm")
 
             # ── Action select ──────────────────────────────────────────────

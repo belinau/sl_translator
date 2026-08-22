@@ -1,5 +1,6 @@
 # config.py
 
+import os
 import pathlib
 
 BASE_DIR = pathlib.Path(__file__).parent
@@ -19,9 +20,11 @@ KG_DB_PATH = BASE_DIR / "data" / "knowledge.db"
 # Live smol entity extraction (editor confirm → Ollama → KG).
 # When the endpoint is unreachable, confirmed segments are simply left for
 # the offline batch pipeline (working.tmx → run_entity_extraction.py).
-SMOL_MODEL = "deepseek-v4-flash:cloud"
+SMOL_MODEL = os.environ.get("SMOL_MODEL", "deepseek-v4-flash:cloud")
 SMOL_LIVE_EXTRACTION = True
-OLLAMA_URL = "http://localhost:11434"
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
+STORAGE_SECRET = os.environ.get("STORAGE_SECRET", "zen-translator-local-storage")
+MAX_UPLOAD_SIZE_MB = int(os.environ.get("MAX_UPLOAD_SIZE_MB", "50"))
 SEGMENT_MAX_CHARS = 700  # Max chars per translation segment; split at sentence boundary.
 
 

@@ -11,3 +11,4 @@ python-docx
 pymupdf
 httpx
 pillow
+defusedxml>=0.7.1

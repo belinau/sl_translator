@@ -189,7 +189,7 @@ def _concept_card(c: dict, kg, render_fn):
     ):
         ui.label(f'ID: {c_id}').classes('text-caption opacity-60')
         if c.get("definition"):
-            ui.markdown(c["definition"])
+            ui.label(c.get("definition", "")).classes("text-sm")
 
         label_input = ui.input("Label:", value=c.get("label", "")).props(
             "outlined dense"

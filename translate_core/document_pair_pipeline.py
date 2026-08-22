@@ -773,7 +773,7 @@ def process_pair(
     bare ``_slugify_project`` slug as ``container_work_id``.
     """
     # Normalise to the bare slug form the smol pipeline expects.
-    container_work_id = container_work_id.removeprefix("source:").lower()
+    container_work_id = _slugify(container_work_id.removeprefix("source:"))
     en_side = parse_side(en_doc_path, lang="en")
     sl_side = parse_side(sl_doc_path, lang="sl")
     en_snippets = _collect_side_snippets(en_side, container_work_id)

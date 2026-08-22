@@ -158,7 +158,8 @@ def convert_footnote_to_maska(text: str) -> str:
         if before in _COMMON_WORDS or after in _COMMON_WORDS: return m.group(0)
         if t[:m.start()].count('*') % 2 == 1: return m.group(0)
         return before + ' in ' + after
-    t = re.sub(r'(\b[A-ZÀ-ÿ][A-Za-zÀ-ÿ.]*(?:\s+[A-ZÀ-ÿ][A-Za-zÀ-ÿ.]*)*)\s+and\s+([A-ZÀ-ÿ][A-Za-zÀ-ÿ]+)', _and_repl, t)
+    if len(t) <= 2000:
+        t = re.sub(r'(\b[A-ZÀ-ÿ][A-Za-zÀ-ÿ.]*(?:\s+[A-ZÀ-ÿ][A-Za-zÀ-ÿ.]*)*)\s+and\s+([A-ZÀ-ÿ][A-Za-zÀ-ÿ]+)', _and_repl, t)
     t = _SEMICOLON_AND_RE.sub('; in ', t)
 
     # 11. Journal restructure (roman numerals, remove parens, str., translate seasons)

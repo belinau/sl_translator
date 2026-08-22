@@ -100,7 +100,8 @@ def read_tmx_with_timecodes(path: Path, *, skip_empty: bool = True) -> List[Dict
     viewer so the full bilingual document is shown, nothing dropped.
     """
     path = Path(path)
-    tree = etree.parse(str(path))
+    _parser = etree.XMLParser(resolve_entities=False, no_network=True, huge_tree=False)
+    tree = etree.parse(str(path), parser=_parser)
     root = tree.getroot()
 
     srclang = _read_srclang(root)  # may be None

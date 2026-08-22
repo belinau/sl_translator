@@ -4,7 +4,7 @@
 #
 
 from __future__ import annotations
-
+import html as html_lib
 import json
 import os
 import pathlib
@@ -17,6 +17,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import networkx as nx
 from flashtext import KeywordProcessor
+
+import logging
+
+log = logging.getLogger(__name__)
 
 import config
 
@@ -233,8 +237,10 @@ class KnowledgeGraph:
                 _json.loads(self.db_path.read_text(encoding="utf-8"))
                 from .kg_sqlite import KGStore
                 KGStore.migrate_from_json(self.db_path, self.sqlite_path)
-            except (json.JSONDecodeError, Exception):
+            except json.JSONDecodeError:
                 pass  # Not a valid JSON KG — start with an empty SQLite DB
+            except Exception:
+                log.exception("Unexpected error during KG migration")
 
         # Open the SQLite store and load the in-memory graph from it.
         from .kg_sqlite import KGStore
@@ -1131,7 +1137,7 @@ class KnowledgeGraph:
         default_color = "#3498DB"
 
         for node in net.nodes:
-            label = node.get("label", node.get("id", ""))
+            label = html_lib.escape(str(node.get("label", node.get("id", ""))))
             domain = node.get("domain", "")
             en_count = len(concept_terms.get(node["id"], {}).get("en", []))
             sl_count = len(concept_terms.get(node["id"], {}).get("sl", []))
@@ -1143,7 +1149,7 @@ class KnowledgeGraph:
             node["size"] = max(12, min(40, 10 + score * 2))
             node["title"] = (
                 f"{label}\n"
-                f"Domain: {domain or '(none)'}\n"
+                f"Domain: {html_lib.escape(str(domain or '(none)'))}\n"
                 f"EN terms: {en_count} | SL terms: {sl_count}\n"
                 f"Connections: {score}"
             )
@@ -1155,8 +1161,7 @@ class KnowledgeGraph:
             # Thicker edges for higher confidence
             edge["width"] = max(0.5, conf * 3)
             edge["color"] = {"color": "#34495E", "opacity": max(0.2, conf)}
-            edge["arrows"] = "to"
-            edge["title"] = f"confidence: {conf:.3f}\nlineage: {lineage}\nverified: {verified}"
+            edge["title"] = f"confidence: {conf:.3f}\nlineage: {html_lib.escape(str(lineage))}\nverified: {verified}"
 
         try:
             net.write_html(output_path)

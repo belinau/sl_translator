@@ -1,6 +1,8 @@
 # translate_core/qa.py
 import logging
 import re
+import threading
+
 from collections import Counter
 from typing import Any, Dict, List, Optional, Tuple
 from .sl_morph import generate_forms
@@ -34,6 +36,10 @@ except ImportError:
     HAS_STANZA = False
 
 logger = logging.getLogger(__name__)
+
+# Thread-local lock so the torch.load weights_only=False monkeypatch is only
+# visible to the thread performing stanza.Pipeline init.
+_torch_load_lock = threading.Lock()
 
 # ---------------------------------------------------------------------------
 # Spacy model-name conventions:  <lang>_core_<size>  (e.g. en_core_web_sm)
@@ -164,22 +170,23 @@ def _ensure_nlp(lang: str) -> Any:
         try:
             import torch
 
-            _orig_load = torch.load
+            with _torch_load_lock:
+                _orig_load = torch.load
 
-            def _patched_load(*args: Any, **kwargs: Any) -> Any:
-                kwargs["weights_only"] = False
-                return _orig_load(*args, **kwargs)
+                def _patched_load(*args: Any, **kwargs: Any) -> Any:
+                    kwargs["weights_only"] = False
+                    return _orig_load(*args, **kwargs)
 
-            torch.load = _patched_load
-            try:
-                nlp = stanza.Pipeline(
-                    lang,
-                    processors="tokenize,lemma",
-                    use_gpu=False,
-                    verbose=False,
-                )
-            finally:
-                torch.load = _orig_load
+                torch.load = _patched_load
+                try:
+                    nlp = stanza.Pipeline(
+                        lang,
+                        processors="tokenize,lemma",
+                        use_gpu=False,
+                        verbose=False,
+                    )
+                finally:
+                    torch.load = _orig_load
         except Exception:
             nlp = None
 

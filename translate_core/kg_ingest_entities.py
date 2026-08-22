@@ -15,7 +15,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import tempfile
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -24,6 +26,21 @@ from typing import Dict, List, Optional
 from .entity_extraction._slug import _slugify
 from .entity_extraction.confidence import ConfidenceTier, score_record
 from .knowledge_graph import KnowledgeGraph
+
+
+def _atomic_write_text(path: Path, content: str) -> None:
+    """Write text atomically: write to a temp file, then rename into place."""
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+        os.replace(tmp, str(path))
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 MAX_MENTION_SEGMENTS = 20
@@ -1143,9 +1160,9 @@ def write_to_kg(
     review_path.parent.mkdir(parents=True, exist_ok=True)
     if review:
         merged = _merge_review_queue(review_path, review)
-        review_path.write_text(
+        _atomic_write_text(
+            review_path,
             json.dumps(merged, ensure_ascii=False, indent=2, default=str),
-            encoding="utf-8",
         )
     if dropped_lines:
         with open(dropped_path, "a", encoding="utf-8") as f:

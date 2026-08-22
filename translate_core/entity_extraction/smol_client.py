@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import urllib.request
 
 from .smol_extractor import SYSTEM_PROMPT, format_extract_prompt, parse_smol_response
@@ -223,7 +224,7 @@ def classify_person_names(
         for line in response_text.splitlines():
             line = line.strip()
             # Accept "3. PERSON" or "3.PERSON" or "3) PERSON"
-            m = __import__("re").match(r"(\d+)\s*[.)]\s*(PERSON|OTHER)", line, __import__("re").IGNORECASE)
+            m = re.match(r'(\d+)\s*[.)]\s*(PERSON|OTHER)', line, re.IGNORECASE)
             if not m:
                 continue
             idx = int(m.group(1)) - 1  # 1-indexed

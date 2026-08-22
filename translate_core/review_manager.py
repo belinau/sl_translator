@@ -20,6 +20,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import shutil
 import subprocess
 import uuid
@@ -85,7 +86,7 @@ def create_review_clone(
         Funnel validity in days (1-30, clamped).
     """
     validity_days = max(1, min(30, validity_days))
-    review_id = "rev-" + uuid.uuid4().hex[:8]
+    review_id = "rev-" + uuid.uuid4().hex
     now = datetime.now()
 
     segs = original_project.get("segments", [])
@@ -161,10 +162,15 @@ def create_review_clone(
     return clone
 
 
+# Strict review-id allowlist (rev- + 8-32 lowercase hex).
+_REVIEW_ID_RE = re.compile(r"^rev-[0-9a-f]{8,32}$")
+
+
 def _clone_path(review_id: str) -> Path:
-    # Strip the "rev-" prefix for the filename but keep it simple.
-    safe = review_id.replace("/", "_").replace("..", "_")
-    return REVIEWS_DIR / f"{safe}.json"
+    # Allowlist: rev- prefix + 8-32 hex chars (covers legacy 8-char and new 32-char IDs).
+    if not _REVIEW_ID_RE.match(review_id):
+        raise ValueError(f"Invalid review_id: {review_id!r}")
+    return REVIEWS_DIR / f"{review_id}.json"
 
 
 def save_review(clone: dict) -> None:

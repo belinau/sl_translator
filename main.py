@@ -4,7 +4,7 @@
 # Fully integrated with advanced document pre-processing and compiled DOCX exports
 #
 
-import json
+import os
 import re
 import sys
 import logging
@@ -403,6 +403,7 @@ def page_home():
                     auto_upload=True,
                     label="Drop files here or click to browse",
                     max_files=1,
+                    max_file_size=config.MAX_UPLOAD_SIZE_MB * 1024 * 1024,
                 ).classes("w-full").props(
                     "color=accent accept=.docx,.pdf flat bordered"
                 )
@@ -762,7 +763,8 @@ async def handle_new_upload(e, lang_pair: str):
     try:
         await e.file.save(saved_path)
     except Exception as ex:
-        return ui.notify(f"Error saving file: {ex}", type="negative")
+        log.error("Error saving uploaded file: %s", ex)
+        return ui.notify("Error saving file", type="negative")
 
     # ── Pipeline selection dialog ────────────────────────────────────────
     detected = _detect_pipeline(saved_path, suffix)
@@ -819,7 +821,8 @@ async def handle_new_upload(e, lang_pair: str):
                     return ui.notify("Document parser not initialized", type="negative")
                 segments = await run.io_bound(_parse_pdf, doc_parser, saved_path, preprocess=True)
         except Exception as ex:
-            return ui.notify(f"Parse error: {ex}", type="negative")
+            log.error("Parse error: %s", ex)
+            return ui.notify("Failed to parse document", type="negative")
 
         if not segments:
             return ui.notify("No text extracted from document", type="warning")
@@ -853,6 +856,11 @@ async def handle_new_upload(e, lang_pair: str):
 def _detect_pipeline(saved_path: Path, suffix: str) -> str:
     """Pre-select a pipeline based on file content. Never authoritative —
     the user confirms via the upload dialog."""
+    try:
+        from defusedxml import ElementTree as DefusedET
+    except ImportError:
+        DefusedET = ET
+        log.warning("defusedxml not installed; falling back to stdlib ElementTree")
     if suffix == ".pdf":
         return "academic"
     # .docx — inspect the zip for footnote/endnote parts
@@ -862,7 +870,7 @@ def _detect_pipeline(saved_path: Path, suffix: str) -> str:
                 if part_name not in zf.namelist():
                     continue
                 raw = zf.read(part_name)
-                root = ET.fromstring(raw)
+                root = DefusedET.fromstring(raw)
                 ns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
                 # The tag name inside footnotes.xml is w:footnote,
                 # inside endnotes.xml is w:endnote.
@@ -1034,9 +1042,10 @@ if __name__ in {"__main__", "__mp_main__"}:
     ui.run(
         title="Bel Translation Suite",
         favicon="✨",
+        host=os.environ.get("APP_HOST", "127.0.0.1"),
         port=8080,
         show=True,
-        storage_secret="zen-translator-local-storage",
+        storage_secret=config.STORAGE_SECRET,
         # kg.save on the 97MB KG can legitimately block a worker thread
         # for 1-3 s during a confirm. NiceGUI's default ping_timeout =
         # max(reconnect_timeout * 0.4, 2) = 2 s, which drops the page on

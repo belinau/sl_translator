@@ -9,6 +9,7 @@ from pathlib import Path
 
 from config import BASE_DIR
 from translate_core.entity_extraction.name_dedup import dedup_group_key
+from translate_core.kg_ingest_entities import _atomic_write_text
 
 # ---------------------------------------------------------------------------
 # Data paths (re-anchored on config.BASE_DIR / "data" / ...)
@@ -261,8 +262,9 @@ def commit_as(kg, target: str, f: dict) -> tuple[str | None, str | None]:
 def drop_from_queue(review_records: list, r: dict) -> None:
     """Persist the review queue with record `r` removed."""
     remaining = [x for x in review_records if x is not r]
-    REVIEW_PATH.write_text(
-        json.dumps(remaining, ensure_ascii=False, indent=2, default=str), encoding="utf-8",
+    _atomic_write_text(
+        REVIEW_PATH,
+        json.dumps(remaining, ensure_ascii=False, indent=2, default=str),
     )
 
 
@@ -292,7 +294,7 @@ def drop_kg_review(items: list[dict], item: dict, *, dismiss: bool = False) -> N
     """Remove `item` from the live-review queue; if dismiss, also remember its id
     so a future scan does not re-flag it."""
     remaining = [x for x in items if x.get("id") != item.get("id")]
-    KG_REVIEW_PATH.write_text(json.dumps(remaining, ensure_ascii=False, indent=2), encoding="utf-8")
+    _atomic_write_text(KG_REVIEW_PATH, json.dumps(remaining, ensure_ascii=False, indent=2))
     if dismiss:
         try:
             cur = set(json.loads(KG_DISMISSED_PATH.read_text(encoding="utf-8"))) \
@@ -300,7 +302,7 @@ def drop_kg_review(items: list[dict], item: dict, *, dismiss: bool = False) -> N
         except Exception:
             cur = set()
         cur.add(item.get("id"))
-        KG_DISMISSED_PATH.write_text(json.dumps(sorted(cur), ensure_ascii=False, indent=2), encoding="utf-8")
+        _atomic_write_text(KG_DISMISSED_PATH, json.dumps(sorted(cur), ensure_ascii=False, indent=2))
 
 
 # ---------------------------------------------------------------------------

@@ -10,6 +10,30 @@
 import re
 import zipfile
 import xml.etree.ElementTree as ET
+
+try:
+    from defusedxml import ElementTree as SafeET
+    _HAS_DEFUSEDXML = True
+except ImportError:
+    SafeET = None  # type: ignore[assignment]
+    _HAS_DEFUSEDXML = False
+    import logging
+    logging.getLogger(__name__).warning("defusedxml not installed — XML parsing uses vulnerable stdlib ElementTree")
+
+
+def _safe_xml_parse(source):
+    """Parse XML from a file-like object, using defusedxml when available."""
+    if _HAS_DEFUSEDXML:
+        return SafeET.parse(source)
+    return ET.parse(source)
+
+
+def _safe_xml_fromstring(text):
+    """Parse XML from a string, using defusedxml when available."""
+    if _HAS_DEFUSEDXML:
+        return SafeET.fromstring(text)
+    return ET.fromstring(text)
+
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -814,7 +838,7 @@ class DocumentParser:
                 ("word/endnotes.xml", "en"),
             ]:
                 if part_name in names:
-                    tree = ET.parse(zf.open(part_name))
+                    tree = _safe_xml_parse(zf.open(part_name))
                     root = tree.getroot()
                     tag = f"{{{_W_NS}}}footnote" if "footnote" in part_name else f"{{{_W_NS}}}endnote"
                     for fn_el in root.findall(tag):
@@ -829,7 +853,7 @@ class DocumentParser:
                         ).strip()
                         fn_map[(ns_prefix, fn_id)] = text
 
-            tree = ET.parse(zf.open("word/document.xml"))
+            tree = _safe_xml_parse(zf.open("word/document.xml"))
             root = tree.getroot()
 
         body = root.find(f"{{{_W_NS}}}body")

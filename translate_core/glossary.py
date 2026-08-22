@@ -4,6 +4,22 @@ import csv
 import logging
 import re
 import xml.etree.ElementTree as ET
+
+try:
+    from defusedxml import ElementTree as SafeET
+    _HAS_DEFUSEDXML = True
+except ImportError:
+    SafeET = None  # type: ignore[assignment]
+    _HAS_DEFUSEDXML = False
+    logger.warning("defusedxml not installed — XML parsing uses vulnerable stdlib ElementTree")
+
+
+def _safe_xml_fromstring(text):
+    """Parse XML from a string, using defusedxml when available."""
+    if _HAS_DEFUSEDXML:
+        return SafeET.fromstring(text)
+    return ET.fromstring(text)
+
 from pathlib import Path
 from typing import Dict, List
 
@@ -77,7 +93,7 @@ class Glossary:
             try:
                 # Parse the isolated XML fragment
                 # We wrap it in a dummy root just in case, though fromstring handles fragments
-                entry_node = ET.fromstring(f"<termEntry>{entry_xml}</termEntry>")
+                entry_node = _safe_xml_fromstring(f"<termEntry>{entry_xml}</termEntry>")
 
                 terms = {}  # Dictionary to hold {'en': 'word', 'sl': 'beseda'}
                 note = ""

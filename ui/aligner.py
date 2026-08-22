@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from pathlib import Path
 
+import config
 from nicegui import app, run, ui
 
+log = logging.getLogger(__name__)
 
 def _align_offthread(kg, en, sl, container, dry_run):
     kg.reload_if_changed()
@@ -83,7 +86,10 @@ def page_aligner() -> None:
         ui_settings.dark_toggle_button(dm)
 
     async def handle_upload(e, side: str) -> None:
-        name = e.file.name
+        name = Path(e.file.name).name
+        suffix = Path(name).suffix.lower()
+        if suffix not in (".docx", ".pdf", ".txt", ".md"):
+            return ui.notify("DOCX, PDF, TXT or MD files only", type="warning")
         saved = _run_dir(side) / name
         state[f"aligner_{side}"] = str(saved)
         lbl = en_label if side == "en" else sl_label
@@ -105,7 +111,8 @@ def page_aligner() -> None:
             with ui.column().classes("col"):
                 ui.label("EN source (original)").classes("text-caption")
                 ui.upload(on_upload=upload_en, auto_upload=True,
-                          label="Drop EN file here or click to browse", max_files=1) \
+                          label="Drop EN file here or click to browse", max_files=1,
+                          max_file_size=config.MAX_UPLOAD_SIZE_MB * 1024 * 1024) \
                     .classes("w-full").props(f"color=accent accept={_ACCEPT} flat bordered")
                 en_label = ui.label("EN: not set").classes("text-caption opacity-60")
                 if state["aligner_en"]:
@@ -114,7 +121,8 @@ def page_aligner() -> None:
             with ui.column().classes("col"):
                 ui.label("SL source (translation)").classes("text-caption")
                 ui.upload(on_upload=upload_sl, auto_upload=True,
-                          label="Drop SL file here or click to browse", max_files=1) \
+                          label="Drop SL file here or click to browse", max_files=1,
+                          max_file_size=config.MAX_UPLOAD_SIZE_MB * 1024 * 1024) \
                     .classes("w-full").props(f"color=accent accept={_ACCEPT} flat bordered")
                 sl_label = ui.label("SL: not set").classes("text-caption opacity-60")
                 if state["aligner_sl"]:
@@ -236,7 +244,8 @@ def page_aligner() -> None:
                     )
                 ui.notify(f"KG saved — {summary}", type="positive")
         except Exception as ex:  # noqa: BLE001
-            ui.notify(f"Alignment failed: {ex}", type="negative")
+            log.error("Alignment failed: %s", ex)
+            ui.notify("Alignment failed", type="negative")
 
     with ui.row().classes("q-gutter-md q-mt-sm"):
         ui.button("Preview (dry run)", icon="visibility", on_click=lambda: do_run(True)).props(

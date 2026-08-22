@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import html as html_lib
+
 from nicegui import run, ui
 
 
-# ---------------------------------------------------------------------------
 # Page registration — /kg redirects here; /kg/terms is the canonical path.
 # ---------------------------------------------------------------------------
 
@@ -118,7 +119,7 @@ async def page_terms():
             # ── Variants ──────────────────────────────────────────────────
             variants = match.get("variants", [])
             if variants:
-                ui.markdown(f"**Variants:** {', '.join(variants)}").classes("q-mb-xs")
+                ui.markdown(f"**Variants:** {', '.join(html_lib.escape(v, quote=False) for v in variants)}").classes("q-mb-xs")
 
             # ── Translation mappings ────────────────────────────────────
             translations = match.get("translations", [])
@@ -135,7 +136,7 @@ async def page_terms():
         lineage = t.get("lineage", "general")
 
         ui.markdown(
-            f"→ **`{t.get('term')}`** | Lineage: *{lineage}* | "
+            f"→ **`{html_lib.escape(str(t.get('term', '')), quote=False)}`** | Lineage: *{html_lib.escape(str(lineage), quote=False)}* | "
             f"Conf: `{t.get('confidence', 0.5):.2f}`"
         )
 
