@@ -861,15 +861,63 @@ def _detect_pipeline(saved_path: Path, suffix: str) -> str:
     return "simple"
 
 
+def _docx_paragraph_to_markdown(para) -> str:
+    """Convert a python-docx paragraph to markdown text with *italic* /
+    **bold** / ***bold-italic*** emphasis markers around runs whose font
+    flags indicate emphasis.
+
+    This is the simple-pipeline counterpart of
+    DocumentParser.docx_to_markdown (academic) and
+    _pdf_dict_to_markdown_text (PDF). It walks paragraph.runs and emits
+    markdown emphasis markers so the translator can see and correct
+    italics/bolds on the fly — without restructuring the document.
+
+    Adjacent runs with identical emphasis flags are coalesced before
+    wrapping so the output stays compact: *one span*, not *one* *span*.
+    """
+    if not para.runs:
+        return para.text
+    # Collect (text, italic, bold) tuples, coalescing adjacent runs with
+    # identical (italic, bold) flags so we don't emit *a**b* when one
+    # italic run was split into two by Word's XML serializer.
+    coalesced: list[tuple[str, bool, bool]] = []
+    for run in para.runs:
+        txt = run.text
+        if not txt:
+            continue
+        it = bool(run.italic)
+        bd = bool(run.bold)
+        if coalesced and coalesced[-1][1] == it and coalesced[-1][2] == bd:
+            coalesced[-1] = (coalesced[-1][0] + txt, it, bd)
+        else:
+            coalesced.append((txt, it, bd))
+    parts: list[str] = []
+    for txt, it, bd in coalesced:
+        if it and bd:
+            parts.append(f"***{txt}***")
+        elif bd:
+            parts.append(f"**{txt}**")
+        elif it:
+            parts.append(f"*{txt}*")
+        else:
+            parts.append(txt)
+    return "".join(parts)
+
+
 def _parse_docx(path: Path) -> list[dict]:
     """Extract paragraphs from a DOCX file for the simple pipeline.
-    Preserves docx_para_idx for template-based export. Runs in a thread pool."""
+
+    Preserves docx_para_idx for template-based export. Emits *italic* /
+    **bold** / ***bold-italic*** markdown markers around runs whose font
+    flags indicate emphasis, so the translator can see and correct emphasis
+    on the fly. Runs in a thread pool.
+    """
     import docx as _docx
     from translate_core.book_outline import split_paragraphs
     doc = _docx.Document(str(path))
     segments = []
     for i, p in enumerate(doc.paragraphs):
-        txt = p.text.strip()
+        txt = _docx_paragraph_to_markdown(p).strip()
         if txt:
             for chunk in split_paragraphs(txt, max_chars=config.SEGMENT_MAX_CHARS):
                 segments.append({

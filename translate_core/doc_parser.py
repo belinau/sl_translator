@@ -1318,7 +1318,21 @@ class DocumentParser:
 
     @staticmethod
     def _replace_paragraph_text(paragraph, new_text: str) -> None:
-        """Replace paragraph text preserving bold/italic/font at the XML level."""
+        """Replace paragraph text, preserving formatting at the XML level.
+
+        When *new_text* contains markdown emphasis markers (*italic*,
+        **bold*, ***both***), the original runs are cleared and replaced
+        with new runs carrying the correct italic/bold flags — so the
+        translator's on-the-fly emphasis corrections land on the right
+        words instead of being distributed proportionally across the
+        original run boundaries.
+
+        When *new_text* has no emphasis markers (legacy segments from
+        projects created before emphasis capture), the original
+        proportional-distribution algorithm is used: runs are coalesced
+        by formatting, then the new text is split across them by
+        original character-length share.
+        """
         _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
         p_el = paragraph._element
         r_elements = list(p_el.findall(f"{_W}r"))
@@ -1326,6 +1340,43 @@ class DocumentParser:
             paragraph.add_run(new_text)
             return
 
+        # Markdown-emphasis path: clear original runs and rebuild with
+        # correct italic/bold formatting from the markers.
+        if _MD_EMPHASIS_RE.search(new_text):
+            # Preserve the first run's rPr (font name, size, color) as a
+            # template for the new runs so house styling survives.
+            first_r = r_elements[0]
+            rPr_template = first_r.find(f"{_W}rPr")
+            rPr_copy = None
+            if rPr_template is not None:
+                import copy
+                rPr_copy = copy.deepcopy(rPr_template)
+            # Remove all existing runs.
+            for r_el in r_elements:
+                p_el.remove(r_el)
+            # Re-add runs from markdown emphasis spans.
+            spans = _MD_EMPHASIS_RE.split(new_text)
+            for span in spans:
+                if not span:
+                    continue
+                if span.startswith("***") and span.endswith("***"):
+                    run = paragraph.add_run(span[3:-3])
+                    run.bold = True
+                    run.italic = True
+                elif span.startswith("**") and span.endswith("**"):
+                    run = paragraph.add_run(span[2:-2])
+                    run.bold = True
+                elif span.startswith("*") and span.endswith("*") and not span.startswith("**"):
+                    run = paragraph.add_run(span[1:-1])
+                    run.italic = True
+                else:
+                    run = paragraph.add_run(span)
+                # Re-apply font properties from the original first run.
+                if rPr_copy is not None and run._r.find(f"{_W}rPr") is None:
+                    run._r.insert(0, copy.deepcopy(rPr_copy))
+            return
+
+        # Legacy proportional-distribution path (no emphasis markers).
         def _fmt_key(r_el):
             rPr = r_el.find(f"{_W}rPr")
             b = rPr is not None and rPr.find(f"{_W}b") is not None
