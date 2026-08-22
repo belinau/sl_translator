@@ -1042,7 +1042,9 @@ if __name__ in {"__main__", "__mp_main__"}:
     ui.run(
         title="Bel Translation Suite",
         favicon="✨",
-        host=os.environ.get("APP_HOST", "127.0.0.1"),
+        # Default to 0.0.0.0 so the system service binding works.
+        # Set APP_HOST=127.0.0.1 to restrict to localhost only.
+        host=os.environ.get("APP_HOST", "0.0.0.0"),
         port=8080,
         show=True,
         storage_secret=config.STORAGE_SECRET,
