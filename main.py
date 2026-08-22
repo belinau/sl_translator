@@ -521,8 +521,8 @@ def render_project_list(container: ui.column, client):
                                     )
                                 ui.button(
                                     icon="delete",
-                                    on_click=lambda e, pid=p["id"], c=container: (
-                                        delete_and_refresh(pid, c, client)
+                                    on_click=lambda e, pid=p["id"], fn=p["filename"], c=container: (
+                                        _confirm_delete(pid, fn, c, client)
                                     ),
                                 ).props("flat round dense size=sm color=grey-5").on("click.stop")
 
@@ -717,9 +717,31 @@ def render_project_list(container: ui.column, client):
 
 
 
-def delete_and_refresh(project_id: str, container: ui.column, client):
-    ui.notify("Deleted", type="warning", timeout=1200)
+def _confirm_delete(project_id: str, filename: str, container: ui.column, client) -> None:
+    """Show a confirmation dialog before deleting a project."""
+    with ui.dialog() as dialog:
+        with ui.card().classes("min-w-[420px]"):
+            ui.label("Delete project?").classes("text-lg font-bold mb-2")
+            ui.label(
+                f"This will permanently delete \"{filename}\" and all its segments, "
+                f"translations, and review history. This cannot be undone."
+            ).classes("text-sm opacity-70 mb-4")
+            with ui.row().classes("w-full justify-end gap-2"):
+                ui.button("Cancel", on_click=lambda: dialog.close()).props("flat")
+                ui.button(
+                    "Delete permanently",
+                    on_click=lambda: (
+                        dialog.close(),
+                        _do_delete(project_id, container, client),
+                    ),
+                ).props("color=negative unelevated")
+    dialog.open()
+
+
+def _do_delete(project_id: str, container: ui.column, client) -> None:
+    """Execute the deletion and refresh the project list."""
     delete_project(project_id)
+    ui.notify("Project deleted", type="warning", timeout=1200)
     render_project_list(container, client)
 
 
