@@ -1,3 +1,4 @@
-"""KG editor pages — NiceGUI port of the Streamlit kg_editor_ui.py."""
+"""KG editor pages — unified browser + review queues."""
 from . import common  # noqa: F401
-from . import terms, concepts, agents, sources, lineages, review, kg_review  # noqa: F401
+from . import browser  # noqa: F401
+from . import review, kg_review  # noqa: F401

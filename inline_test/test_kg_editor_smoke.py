@@ -15,11 +15,7 @@ import pytest
 
 MODULES = [
     "ui.kg_editor.common",
-    "ui.kg_editor.terms",
-    "ui.kg_editor.concepts",
-    "ui.kg_editor.agents",
-    "ui.kg_editor.sources",
-    "ui.kg_editor.lineages",
+    "ui.kg_editor.browser",
     "ui.kg_editor.review",
     "ui.kg_editor.kg_review",
 ]

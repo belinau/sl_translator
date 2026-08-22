@@ -177,49 +177,49 @@ class TestHelpers(unittest.TestCase):
 
     def test_needs_target_true(self):
         """Concept with translation_lang set but empty label_translation needs target."""
-        from ui.kg_editor.concepts import _needs_target
+        from ui.kg_editor.common import needs_target as _needs_target
         c = {"type": "concept", "translation_lang": "sl", "label_translation": None}
         self.assertTrue(_needs_target(c))
 
     def test_needs_target_false_filled(self):
         """Concept with both translation_lang and label_translation does not need target."""
-        from ui.kg_editor.concepts import _needs_target
+        from ui.kg_editor.common import needs_target as _needs_target
         c = {"type": "concept", "translation_lang": "sl", "label_translation": "pojem"}
         self.assertFalse(_needs_target(c))
 
     def test_needs_target_false_no_lang(self):
         """Legacy concept without translation_lang is excluded."""
-        from ui.kg_editor.concepts import _needs_target
+        from ui.kg_editor.common import needs_target as _needs_target
         c = {"type": "concept", "label": "some concept"}
         self.assertFalse(_needs_target(c))
 
     def test_needs_target_false_blank_translation_lang(self):
         """Concept with empty string translation_lang is excluded."""
-        from ui.kg_editor.concepts import _needs_target
+        from ui.kg_editor.common import needs_target as _needs_target
         c = {"type": "concept", "translation_lang": "", "label_translation": ""}
         self.assertFalse(_needs_target(c))
 
     def test_has_translation_with_edition(self):
         """Source with translation_edition has translation."""
-        from ui.kg_editor.sources import _has_translation
+        from ui.kg_editor.common import has_translation as _has_translation
         s = {"translation_edition": {"publisher": "Mladinska"}}
         self.assertTrue(_has_translation(s, has_translator=False))
 
     def test_has_translation_with_title(self):
         """Source with title_translation has translation."""
-        from ui.kg_editor.sources import _has_translation
+        from ui.kg_editor.common import has_translation as _has_translation
         s = {"title_translation": "Prevedeni naslov"}
         self.assertTrue(_has_translation(s, has_translator=False))
 
     def test_has_translation_with_edge(self):
         """Source with a translated_by edge has translation."""
-        from ui.kg_editor.sources import _has_translation
+        from ui.kg_editor.common import has_translation as _has_translation
         s = {}
         self.assertTrue(_has_translation(s, has_translator=True))
 
     def test_has_translation_false(self):
         """Source with none of the signals does not have translation."""
-        from ui.kg_editor.sources import _has_translation
+        from ui.kg_editor.common import has_translation as _has_translation
         s = {}
         self.assertFalse(_has_translation(s, has_translator=False))
 
