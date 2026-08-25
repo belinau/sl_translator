@@ -1479,16 +1479,22 @@ class DocumentParser:
         self,
         clone: dict,
         output_path: Path,
+        glossary=None,
     ) -> None:
         """Export a review clone as a bilingual table DOCX.
 
-        Produces a 4-column table — #, Source, Target (with inline diff
-        markup when the reviewer suggested a change), and Comments —
-        so reviewers and translators can review the work on paper.
+        Produces a 5-column table — #, Source, Target (with inline diff
+        markup when the reviewer suggested a change), Glossary (terms
+        found in the source text), and Comments — so reviewers and
+        translators can review the work on paper and verify term usage.
 
         Diff rendering mirrors the merge view: deleted words are
         strikethrough + red, inserted words are bold + green. When no
         reviewer suggestion exists the target is rendered as-is.
+
+        When *glossary* is provided (a ``Glossary`` instance), each
+        segment's source text is scanned for glossary terms and the
+        matches are listed in a dedicated column.
         """
         import difflib
 
@@ -1500,16 +1506,16 @@ class DocumentParser:
 
         doc = docx.Document()
 
-        # Page setup — A4 landscape for a 4-column table.
+        # Page setup — A4 landscape for a wide table.
         for section in doc.sections:
             section.orientation = 1  # WD_ORIENT.LANDSCAPE
             new_w, new_h = section.page_height, section.page_width
             section.page_width = new_w
             section.page_height = new_h
-            section.top_margin = Inches(0.6)
-            section.bottom_margin = Inches(0.6)
-            section.left_margin = Inches(0.6)
-            section.right_margin = Inches(0.6)
+            section.top_margin = Inches(0.5)
+            section.bottom_margin = Inches(0.5)
+            section.left_margin = Inches(0.5)
+            section.right_margin = Inches(0.5)
 
         style_normal = doc.styles["Normal"]
         style_normal.font.name = "Georgia"
@@ -1520,6 +1526,12 @@ class DocumentParser:
 
         segs = clone.get("segments", [])
         n_segs = len(segs)
+
+        # Parse lang_pair for glossary lookup.
+        src_lang, tgt_lang = "", ""
+        lang_pair = clone.get("lang_pair", "")
+        if "->" in lang_pair:
+            src_lang, tgt_lang = lang_pair.split("->", 1)
 
         # Title
         title_p = doc.add_paragraph()
@@ -1545,13 +1557,13 @@ class DocumentParser:
         meta_p.paragraph_format.space_after = Pt(10)
 
         # Table
-        headers = ["#", "Source", "Target", "Comments"]
+        headers = ["#", "Source", "Target", "Glossary", "Comments"]
         table = doc.add_table(rows=1, cols=len(headers))
         table.style = "Table Grid"
         table.autofit = False
 
-        # Column widths (total usable ≈ 9.27" in landscape A4 with 0.6" margins)
-        col_widths = [Inches(0.4), Inches(3.2), Inches(3.2), Inches(2.47)]
+        # Column widths (total usable ≈ 10.27" in landscape A4 with 0.5" margins)
+        col_widths = [Inches(0.35), Inches(2.7), Inches(2.7), Inches(2.2), Inches(2.32)]
         for i, w in enumerate(col_widths):
             for cell in table.columns[i].cells:
                 cell.width = w
@@ -1592,9 +1604,20 @@ class DocumentParser:
             else:
                 self._add_md_runs(tgt_cell, target)
 
+            # Glossary column — terms found in the source text.
+            gl_cell = row.cells[3].paragraphs[0]
+            if glossary is not None and source and src_lang and tgt_lang:
+                hits = glossary.lookup_terms(source, src_lang, tgt_lang)
+                for j, hit in enumerate(hits):
+                    if j > 0:
+                        gl_cell.add_run().add_break()
+                    src_term = hit.get("source_term", "")
+                    tgt_term = hit.get("target_term", "")
+                    gl_cell.add_run(f"{src_term} → {tgt_term}")
+
             # Comments column
             c_text = cm.format_comments_for_export(seg, cm.EXPORT_ALL)
-            cm_cell = row.cells[3].paragraphs[0]
+            cm_cell = row.cells[4].paragraphs[0]
             if c_text:
                 # Strip markdown blockquote markers for plain rendering.
                 clean = c_text.replace("\n> ", "\n").replace("> ", "").strip()

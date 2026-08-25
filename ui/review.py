@@ -173,10 +173,10 @@ def page_review(project_id: str):
             "text-[10px] font-black uppercase tracking-[0.3em] opacity-60 px-2 mb-1"
         )
         reviews_container = ui.column().classes("w-full gap-3")
-        _render_reviews(reviews_container, project_id, page_client)
+        _render_reviews(reviews_container, project_id, page_client, res)
 
 
-def _render_reviews(container: ui.column, project_id: str, client) -> None:
+def _render_reviews(container: ui.column, project_id: str, client, res: dict | None = None) -> None:
     """Render the list of review cards."""
     container.clear()
     reviews = rm.list_reviews(original_project_id=project_id)
@@ -188,13 +188,14 @@ def _render_reviews(container: ui.column, project_id: str, client) -> None:
                 ui.label("Click 'New Review' to create one").classes("text-xs")
         return
 
+    glossary = res.get("glossary") if res else None
     with container:
         for r in reviews:
-            _render_review_card(r, container, project_id, client)
+            _render_review_card(r, container, project_id, client, glossary)
 
 
 def _render_review_card(
-    r: dict, container: ui.column, project_id: str, client
+    r: dict, container: ui.column, project_id: str, client, glossary=None
 ) -> None:
     """Render a single review card with context-appropriate buttons."""
     review_id = r["review_id"]
@@ -296,7 +297,7 @@ def _render_review_card(
             ui.button(
                 "Export table",
                 icon="grid_on",
-                on_click=lambda _, r=r: _export_review_table(r),
+                on_click=lambda _, r=r, gl=glossary: _export_review_table(r, glossary=gl),
             ).props("flat dense color=teal").classes("text-[11px]").tooltip(
                 "Download bilingual review table (DOCX)"
             )
@@ -540,17 +541,17 @@ async def _reopen_review(r: dict, container, project_id, client) -> None:
     _render_reviews(container, project_id, client)
 
 
-def _export_review_table(r: dict) -> None:
+def _export_review_table(r: dict, glossary=None) -> None:
     """Export a review clone as a bilingual table DOCX and trigger download."""
     from translate_core.doc_parser import DocumentParser
 
-    clone = rm.load_review(r["review_id"])
+    clone = rm.load_review(r["review_id"]) if "review_id" in r else r
     if clone is None:
         ui.notify("Review data not found", type="negative")
         return
-    out = rm.REVIEWS_DIR / f"review_table_{clone['review_id']}.docx"
+    out = rm.REVIEWS_DIR / f"review_table_{clone.get('review_id', 'table')}.docx"
     try:
-        DocumentParser().compile_review_table_docx(clone, out)
+        DocumentParser().compile_review_table_docx(clone, out, glossary=glossary)
         if out.exists():
             filename = f"review_{clone.get('original_filename', 'table')}.docx"
             ui.download(out.read_bytes(), filename)
@@ -985,7 +986,7 @@ def page_review_ext(review_id: str):
                     ui.button(
                         "Export finished work as bilingual table",
                         icon="grid_on",
-                        on_click=lambda: (rm.save_review(clone), _export_review_table(clone)),
+                        on_click=lambda: (rm.save_review(clone), _export_review_table(clone, glossary=res.get("glossary"))),
                     ).props("unelevated rounded color=teal size=lg").classes(
                         "px-8 py-3 font-black tracking-[.2em] text-[12px]"
                     ).tooltip("Download your review as a bilingual table (DOCX)")
