@@ -35,7 +35,7 @@ def _safe_xml_fromstring(text):
     return ET.fromstring(text)
 
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from markitdown import MarkItDown
 
@@ -1368,13 +1368,20 @@ class DocumentParser:
         # correct italic/bold formatting from the markers.
         if _MD_EMPHASIS_RE.search(new_text):
             # Preserve the first run's rPr (font name, size, color) as a
-            # template for the new runs so house styling survives.
+            # template for the new runs so house styling survives — but
+            # strip any existing emphasis elements (w:i, w:b, …) so that
+            # plain spans don't inherit the template's italic/bold. The
+            # correct emphasis is then applied per-span via run.italic /
+            # run.bold below.
             first_r = r_elements[0]
             rPr_template = first_r.find(f"{_W}rPr")
-            rPr_copy = None
+            rPr_base: Optional[Any] = None
             if rPr_template is not None:
                 import copy
-                rPr_copy = copy.deepcopy(rPr_template)
+                rPr_base = copy.deepcopy(rPr_template)
+                for _tag in ("i", "b", "iCs", "bCs"):
+                    for _el in rPr_base.findall(f"{_W}{_tag}"):
+                        rPr_base.remove(_el)
             # Remove all existing runs.
             for r_el in r_elements:
                 p_el.remove(r_el)
@@ -1385,19 +1392,24 @@ class DocumentParser:
                     continue
                 if span.startswith("***") and span.endswith("***"):
                     run = paragraph.add_run(span[3:-3])
+                    if rPr_base is not None:
+                        run._r.insert(0, copy.deepcopy(rPr_base))
                     run.bold = True
                     run.italic = True
                 elif span.startswith("**") and span.endswith("**"):
                     run = paragraph.add_run(span[2:-2])
+                    if rPr_base is not None:
+                        run._r.insert(0, copy.deepcopy(rPr_base))
                     run.bold = True
                 elif span.startswith("*") and span.endswith("*") and not span.startswith("**"):
                     run = paragraph.add_run(span[1:-1])
+                    if rPr_base is not None:
+                        run._r.insert(0, copy.deepcopy(rPr_base))
                     run.italic = True
                 else:
                     run = paragraph.add_run(span)
-                # Re-apply font properties from the original first run.
-                if rPr_copy is not None and run._r.find(f"{_W}rPr") is None:
-                    run._r.insert(0, copy.deepcopy(rPr_copy))
+                    if rPr_base is not None:
+                        run._r.insert(0, copy.deepcopy(rPr_base))
             return
 
         # Legacy proportional-distribution path (no emphasis markers).

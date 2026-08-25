@@ -229,6 +229,67 @@ class TestCompileFromTemplateEmphasis:
             assert not r.italic or r.italic is None
             assert not r.bold or r.bold is None
 
+    def test_template_italic_does_not_leak_to_plain_spans(self, tmp_path):
+        """Regression: when the template paragraph's first run is italic
+        (e.g. an italicized title) and the target carries *...* markers
+        for only part of the text, the plain (unmarked) spans must NOT
+        inherit italic from the template's rPr.
+
+        This was the Octavian Esana bug: the entire translation paragraph
+        rendered italic because the stripped rPr template still carried
+        <w:i>, applied to every plain span.
+        """
+        from translate_core.doc_parser import DocumentParser
+
+        # Template mimics the real Esana DOCX: run 0 italic (title), run 1
+        # plain (description).
+        d = docx.Document()
+        p = d.add_paragraph()
+        r0 = p.add_run("Contemporary Artistic Revolutions")
+        r0.italic = True
+        p.add_run(". A project historicising the infrastructure.")
+        template = tmp_path / "template.docx"
+        d.save(str(template))
+
+        segments = [{
+            "id": 0,
+            "source": "Contemporary Artistic Revolutions. A project historicising the infrastructure.",
+            "target": "*Contemporary Artistic Revolutions* (Sodobne umetniške revolucije). Projekt zgodovinjenja infrastrukture.",
+            "status": "done",
+            "docx_para_idx": 0,
+        }]
+
+        out = tmp_path / "out.docx"
+        DocumentParser().compile_from_template(template, out, segments)
+
+        result = docx.Document(str(out))
+        paras = [par for par in result.paragraphs if par.text.strip()]
+        assert len(paras) >= 1
+        runs = paras[0].runs
+
+        # No literal asterisks in output
+        for r in runs:
+            assert "*" not in (r.text or ""), f"Literal asterisk in run: {r.text!r}"
+
+        # The *...* span must be italic
+        italic_runs = [r for r in runs if r.italic and not r.bold]
+        assert len(italic_runs) >= 1, "Expected the marked title span to be italic"
+        assert any("Contemporary Artistic Revolutions" in r.text for r in italic_runs)
+
+        # The plain translation text must NOT be italic — this is the bug.
+        plain_runs = [r for r in runs if not r.italic and not r.bold]
+        assert len(plain_runs) >= 1, "Expected at least one plain (non-italic) run"
+        plain_text = " ".join(r.text for r in plain_runs)
+        assert "Sodobne umetniške revolucije" in plain_text, (
+            "Translation text should be in a plain run, not an italic one"
+        )
+        # Explicitly: no plain run should carry italic
+        for r in runs:
+            if "Sodobne umetniške revolucije" in (r.text or ""):
+                assert not r.italic or r.italic is None, (
+                    f"Italic leaked into plain translation span: {r.text!r}"
+                )
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
