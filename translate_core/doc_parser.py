@@ -1471,6 +1471,174 @@ class DocumentParser:
         num_restart.set(qn("w:val"), "eachSect")
         footnote_pr.append(num_restart)
         sectPr.append(footnote_pr)
+    # ===================================================================
+    # STAGE 2b: Bilingual review table export
+    # ===================================================================
+
+    def compile_review_table_docx(
+        self,
+        clone: dict,
+        output_path: Path,
+    ) -> None:
+        """Export a review clone as a bilingual table DOCX.
+
+        Produces a 4-column table — #, Source, Target (with inline diff
+        markup when the reviewer suggested a change), and Comments —
+        so reviewers and translators can review the work on paper.
+
+        Diff rendering mirrors the merge view: deleted words are
+        strikethrough + red, inserted words are bold + green. When no
+        reviewer suggestion exists the target is rendered as-is.
+        """
+        import difflib
+
+        if not HAS_DOCX:
+            raise RuntimeError("python-docx not installed")
+        assert docx is not None and Pt is not None and Inches is not None
+
+        from translate_core import comments as cm
+
+        doc = docx.Document()
+
+        # Page setup — A4 landscape for a 4-column table.
+        for section in doc.sections:
+            section.orientation = 1  # WD_ORIENT.LANDSCAPE
+            new_w, new_h = section.page_height, section.page_width
+            section.page_width = new_w
+            section.page_height = new_h
+            section.top_margin = Inches(0.6)
+            section.bottom_margin = Inches(0.6)
+            section.left_margin = Inches(0.6)
+            section.right_margin = Inches(0.6)
+
+        style_normal = doc.styles["Normal"]
+        style_normal.font.name = "Georgia"
+        style_normal.font.size = Pt(10)
+        style_normal.paragraph_format.line_spacing = 1.15
+        style_normal.paragraph_format.space_after = Pt(2)
+        style_normal.paragraph_format.space_before = Pt(2)
+
+        segs = clone.get("segments", [])
+        n_segs = len(segs)
+
+        # Title
+        title_p = doc.add_paragraph()
+        title_run = title_p.add_run(
+            f"Review: {clone.get('review_id', '')}  ·  {clone.get('original_filename', '')}"
+        )
+        title_run.bold = True
+        title_run.font.size = Pt(14)
+        title_p.paragraph_format.space_after = Pt(6)
+
+        meta_p = doc.add_paragraph()
+        meta_parts = [
+            f"Segments: {n_segs}",
+            f"Language: {clone.get('lang_pair', '')}",
+            f"Status: {clone.get('status', '')}",
+        ]
+        reviewer = clone.get("reviewer_name", "")
+        if reviewer:
+            meta_parts.append(f"Reviewer: {reviewer}")
+        meta_run = meta_p.add_run("  ·  ".join(meta_parts))
+        meta_run.font.size = Pt(9)
+        meta_run.font.color.rgb = None  # inherit
+        meta_p.paragraph_format.space_after = Pt(10)
+
+        # Table
+        headers = ["#", "Source", "Target", "Comments"]
+        table = doc.add_table(rows=1, cols=len(headers))
+        table.style = "Table Grid"
+        table.autofit = False
+
+        # Column widths (total usable ≈ 9.27" in landscape A4 with 0.6" margins)
+        col_widths = [Inches(0.4), Inches(3.2), Inches(3.2), Inches(2.47)]
+        for i, w in enumerate(col_widths):
+            for cell in table.columns[i].cells:
+                cell.width = w
+
+        hdr_row = table.rows[0]
+        for i, h in enumerate(headers):
+            cell = hdr_row.cells[i]
+            cell.width = col_widths[i]
+            p = cell.paragraphs[0]
+            run = p.add_run(h)
+            run.bold = True
+            run.font.size = Pt(9)
+
+        for seg in segs:
+            orig_id = seg.get("original_id")
+            if orig_id is None:
+                orig_id = seg.get("id", 0)
+            source = seg.get("source", "") or ""
+            target = seg.get("target", "") or ""
+            reviewer_target = seg.get("reviewer_target", "") or ""
+
+            row = table.add_row()
+            for i in range(len(headers)):
+                row.cells[i].width = col_widths[i]
+
+            # # column
+            num_p = row.cells[0].paragraphs[0]
+            num_p.add_run(str(orig_id + 1) if orig_id is not None else "")
+
+            # Source column — render with markdown emphasis.
+            src_cell = row.cells[1].paragraphs[0]
+            self._add_md_runs(src_cell, source)
+
+            # Target column — plain text or inline diff.
+            tgt_cell = row.cells[2].paragraphs[0]
+            if reviewer_target.strip() and reviewer_target.strip() != target.strip():
+                self._add_diff_runs(tgt_cell, target, reviewer_target)
+            else:
+                self._add_md_runs(tgt_cell, target)
+
+            # Comments column
+            c_text = cm.format_comments_for_export(seg, cm.EXPORT_ALL)
+            cm_cell = row.cells[3].paragraphs[0]
+            if c_text:
+                # Strip markdown blockquote markers for plain rendering.
+                clean = c_text.replace("\n> ", "\n").replace("> ", "").strip()
+                for j, line in enumerate(clean.split("\n")):
+                    if j > 0:
+                        cm_cell.add_run().add_break()
+                    cm_cell.add_run(line)
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        doc.save(str(output_path))
+
+    @staticmethod
+    def _add_diff_runs(paragraph, original: str, suggested: str) -> None:
+        """Add runs to *paragraph* showing a word-level diff between
+        *original* and *suggested*: deleted words get strikethrough + red,
+        inserted words get bold + green, unchanged words are plain.
+        """
+        import difflib
+
+        if not original or not suggested:
+            paragraph.add_run(suggested)
+            return
+
+        orig_words = original.split()
+        sugg_words = suggested.split()
+        matcher = difflib.SequenceMatcher(None, orig_words, sugg_words)
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+            if tag == "equal":
+                paragraph.add_run(" ".join(orig_words[i1:i2]) + " ")
+            elif tag == "delete":
+                run = paragraph.add_run(" ".join(orig_words[i1:i2]) + " ")
+                run.font.strike = True
+                run.font.color.rgb = docx.shared.RGBColor(0xC0, 0x39, 0x2B)
+            elif tag == "insert":
+                run = paragraph.add_run(" ".join(sugg_words[j1:j2]) + " ")
+                run.bold = True
+                run.font.color.rgb = docx.shared.RGBColor(0x16, 0xA3, 0x4A)
+            elif tag == "replace":
+                del_run = paragraph.add_run(" ".join(orig_words[i1:i2]) + " ")
+                del_run.font.strike = True
+                del_run.font.color.rgb = docx.shared.RGBColor(0xC0, 0x39, 0x2B)
+                ins_run = paragraph.add_run(" ".join(sugg_words[j1:j2]) + " ")
+                ins_run.bold = True
+                ins_run.font.color.rgb = docx.shared.RGBColor(0x16, 0xA3, 0x4A)
 
     # ===================================================================
     # STAGE 3: Para-index relinking (simple-pipeline export repair)

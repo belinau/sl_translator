@@ -293,6 +293,14 @@ def _render_review_card(
                 on_click=lambda _, rid=review_id: ui.navigate.to(f"/review/merge/{rid}"),
             ).props("flat dense color=primary").classes("text-[11px]")
 
+            ui.button(
+                "Export table",
+                icon="grid_on",
+                on_click=lambda _, r=r: _export_review_table(r),
+            ).props("flat dense color=teal").classes("text-[11px]").tooltip(
+                "Download bilingual review table (DOCX)"
+            )
+
             if funnel_active and not expired:
                 # Active funnel: prolong + stop
                 ui.button(
@@ -530,6 +538,27 @@ async def _reopen_review(r: dict, container, project_id, client) -> None:
     except Exception as e:
         ui.notify(f"Failed: {e}", type="negative")
     _render_reviews(container, project_id, client)
+
+
+def _export_review_table(r: dict) -> None:
+    """Export a review clone as a bilingual table DOCX and trigger download."""
+    from translate_core.doc_parser import DocumentParser
+
+    clone = rm.load_review(r["review_id"])
+    if clone is None:
+        ui.notify("Review data not found", type="negative")
+        return
+    out = rm.REVIEWS_DIR / f"review_table_{clone['review_id']}.docx"
+    try:
+        DocumentParser().compile_review_table_docx(clone, out)
+        if out.exists():
+            filename = f"review_{clone.get('original_filename', 'table')}.docx"
+            ui.download(out.read_bytes(), filename)
+            out.unlink(missing_ok=True)
+            return
+    except Exception as e:
+        log.error("review table export: %s", e)
+    ui.notify("Export failed", type="negative")
 
 
 async def _delete_review(review_id: str, container, project_id, client) -> None:
