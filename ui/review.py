@@ -983,7 +983,7 @@ def page_review_ext(review_id: str):
                         "px-8 py-3 font-black tracking-[.2em] text-[12px]"
                     ).tooltip("Click when you are done reviewing all segments")
                     ui.button(
-                        "Export table",
+                        "Export finished work as bilingual table",
                         icon="grid_on",
                         on_click=lambda: (rm.save_review(clone), _export_review_table(clone)),
                     ).props("unelevated rounded color=teal size=lg").classes(
