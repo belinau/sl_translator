@@ -676,13 +676,6 @@ def page_review_ext(review_id: str):
                 "flat round dense color=positive"
             ).tooltip("Save your name")
 
-            ui.button(
-                "Export table",
-                icon="grid_on",
-                on_click=lambda: (rm.save_review(clone), _export_review_table(clone)),
-            ).props("flat dense color=teal").classes("text-[11px]").tooltip(
-                "Download your review as a bilingual table (DOCX)"
-            )
 
             from ui import settings as ui_settings
             ui_settings.dark_toggle_button(dm)
@@ -989,6 +982,13 @@ def page_review_ext(review_id: str):
                     ).props("unelevated rounded color=positive size=lg").classes(
                         "px-8 py-3 font-black tracking-[.2em] text-[12px]"
                     ).tooltip("Click when you are done reviewing all segments")
+                    ui.button(
+                        "Export table",
+                        icon="grid_on",
+                        on_click=lambda: (rm.save_review(clone), _export_review_table(clone)),
+                    ).props("unelevated rounded color=teal size=lg").classes(
+                        "px-8 py-3 font-black tracking-[.2em] text-[12px]"
+                    ).tooltip("Download your review as a bilingual table (DOCX)")
 
 
 def _save_reviewer_name(clone: dict, input_el, set_save_status=None) -> None:
