@@ -65,3 +65,145 @@ MASKA_TYPOGRAPHY = {
 # use this. The matching profile is seeded into data/publisher_styles.json
 # on first run by translate_core.publisher_styles.load_styles().
 DEFAULT_HOUSE_STYLE = "maska"
+
+
+INVOICE_TEMPLATE_DIR = BASE_DIR / "data" / "invoice_templates"
+CLIENT_DB_PATH = BASE_DIR / "data" / "clients.db"
+# Invoice export/archive folder — override with INVOICE_OUTPUT_DIR env var
+# (absolute path; this is the user's long-term invoicing archive).
+INVOICE_OUTPUT_DIR = pathlib.Path(
+    os.environ.get("INVOICE_OUTPUT_DIR", str(BASE_DIR / "data" / "invoices"))
+).expanduser()
+ESLOG_XSD_PATH = INVOICE_TEMPLATE_DIR / "eSLOG20_INVOIC_v200.xsd"
+
+# Issuer (Urban Belina) — appears on every invoice.
+ISSUER = {
+    "name": "URBAN BELINA – SAMOZAPOSLEN V KULTURI",
+    "profession": (
+        "PREVAJALEC IZ TUJEGA JEZIKA V SLOVENSKI JEZIK IN "
+        "IZ SLOVENSKEGA JEZIKA V TUJ JEZIK,\n"
+        "INTERMEDIJSKI UMETNIK, REŽISER, SCENOGRAF IN KNJIŽEVNIK"
+    ),
+    "address": "Rašiška ulica 1",
+    "postal": "1000",
+    "city": "Ljubljana",
+    "country": "EU-Slovenija",
+    "country_code": "SI",
+    "vat_id": "77397975",
+    "vat_obliged": False,  # normirani stroški — NOT in VAT register, no SI prefix
+    "iban": "SI56 6100 0000 7436 658",
+    "iban_compact": "SI56610000007436658",
+    "bic": "HDELSI22",
+    "bank_name": "Delavska hranilnica, d.d.",
+    "bank_name_xml": "DELAVSKA HRANILNICA D.D. LJUBLJANA",
+    "email": "urban@bel.si",
+    "registration": "5274",
+    "maticna": "2487870000",
+}
+
+# Legal notes — plain invoice + e-račun visualization.
+INVOICE_LEGAL_NOTES = [
+    "Sem zavezanec za plačilo davka od dohodka po 3. odstavku 48. člena ZDoh-2.",
+    "DDV ni obračunan v skladu s 1. odstavkom 94. člena ZDDV-1. "
+    "Številka vpisa v razvid samozaposlenih v kulturi: 5274.",
+    "Poslujem brez žiga.",
+]
+
+# e-SLOG free-text clauses.
+ESLOG_AGM_TEXT = (
+    "Sem zavezanec za plačilo davka od dohodka po 3. odstavku 48. člena ZDoh-2. "
+    "DDV ni obračunan v skladu s 1. odstavkom 94. člena ZDDV-1."
+)
+ESLOG_REG_TEXT = (
+    "Št. vpisa v razvid samozaposlenih v kulturi: 5274 "
+    "Matična št.: 2487870000"
+)
+
+# Service type dropdown (A19 in XLSX template).
+INVOICE_SERVICE_TYPES = [
+    "Prevod",
+    "Prevod urejanje",
+    "Prevod urejanje korektur",
+    "Lektura",
+    "Scenografija",
+    "Video",
+    "Scenarij",
+    "Besedilo",
+    "Prenos avtorskih pravic",
+    "Sodelovanje pri",
+]
+
+# Target languages for rate differentiation.
+# The second part of a lang_pair (e.g. "ENG>SLO" → "SLO") determines the rate.
+INVOICE_TARGET_LANGS = ["SLO", "ENG", "HRV", "SRB", "DE", "FR", "IT"]
+
+# Unit dropdown (B21 in XLSX template).
+# "avtorska pola" = 16 strani × 1800 znakov s presledki = 28.800 znakov.
+INVOICE_UNITS = [
+    "pavšal", "ura", "stran", "beseda", "projekt", "kos", "verz", "znak",
+    "avtorska pola",
+]
+
+# Rate key: "{service_type}:{target_lang}:{unit}".
+# e.g. "Prevod:SLO:stran" = 22 EUR/page for translation into Slovenian.
+# Helper to build/lookup rate keys.
+def rate_key(service_type: str, target_lang: str, unit: str) -> str:
+    """Build a rate lookup key: service_type:target_lang:unit."""
+    return f"{service_type}:{target_lang}:{unit}"
+
+def parse_lang_pair(pair: str) -> str:
+    """Extract the target language from a lang_pair like 'ENG>SLO' → 'SLO'."""
+    if ">" in pair:
+        tgt = pair.split(">")[1].strip()
+        # Handle variants like "ENG>SLO (100 % ujemanje)" → "SLO"
+        return tgt.split()[0] if tgt else "SLO"
+    return "SLO"
+
+# Project lang codes ('en->sl', 'sl->en', ...) → eSLOG target tokens.
+_LANG_CODE_TO_TARGET = {
+    "sl": "SLO", "slo": "SLO",
+    "en": "ENG", "eng": "ENG",
+    "hr": "HRV", "hrv": "HRV",
+    "sr": "SRB", "srp": "SRB", "srb": "SRB",
+    "de": "DE", "fr": "FR", "it": "IT",
+}
+
+def parse_target(pair: str) -> str:
+    """Uppercase target-language token from any pair form
+    ('en->sl' → 'SLO', 'ENG>SLO (100 % ujemanje)' → 'SLO')."""
+    if not pair:
+        return "SLO"
+    tgt = pair.strip().replace("->", ">").split(">")[-1].strip()
+    tgt = tgt.split()[0] if tgt else ""
+    return _LANG_CODE_TO_TARGET.get(tgt.lower(), (tgt.upper() or "SLO"))
+
+# Language pair dropdown (A20/D16 in XLSX template).
+INVOICE_LANG_PAIRS = [
+    "ENG>SLO",
+    "ENG>SLO (100 % ujemanje)",
+    "ENG>SLO (delno ujemanje)",
+    "ENG>SLO (delno ujemanje s pon.)",
+    "ENG>SLO (ponovitve)",
+    "ENG>SLO (brez ujemanja)",
+    "SLO>ENG",
+    "SLO",
+    "HRV>SLO",
+    "SRB>SLO",
+    "HRV>ENG",
+]
+
+# Avtorska pola: 16 strani × 1800 znakov s presledki = 28.800 znakov.
+AUTHORIAL_SHEET_CHARS = 28800
+
+# eSLOG unit-of-measure codes (D_6411 in QTY segment).
+ESLOG_UNIT_CODES = {
+    "stran": "ZP",
+    "kos": "C62",
+    "ura": "HUR",
+    "beseda": "WRD",
+    "projekt": "TST",
+    "verz": "VER",
+    "znak": "CHA",
+    "pavšal": "LS",
+    "avtorska pola": "AH",  # avtorska pola — custom code
+}

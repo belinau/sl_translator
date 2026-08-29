@@ -50,3 +50,9 @@ data/knowledge.db
 # Stray artifacts
 sl
 Feminist, Queer, Crip_ A Mapping of Theoretical Frameworks.md
+data/invoice templates/
+# Invoicing — personal data must never enter the repository
+data/clients.db*
+data/invoices/
+data/invoice_templates/
+data/knowledge.sqlite*
