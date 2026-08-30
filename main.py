@@ -835,7 +835,7 @@ def render_project_list(container: ui.column, client):
                                 issuer=cfg.ISSUER,
                                 line_items=items,
                                 approver=approver,
-                                responsible_person=approver,
+                                responsible_person="",
                                 order_number=_order_no.value or "dogovor",
                                 project_code=_proj_code.value or "/",
                                 legal_notes=cfg.INVOICE_LEGAL_NOTES,
