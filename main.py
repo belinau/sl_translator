@@ -1187,7 +1187,7 @@ def render_project_list(container: ui.column, client):
                             with ui.row().classes("items-center gap-1"):
                                 if _inv_num:
                                     ui.badge(_inv_num, color="positive").classes("text-[7px]").tooltip(
-                                        f"Invoiced — rate locked at {_inv_rate:.2f} EUR/stran, total {_inv_total:.2f} EUR"
+                                        f"Invoiced — rate locked at {_inv_rate or 0:.2f} EUR/stran, total {_inv_total or 0:.2f} EUR"
                                     )
                                 _cb = ui.checkbox("Select", value=False).props(
                                     "dense size=sm"
