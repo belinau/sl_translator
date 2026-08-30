@@ -1172,7 +1172,8 @@ def render_project_list(container: ui.column, client):
                             _inv_rate = None
                             _inv_total = None
                             try:
-                                _all_invs = _client_store.list_invoices()
+                                _inv_store = ClientStore()
+                                _all_invs = _inv_store.list_invoices()
                                 for _inv in _all_invs:
                                     for _li in _inv.get("line_items") or []:
                                         if _li.get("desc", "").startswith(p["filename"]) or p["filename"].startswith(_li.get("desc", "")):
@@ -1184,6 +1185,7 @@ def render_project_list(container: ui.column, client):
                                         break
                             except Exception:
                                 pass
+
                             with ui.row().classes("items-center gap-1"):
                                 if _inv_num:
                                     ui.badge(_inv_num, color="positive").classes("text-[7px]").tooltip(
