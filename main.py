@@ -1187,15 +1187,16 @@ def render_project_list(container: ui.column, client):
                                                 if not name:
                                                     ui.notify("Name is required.", type="warning")
                                                     return
-                                                # Add to the project's person dropdown.
-                                                # NiceGUI's .options attribute is read-only —
-                                                # must use set_options() to propagate to client.
                                                 current_opts = dict(_person_sel.options) if _person_sel.options else {}
                                                 current_opts[name] = name
                                                 _person_sel.set_options(current_opts, value=name)
                                                 _persist_billing(_pid, responsible_person=name)
                                                 p_dlg.close()
                                                 ui.notify(f"Added: {name}", type="positive")
+
+                                            ui.button("Add", icon="add", on_click=_save_person).props(
+                                                "unelevated color=positive"
+                                            )
                                 p_dlg.open()
 
                             _client_sel.on_value_change(_on_card_client_change)
