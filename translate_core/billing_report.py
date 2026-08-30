@@ -34,6 +34,22 @@ def _format_lang_pair(pair: str) -> str:
     return f"{src.strip().upper()} → {tgt.strip().upper()}"
 
 
+_LANG_FULL = {
+    "EN": "angleščina", "SL": "slovenščina", "DE": "nemščina",
+    "FR": "francoščina", "IT": "italijanščina", "HR": "hrvaščina",
+    "SR": "srbščina",
+}
+
+def _format_lang_pair_sl(pair: str) -> str:
+    """'en->sl' → 'angleščina → slovenščina' (Slovenian full names)."""
+    if not pair or "->" not in pair:
+        return pair or "—"
+    src, tgt = pair.split("->", 1)
+    s = src.strip().upper()
+    t = tgt.strip().upper()
+    return f"{_LANG_FULL.get(s, s)} → {_LANG_FULL.get(t, t)}"
+
+
 def _sl_float(val: float) -> str:
     """Format a float with comma decimal separator (Slovenian)."""
     return f"{val:.2f}".replace(".", ",")
@@ -49,6 +65,7 @@ def _prepare_rows(projects: list[dict[str, Any]]) -> list[dict[str, Any]]:
         rows.append({
             "filename": p.get("filename", "Brez naslova"),
             "direction": _format_lang_pair(p.get("lang_pair", "")),
+            "direction_sl": _format_lang_pair_sl(p.get("lang_pair", "")),
             "chars_with": p.get("chars_with", 0),
             "chars_without": p.get("chars_without", 0),
             "pages": pages,
