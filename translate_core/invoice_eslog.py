@@ -553,6 +553,7 @@ def generate_eslog_pdf(data: InvoiceData) -> bytes:
             f"ID za DDV: SI{iss['vat_id']}" if iss.get("vat_obliged")
             else f"Davčna št.: {iss['vat_id']}"
         ),
+        f"Razvid samozaposlenih v kulturi: {iss['registration']}",
     ]
     for line in issuer_lines:
         _text(col_left_x, y, line, sz=8)

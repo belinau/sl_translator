@@ -861,13 +861,13 @@ def render_project_list(container: ui.column, client):
                             pdf_path = xml_path = xlsx_path = None
                             try:
                                 if invoice_type == "plain":
+                                    _xlsx = generate_plain_invoice_xlsx(inv_data)
                                     xlsx_path = str(out_dir / f"Racun_{inv_num}.xlsx")
-                                    (out_dir / f"Racun_{inv_num}.xlsx").write_bytes(
-                                        generate_plain_invoice_xlsx(inv_data))
+                                    (out_dir / f"Racun_{inv_num}.xlsx").write_bytes(_xlsx)
                                     try:
                                         pdf_path = str(out_dir / f"Racun_{inv_num}.pdf")
                                         (out_dir / f"Racun_{inv_num}.pdf").write_bytes(
-                                            generate_plain_invoice_pdf(generate_plain_invoice_xlsx(inv_data)))
+                                            generate_plain_invoice_pdf(_xlsx))
                                     except RuntimeError as ex:
                                         pdf_path = None
                                         ui.notify(f"XLSX archived; PDF skipped ({ex})", type="warning")
@@ -913,7 +913,7 @@ def render_project_list(container: ui.column, client):
                             # Browser downloads for immediate use
                             try:
                                 if invoice_type == "plain":
-                                    ui.download(generate_plain_invoice_xlsx(inv_data),
+                                    ui.download(_xlsx,
                                                 filename=f"Racun_{inv_num}.xlsx")
                                     if pdf_path:
                                         ui.download(Path(pdf_path).read_bytes(),

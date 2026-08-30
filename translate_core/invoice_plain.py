@@ -98,7 +98,7 @@ def generate_plain_invoice_xlsx(data: InvoiceData) -> bytes:
         iss["country"],
         f"Davčna št.: {iss['vat_id']}",
         f"matična številka: {iss['maticna']}",
-        "",
+        f"Razvid samozaposlenih v kulturi: {iss['registration']}",
         f"primarna e-pošta: {iss['email']}",
         "",
     ]
