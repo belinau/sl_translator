@@ -1169,18 +1169,18 @@ def render_project_list(container: ui.column, client):
                             def _on_card_person_change(e, _pid=_pid):
                                 _persist_billing(_pid, responsible_person=e.value or "")
 
-                            def _on_add_person(_pid=_pid):
-                                """Add a new responsible person.
+                            def _on_add_person(_pid=_pid, _csel=_client_sel, _psel=_person_sel, _store=_client_store):
+                                """Add a new responsible person to the selected client.
 
-                                Adds to the CLIENT's person list (so it's reusable across
-                                all future projects for that client) AND selects it for
-                                this project immediately.
+                                Captured by value (default args) to avoid the Python
+                                closure-in-loop bug where all closures would share
+                                the last iteration's _client_sel.
                                 """
-                                _cid = _client_sel.value
+                                _cid = _csel.value
                                 if not _cid:
                                     ui.notify("Select a client first.", type="warning")
                                     return
-                                _rec = _client_store.get_client(_cid)
+                                _rec = _store.get_client(_cid)
                                 if not _rec:
                                     return
 
@@ -1225,10 +1225,10 @@ def render_project_list(container: ui.column, client):
                                                         "rates": {k: str(v) for k, v in _rec.rates.items()},
                                                         "responsible_persons": existing,
                                                     }
-                                                    _client_store.update_client(_cid, _client_data)
+                                                    _store.update_client(_cid, _client_data)
                                                 # 2. Update the dropdown to show all client persons + select new one
                                                 all_persons = {p["name"]: p["name"] for p in existing}
-                                                _person_sel.set_options(all_persons, value=name)
+                                                _psel.set_options(all_persons, value=name)
                                                 # 3. Persist to this project
                                                 _persist_billing(_pid, responsible_person=name)
                                                 p_dlg.close()
