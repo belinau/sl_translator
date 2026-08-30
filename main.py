@@ -1170,15 +1170,25 @@ def render_project_list(container: ui.column, client):
                                 _persist_billing(_pid, responsible_person=e.value or "")
 
                             def _on_add_person(_pid=_pid):
-                                """Inline dialog to add a new responsible person to this project.
+                                """Add a new responsible person.
 
-                                The person is NOT added to the client — it lives per-project
-                                and can differ for every uploaded project.
+                                Adds to the CLIENT's person list (so it's reusable across
+                                all future projects for that client) AND selects it for
+                                this project immediately.
                                 """
+                                _cid = _client_sel.value
+                                if not _cid:
+                                    ui.notify("Select a client first.", type="warning")
+                                    return
+                                _rec = _client_store.get_client(_cid)
+                                if not _rec:
+                                    return
+
                                 with ui.dialog() as p_dlg:
                                     with ui.card().classes("min-w-[360px] p-4 gap-3"):
-                                        ui.label("Add responsible person").classes("text-sm font-bold")
+                                        ui.label(f"Add person to {_rec.name}").classes("text-sm font-bold")
                                         _pn = ui.input("Name").props("outlined dense").classes("w-full")
+                                        _pr = ui.input("Role (optional)").props("outlined dense").classes("w-full")
                                         with ui.row().classes("w-full justify-end gap-2"):
                                             ui.button("Cancel", on_click=lambda: p_dlg.close()).props("flat")
 
@@ -1187,12 +1197,42 @@ def render_project_list(container: ui.column, client):
                                                 if not name:
                                                     ui.notify("Name is required.", type="warning")
                                                     return
-                                                current_opts = dict(_person_sel.options) if _person_sel.options else {}
-                                                current_opts[name] = name
-                                                _person_sel.set_options(current_opts, value=name)
+                                                role = _pr.value.strip()
+                                                # 1. Add to client's person list (persists, reusable)
+                                                existing = list(_rec.responsible_persons)
+                                                if not any(p["name"] == name for p in existing):
+                                                    existing.append({"name": name, "role": role})
+                                                    # Rebuild data dict from current record + new person
+                                                    _client_data = {
+                                                        "name": _rec.name,
+                                                        "address": _rec.address,
+                                                        "postal_code": _rec.postal_code,
+                                                        "city": _rec.city,
+                                                        "country": _rec.country,
+                                                        "country_code": _rec.country_code,
+                                                        "vat_id": _rec.vat_id,
+                                                        "vat_obliged": _rec.vat_obliged,
+                                                        "iban": _rec.iban,
+                                                        "bic": _rec.bic,
+                                                        "bank_name": _rec.bank_name,
+                                                        "maticna": _rec.maticna,
+                                                        "account_holder": _rec.account_holder,
+                                                        "default_order_number": _rec.default_order_number,
+                                                        "default_project_code": _rec.default_project_code,
+                                                        "default_doc_type": _rec.default_doc_type,
+                                                        "default_doc_ref": _rec.default_doc_ref,
+                                                        "use_eracun": _rec.use_eracun,
+                                                        "rates": {k: str(v) for k, v in _rec.rates.items()},
+                                                        "responsible_persons": existing,
+                                                    }
+                                                    _client_store.update_client(_cid, _client_data)
+                                                # 2. Update the dropdown to show all client persons + select new one
+                                                all_persons = {p["name"]: p["name"] for p in existing}
+                                                _person_sel.set_options(all_persons, value=name)
+                                                # 3. Persist to this project
                                                 _persist_billing(_pid, responsible_person=name)
                                                 p_dlg.close()
-                                                ui.notify(f"Added: {name}", type="positive")
+                                                ui.notify(f"Added {name} to {_rec.name} and selected for this project", type="positive")
 
                                             ui.button("Add", icon="add", on_click=_save_person).props(
                                                 "unelevated color=positive"
