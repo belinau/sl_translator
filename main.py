@@ -601,6 +601,9 @@ def render_project_list(container: ui.column, client):
                         with ui.column().classes("flex-1 gap-1"):
                             ui.label("Service to").classes("text-[10px] font-bold uppercase opacity-60")
                             _svc_to = ui.date(value=today.isoformat()).props("outlined dense").classes("w-full")
+                        with ui.column().classes("flex-1 gap-1"):
+                            ui.label("Contract/PO date").classes("text-[10px] font-bold uppercase opacity-60")
+                            _doc_date = ui.date(value=today.isoformat()).props("outlined dense").classes("w-full")
 
                     # ── Order info (prefilled from client defaults) ──
                     with ui.row().classes("w-full gap-4"):
@@ -888,6 +891,8 @@ def render_project_list(container: ui.column, client):
                                 "approver": approver,
                                 "order_number": _order_no.value or "",
                                 "project_code": _proj_code.value or "",
+                                "doc_type": _doc_type.value or "Pogodba",
+                                "doc_date": _doc_date.value or "",
                                 "total": str(inv_data.total),
                                 "pdf_path": pdf_path,
                                 "xml_path": xml_path,
@@ -1134,13 +1139,12 @@ def render_project_list(container: ui.column, client):
                                 [], value=p.get("responsible_person") or None,
                                 label="Responsible",
                             ).props("outlined dense").classes("flex-1 text-[10px]")
-
+                            _add_person_btn = ui.button(icon="person_add").props(
+                                "flat round dense size=sm color=primary"
+                            ).tooltip("Add new responsible person for this project")
 
                             def _persist_billing(_pid, **fields):
                                 _save_billing_fields(_pid, fields)
-
-
-
 
                             def _on_card_client_change(e, _pid=_pid):
                                 _cid = e.value
@@ -1157,8 +1161,41 @@ def render_project_list(container: ui.column, client):
                             def _on_card_person_change(e, _pid=_pid):
                                 _persist_billing(_pid, responsible_person=e.value or "")
 
+                            def _on_add_person(_pid=_pid):
+                                """Inline dialog to add a new responsible person to this project.
+
+                                The person is NOT added to the client — it lives per-project
+                                and can differ for every uploaded project.
+                                """
+                                with ui.dialog() as p_dlg:
+                                    with ui.card().classes("min-w-[360px] p-4 gap-3"):
+                                        ui.label("Add responsible person").classes("text-sm font-bold")
+                                        _pn = ui.input("Name").props("outlined dense").classes("w-full")
+                                        with ui.row().classes("w-full justify-end gap-2"):
+                                            ui.button("Cancel", on_click=lambda: p_dlg.close()).props("flat")
+
+                                            def _save_person():
+                                                name = _pn.value.strip()
+                                                if not name:
+                                                    ui.notify("Name is required.", type="warning")
+                                                    return
+                                                # Add to the project's person dropdown
+                                                current_opts = dict(_person_sel.options) if _person_sel.options else {}
+                                                current_opts[name] = name
+                                                _person_sel.options = current_opts
+                                                _person_sel.value = name
+                                                _persist_billing(_pid, responsible_person=name)
+                                                p_dlg.close()
+                                                ui.notify(f"Added: {name}", type="positive")
+
+                                            ui.button("Add", icon="add", on_click=_save_person).props(
+                                                "unelevated color=positive"
+                                            )
+                                p_dlg.open()
+
                             _client_sel.on_value_change(_on_card_client_change)
                             _person_sel.on_value_change(_on_card_person_change)
+                            _add_person_btn.on("click", lambda _: _on_add_person())
 
                             # Populate persons for pre-assigned client, then a live total
                             _card_rec = _client_store.get_client(p["client_id"]) if p.get("client_id") else None
@@ -1751,6 +1788,8 @@ def page_clients():
 @ui.page("/invoices")
 def page_invoices():
     from translate_core.client_store import ClientStore
+    from datetime import date
+    from decimal import Decimal
 
     apply_colors()
     from ui import settings as ui_settings
@@ -1759,6 +1798,7 @@ def page_invoices():
 
     store = ClientStore()
     out_dir = config.INVOICE_OUTPUT_DIR
+    current_year = date.today().year
 
     with ui.column().classes("w-full min-h-screen"):
         with ui.row().classes(
@@ -1779,13 +1819,79 @@ def page_invoices():
                 ).tooltip("Toggle dark mode")
 
         with ui.column().classes("w-full max-w-5xl mx-auto px-6 py-8 gap-6"):
+            # ── Invoice counter + year report ──
             with ui.row().classes("w-full justify-between items-center"):
                 ui.label("Invoice archive").classes("text-lg font-bold")
                 ui.label(f"Archive folder: {out_dir}").classes(
                     "text-[9px] font-mono opacity-40"
                 )
 
+            with ui.row().classes("w-full gap-4 items-end"):
+                with ui.column().classes("gap-1"):
+                    ui.label("Invoice counter").classes("text-[10px] font-bold uppercase opacity-60")
+                    with ui.row().classes("gap-2 items-center"):
+                        _year_sel = ui.number(
+                            label="Year", value=current_year, min=2020, max=2099,
+                        ).props("outlined dense").classes("w-24")
+                        _counter_val = ui.label("").classes("text-sm font-bold")
+                        _set_start = ui.number(
+                            label="Start from #", value=None, min=1,
+                        ).props("outlined dense").classes("w-32")
+                        ui.button("Set", on_click=lambda: _do_set_counter()).props(
+                            "flat dense no-caps color=primary size=sm"
+                        ).classes("text-[10px]")
+
+                with ui.column().classes("gap-1"):
+                    ui.label("Yearly report").classes("text-[10px] font-bold uppercase opacity-60")
+                    with ui.row().classes("gap-2"):
+                        _report_year = ui.number(
+                            label="Year", value=current_year, min=2020, max=2099,
+                        ).props("outlined dense").classes("w-24")
+                        ui.button("Generate report", on_click=lambda: _gen_report()).props(
+                            "flat dense no-caps color=primary size=sm"
+                        ).classes("text-[10px]")
+
+            def _update_counter_label():
+                yr = int(_year_sel.value or current_year)
+                cur = store.get_invoice_counter(yr)
+                _counter_val.set_text(f"Next: {yr}-{cur + 1:03d}")
+
+            def _do_set_counter():
+                yr = int(_year_sel.value or current_year)
+                start = int(_set_start.value or 1)
+                store.set_invoice_counter(yr, start)
+                ui.notify(f"Counter set: next invoice will be {yr}-{start:03d}", type="positive")
+                _update_counter_label()
+
+            def _gen_report():
+                from translate_core.billing_report import generate_pdf, generate_xlsx
+                yr = int(_report_year.value or current_year)
+                invoices = store.list_invoices(yr)
+                if not invoices:
+                    ui.notify(f"No invoices found for {yr}.", type="warning")
+                    return
+                report_projects = []
+                for inv in invoices:
+                    for li in inv.get("line_items") or []:
+                        report_projects.append({
+                            "filename": li.get("desc", ""),
+                            "lang_pair": li.get("lang_pair", "").replace(">", "->").lower() if ">" in li.get("lang_pair","") else "en->sl",
+                            "chars_with": 0,
+                            "chars_without": 0,
+                            "pages": float(li.get("qty", "0")),
+                            "rate": float(li.get("price", "0")),
+                            "total": float(Decimal(li.get("qty", "0")) * Decimal(li.get("price", "0"))),
+                        })
+                ts = f"{yr}"
+                pdf = generate_pdf(report_projects)
+                xlsx = generate_xlsx(report_projects)
+                ui.download(xlsx, filename=f"invoice_report_{yr}.xlsx")
+                ui.download(pdf, filename=f"invoice_report_{yr}.pdf")
+                ui.notify(f"Yearly report for {yr}: {len(invoices)} invoices, {len(report_projects)} line items", type="positive")
+
             _inv_container = ui.column().classes("w-full gap-3")
+            _update_counter_label()
+            _year_sel.on_value_change(lambda e: _update_counter_label())
 
             def _regenerate_row(inv: dict):
                 """Rebuild PDF (+XML) from stored record into the archive folder."""
@@ -1802,8 +1908,8 @@ def page_invoices():
                         service_type=li.get("service_type", "Prevod"),
                         lang_pair=li.get("lang_pair", "ENG>SLO"),
                         unit=li.get("unit", "stran"),
-                        quantity=__import__("decimal").Decimal(li.get("qty", "0")),
-                        unit_price=__import__("decimal").Decimal(li.get("price", "0")),
+                        quantity=Decimal(li.get("qty", "0")),
+                        unit_price=Decimal(li.get("price", "0")),
                     )
                     for li in inv.get("line_items") or []
                 ]
@@ -1825,9 +1931,42 @@ def page_invoices():
                 out_dir.mkdir(parents=True, exist_ok=True)
                 if inv["invoice_type"] == "eracun":
                     (out_dir / f"Racun_{num}.xml").write_bytes(generate_eslog_xml(data))
+                from translate_core.invoice_plain import generate_plain_invoice_xlsx
+                xlsx = generate_plain_invoice_xlsx(data)
+                (out_dir / f"Racun_{num}.xlsx").write_bytes(xlsx)
                 (out_dir / f"Racun_{num}.pdf").write_bytes(generate_eslog_pdf(data))
-                ui.notify(f"Regenerated into archive: Racun_{num}.pdf", type="positive")
+                ui.notify(f"Regenerated into archive: Racun_{num}", type="positive")
                 _refresh()
+
+            def _delete_row(inv: dict):
+                """Delete an invoice record + optionally its archive files."""
+                with ui.dialog() as dlg:
+                    with ui.card().classes("min-w-[420px]"):
+                        ui.label("Delete invoice?").classes("text-lg font-bold mb-2")
+                        ui.label(
+                            f"Invoice {inv['invoice_number']} will be permanently deleted. "
+                            "Archive files on disk will also be removed."
+                        ).classes("text-sm opacity-70 mb-4")
+                        with ui.row().classes("w-full justify-end gap-2"):
+                            ui.button("Cancel", on_click=lambda: dlg.close()).props("flat")
+                            ui.button("Delete permanently", on_click=lambda: None).props(
+                                "color=negative unelevated"
+                            ).on("click", lambda: None)
+
+                            def _do_delete():
+                                store.delete_invoice(inv["invoice_number"])
+                                for ext in (".pdf", ".xml", ".xlsx"):
+                                    p = out_dir / f"Racun_{inv['invoice_number']}{ext}"
+                                    if p.exists():
+                                        p.unlink()
+                                dlg.close()
+                                ui.notify("Invoice deleted", type="warning")
+                                _refresh()
+
+                            ui.button("Delete permanently", icon="delete", on_click=_do_delete).props(
+                                "color=negative unelevated"
+                            )
+                dlg.open()
 
             def _refresh():
                 _inv_container.clear()
@@ -1848,7 +1987,7 @@ def page_invoices():
                                         ui.badge(type_label, color=(
                                             "blue" if inv["invoice_type"] == "eracun" else "teal"
                                         )).classes("text-[8px]")
-                                    ui.label(f"{cname}").classes("text-[11px] font-medium")
+                                    ui.label(cname).classes("text-[11px] font-medium")
                                     ui.label(
                                         f"Issued {_sl_date_str(inv['issue_date'])}  ·  "
                                         f"Due {_sl_date_str(inv['due_date'])}  ·  "
@@ -1870,15 +2009,15 @@ def page_invoices():
                                     ui.button(
                                         icon="download",
                                         on_click=lambda _, i=inv: _download_row(i),
-                                    ).props("flat round dense size=sm color=primary").tooltip(
-                                        "Download files"
-                                    )
+                                    ).props("flat round dense size=sm color=primary").tooltip("Download files")
                                     ui.button(
                                         icon="replay",
                                         on_click=lambda _, i=inv: _regenerate_row(i),
-                                    ).props("flat round dense size=sm color=primary").tooltip(
-                                        "Regenerate into archive folder"
-                                    )
+                                    ).props("flat round dense size=sm color=primary").tooltip("Regenerate into archive")
+                                    ui.button(
+                                        icon="delete",
+                                        on_click=lambda _, i=inv: _delete_row(i),
+                                    ).props("flat round dense size=sm color=negative").tooltip("Delete invoice")
 
             def _sl_date_str(iso: str) -> str:
                 try:
@@ -1902,7 +2041,6 @@ def page_invoices():
                     _download_file(inv["xlsx_path"], f"Racun_{num}.xlsx")
 
             _refresh()
-
 
 # Register the translation workspace page. Importing ui.workspace is a
 # side-effect import: it runs the @ui.page("/translate/{project_id}") decorator.

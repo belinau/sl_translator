@@ -347,6 +347,35 @@ class ClientStore:
             conn.close()
         return f"{year}-{num:03d}"
 
+    def set_invoice_counter(self, year: int, start_number: int) -> None:
+        """Set the invoice counter for *year* to a specific start number.
+
+        Use when mid-year adoption means some invoices are already issued.
+        The next call to ``next_invoice_number(year)`` will return
+        ``{year}-{start_number:03d}``.
+        """
+        conn = self._connect()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            conn.execute(
+                "INSERT OR REPLACE INTO invoice_counter (year, last_number) VALUES (?, ?)",
+                (year, start_number - 1),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def get_invoice_counter(self, year: int) -> int:
+        """Return the current counter value (last issued number) for *year*."""
+        conn = self._connect()
+        try:
+            row = conn.execute(
+                "SELECT last_number FROM invoice_counter WHERE year = ?", (year,)
+            ).fetchone()
+            return (row["last_number"] if row else 0)
+        finally:
+            conn.close()
+
     # ── invoice record ─────────────────────────────────────────────
 
     def record_invoice(self, data: dict[str, Any]) -> None:
@@ -385,6 +414,18 @@ class ClientStore:
                 ),
             )
             conn.commit()
+        finally:
+            conn.close()
+
+    def delete_invoice(self, invoice_number: str) -> bool:
+        """Delete an invoice record (and optionally its files)."""
+        conn = self._connect()
+        try:
+            cur = conn.execute(
+                "DELETE FROM invoices WHERE invoice_number = ?", (invoice_number,)
+            )
+            conn.commit()
+            return cur.rowcount > 0
         finally:
             conn.close()
 

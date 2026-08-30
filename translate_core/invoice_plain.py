@@ -52,14 +52,8 @@ def generate_plain_invoice_xlsx(data: InvoiceData) -> bytes:
     ws["E4"] = data.issue_date
     ws["E5"] = data.due_date
     ws["E6"] = f"{data.service_date_from:%d.%m.%Y} - {data.service_date_to:%d.%m.%Y}"
-
-    # ── Client block (A11-D14) ──
-    ws["A12"] = data.client.name
-    ws["A13"] = data.client.address
-    ws["A14"] = f"{data.client.postal_code} {data.client.city}"
-    ws["D11"] = data.client.vat_id
-    ws["D12"] = data.order_number
-    ws["D13"] = data.project_code
+    ws["E4"].number_format = "DD.MM.YYYY"   # render unambiguously in any locale
+    ws["E5"].number_format = "DD.MM.YYYY"
 
     # ── Compute shift and move the bottom block BEFORE writing items,
     #    so line-item rows can never overwrite the legal notes. ──
@@ -88,11 +82,18 @@ def generate_plain_invoice_xlsx(data: InvoiceData) -> bytes:
         row += 1
 
     # ── Total block at its (possibly shifted) position ──
+    # First clear the ORIGINAL total row (D29/E29) if shifting.
+    if offset > 0:
+        ws.cell(row=_TOTAL_ROW, column=4).value = None
+        ws.cell(row=_TOTAL_ROW, column=5).value = None
     ws.cell(row=total_row, column=4, value="ZA PLAČILO")
-    ws.cell(row=total_row, column=5, value=f"=SUM(E{_FIRST_DATA_ROW}:E{last_data_row})")
-    ws.cell(row=total_row, column=5).number_format = "[$€-2] #,##0.00"
-    ws.cell(row=total_row, column=4).font = Font(name="Avenir Roman", size=10)
-    ws.cell(row=total_row, column=5).font = Font(name="Avenir Roman", size=14)
+
+    # ── Trim: template has 998 styled rows → LibreOffice prints 3 blank pages.
+    #    Find last row with content, set print_area, delete excess rows. ──
+    last_content = max(total_row, _LEGAL_NOTE_ROWS[-1] + offset, _SIGN_ROW + offset)
+    ws.print_area = f"A1:G{last_content + 2}"
+    if ws.max_row > last_content + 10:
+        ws.delete_rows(last_content + 4, ws.max_row - last_content - 3)
 
     buf = io.BytesIO()
     wb.save(buf)
