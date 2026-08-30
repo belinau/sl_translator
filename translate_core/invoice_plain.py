@@ -191,19 +191,18 @@ def generate_plain_invoice_xlsx(data: InvoiceData) -> bytes:
         ws.cell(row=row, column=2, value=item.unit).font = _body_font
         ws.cell(row=row, column=2).border = _thin_border
         ws.cell(row=row, column=2).alignment = _center
-        ws.cell(row=row, column=3, value=float(item.quantity)).font = _body_font
+        _qty_str = f"{float(item.quantity):.2f}".replace(".", ",")
+        _price_str = f"{float(item.unit_price):.4f}".replace(".", ",") if item.unit in ("znak", "avtorska pola") else f"{float(item.unit_price):.2f}".replace(".", ",")
+        _total_str = f"{float(item.line_total):.2f}".replace(".", ",") + " EUR"
+        ws.cell(row=row, column=3, value=_qty_str).font = _body_font
         ws.cell(row=row, column=3).border = _thin_border
         ws.cell(row=row, column=3).alignment = _align_right
-        ws.cell(row=row, column=4, value=float(item.unit_price)).font = _body_font
+        ws.cell(row=row, column=4, value=_price_str).font = _body_font
         ws.cell(row=row, column=4).border = _thin_border
         ws.cell(row=row, column=4).alignment = _align_right
-        ws.cell(row=row, column=5, value=float(item.line_total)).font = _body_font_bold
+        ws.cell(row=row, column=5, value=_total_str).font = _body_font_bold
         ws.cell(row=row, column=5).border = _thin_border
         ws.cell(row=row, column=5).alignment = _align_right
-        ws.cell(row=row, column=3).number_format = "0.00"
-        _price_fmt = "0.0000" if item.unit in ("znak", "avtorska pola") else "0.00"
-        ws.cell(row=row, column=4).number_format = _price_fmt
-        ws.cell(row=row, column=5).number_format = _EUR_FMT
         _est_lines = max(1, (len(desc) + 20) // 21)
         ws.row_dimensions[row].height = max(30.0, _est_lines * 15.0 + 5.0)
         row += 1
@@ -217,11 +216,9 @@ def generate_plain_invoice_xlsx(data: InvoiceData) -> bytes:
         ws.cell(row=total_row, column=col).border = _green_border
     ws.cell(row=total_row, column=4, value="ZA PLAČILO").font = _total_font
     ws.cell(row=total_row, column=4).alignment = _align_right
-    ws.cell(row=total_row, column=5, value=float(data.total))
+    ws.cell(row=total_row, column=5, value=f"{float(data.total):.2f}".replace(".", ",") + " EUR")
     ws.cell(row=total_row, column=5).font = _total_font
     ws.cell(row=total_row, column=5).alignment = _align_right
-    ws.cell(row=total_row, column=5).number_format = _EUR_FMT
-    ws.row_dimensions[total_row].height = 27.0
     row = total_row + 1
 
     # ── Legal notes ──
@@ -275,6 +272,7 @@ def generate_plain_invoice_pdf(xlsx_bytes: bytes) -> bytes:
                 ["soffice", "--headless", "--convert-to", "pdf",
                  "--outdir", td, str(xlsx_path)],
                 capture_output=True, timeout=60, check=True,
+                env={**__import__("os").environ, "LC_ALL": "sl_SI.UTF-8"},
             )
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             log.error("LibreOffice conversion failed: %s", e)
