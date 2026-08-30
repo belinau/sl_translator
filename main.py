@@ -1160,16 +1160,38 @@ def render_project_list(container: ui.column, client):
                     with ui.card().props("flat bordered").classes(
                         "shrink-0 p-3 rounded-2xl w-72 flex flex-col gap-2 justify-center overflow-hidden"
                     ):
-                        # Selection checkbox + BILLING header
+                        # Selection checkbox + BILLING header + invoice badge
                         with ui.row().classes("w-full items-center justify-between"):
                             ui.label("BILLING").classes(
                                 "text-[8px] font-black uppercase tracking-[0.2em] opacity-50"
                             )
                             _pid = p["id"]
                             billing_state[_pid] = {"project": p, "rate": p.get("billing_rate"), "_checked": False}
-                            _cb = ui.checkbox("Select", value=False).props(
-                                "dense size=sm"
-                            ).classes("text-[9px]")
+                            # Check if this project has been invoiced
+                            _inv_num = None
+                            _inv_rate = None
+                            _inv_total = None
+                            try:
+                                _all_invs = _client_store.list_invoices()
+                                for _inv in _all_invs:
+                                    for _li in _inv.get("line_items") or []:
+                                        if _li.get("desc", "").startswith(p["filename"]) or p["filename"].startswith(_li.get("desc", "")):
+                                            _inv_num = _inv["invoice_number"]
+                                            _inv_rate = float(_li.get("price", "0"))
+                                            _inv_total = float(Decimal(str(_li.get("qty", "0"))) * Decimal(str(_li.get("price", "0"))))
+                                            break
+                                    if _inv_num:
+                                        break
+                            except Exception:
+                                pass
+                            with ui.row().classes("items-center gap-1"):
+                                if _inv_num:
+                                    ui.badge(_inv_num, color="positive").classes("text-[7px]").tooltip(
+                                        f"Invoiced — rate locked at {_inv_rate:.2f} EUR/stran, total {_inv_total:.2f} EUR"
+                                    )
+                                _cb = ui.checkbox("Select", value=False).props(
+                                    "dense size=sm"
+                                ).classes("text-[9px]")
 
                             def _on_check(e, _pid=_pid):
                                 billing_state[_pid]["_checked"] = bool(e.value)
@@ -1329,11 +1351,18 @@ def render_project_list(container: ui.column, client):
                                 _persons[_saved_person] = _saved_person
                             if _persons:
                                 _person_sel.set_options(_persons, value=_saved_person or None)
-                            _rate = _card_rec.get_rate("Prevod", p["lang_pair"], "stran") if _card_rec else None
-                            _total = round(p["pages"] * float(_rate), 2) if _rate is not None else 0.0
+                            # Use invoiced rate if project was already invoiced (rate lock)
+                            if _inv_num and _inv_rate is not None:
+                                _rate = _inv_rate
+                                _total = _inv_total if _inv_total else round(p["pages"] * float(_rate), 2)
+                                _rate_label = "total (invoiced)"
+                            else:
+                                _rate = _card_rec.get_rate("Prevod", p["lang_pair"], "stran") if _card_rec else None
+                                _total = round(p["pages"] * float(_rate), 2) if _rate is not None else 0.0
+                                _rate_label = "total (client rate)"
 
                         with ui.row().classes("w-full items-baseline justify-between"):
-                            ui.label("total (client rate)").classes(
+                            ui.label(_rate_label).classes(
                                 "text-[8px] uppercase tracking-wider opacity-50"
                             )
                             ui.label(f"{_total:,.2f} EUR").classes(
