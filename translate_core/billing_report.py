@@ -162,6 +162,8 @@ def generate_pdf(projects: list[dict[str, Any]]) -> bytes:
                    color=(0.133, 0.773, 0.369), fill=(0.133, 0.773, 0.369))
     headers = ["Dokument", "Oseba", "Smer", "Znaki s presl.",
                "Znaki brez", "Strani", "Cena/stran", "Skupaj (EUR)"]
+    for i, h in enumerate(headers):
+        _text(col_x[i] + 3, y + 13, h, sz=8, color=(1, 1, 1))
     y += header_h
 
     # ── Rows ──
@@ -218,6 +220,7 @@ def generate_pdf(projects: list[dict[str, Any]]) -> bytes:
         _text_right(col_x[7] + col_widths[7] - 3, y + 12, total_str, sz=9,
                     color=(0.133, 0.773, 0.369))
 
+        y += needed_h
     # ── Grand total ──
     y += 6
     page.draw_line(fitz.Point(margin_l, y), fitz.Point(table_right, y),
