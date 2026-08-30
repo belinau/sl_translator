@@ -97,9 +97,9 @@ def generate_plain_invoice_xlsx(data: InvoiceData) -> bytes:
         f"{iss['postal']} {iss['city']}",
         iss["country"],
         f"Davčna št.: {iss['vat_id']}",
-        f"matična številka: {iss['maticna']}",
+        f"Matična številka: {iss['maticna']}",
         f"Razvid samozaposlenih v kulturi: {iss['registration']}",
-        f"primarna e-pošta: {iss['email']}",
+        f"Primarna e-pošta: {iss['email']}",
         "",
     ]
     _meta_rows = [
@@ -107,7 +107,7 @@ def generate_plain_invoice_xlsx(data: InvoiceData) -> bytes:
         (4, "V Ljubljani, dne:", f"{data.issue_date:%d.%m.%Y}", False),
         (5, "Rok plačila:", f"{data.due_date:%d.%m.%Y}", False),
         (6, "Datum opravljene storitve:",
-         f"{data.service_date_from:%d.%m.%Y} - {data.service_date_to:%d.%m.%Y}", False),
+         f"{data.service_date_from:%d.%m.%Y}–{data.service_date_to:%d.%m.%Y}", False),
         (7, "Številka poslovnega TRR:", None, True),
         (8, None, iss["iban"], True),
         (9, "BIC/SWIFT:", iss["bic"], False),
