@@ -357,8 +357,8 @@ def _build_line_item(
     imd = _sub(sg26, "S_IMD")
     _sub(imd, "D_7077", "F")
     c273 = _comp(imd, "C_C273")
-    desc = f"{item.service_type} {item.lang_pair} {item.description}".strip()
-    _sub(c273, "D_7008", desc[:512])
+    desc = f"{item.service_type} {item.lang_pair} {item.full_description}".strip()[:512]
+    _sub(c273, "D_7008", desc)
 
     # Quantity
     qty = _sub(sg26, "S_QTY")
@@ -611,9 +611,29 @@ def generate_eslog_pdf(data: InvoiceData) -> bytes:
 
     # ── Line items table ──
     headers = ["#", "Opis postavke", "Kol.", "EM", "Cena za kos",
-               "Cena * kol.", "% DDV", "Znesek DDV", "Osnova za DDV", "Znesek z DDV"]
-    col_x = [margin, margin + 12, margin + 250, margin + 285, margin + 310,
-             margin + 350, margin + 390, margin + 415, margin + 440, margin + 470]
+               "Cena * kol.", "% DDV", "Znes. DDV", "Osn. za DDV", "Znes. z DDV"]
+    #               #    Opis     Kol.  EM   Cena  C*kol %DDV  ZDDV  OsnDDV ZzDDV
+    col_x = [margin, margin + 12, margin + 212, margin + 242, margin + 264,
+             margin + 306, margin + 344, margin + 396,
+             margin + 436, margin + 474]
+    desc_max_w = col_x[2] - col_x[1] - 4  # description column width
+
+    def _wrap(text: str, max_w: int, sz: int = 6) -> list[str]:
+        """Wrap text to fit within max_w pixels at given font size."""
+        words = text.split(" ")
+        lines: list[str] = []
+        cur = ""
+        for w in words:
+            test = f"{cur} {w}".strip()
+            if _font_obj.text_length(test, fontsize=sz) <= max_w:
+                cur = test
+            else:
+                if cur:
+                    lines.append(cur)
+                cur = w
+        if cur:
+            lines.append(cur)
+        return lines or [""]
 
     hdr_y = y
     page.draw_rect(fitz.Rect(margin, hdr_y, 555, hdr_y + 14),
@@ -622,17 +642,29 @@ def generate_eslog_pdf(data: InvoiceData) -> bytes:
         _text(col_x[i], hdr_y + 10, h, sz=6, color=(0.1, 0.1, 0.1))
     y = hdr_y + 14
 
-    row_h = 16
+    line_h = 9
     for idx, item in enumerate(data.line_items, 1):
+        # Build full description (with person in brackets)
+        full_desc = f"{item.service_type} {item.lang_pair} {item.full_description}".strip()
+        desc_lines = _wrap(full_desc, desc_max_w, sz=6)
+        row_h = max(16, len(desc_lines) * line_h + 6)
+
         if y + row_h > 760:
             _new_page()
 
         bg = (0.96, 0.96, 0.96) if idx % 2 == 0 else (1, 1, 1)
         page.draw_rect(fitz.Rect(margin, y, 555, y + row_h), color=None, fill=bg)
 
+        # Description (wrapped, no truncation)
+        dy = y + 8
+        for dl in desc_lines:
+            _text(col_x[1], dy, dl, sz=6)
+            dy += line_h
+
+        # Other columns (vertically centered)
+        vy = y + max(8, (row_h - 6) // 2)
         vals = [
             str(idx),
-            f"{item.service_type} {item.lang_pair} {item.description}"[:70],
             _sl_qty(item.quantity),
             config.ESLOG_UNIT_CODES.get(item.unit, "ZP"),
             _sl_price(item.unit_price),
@@ -642,8 +674,9 @@ def generate_eslog_pdf(data: InvoiceData) -> bytes:
             "0,00",
             _sl_amount(item.line_total),
         ]
-        for i, v in enumerate(vals):
-            _text(col_x[i], y + 10, v, sz=6)
+        _text(col_x[0], vy, vals[0], sz=6)
+        for i in range(1, len(vals)):
+            _text(col_x[i + 1], vy, vals[i], sz=6)
         y += row_h
 
     y += 8
@@ -715,5 +748,9 @@ def generate_eslog_pdf(data: InvoiceData) -> bytes:
     y += 9
     _text(col_left_x, y, "Datum dokumenta", sz=7, color=(0.3, 0.3, 0.3))
     _text(col_left_x + 200, y, _sl_date(data.service_date_from), sz=7)
+    y += 16
+
+    # ── Generation footer ──
+    _text(col_left_x, y, config.GENERATED_BY, sz=6, color=(0.5, 0.5, 0.5))
 
     return doc.tobytes()

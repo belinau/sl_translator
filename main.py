@@ -677,7 +677,7 @@ def render_project_list(container: ui.column, client):
                                 _desc_val = proj["filename"] if proj else ""
                                 if with_person:
                                     _desc_val = f"{_desc_val} ({with_person})"
-                                _descw = ui.input(value=_desc_val[:72]).props("outlined dense").classes("flex-[3] text-[10px]")
+                                _descw = ui.input(value=_desc_val).props("outlined dense").classes("flex-[3] text-[10px]")
                                 _rem = ui.button(icon="delete").props("flat round dense size=sm color=negative")
                                 _tl = ui.label("€0.00").classes("text-[10px] font-bold tabular-nums text-positive w-16 text-right")
                                 lw = {
@@ -813,6 +813,7 @@ def render_project_list(container: ui.column, client):
                                         unit=lw["unit"].value or "stran",
                                         quantity=q,
                                         unit_price=pr,
+                                        responsible_person=lw.get("responsible_person", ""),
                                     ))
                             if not items:
                                 ui.notify("No valid line items — check quantities and prices.", type="warning")
@@ -903,7 +904,8 @@ def render_project_list(container: ui.column, client):
                                     {"desc": li.description, "qty": str(li.quantity),
                                      "price": str(li.unit_price), "unit": li.unit,
                                      "service_type": li.service_type,
-                                     "lang_pair": li.lang_pair}
+                                     "lang_pair": li.lang_pair,
+                                     "responsible_person": li.responsible_person}
                                     for li in items
                                 ],
                             })
@@ -1940,6 +1942,7 @@ def page_invoices():
                             "pages": float(li.get("qty", "0")),
                             "rate": float(li.get("price", "0")),
                             "total": float(Decimal(li.get("qty", "0")) * Decimal(li.get("price", "0"))),
+                            "responsible_person": li.get("responsible_person", ""),
                         })
                 ts = f"{yr}"
                 pdf = generate_pdf(report_projects)
@@ -1969,6 +1972,7 @@ def page_invoices():
                         unit=li.get("unit", "stran"),
                         quantity=Decimal(li.get("qty", "0")),
                         unit_price=Decimal(li.get("price", "0")),
+                        responsible_person=li.get("responsible_person", ""),
                     )
                     for li in inv.get("line_items") or []
                 ]

@@ -109,6 +109,9 @@ INVOICE_LEGAL_NOTES = [
     "Poslujem brez žiga.",
 ]
 
+# Footer text — appears on all generated documents.
+GENERATED_BY = "Generirano z Bel Translation Suite"
+
 # e-SLOG free-text clauses.
 ESLOG_AGM_TEXT = (
     "Sem zavezanec za plačilo davka od dohodka po 3. odstavku 48. člena ZDoh-2. "

@@ -77,7 +77,9 @@ def generate_plain_invoice_xlsx(data: InvoiceData) -> bytes:
         ws.cell(row=row, column=4, value=float(item.unit_price))
         ws.cell(row=row, column=5, value=f"=C{row}*D{row}")
         ws.cell(row=row, column=3).number_format = "0.00"
-        ws.cell(row=row, column=4).number_format = "0.00"
+        # Price format: 4 decimals for per-character units, 2 for others
+        _price_fmt = "0.0000" if item.unit in ("znak", "avtorska pola") else "0.00"
+        ws.cell(row=row, column=4).number_format = _price_fmt
         ws.cell(row=row, column=5).number_format = "[$€-2] #,##0.00"
         row += 1
 
@@ -92,8 +94,13 @@ def generate_plain_invoice_xlsx(data: InvoiceData) -> bytes:
     #    Find last row with content, set print_area, delete excess rows. ──
     last_content = max(total_row, _LEGAL_NOTE_ROWS[-1] + offset, _SIGN_ROW + offset)
     ws.print_area = f"A1:G{last_content + 2}"
-    if ws.max_row > last_content + 10:
-        ws.delete_rows(last_content + 4, ws.max_row - last_content - 3)
+    # Add "Generirano z Bel Translation Suite" after the signature row
+    _footer_row = _SIGN_ROW + offset + 2
+    ws.cell(row=_footer_row, column=1, value=config.GENERATED_BY).font = Font(
+        name="Calibri", size=7, italic=True, color="999999"
+    )
+    if ws.max_row > _footer_row + 2:
+        ws.delete_rows(_footer_row + 1, ws.max_row - _footer_row)
 
     buf = io.BytesIO()
     wb.save(buf)

@@ -70,6 +70,14 @@ class InvoiceLineItem:
     unit: str               # "stran", "ura", "pavšal", …
     quantity: Decimal
     unit_price: Decimal      # per-unit rate in EUR
+    responsible_person: str = ""  # surname in brackets at end of description
+
+    @property
+    def full_description(self) -> str:
+        """Description with responsible person in brackets (if present)."""
+        if self.responsible_person:
+            return f"{self.description} ({self.responsible_person})"
+        return self.description
 
     @property
     def line_total(self) -> Decimal:
