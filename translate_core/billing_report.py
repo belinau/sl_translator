@@ -141,7 +141,7 @@ def generate_pdf(projects: list[dict[str, Any]]) -> bytes:
         y = margin_t
 
     # ── Issuer header block ──
-    _text(margin_l, y, iss["name"], sz=14, color=(0.07, 0.49, 0.37))
+    _text(margin_l, y, iss["name"], sz=14, color=(0.133, 0.773, 0.369))
     y += 16
     for line in iss["profession"].split("\n"):
         _text(margin_l, y, line.strip(), sz=8, color=(0.4, 0.4, 0.4))
@@ -159,7 +159,7 @@ def generate_pdf(projects: list[dict[str, Any]]) -> bytes:
     # ── Table header ──
     header_h = 20
     page.draw_rect(fitz.Rect(margin_l, y, table_right, y + header_h),
-                   color=(0.07, 0.49, 0.37), fill=(0.07, 0.49, 0.37))
+                   color=(0.133, 0.773, 0.369), fill=(0.133, 0.773, 0.369))
     headers = ["Dokument", "Oseba", "Smer", "Znaki s presl.",
                "Znaki brez", "Strani", "Cena/stran", "Skupaj (EUR)"]
     y += header_h
@@ -186,12 +186,12 @@ def generate_pdf(projects: list[dict[str, Any]]) -> bytes:
         if y + needed_h > 790:  # page break
             _new_page()
             page.draw_rect(fitz.Rect(margin_l, y, table_right, y + header_h),
-                           color=(0.07, 0.49, 0.37), fill=(0.07, 0.49, 0.37))
+                           color=(0.133, 0.773, 0.369), fill=(0.133, 0.773, 0.369))
             for i, h in enumerate(headers):
                 _text(col_x[i] + 3, y + 13, h, sz=8, color=(1, 1, 1))
             y += header_h
 
-        bg = (0.93, 0.96, 0.94) if idx % 2 == 0 else (1, 1, 1)
+        bg = (0.820, 0.980, 0.898) if idx % 2 == 0 else (1, 1, 1)
         page.draw_rect(fitz.Rect(margin_l, y, table_right, y + needed_h),
                        color=None, fill=bg)
 
@@ -216,12 +216,12 @@ def generate_pdf(projects: list[dict[str, Any]]) -> bytes:
 
         total_str = f"{_sl_float(r['total'])} EUR"
         _text_right(col_x[7] + col_widths[7] - 3, y + 12, total_str, sz=9,
-                    color=(0.07, 0.49, 0.37))
+                    color=(0.133, 0.773, 0.369))
 
     # ── Grand total ──
     y += 6
     page.draw_line(fitz.Point(margin_l, y), fitz.Point(table_right, y),
-                   color=(0.07, 0.49, 0.37), width=1.5)
+                   color=(0.133, 0.773, 0.369), width=1.5)
     y += 16
 
     grand_pages = sum(r["pages"] for r in rows)
@@ -233,7 +233,7 @@ def generate_pdf(projects: list[dict[str, Any]]) -> bytes:
 
     gt_str = f"{_sl_float(grand_total)} EUR"
     _text_right(col_x[7] + col_widths[7] - 3, y, gt_str, sz=14,
-                color=(0.07, 0.49, 0.37))
+                color=(0.133, 0.773, 0.369))
 
     # ── Footer notes ──
     y += 30
