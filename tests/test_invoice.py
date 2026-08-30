@@ -212,9 +212,10 @@ def test_plain_invoice_xlsx_basic(invoice_data):
     assert "31.07.2026" in ws["E6"].value
     # Line item: service type "Prevod" should be in column A
     assert ws["A19"].value == "Prevod"
-    # Formula in E column
-    e_cells = [c for c in ["E21", "E24", "E27"] if ws[c].value]
-    assert any("=" in str(ws[c].value) for c in e_cells)
+    # Line totals in E column (computed values, not formulas)
+    e_cells = [c for c in ["E21", "E24", "E27"] if ws[c].value is not None]
+    assert all(isinstance(ws[c].value, (int, float)) for c in e_cells)
+    assert any(ws[c].value > 0 for c in e_cells)
 
 
 # ── eSLOG XML tests ────────────────────────────────────────────────

@@ -75,36 +75,35 @@ def generate_plain_invoice_xlsx(data: InvoiceData) -> bytes:
         f"primarna e-pošta: {iss['email']}",
         "",
     ]
-    _right_labels = [
-        ("Račun št.:", data.invoice_number),
-        ("V Ljubljani, dne:", data.issue_date),
-        ("Rok plačila:", data.due_date),
-        ("Datum opravljene storitve:",
-         f"{data.service_date_from:%d.%m.%Y} - {data.service_date_to:%d.%m.%Y}"),
-        ("Številka poslovnega TRR:", iss["iban"]),
-        ("BIC/SWIFT:", iss["bic"]),
-        ("Ime banke:", iss["bank_name"]),
-        ("", ""),
+    # Right side: (row, label_or_None, value_or_None, merge_DE)
+    _right = [
+        (3, "Račun št.:", data.invoice_number, False),
+        (4, "V Ljubljani, dne:", f"{data.issue_date:%d.%m.%Y}", False),
+        (5, "Rok plačila:", f"{data.due_date:%d.%m.%Y}", False),
+        (6, "Datum opravljene storitve:",
+         f"{data.service_date_from:%d.%m.%Y} - {data.service_date_to:%d.%m.%Y}", False),
+        (7, "Številka poslovnega TRR:", None, True),  # label only, merged
+        (8, None, iss["iban"], True),                  # IBAN value, merged
+        (9, "BIC/SWIFT:", iss["bic"], False),
+        (10, "Ime banke:", iss["bank_name"], False),
     ]
-    for i in range(8):
-        rr = 3 + i
-        ws.row_dimensions[rr].height = 18.0 if i not in (4, 7) else 23.25
+    for i, (rr, label, val, merge) in enumerate(_right):
+        ws.row_dimensions[rr].height = 23.25 if i in (4, 5) else 18.0
         # Left column
         if _left_lines[i]:
             ws.cell(row=rr, column=1, value=_left_lines[i]).font = Font(name=_FONT, size=10)
-        # Right label (D) + value (E) — always separate, never merge meta rows
-        label, val = _right_labels[i]
-        if label:
-            ws.cell(row=rr, column=4, value=label).font = Font(name=_FONT, size=9)
-        if val is not None and val != "":
-            cell = ws.cell(row=rr, column=5, value=val)
-            cell.font = Font(name=_FONT, size=10)
-            if hasattr(val, "strftime"):
-                cell.number_format = _DATE_FMT
-    # Merge only IBAN rows (7-8) where the value spans D:E
-    ws.merge_cells("D7:E7")
-    ws.merge_cells("D8:E8")
-
+        if merge:
+            ws.merge_cells(start_row=rr, start_column=4, end_row=rr, end_column=5)
+            # For merged cells, write to D (column 4) — the top-left
+            if label:
+                ws.cell(row=rr, column=4, value=label).font = Font(name=_FONT, size=9)
+            if val:
+                ws.cell(row=rr, column=4, value=val).font = Font(name=_FONT, size=10)
+        else:
+            if label:
+                ws.cell(row=rr, column=4, value=label).font = Font(name=_FONT, size=9)
+            if val is not None and val != "":
+                ws.cell(row=rr, column=5, value=val).font = Font(name=_FONT, size=10)
     # ── Rows 11-14: Client (Naročnik) block ──
     if c:
         ws.cell(row=11, column=1, value="Naročnik:").font = Font(name=_FONT, size=12)
@@ -162,8 +161,7 @@ def generate_plain_invoice_xlsx(data: InvoiceData) -> bytes:
         ws.cell(row=row, column=2, value=item.unit).font = Font(name=_FONT, size=10)
         ws.cell(row=row, column=3, value=float(item.quantity)).font = Font(name=_FONT, size=10)
         ws.cell(row=row, column=4, value=float(item.unit_price)).font = Font(name=_FONT, size=10)
-        ws.cell(row=row, column=5, value=f"=C{row}*D{row}").font = Font(name=_FONT, size=10)
-        # Number formats
+        ws.cell(row=row, column=5, value=float(item.line_total)).font = Font(name=_FONT, size=10)
         ws.cell(row=row, column=3).number_format = "0.00"
         _price_fmt = "0.0000" if item.unit in ("znak", "avtorska pola") else "0.00"
         ws.cell(row=row, column=4).number_format = _price_fmt
@@ -179,7 +177,7 @@ def generate_plain_invoice_xlsx(data: InvoiceData) -> bytes:
     ws.row_dimensions[row - 1].height = 8.0
     total_row = row
     ws.cell(row=total_row, column=4, value="ZA PLAČILO").font = Font(name=_FONT, size=12, bold=True)
-    ws.cell(row=total_row, column=5, value=f"=SUM(E{first_value_row}:E{last_value_row})")
+    ws.cell(row=total_row, column=5, value=float(data.total))
     ws.cell(row=total_row, column=5).font = Font(name=_FONT, size=12, bold=True)
     ws.cell(row=total_row, column=5).number_format = _EUR_FMT
     ws.row_dimensions[total_row].height = 27.0
