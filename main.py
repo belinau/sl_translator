@@ -1241,7 +1241,7 @@ def render_project_list(container: ui.column, client):
 
                             _client_sel.on_value_change(_on_card_client_change)
                             _person_sel.on_value_change(_on_card_person_change)
-                            _add_person_btn.on("click", lambda _: _on_add_person())
+                            _add_person_btn.on("click", lambda _, fn=_on_add_person: fn())
 
                             # Populate persons: always include the project's saved
                             # responsible_person (even if no client, or the person was
