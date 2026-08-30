@@ -2055,10 +2055,18 @@ def page_invoices():
                 out_dir.mkdir(parents=True, exist_ok=True)
                 if inv["invoice_type"] == "eracun":
                     (out_dir / f"Racun_{num}.xml").write_bytes(generate_eslog_xml(data))
-                from translate_core.invoice_plain import generate_plain_invoice_xlsx
-                xlsx = generate_plain_invoice_xlsx(data)
-                (out_dir / f"Racun_{num}.xlsx").write_bytes(xlsx)
-                (out_dir / f"Racun_{num}.pdf").write_bytes(generate_eslog_pdf(data))
+                    (out_dir / f"Racun_{num}.pdf").write_bytes(generate_eslog_pdf(data))
+                else:
+                    from translate_core.invoice_plain import (
+                        generate_plain_invoice_xlsx, generate_plain_invoice_pdf,
+                    )
+                    xlsx = generate_plain_invoice_xlsx(data)
+                    (out_dir / f"Racun_{num}.xlsx").write_bytes(xlsx)
+                    try:
+                        (out_dir / f"Racun_{num}.pdf").write_bytes(
+                            generate_plain_invoice_pdf(xlsx))
+                    except RuntimeError:
+                        pass
                 ui.notify(f"Regenerated into archive: Racun_{num}", type="positive")
                 _refresh()
 
@@ -2120,14 +2128,18 @@ def page_invoices():
 
                         # ── Date editors ──
                         with ui.row().classes("w-full gap-2 flex-wrap"):
-                            _e_issue = ui.date(label="Issue date",
-                                value=_date.fromisoformat(inv["issue_date"][:10]).isoformat())
-                            _e_due = ui.date(label="Due date",
-                                value=_date.fromisoformat(inv["due_date"][:10]).isoformat())
-                            _e_svc_f = ui.date(label="Service from",
-                                value=_date.fromisoformat((inv.get("service_date_from") or inv["issue_date"])[:10]).isoformat())
-                            _e_svc_t = ui.date(label="Service to",
-                                value=_date.fromisoformat((inv.get("service_date_to") or inv["issue_date"])[:10]).isoformat())
+                            with ui.column().classes("flex-1 gap-1"):
+                                ui.label("Issue date").classes("text-[10px] font-bold uppercase opacity-60")
+                                _e_issue = ui.date(value=_date.fromisoformat(inv["issue_date"][:10]).isoformat()).props("outlined dense").classes("w-full")
+                            with ui.column().classes("flex-1 gap-1"):
+                                ui.label("Due date").classes("text-[10px] font-bold uppercase opacity-60")
+                                _e_due = ui.date(value=_date.fromisoformat(inv["due_date"][:10]).isoformat()).props("outlined dense").classes("w-full")
+                            with ui.column().classes("flex-1 gap-1"):
+                                ui.label("Service from").classes("text-[10px] font-bold uppercase opacity-60")
+                                _e_svc_f = ui.date(value=_date.fromisoformat((inv.get("service_date_from") or inv["issue_date"])[:10]).isoformat()).props("outlined dense").classes("w-full")
+                            with ui.column().classes("flex-1 gap-1"):
+                                ui.label("Service to").classes("text-[10px] font-bold uppercase opacity-60")
+                                _e_svc_t = ui.date(value=_date.fromisoformat((inv.get("service_date_to") or inv["issue_date"])[:10]).isoformat()).props("outlined dense").classes("w-full")
 
                         # ── Order info ──
                         with ui.row().classes("w-full gap-2"):
