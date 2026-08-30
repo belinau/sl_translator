@@ -464,7 +464,12 @@ def render_project_list(container: ui.column, client):
                 _other_btn = ui.button("Other", icon="post_add").props(
                     "flat dense no-caps color=primary size=sm"
                 ).classes("text-[10px]").tooltip(
-                    "Invoice for other services — no project documents needed; add line items manually"
+                    "Printed invoice for other services — add line items manually"
+                )
+                _other_eracun_btn = ui.button("Other e-Račun", icon="post_add").props(
+                    "flat dense no-caps color=blue size=sm"
+                ).classes("text-[10px]").tooltip(
+                    "e-Račun for other services — add line items manually"
                 )
 
         def _get_selected_projects() -> list:
@@ -634,12 +639,13 @@ def render_project_list(container: ui.column, client):
                                 return o
                         return opts[0]
 
-
                     def _recalc_qty(lw):
                         unit = lw["unit"].value or "stran"
                         cw = lw["chars_with"]
                         cwo = lw["chars_without"]
-                        if unit == "stran":
+                        if unit == "pavšal":
+                            lw["qty"].value = 1.0
+                        elif unit == "stran":
                             lw["qty"].value = round(cwo / 1500, 2)
                         elif unit == "znak":
                             lw["qty"].value = float(cwo)
@@ -741,6 +747,60 @@ def render_project_list(container: ui.column, client):
                         ui.button("Add line item", icon="add", on_click=_add_empty_row).props(
                             "flat dense no-caps color=primary size=sm"
                         ).classes("text-[10px]")
+
+                        def _add_predplacilo():
+                            """Add a 'Že prejeto predplačilo' deduction line
+                            referencing a past invoice for the selected client."""
+                            cid = _client_sel.value
+                            if not cid:
+                                ui.notify("Select a client first.", type="warning")
+                                return
+                            past = [i for i in store.list_invoices()
+                                    if i.get("client_id") == cid
+                                    and i.get("invoice_number", "") != ""]
+                            if not past:
+                                ui.notify("No past invoices for this client.", type="warning")
+                                return
+                            with ui.dialog() as pdlg:
+                                with ui.card().classes("min-w-[420px] p-4 gap-3"):
+                                    ui.label("Select invoice to deduct as predplačilo").classes(
+                                        "text-sm font-bold")
+                                    opts = {i["invoice_number"]: (
+                                        f"{i['invoice_number']} — {i['total']} EUR"
+                                    ) for i in past}
+                                    _inv_sel = ui.select(opts, value=None).props("outlined dense").classes("w-full")
+
+                                    def _do_add():
+                                        num = _inv_sel.value
+                                        if not num:
+                                            return
+                                        prev = next(i for i in past if i["invoice_number"] == num)
+                                        amt = float(Decimal(prev.get("total", "0")))
+                                        lw = _make_line_row(None)
+                                        lw["svc"].value = "Predplačilo"
+                                        lw["pair"].value = "ENG>SLO"
+                                        lw["unit"].value = "pavšal"
+                                        lw["qty"].value = 1.0
+                                        lw["price"].value = -amt
+                                        lw["desc"].value = f"Že prejeto predplačilo (Račun {num})"
+                                        lw["responsible_person"] = ""
+                                        _line_widgets.append(lw)
+                                        _reg_del(lw)
+                                        _upd_line(None, lw)
+                                        pdlg.close()
+                                        ui.notify(f"Added predplačilo: -{amt} EUR", type="positive")
+
+                                    with ui.row().classes("w-full justify-end gap-2"):
+                                        ui.button("Cancel", on_click=lambda: pdlg.close()).props("flat")
+                                        ui.button("Add deduction", icon="remove", on_click=_do_add).props(
+                                            "unelevated color=negative")
+                            pdlg.open()
+
+                        ui.button("Add predplačilo", icon="remove", on_click=_add_predplacilo).props(
+                            "flat dense no-caps color=warning size=sm"
+                        ).classes("text-[10px]").tooltip(
+                            "Add a deduction line for an advance already received"
+                        )
 
                     with ui.row().classes("w-full justify-end items-baseline gap-2"):
                         ui.label("Total").classes("text-[10px] uppercase opacity-50")
@@ -944,6 +1004,7 @@ def render_project_list(container: ui.column, client):
         _racun_btn.on("click", lambda: _open_invoice_dialog("plain"))
         _eracun_btn.on("click", lambda: _open_invoice_dialog("eracun"))
         _other_btn.on("click", lambda: _open_invoice_dialog("plain", allow_empty=True))
+        _other_eracun_btn.on("click", lambda: _open_invoice_dialog("eracun", allow_empty=True))
 
         with ui.element("div").classes("w-full flex flex-col gap-4"):
             for p in projects:
@@ -2031,6 +2092,217 @@ def page_invoices():
                             )
                 dlg.open()
 
+            def _edit_invoice(inv: dict):
+                """Open an edit dialog for an existing invoice — modify line items,
+                dates, approver, then save & regenerate."""
+                from decimal import Decimal
+                from datetime import date as _date
+                import config as cfg
+                from translate_core.invoice_models import InvoiceData, InvoiceLineItem
+                from translate_core.invoice_eslog import (
+                    generate_eslog_xml, generate_eslog_pdf, validate_eslog_xml,
+                )
+                from translate_core.invoice_plain import (
+                    generate_plain_invoice_xlsx, generate_plain_invoice_pdf,
+                )
+
+                rec = store.get_client(inv["client_id"])
+                if not rec:
+                    ui.notify("Client no longer exists.", type="warning")
+                    return
+
+                stored_items = inv.get("line_items") or []
+
+                with ui.dialog().props("persistent") as _edlg:
+                    with ui.card().classes("min-w-[720px] max-w-[900px] p-6 gap-4"):
+                        ui.label(f"Edit invoice {inv['invoice_number']}").classes("text-lg font-bold")
+                        ui.label(f"Client: {rec.name}").classes("text-xs opacity-50")
+
+                        # ── Date editors ──
+                        with ui.row().classes("w-full gap-2 flex-wrap"):
+                            _e_issue = ui.date(label="Issue date",
+                                value=_date.fromisoformat(inv["issue_date"][:10]).isoformat())
+                            _e_due = ui.date(label="Due date",
+                                value=_date.fromisoformat(inv["due_date"][:10]).isoformat())
+                            _e_svc_f = ui.date(label="Service from",
+                                value=_date.fromisoformat((inv.get("service_date_from") or inv["issue_date"])[:10]).isoformat())
+                            _e_svc_t = ui.date(label="Service to",
+                                value=_date.fromisoformat((inv.get("service_date_to") or inv["issue_date"])[:10]).isoformat())
+
+                        # ── Order info ──
+                        with ui.row().classes("w-full gap-2"):
+                            _e_order = ui.input("Order no.", value=inv.get("order_number") or "dogovor").props("outlined dense").classes("flex-1 text-[10px]")
+                            _e_proj = ui.input("Project code", value=inv.get("project_code") or "/").props("outlined dense").classes("flex-1 text-[10px]")
+                            persons = {p["name"]: p["name"] for p in rec.responsible_persons}
+                            _e_appr = ui.select(persons or {}, value=inv.get("approver") or None,
+                                label="Approver").props("outlined dense").classes("flex-1 text-[10px]")
+
+                        # ── Line items editor ──
+                        ui.label("Line items").classes("text-xs font-bold uppercase opacity-60 mt-2")
+                        _e_lines: list[dict] = []
+                        _e_container = ui.column().classes("w-full gap-1")
+
+                        def _e_upd_line(lw):
+                            q = float(lw["qty"].value or 0)
+                            pr = float(lw["price"].value or 0)
+                            lw["total_lbl"].set_text(f"€{q * pr:,.2f}")
+                            _e_grand.set_text(f"€{sum(float(l['qty'].value or 0) * float(l['price'].value or 0) for l in _e_lines):,.2f}")
+
+                        def _e_make_row(li: dict | None = None):
+                            with _e_container:
+                                with ui.row().classes("w-full gap-1 items-center") as row_el:
+                                    _s = ui.select(cfg.INVOICE_SERVICE_TYPES,
+                                        value=(li or {}).get("service_type", "Prevod")).props("outlined dense").classes("flex-[2] text-[10px]")
+                                    _p = ui.select(cfg.INVOICE_LANG_PAIRS,
+                                        value=(li or {}).get("lang_pair", "ENG>SLO")).props("outlined dense").classes("flex-[2] text-[10px]")
+                                    _u = ui.select(cfg.INVOICE_UNITS,
+                                        value=(li or {}).get("unit", "stran")).props("outlined dense").classes("w-28 text-[10px]")
+                                    _q = ui.number(value=float(Decimal(str((li or {}).get("qty", "1")))),
+                                        min=0, step=0.01, format="%.2f").props("outlined dense").classes("w-20 text-[10px]")
+                                    _pr = ui.number(value=float(Decimal(str((li or {}).get("price", "0")))),
+                                        min=0, step=0.01, format="%.4f").props("outlined dense").classes("w-20 text-[10px]")
+                                    _d = ui.input(value=(li or {}).get("desc", "")).props("outlined dense").classes("flex-[3] text-[10px]")
+                                    _rm = ui.button(icon="delete").props("flat round dense size=sm color=negative")
+                                    _tl = ui.label("€0.00").classes("text-[10px] font-bold tabular-nums text-positive w-16 text-right")
+                                    lw = {"svc": _s, "pair": _p, "unit": _u, "qty": _q,
+                                          "price": _pr, "desc": _d, "total_lbl": _tl,
+                                          "responsible_person": (li or {}).get("responsible_person", ""),
+                                          "__rem": _rm, "__row": row_el}
+                                    _q.on_value_change(lambda e, l=lw: _e_upd_line(l))
+                                    _pr.on_value_change(lambda e, l=lw: _e_upd_line(l))
+                                    def _del(l=lw):
+                                        if l in _e_lines:
+                                            _e_lines.remove(l)
+                                        try: l["__row"].delete()
+                                        except: pass
+                                        _e_upd_line(l)
+                                    _rm.on_click(lambda: _del())
+                                    _e_upd_line(lw)
+                            return lw
+
+                        for li in stored_items:
+                            _e_lines.append(_e_make_row(li))
+
+                        def _e_add_row():
+                            lw = _e_make_row(None)
+                            _e_lines.append(lw)
+
+                        with ui.row().classes("w-full justify-between items-center"):
+                            ui.button("Add line item", icon="add", on_click=_e_add_row).props(
+                                "flat dense no-caps color=primary size=sm").classes("text-[10px]")
+                            with ui.row().classes("items-baseline gap-2"):
+                                ui.label("Total").classes("text-[10px] uppercase opacity-50")
+                                _e_grand = ui.label("€0.00").classes("text-base font-black tabular-nums text-positive")
+
+                        # Initial total
+                        _e_upd_line(_e_lines[0]) if _e_lines else None
+
+                        # ── Save & Regenerate ──
+                        with ui.row().classes("w-full justify-end gap-2 mt-4"):
+                            ui.button("Cancel", on_click=lambda: _edlg.close()).props("flat color=grey")
+
+                            def _e_save():
+                                items = []
+                                for lw in _e_lines:
+                                    q = Decimal(str(lw["qty"].value or 0))
+                                    pr = Decimal(str(lw["price"].value or 0))
+                                    if q != 0 or pr != 0:
+                                        items.append(InvoiceLineItem(
+                                            description=lw["desc"].value or "",
+                                            service_type=lw["svc"].value or "Prevod",
+                                            lang_pair=lw["pair"].value or "ENG>SLO",
+                                            unit=lw["unit"].value or "stran",
+                                            quantity=q,
+                                            unit_price=pr,
+                                            responsible_person=lw.get("responsible_person", ""),
+                                        ))
+                                if not items:
+                                    ui.notify("No valid line items.", type="warning")
+                                    return
+
+                                issue_d = _date.fromisoformat(_e_issue.value)
+                                due_d = _date.fromisoformat(_e_due.value)
+                                svc_f = _date.fromisoformat(_e_svc_f.value)
+                                svc_t = _date.fromisoformat(_e_svc_t.value)
+                                approver = _e_appr.value or ""
+                                num = inv["invoice_number"]
+
+                                inv_data = InvoiceData(
+                                    invoice_number=num,
+                                    issue_date=issue_d,
+                                    due_date=due_d,
+                                    service_date_from=svc_f,
+                                    service_date_to=svc_t,
+                                    client=rec,
+                                    issuer=config.ISSUER,
+                                    line_items=items,
+                                    approver=approver,
+                                    order_number=_e_order.value or "dogovor",
+                                    project_code=_e_proj.value or "/",
+                                    legal_notes=config.INVOICE_LEGAL_NOTES,
+                                )
+
+                                # Regenerate files
+                                out_dir.mkdir(parents=True, exist_ok=True)
+                                xlsx_path = xml_path = pdf_path = None
+                                if inv["invoice_type"] == "eracun":
+                                    xml_bytes = generate_eslog_xml(inv_data)
+                                    ok, err = validate_eslog_xml(xml_bytes)
+                                    if not ok:
+                                        ui.notify(f"eSLOG validation failed: {err[:300]}", type="negative")
+                                        return
+                                    xml_path = str(out_dir / f"Racun_{num}.xml")
+                                    (out_dir / f"Racun_{num}.xml").write_bytes(xml_bytes)
+                                    pdf_path = str(out_dir / f"Racun_{num}.pdf")
+                                    (out_dir / f"Racun_{num}.pdf").write_bytes(generate_eslog_pdf(inv_data))
+                                else:
+                                    xlsx = generate_plain_invoice_xlsx(inv_data)
+                                    xlsx_path = str(out_dir / f"Racun_{num}.xlsx")
+                                    (out_dir / f"Racun_{num}.xlsx").write_bytes(xlsx)
+                                    try:
+                                        pdf_path = str(out_dir / f"Racun_{num}.pdf")
+                                        (out_dir / f"Racun_{num}.pdf").write_bytes(
+                                            generate_plain_invoice_pdf(xlsx))
+                                    except RuntimeError:
+                                        pdf_path = None
+
+                                # Update stored record
+                                store.delete_invoice(num)
+                                store.record_invoice({
+                                    "invoice_number": num,
+                                    "issue_date": issue_d.isoformat(),
+                                    "due_date": due_d.isoformat(),
+                                    "service_date_from": svc_f.isoformat(),
+                                    "service_date_to": svc_t.isoformat(),
+                                    "invoice_type": inv["invoice_type"],
+                                    "client_id": inv["client_id"],
+                                    "responsible_person": approver,
+                                    "approver": approver,
+                                    "order_number": _e_order.value or "",
+                                    "project_code": _e_proj.value or "",
+                                    "doc_type": inv.get("doc_type", "Pogodba"),
+                                    "doc_date": inv.get("doc_date", ""),
+                                    "total": str(inv_data.total),
+                                    "pdf_path": pdf_path,
+                                    "xml_path": xml_path,
+                                    "xlsx_path": xlsx_path,
+                                    "line_items": [
+                                        {"desc": li.description, "qty": str(li.quantity),
+                                         "price": str(li.unit_price), "unit": li.unit,
+                                         "service_type": li.service_type,
+                                         "lang_pair": li.lang_pair,
+                                         "responsible_person": li.responsible_person}
+                                        for li in items
+                                    ],
+                                })
+
+                                _edlg.close()
+                                ui.notify(f"Invoice {num} updated and regenerated", type="positive")
+                                _refresh()
+
+                            ui.button("Save & Regenerate", icon="save", on_click=_e_save).props(
+                                "unelevated color=positive")
+                _edlg.open()
             def _refresh():
                 _inv_container.clear()
                 invoices = store.list_invoices()
@@ -2073,6 +2345,10 @@ def page_invoices():
                                         icon="download",
                                         on_click=lambda _, i=inv: _download_row(i),
                                     ).props("flat round dense size=sm color=primary").tooltip("Download files")
+                                    ui.button(
+                                        icon="edit",
+                                        on_click=lambda _, i=inv: _edit_invoice(i),
+                                    ).props("flat round dense size=sm color=primary").tooltip("Edit invoice")
                                     ui.button(
                                         icon="replay",
                                         on_click=lambda _, i=inv: _regenerate_row(i),
