@@ -1138,7 +1138,7 @@ def render_project_list(container: ui.column, client):
                                 label="Client",
                             ).props("outlined dense").classes("flex-1 text-[10px]")
                             _person_sel = ui.select(
-                                [], value=p.get("responsible_person") or None,
+                                [], value=None,
                                 label="Responsible",
                             ).props("outlined dense").classes("flex-1 text-[10px]")
                             _add_person_btn = ui.button(icon="person_add").props(
