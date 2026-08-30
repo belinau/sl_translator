@@ -2120,237 +2120,224 @@ def page_invoices():
                     return
 
                 stored_items = inv.get("line_items") or []
+                _e_lines: list[dict] = []
 
                 with ui.dialog().props("persistent") as _edlg:
-                    with ui.card().style(
-                        "min-width: 720px; max-width: 900px; padding: 1.5rem; "
-                        "display: flex; flex-direction: column; max-height: 90vh;"
-                    ):
-                        # ── Header ──
+                    with ui.card().classes("min-w-[720px] max-w-[900px] p-6 gap-4"):
                         ui.label(f"Edit invoice {inv['invoice_number']}").classes("text-lg font-bold")
                         ui.label(f"Client: {rec.name}").classes("text-xs opacity-50")
 
-                        # ── Scrollable content ──
-                        with ui.scroll_area().style("flex: 1; overflow-y: auto; min-height: 0;"):
-                            with ui.column().style("gap: 1rem; padding: 0.5rem 0;"):
-                                # ── Date editors ──
-                                with ui.row().style("width: 100%; gap: 0.5rem; flex-wrap: wrap;"):
-                                    with ui.column().style("flex: 1; gap: 0.25rem; min-width: 120px;"):
-                                        ui.label("Issue date").classes("text-[10px] font-bold uppercase opacity-60")
-                                        _e_issue = ui.date(
-                                            value=_date.fromisoformat(inv["issue_date"][:10]).isoformat()
-                                        ).props("outlined dense").classes("w-full")
-                                    with ui.column().style("flex: 1; gap: 0.25rem; min-width: 120px;"):
-                                        ui.label("Due date").classes("text-[10px] font-bold uppercase opacity-60")
-                                        _e_due = ui.date(
-                                            value=_date.fromisoformat(inv["due_date"][:10]).isoformat()
-                                        ).props("outlined dense").classes("w-full")
-                                    with ui.column().style("flex: 1; gap: 0.25rem; min-width: 120px;"):
-                                        ui.label("Service from").classes("text-[10px] font-bold uppercase opacity-60")
-                                        _e_svc_f = ui.date(
-                                            value=_date.fromisoformat(
-                                                (inv.get("service_date_from") or inv["issue_date"])[:10]
-                                            ).isoformat()
-                                        ).props("outlined dense").classes("w-full")
-                                    with ui.column().style("flex: 1; gap: 0.25rem; min-width: 120px;"):
-                                        ui.label("Service to").classes("text-[10px] font-bold uppercase opacity-60")
-                                        _e_svc_t = ui.date(
-                                            value=_date.fromisoformat(
-                                                (inv.get("service_date_to") or inv["issue_date"])[:10]
-                                            ).isoformat()
-                                        ).props("outlined dense").classes("w-full")
+                        # ── Date editors ──
+                        with ui.row().classes("w-full gap-2 flex-wrap"):
+                            with ui.column().classes("flex-1 gap-1"):
+                                ui.label("Issue date").classes("text-[10px] font-bold uppercase opacity-60")
+                                _e_issue = ui.date(
+                                    value=_date.fromisoformat(inv["issue_date"][:10]).isoformat()
+                                ).props("outlined dense").classes("w-full")
+                            with ui.column().classes("flex-1 gap-1"):
+                                ui.label("Due date").classes("text-[10px] font-bold uppercase opacity-60")
+                                _e_due = ui.date(
+                                    value=_date.fromisoformat(inv["due_date"][:10]).isoformat()
+                                ).props("outlined dense").classes("w-full")
+                            with ui.column().classes("flex-1 gap-1"):
+                                ui.label("Service from").classes("text-[10px] font-bold uppercase opacity-60")
+                                _e_svc_f = ui.date(
+                                    value=_date.fromisoformat(
+                                        (inv.get("service_date_from") or inv["issue_date"])[:10]
+                                    ).isoformat()
+                                ).props("outlined dense").classes("w-full")
+                            with ui.column().classes("flex-1 gap-1"):
+                                ui.label("Service to").classes("text-[10px] font-bold uppercase opacity-60")
+                                _e_svc_t = ui.date(
+                                    value=_date.fromisoformat(
+                                        (inv.get("service_date_to") or inv["issue_date"])[:10]
+                                    ).isoformat()
+                                ).props("outlined dense").classes("w-full")
 
-                                # ── Order info ──
-                                with ui.row().style("width: 100%; gap: 0.5rem;"):
-                                    _e_order = ui.input("Order no.", value=inv.get("order_number") or "dogovor").props("outlined dense").classes("flex-1 text-[10px]")
-                                    _e_proj = ui.input("Project code", value=inv.get("project_code") or "/").props("outlined dense").classes("flex-1 text-[10px]")
-                                    persons = {p["name"]: p["name"] for p in rec.responsible_persons}
-                                    _e_appr = ui.select(
-                                        persons or {}, value=inv.get("approver") or None,
-                                        label="Approver",
-                                    ).props("outlined dense").classes("flex-1 text-[10px]")
+                        # ── Order info ──
+                        with ui.row().classes("w-full gap-2"):
+                            _e_order = ui.input("Order no.", value=inv.get("order_number") or "dogovor").props("outlined dense").classes("flex-1 text-[10px]")
+                            _e_proj = ui.input("Project code", value=inv.get("project_code") or "/").props("outlined dense").classes("flex-1 text-[10px]")
+                            persons = {p["name"]: p["name"] for p in rec.responsible_persons}
+                            _e_appr = ui.select(
+                                persons or {}, value=inv.get("approver") or None,
+                            ).props("outlined dense").classes("flex-1 text-[10px]")
+                            ui.label("Approver").classes("text-[10px] opacity-50")
 
-                                # ── Grand total (created BEFORE line items) ──
-                                with ui.row().style("width: 100%; justify-content: space-between; align-items: center;"):
-                                    ui.button("Add line item", icon="add", on_click=lambda: _e_add_row()).props(
-                                        "flat dense no-caps color=primary size=sm"
-                                    ).classes("text-[10px]")
-                                    with ui.row().style("align-items: baseline; gap: 0.5rem;"):
-                                        ui.label("Total").classes("text-[10px] uppercase opacity-50")
-                                        _e_grand = ui.label("0,00 EUR").classes(
-                                            "text-base font-black tabular-nums text-positive"
-                                        )
+                        # ── Grand total (created BEFORE line items) ──
+                        _e_grand = ui.label("0,00 EUR").classes("text-base font-black tabular-nums text-positive")
 
-                                # ── Line items editor ──
-                                ui.label("Line items").classes("text-xs font-bold uppercase opacity-60")
-                                _e_lines: list[dict] = []
-                                _e_container = ui.column().style("width: 100%; gap: 0.25rem;")
+                        # ── Line items ──
+                        ui.label("Line items").classes("text-xs font-bold uppercase opacity-60")
+                        _e_container = ui.column().classes("w-full gap-1")
 
-                                def _e_recalc_total():
-                                    total = sum(
-                                        float(l["qty"].value or 0) * float(l["price"].value or 0)
-                                        for l in _e_lines
-                                    )
-                                    _e_grand.set_text(f"{total:,.2f} EUR")
+                        def _e_recalc_total():
+                            total = sum(
+                                float(l["qty"].value or 0) * float(l["price"].value or 0)
+                                for l in _e_lines
+                            )
+                            _e_grand.set_text(f"{total:,.2f} EUR")
 
-                                def _e_upd_line(lw):
-                                    q = float(lw["qty"].value or 0)
-                                    pr = float(lw["price"].value or 0)
-                                    lw["total_lbl"].set_text(f"{q * pr:,.2f} EUR")
-                                    _e_recalc_total()
+                        def _e_upd_line(lw):
+                            q = float(lw["qty"].value or 0)
+                            pr = float(lw["price"].value or 0)
+                            lw["total_lbl"].set_text(f"{q * pr:,.2f} EUR")
+                            _e_recalc_total()
 
-                                def _e_make_row(li: dict | None = None):
-                                    with _e_container:
-                                        with ui.row().style("width: 100%; gap: 0.25rem; align-items: center;") as row_el:
-                                            _s = ui.select(cfg.INVOICE_SERVICE_TYPES,
-                                                value=(li or {}).get("service_type", "Prevod")).props("outlined dense").classes("flex-[2] text-[10px]")
-                                            _p = ui.select(cfg.INVOICE_LANG_PAIRS,
-                                                value=(li or {}).get("lang_pair", "ENG>SLO")).props("outlined dense").classes("flex-[2] text-[10px]")
-                                            _u = ui.select(cfg.INVOICE_UNITS,
-                                                value=(li or {}).get("unit", "stran")).props("outlined dense").classes("w-28 text-[10px]")
-                                            _q = ui.number(value=float(Decimal(str((li or {}).get("qty", "1")))),
-                                                min=0, step=0.01, format="%.2f").props("outlined dense").classes("w-20 text-[10px]")
-                                            _pr = ui.number(value=float(Decimal(str((li or {}).get("price", "0")))),
-                                                min=0, step=0.01, format="%.4f").props("outlined dense").classes("w-20 text-[10px]")
-                                            _d = ui.input(value=(li or {}).get("desc", "")).props("outlined dense").classes("flex-[3] text-[10px]")
-                                            _rm = ui.button(icon="delete").props("flat round dense size=sm color=negative")
-                                            _tl = ui.label("0,00 EUR").classes("text-[10px] font-bold tabular-nums text-positive w-16 text-right")
-                                            lw = {"svc": _s, "pair": _p, "unit": _u, "qty": _q,
-                                                  "price": _pr, "desc": _d, "total_lbl": _tl,
-                                                  "responsible_person": (li or {}).get("responsible_person", ""),
-                                                  "__rem": _rm, "__row": row_el}
-                                            _q.on_value_change(lambda e, l=lw: _e_upd_line(l))
-                                            _pr.on_value_change(lambda e, l=lw: _e_upd_line(l))
+                        def _e_make_row(li: dict | None = None):
+                            with _e_container:
+                                with ui.row().classes("w-full gap-1 items-center") as row_el:
+                                    _s = ui.select(cfg.INVOICE_SERVICE_TYPES,
+                                        value=(li or {}).get("service_type", "Prevod")).props("outlined dense").classes("flex-[2] text-[10px]")
+                                    _p = ui.select(cfg.INVOICE_LANG_PAIRS,
+                                        value=(li or {}).get("lang_pair", "ENG>SLO")).props("outlined dense").classes("flex-[2] text-[10px]")
+                                    _u = ui.select(cfg.INVOICE_UNITS,
+                                        value=(li or {}).get("unit", "stran")).props("outlined dense").classes("w-28 text-[10px]")
+                                    _q = ui.number(value=float(Decimal(str((li or {}).get("qty", "1")))),
+                                        min=0, step=0.01, format="%.2f").props("outlined dense").classes("w-20 text-[10px]")
+                                    _pr = ui.number(value=float(Decimal(str((li or {}).get("price", "0")))),
+                                        min=0, step=0.01, format="%.4f").props("outlined dense").classes("w-20 text-[10px]")
+                                    _d = ui.input(value=(li or {}).get("desc", "")).props("outlined dense").classes("flex-[3] text-[10px]")
+                                    _rm = ui.button(icon="delete").props("flat round dense size=sm color=negative")
+                                    _tl = ui.label("0,00 EUR").classes("text-[10px] font-bold tabular-nums text-positive w-16 text-right")
+                                    lw = {"svc": _s, "pair": _p, "unit": _u, "qty": _q,
+                                          "price": _pr, "desc": _d, "total_lbl": _tl,
+                                          "responsible_person": (li or {}).get("responsible_person", ""),
+                                          "__rem": _rm, "__row": row_el}
+                                    _q.on_value_change(lambda e, l=lw: _e_upd_line(l))
+                                    _pr.on_value_change(lambda e, l=lw: _e_upd_line(l))
 
-                                            def _del(l=lw):
-                                                if l in _e_lines:
-                                                    _e_lines.remove(l)
-                                                try:
-                                                    l["__row"].delete()
-                                                except Exception:
-                                                    pass
-                                                _e_recalc_total()
-                                            _rm.on_click(lambda: _del())
-                                    _e_upd_line(lw)
-                                    return lw
-
-                                def _e_add_row():
-                                    lw = _e_make_row(None)
-                                    _e_lines.append(lw)
-
-                                # Populate with stored items
-                                for li in stored_items:
-                                    _e_lines.append(_e_make_row(li))
-
-                        # ── Sticky bottom action bar ──
-                        with ui.element("div").style(
-                            "position: sticky; bottom: 0; padding: 1rem 0 0 0; "
-                            "border-top: 1px solid #eee; margin-top: 0.5rem;"
-                        ):
-                            with ui.row().style("width: 100%; justify-content: flex-end; gap: 0.5rem;"):
-                                ui.button("Cancel", on_click=lambda: _edlg.close()).props("flat color=grey")
-
-                                def _e_save():
-                                    items = []
-                                    for lw in _e_lines:
-                                        q = Decimal(str(lw["qty"].value or 0))
-                                        pr = Decimal(str(lw["price"].value or 0))
-                                        if q != 0 or pr != 0:
-                                            items.append(InvoiceLineItem(
-                                                description=lw["desc"].value or "",
-                                                service_type=lw["svc"].value or "Prevod",
-                                                lang_pair=lw["pair"].value or "ENG>SLO",
-                                                unit=lw["unit"].value or "stran",
-                                                quantity=q,
-                                                unit_price=pr,
-                                                responsible_person=lw.get("responsible_person", ""),
-                                            ))
-                                    if not items:
-                                        ui.notify("No valid line items.", type="warning")
-                                        return
-
-                                    issue_d = _date.fromisoformat(_e_issue.value)
-                                    due_d = _date.fromisoformat(_e_due.value)
-                                    svc_f = _date.fromisoformat(_e_svc_f.value)
-                                    svc_t = _date.fromisoformat(_e_svc_t.value)
-                                    approver = _e_appr.value or ""
-                                    num = inv["invoice_number"]
-
-                                    inv_data = InvoiceData(
-                                        invoice_number=num,
-                                        issue_date=issue_d,
-                                        due_date=due_d,
-                                        service_date_from=svc_f,
-                                        service_date_to=svc_t,
-                                        client=rec,
-                                        issuer=config.ISSUER,
-                                        line_items=items,
-                                        approver=approver,
-                                        order_number=_e_order.value or "dogovor",
-                                        project_code=_e_proj.value or "/",
-                                        legal_notes=config.INVOICE_LEGAL_NOTES,
-                                    )
-
-                                    # Regenerate files
-                                    out_dir.mkdir(parents=True, exist_ok=True)
-                                    xlsx_path = xml_path = pdf_path = None
-                                    if inv["invoice_type"] == "eracun":
-                                        xml_bytes = generate_eslog_xml(inv_data)
-                                        ok, err = validate_eslog_xml(xml_bytes)
-                                        if not ok:
-                                            ui.notify(f"eSLOG validation failed: {err[:300]}", type="negative")
-                                            return
-                                        xml_path = str(out_dir / f"Racun_{num}.xml")
-                                        (out_dir / f"Racun_{num}.xml").write_bytes(xml_bytes)
-                                        pdf_path = str(out_dir / f"Racun_{num}.pdf")
-                                        (out_dir / f"Racun_{num}.pdf").write_bytes(generate_eslog_pdf(inv_data))
-                                    else:
-                                        xlsx = generate_plain_invoice_xlsx(inv_data)
-                                        xlsx_path = str(out_dir / f"Racun_{num}.xlsx")
-                                        (out_dir / f"Racun_{num}.xlsx").write_bytes(xlsx)
+                                    def _del(l=lw):
+                                        if l in _e_lines:
+                                            _e_lines.remove(l)
                                         try:
-                                            pdf_path = str(out_dir / f"Racun_{num}.pdf")
-                                            (out_dir / f"Racun_{num}.pdf").write_bytes(
-                                                generate_plain_invoice_pdf(xlsx))
-                                        except RuntimeError:
-                                            pdf_path = None
+                                            l["__row"].delete()
+                                        except Exception:
+                                            pass
+                                        _e_recalc_total()
+                                    _rm.on_click(lambda: _del())
+                            _e_upd_line(lw)
+                            return lw
 
-                                    # Update stored record
-                                    store.delete_invoice(num)
-                                    store.record_invoice({
-                                        "invoice_number": num,
-                                        "issue_date": issue_d.isoformat(),
-                                        "due_date": due_d.isoformat(),
-                                        "service_date_from": svc_f.isoformat(),
-                                        "service_date_to": svc_t.isoformat(),
-                                        "invoice_type": inv["invoice_type"],
-                                        "client_id": inv["client_id"],
-                                        "responsible_person": approver,
-                                        "approver": approver,
-                                        "order_number": _e_order.value or "",
-                                        "project_code": _e_proj.value or "",
-                                        "doc_type": inv.get("doc_type", "Pogodba"),
-                                        "doc_date": inv.get("doc_date", ""),
-                                        "total": str(inv_data.total),
-                                        "pdf_path": pdf_path,
-                                        "xml_path": xml_path,
-                                        "xlsx_path": xlsx_path,
-                                        "line_items": [
-                                            {"desc": li.description, "qty": str(li.quantity),
-                                             "price": str(li.unit_price), "unit": li.unit,
-                                             "service_type": li.service_type,
-                                             "lang_pair": li.lang_pair,
-                                             "responsible_person": li.responsible_person}
-                                            for li in items
-                                        ],
-                                    })
+                        def _e_add_row():
+                            lw = _e_make_row(None)
+                            _e_lines.append(lw)
 
-                                    _edlg.close()
-                                    ui.notify(f"Invoice {num} updated and regenerated", type="positive")
-                                    _refresh()
+                        # Populate with stored items
+                        for li in stored_items:
+                            _e_lines.append(_e_make_row(li))
 
-                                ui.button("Save & Regenerate", icon="save", on_click=_e_save).props(
-                                    "unelevated color=positive")
+                        # Add line item button
+                        ui.button("Add line item", icon="add", on_click=lambda: _e_add_row()).props(
+                            "flat dense no-caps color=primary size=sm"
+                        ).classes("text-[10px]")
+
+                        # ── Save & Regenerate ──
+                        ui.separator().classes("opacity-30 my-2")
+                        with ui.row().classes("w-full justify-end gap-2"):
+                            ui.button("Cancel", on_click=lambda: _edlg.close()).props("flat color=grey")
+
+                            def _e_save():
+                                items = []
+                                for lw in _e_lines:
+                                    q = Decimal(str(lw["qty"].value or 0))
+                                    pr = Decimal(str(lw["price"].value or 0))
+                                    if q != 0 or pr != 0:
+                                        items.append(InvoiceLineItem(
+                                            description=lw["desc"].value or "",
+                                            service_type=lw["svc"].value or "Prevod",
+                                            lang_pair=lw["pair"].value or "ENG>SLO",
+                                            unit=lw["unit"].value or "stran",
+                                            quantity=q,
+                                            unit_price=pr,
+                                            responsible_person=lw.get("responsible_person", ""),
+                                        ))
+                                if not items:
+                                    ui.notify("No valid line items.", type="warning")
+                                    return
+
+                                issue_d = _date.fromisoformat(_e_issue.value)
+                                due_d = _date.fromisoformat(_e_due.value)
+                                svc_f = _date.fromisoformat(_e_svc_f.value)
+                                svc_t = _date.fromisoformat(_e_svc_t.value)
+                                approver = _e_appr.value or ""
+                                num = inv["invoice_number"]
+
+                                inv_data = InvoiceData(
+                                    invoice_number=num,
+                                    issue_date=issue_d,
+                                    due_date=due_d,
+                                    service_date_from=svc_f,
+                                    service_date_to=svc_t,
+                                    client=rec,
+                                    issuer=config.ISSUER,
+                                    line_items=items,
+                                    approver=approver,
+                                    order_number=_e_order.value or "dogovor",
+                                    project_code=_e_proj.value or "/",
+                                    legal_notes=config.INVOICE_LEGAL_NOTES,
+                                )
+
+                                # Regenerate files
+                                out_dir.mkdir(parents=True, exist_ok=True)
+                                xlsx_path = xml_path = pdf_path = None
+                                if inv["invoice_type"] == "eracun":
+                                    xml_bytes = generate_eslog_xml(inv_data)
+                                    ok, err = validate_eslog_xml(xml_bytes)
+                                    if not ok:
+                                        ui.notify(f"eSLOG validation failed: {err[:300]}", type="negative")
+                                        return
+                                    xml_path = str(out_dir / f"Racun_{num}.xml")
+                                    (out_dir / f"Racun_{num}.xml").write_bytes(xml_bytes)
+                                    pdf_path = str(out_dir / f"Racun_{num}.pdf")
+                                    (out_dir / f"Racun_{num}.pdf").write_bytes(generate_eslog_pdf(inv_data))
+                                else:
+                                    xlsx = generate_plain_invoice_xlsx(inv_data)
+                                    xlsx_path = str(out_dir / f"Racun_{num}.xlsx")
+                                    (out_dir / f"Racun_{num}.xlsx").write_bytes(xlsx)
+                                    try:
+                                        pdf_path = str(out_dir / f"Racun_{num}.pdf")
+                                        (out_dir / f"Racun_{num}.pdf").write_bytes(
+                                            generate_plain_invoice_pdf(xlsx))
+                                    except RuntimeError:
+                                        pdf_path = None
+
+                                # Update stored record
+                                store.delete_invoice(num)
+                                store.record_invoice({
+                                    "invoice_number": num,
+                                    "issue_date": issue_d.isoformat(),
+                                    "due_date": due_d.isoformat(),
+                                    "service_date_from": svc_f.isoformat(),
+                                    "service_date_to": svc_t.isoformat(),
+                                    "invoice_type": inv["invoice_type"],
+                                    "client_id": inv["client_id"],
+                                    "responsible_person": approver,
+                                    "approver": approver,
+                                    "order_number": _e_order.value or "",
+                                    "project_code": _e_proj.value or "",
+                                    "doc_type": inv.get("doc_type", "Pogodba"),
+                                    "doc_date": inv.get("doc_date", ""),
+                                    "total": str(inv_data.total),
+                                    "pdf_path": pdf_path,
+                                    "xml_path": xml_path,
+                                    "xlsx_path": xlsx_path,
+                                    "line_items": [
+                                        {"desc": li.description, "qty": str(li.quantity),
+                                         "price": str(li.unit_price), "unit": li.unit,
+                                         "service_type": li.service_type,
+                                         "lang_pair": li.lang_pair,
+                                         "responsible_person": li.responsible_person}
+                                        for li in items
+                                    ],
+                                })
+
+                                _edlg.close()
+                                ui.notify(f"Invoice {num} updated and regenerated", type="positive")
+                                _refresh()
+
+                            ui.button("Save & Regenerate", icon="save", on_click=_e_save).props(
+                                "unelevated color=positive")
                 _edlg.open()
             def _refresh():
                 _inv_container.clear()
