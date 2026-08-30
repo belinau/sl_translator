@@ -1084,7 +1084,7 @@ def render_project_list(container: ui.column, client):
 
                     # ── Billing card (separate, NOT clickable) ──
                     with ui.card().props("flat bordered").classes(
-                        "shrink-0 p-3 rounded-2xl w-64 flex flex-col gap-2 justify-center"
+                        "shrink-0 p-3 rounded-2xl w-72 flex flex-col gap-2 justify-center overflow-hidden"
                     ):
                         # Selection checkbox + BILLING header
                         with ui.row().classes("w-full items-center justify-between"):
@@ -1131,16 +1131,16 @@ def render_project_list(container: ui.column, client):
                         _clients_brief = _client_store.list_clients_brief()
                         _client_opts = {c["id"]: c["name"] for c in _clients_brief}
 
-                        with ui.row().classes("w-full items-center gap-1"):
+                        with ui.row().classes("w-full items-center gap-1 min-w-0"):
                             _client_sel = ui.select(
                                 _client_opts,
                                 value=p.get("client_id") or None,
                                 label="Client",
-                            ).props("outlined dense").classes("flex-1 text-[10px]")
+                            ).props("outlined dense").classes("flex-1 min-w-0 text-[10px]")
                             _person_sel = ui.select(
                                 [], value=None,
                                 label="Responsible",
-                            ).props("outlined dense").classes("flex-1 text-[10px]")
+                            ).props("outlined dense").classes("flex-1 min-w-0 text-[10px]")
                             _add_person_btn = ui.button(icon="person_add").props(
                                 "flat round dense size=sm color=primary"
                             ).tooltip("Add new responsible person for this project")
@@ -1154,9 +1154,13 @@ def render_project_list(container: ui.column, client):
                                 _persons_opts = {}
                                 if rec:
                                     _persons_opts = {pp["name"]: pp["name"] for pp in rec.responsible_persons}
+                                # Preserve a previously-saved person even if not in client list
+                                _saved = p.get("responsible_person") or ""
+                                if _saved and _saved not in _persons_opts:
+                                    _persons_opts[_saved] = _saved
                                 _person_sel.set_options(
                                     _persons_opts,
-                                    value=p.get("responsible_person") or (
+                                    value=_saved or (
                                         next(iter(_persons_opts.values()), None)
                                     ),
                                 )
@@ -1198,14 +1202,18 @@ def render_project_list(container: ui.column, client):
                             _person_sel.on_value_change(_on_card_person_change)
                             _add_person_btn.on("click", lambda _: _on_add_person())
 
-                            # Populate persons for pre-assigned client, then a live total
+                            # Populate persons: always include the project's saved
+                            # responsible_person (even if no client, or the person was
+                            # added on-the-fly and isn't in the client's list).
+                            _saved_person = p.get("responsible_person") or ""
                             _card_rec = _client_store.get_client(p["client_id"]) if p.get("client_id") else None
+                            _persons = {}
                             if _card_rec:
                                 _persons = {pp["name"]: pp["name"] for pp in _card_rec.responsible_persons}
-                                _person_sel.set_options(
-                                    _persons,
-                                    value=p.get("responsible_person") or None,
-                                )
+                            if _saved_person and _saved_person not in _persons:
+                                _persons[_saved_person] = _saved_person
+                            if _persons:
+                                _person_sel.set_options(_persons, value=_saved_person or None)
                             _rate = _card_rec.get_rate("Prevod", p["lang_pair"], "stran") if _card_rec else None
                             _total = round(p["pages"] * float(_rate), 2) if _rate is not None else 0.0
 
