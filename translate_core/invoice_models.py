@@ -74,9 +74,15 @@ class InvoiceLineItem:
 
     @property
     def full_description(self) -> str:
-        """Description with responsible person in brackets (if present)."""
+        """Description with responsible person in brackets (if present).
+
+        Avoids doubling if the person is already in the description text
+        (e.g. from invoices generated before the responsible_person field).
+        """
         if self.responsible_person:
-            return f"{self.description} ({self.responsible_person})"
+            suffix = f" ({self.responsible_person})"
+            if not self.description.endswith(suffix):
+                return f"{self.description}{suffix}"
         return self.description
 
     @property

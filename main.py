@@ -675,8 +675,8 @@ def render_project_list(container: ui.column, client):
                                 _qtyw = ui.number(value=round(proj["pages"], 2) if proj else 1.0, min=0, step=0.01, format="%.2f").props("outlined dense").classes("w-20 text-[10px]")
                                 _pricew = ui.number(value=0, min=0, step=0.5, format="%.2f").props("outlined dense").classes("w-20 text-[10px]")
                                 _desc_val = proj["filename"] if proj else ""
-                                if with_person:
-                                    _desc_val = f"{_desc_val} ({with_person})"
+                                # Person is NOT appended here — full_description
+                                # property on InvoiceLineItem handles that.
                                 _descw = ui.input(value=_desc_val).props("outlined dense").classes("flex-[3] text-[10px]")
                                 _rem = ui.button(icon="delete").props("flat round dense size=sm color=negative")
                                 _tl = ui.label("€0.00").classes("text-[10px] font-bold tabular-nums text-positive w-16 text-right")
