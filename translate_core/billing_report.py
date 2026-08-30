@@ -91,8 +91,8 @@ def generate_pdf(projects: list[dict[str, Any]]) -> bytes:
     margin_t = 50
 
 
-    # Column widths: filename, person, direction, chars_w, chars_no, pages, total
-    col_widths = [175, 60, 65, 65, 55, 45, 65]
+    # Column widths: filename, person, direction, chars_w, chars_no, pages, rate, total
+    col_widths = [160, 50, 55, 55, 50, 40, 45, 65]
     col_x = [margin_l]
     for w in col_widths:
         col_x.append(col_x[-1] + w)
@@ -161,9 +161,7 @@ def generate_pdf(projects: list[dict[str, Any]]) -> bytes:
     page.draw_rect(fitz.Rect(margin_l, y, table_right, y + header_h),
                    color=(0.07, 0.49, 0.37), fill=(0.07, 0.49, 0.37))
     headers = ["Dokument", "Oseba", "Smer", "Znaki s presl.",
-               "Znaki brez", "Strani", "Skupaj (EUR)"]
-    for i, h in enumerate(headers):
-        _text(col_x[i] + 3, y + 13, h, sz=8, color=(1, 1, 1))
+               "Znaki brez", "Strani", "Cena/stran", "Skupaj (EUR)"]
     y += header_h
 
     # ── Rows ──
@@ -213,11 +211,12 @@ def generate_pdf(projects: list[dict[str, Any]]) -> bytes:
 
         _text(col_x[5] + 3, y + 12, _sl_float(r["pages"]), sz=8)
 
-        total_str = f"{_sl_float(r['total'])} EUR"
-        _text_right(col_x[6] + col_widths[6] - 3, y + 12, total_str, sz=9,
-                    color=(0.07, 0.49, 0.37))
+        rate_str = _sl_float(r["rate"], 4) if r["rate"] > 0 else "—"
+        _text(col_x[6] + 3, y + 12, rate_str, sz=8, color=(0.3, 0.3, 0.3))
 
-        y += needed_h
+        total_str = f"{_sl_float(r['total'])} EUR"
+        _text_right(col_x[7] + col_widths[7] - 3, y + 12, total_str, sz=9,
+                    color=(0.07, 0.49, 0.37))
 
     # ── Grand total ──
     y += 6
@@ -233,7 +232,7 @@ def generate_pdf(projects: list[dict[str, Any]]) -> bytes:
     _text(col_x[5] + 3, y, _sl_float(grand_pages), sz=10, color=(0.3, 0.3, 0.3))
 
     gt_str = f"{_sl_float(grand_total)} EUR"
-    _text_right(col_x[6] + col_widths[6] - 3, y, gt_str, sz=14,
+    _text_right(col_x[7] + col_widths[7] - 3, y, gt_str, sz=14,
                 color=(0.07, 0.49, 0.37))
 
     # ── Footer notes ──

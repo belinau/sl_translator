@@ -473,11 +473,21 @@ def render_project_list(container: ui.column, client):
                 )
 
         def _get_selected_projects() -> list:
-            """Collect billing dicts for all checked projects."""
+            """Collect billing dicts for all checked projects, with client rate lookup."""
+            from translate_core.client_store import ClientStore
+            _cs = ClientStore()
             out = []
             for pid, st in billing_state.items():
                 if st.get("_checked"):
                     p = st["project"]
+                    cid = p.get("client_id")
+                    rate = 0.0
+                    if cid:
+                        rec = _cs.get_client(cid)
+                        if rec:
+                            _r = rec.get_rate("Prevod", p["lang_pair"], "stran")
+                            if _r is not None:
+                                rate = float(_r)
                     out.append({
                         "id": pid,
                         "filename": p["filename"],
@@ -485,7 +495,8 @@ def render_project_list(container: ui.column, client):
                         "chars_with": p["chars_with"],
                         "chars_without": p["chars_without"],
                         "pages": p["pages"],
-                        "client_id": p.get("client_id"),
+                        "rate": rate,
+                        "client_id": cid,
                         "responsible_person": p.get("responsible_person", ""),
                     })
             return out
