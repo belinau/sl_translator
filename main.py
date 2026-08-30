@@ -1148,17 +1148,17 @@ def render_project_list(container: ui.column, client):
                             def _persist_billing(_pid, **fields):
                                 _save_billing_fields(_pid, fields)
 
-                            def _on_card_client_change(e, _pid=_pid):
-                                _cid = e.value
-                                rec = _client_store.get_client(_cid) if _cid else None
+                            def _on_card_client_change(e, _pid=_pid, _p=p, _csel=_client_sel, _psel=_person_sel, _store=_client_store):
+                                _cid = _csel.value
+                                rec = _store.get_client(_cid) if _cid else None
                                 _persons_opts = {}
                                 if rec:
                                     _persons_opts = {pp["name"]: pp["name"] for pp in rec.responsible_persons}
                                 # Preserve a previously-saved person even if not in client list
-                                _saved = p.get("responsible_person") or ""
+                                _saved = _p.get("responsible_person") or ""
                                 if _saved and _saved not in _persons_opts:
                                     _persons_opts[_saved] = _saved
-                                _person_sel.set_options(
+                                _psel.set_options(
                                     _persons_opts,
                                     value=_saved or (
                                         next(iter(_persons_opts.values()), None)
@@ -1166,7 +1166,7 @@ def render_project_list(container: ui.column, client):
                                 )
                                 _persist_billing(_pid, client_id=_cid)
 
-                            def _on_card_person_change(e, _pid=_pid):
+                            def _on_card_person_change(e, _pid=_pid, _psel=_person_sel):
                                 _persist_billing(_pid, responsible_person=e.value or "")
 
                             def _on_add_person(_pid=_pid, _csel=_client_sel, _psel=_person_sel, _store=_client_store):
@@ -1725,13 +1725,19 @@ def page_clients():
                             _persons_container.clear()
                             with _persons_container:
                                 for i, p in enumerate(_persons):
-                                    with ui.row().classes("w-full gap-2 items-center"):
-                                        _pn = ui.input(value=p.get("name", "")).props("outlined dense").classes("flex-1 text-[10px]")
-                                        _pr = ui.input(value=p.get("role", "")).props("outlined dense").classes("w-32 text-[10px]")
-                                        ui.button(icon="delete", on_click=lambda _, idx=i: _del_person(idx)).props(
-                                            "flat round dense size=sm color=negative"
-                                        )
-                                        _persons[i] = {"name": _pn, "role": _pr, "_widgets": True}
+                                    # Extract current string values from existing widgets
+                                    if "_widgets" in p:
+                                        _cur_name = p["name"].value or ""
+                                        _cur_role = p["role"].value or ""
+                                    else:
+                                        _cur_name = p.get("name", "")
+                                        _cur_role = p.get("role", "")
+                                    _pn = ui.input(value=_cur_name).props("outlined dense").classes("flex-1 text-[10px]")
+                                    _pr = ui.input(value=_cur_role).props("outlined dense").classes("w-32 text-[10px]")
+                                    ui.button(icon="delete", on_click=lambda _, idx=i: _del_person(idx)).props(
+                                        "flat round dense size=sm color=negative"
+                                    )
+                                    _persons[i] = {"name": _pn, "role": _pr, "_widgets": True}
 
                         def _add_person():
                             _persons.append({"name": "", "role": ""})
