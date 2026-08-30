@@ -330,7 +330,7 @@ def generate_xlsx(projects: list[dict[str, Any]]) -> bytes:
         # Total
         total_cell = ws.cell(row=row_num, column=9, value=float(r["total"]))
         total_cell.alignment = right_align
-        total_cell.number_format = "#,##0.00"
+        total_cell.number_format = '#,##0.00" EUR"'
         # Borders
         for col in range(1, n_cols + 1):
             ws.cell(row=row_num, column=col).border = thin_border
@@ -353,7 +353,7 @@ def generate_xlsx(projects: list[dict[str, Any]]) -> bytes:
     gp_cell.alignment = right_align
     # Sum total
     gt_cell = ws.cell(row=total_row, column=9, value=float(grand_total))
-    gt_cell.number_format = "#,##0.00"
+    gt_cell.number_format = '#,##0.00" EUR"'
     gt_cell.font = total_font
     gt_cell.alignment = right_align
 

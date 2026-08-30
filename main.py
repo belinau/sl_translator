@@ -558,7 +558,7 @@ def render_project_list(container: ui.column, client):
 
                     _line_widgets: list[dict] = []
                     _current_rec: list = [None]
-                    _grand_total_lbl = ui.label("€0.00")
+                    _grand_total_lbl = ui.label("0,00 EUR")
 
                     def _update_grand_total():
                         total = 0.0
@@ -566,7 +566,7 @@ def render_project_list(container: ui.column, client):
                             q = float(lw["qty"].value or 0)
                             pr = float(lw["price"].value or 0)
                             total += q * pr
-                        _grand_total_lbl.set_text(f"€{total:,.2f}")
+                        _grand_total_lbl.set_text(f"{total:,.2f} EUR")
 
                     # ── Client / approver ──
                     with ui.row().classes("w-full gap-4"):
@@ -655,7 +655,7 @@ def render_project_list(container: ui.column, client):
                     def _upd_line(e, lw):
                         q = float(lw["qty"].value or 0)
                         pr = float(lw["price"].value or 0)
-                        lw["total_lbl"].set_text(f"€{q * pr:,.2f}")
+                        lw["total_lbl"].set_text(f"{q * pr:,.2f} EUR")
                         _update_grand_total()
 
                     def _refill_rate(lw):
@@ -685,7 +685,7 @@ def render_project_list(container: ui.column, client):
                                 # property on InvoiceLineItem handles that.
                                 _descw = ui.input(value=_desc_val).props("outlined dense").classes("flex-[3] text-[10px]")
                                 _rem = ui.button(icon="delete").props("flat round dense size=sm color=negative")
-                                _tl = ui.label("€0.00").classes("text-[10px] font-bold tabular-nums text-positive w-16 text-right")
+                                _tl = ui.label("0,00 EUR").classes("text-[10px] font-bold tabular-nums text-positive w-16 text-right")
                                 lw = {
                                     "svc": _svcw, "pair": _pairw, "unit": _unitw,
                                     "qty": _qtyw, "price": _pricew, "desc": _descw,
@@ -1325,7 +1325,7 @@ def render_project_list(container: ui.column, client):
                             ui.label("total (client rate)").classes(
                                 "text-[8px] uppercase tracking-wider opacity-50"
                             )
-                            ui.label(f"€{_total:,.2f}").classes(
+                            ui.label(f"{_total:,.2f} EUR").classes(
                                 "text-base font-black tabular-nums text-positive"
                             )
 
@@ -2157,8 +2157,8 @@ def page_invoices():
                         def _e_upd_line(lw):
                             q = float(lw["qty"].value or 0)
                             pr = float(lw["price"].value or 0)
-                            lw["total_lbl"].set_text(f"€{q * pr:,.2f}")
-                            _e_grand.set_text(f"€{sum(float(l['qty'].value or 0) * float(l['price'].value or 0) for l in _e_lines):,.2f}")
+                            lw["total_lbl"].set_text(f"{q * pr:,.2f} EUR")
+                            _e_grand.set_text(f"{sum(float(l['qty'].value or 0) * float(l['price'].value or 0) for l in _e_lines):,.2f} EUR")
 
                         def _e_make_row(li: dict | None = None):
                             with _e_container:
@@ -2175,7 +2175,7 @@ def page_invoices():
                                         min=0, step=0.01, format="%.4f").props("outlined dense").classes("w-20 text-[10px]")
                                     _d = ui.input(value=(li or {}).get("desc", "")).props("outlined dense").classes("flex-[3] text-[10px]")
                                     _rm = ui.button(icon="delete").props("flat round dense size=sm color=negative")
-                                    _tl = ui.label("€0.00").classes("text-[10px] font-bold tabular-nums text-positive w-16 text-right")
+                                    _tl = ui.label("0,00 EUR").classes("text-[10px] font-bold tabular-nums text-positive w-16 text-right")
                                     lw = {"svc": _s, "pair": _p, "unit": _u, "qty": _q,
                                           "price": _pr, "desc": _d, "total_lbl": _tl,
                                           "responsible_person": (li or {}).get("responsible_person", ""),
@@ -2204,7 +2204,7 @@ def page_invoices():
                                 "flat dense no-caps color=primary size=sm").classes("text-[10px]")
                             with ui.row().classes("items-baseline gap-2"):
                                 ui.label("Total").classes("text-[10px] uppercase opacity-50")
-                                _e_grand = ui.label("€0.00").classes("text-base font-black tabular-nums text-positive")
+                                _e_grand = ui.label("0,00 EUR").classes("text-base font-black tabular-nums text-positive")
 
                         # Initial total
                         _e_upd_line(_e_lines[0]) if _e_lines else None

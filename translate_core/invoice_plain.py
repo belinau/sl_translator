@@ -37,7 +37,7 @@ _GREY_LIGHT = "CCCCCC"
 _WHITE = "FFFFFF"
 
 _COL_WIDTHS = {"A": 21.0, "B": 9.35, "C": 14.85, "D": 20.5, "E": 20.0, "F": 19.35, "G": 8.67}
-_EUR_FMT = "[$€-2] #,##0.00"
+_EUR_FMT = '#,##0.00" EUR"'
 
 _thin_border = Border(bottom=Side(style="thin", color=_GREY_LIGHT))
 _green_border = Border(
