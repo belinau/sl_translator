@@ -756,8 +756,10 @@ def render_project_list(container: ui.column, client):
                             return
                         _current_rec[0] = rec
                         persons = [p["name"] for p in rec.responsible_persons]
-                        _approver_sel.options = {p: p for p in persons}
-                        _approver_sel.value = persons[0] if persons else None
+                        _approver_sel.set_options(
+                            {p: p for p in persons},
+                            value=persons[0] if persons else None,
+                        )
                         _order_no.value = rec.default_order_number or "dogovor"
                         _proj_code.value = rec.default_project_code or "/"
                         _doc_type.value = rec.default_doc_type or "Pogodba"
@@ -1152,9 +1154,11 @@ def render_project_list(container: ui.column, client):
                                 _persons_opts = {}
                                 if rec:
                                     _persons_opts = {pp["name"]: pp["name"] for pp in rec.responsible_persons}
-                                _person_sel.options = _persons_opts
-                                _person_sel.value = p.get("responsible_person") or (
-                                    next(iter(_persons_opts.values()), None)
+                                _person_sel.set_options(
+                                    _persons_opts,
+                                    value=p.get("responsible_person") or (
+                                        next(iter(_persons_opts.values()), None)
+                                    ),
                                 )
                                 _persist_billing(_pid, client_id=_cid)
 
@@ -1179,18 +1183,15 @@ def render_project_list(container: ui.column, client):
                                                 if not name:
                                                     ui.notify("Name is required.", type="warning")
                                                     return
-                                                # Add to the project's person dropdown
+                                                # Add to the project's person dropdown.
+                                                # NiceGUI's .options attribute is read-only —
+                                                # must use set_options() to propagate to client.
                                                 current_opts = dict(_person_sel.options) if _person_sel.options else {}
                                                 current_opts[name] = name
-                                                _person_sel.options = current_opts
-                                                _person_sel.value = name
+                                                _person_sel.set_options(current_opts, value=name)
                                                 _persist_billing(_pid, responsible_person=name)
                                                 p_dlg.close()
                                                 ui.notify(f"Added: {name}", type="positive")
-
-                                            ui.button("Add", icon="add", on_click=_save_person).props(
-                                                "unelevated color=positive"
-                                            )
                                 p_dlg.open()
 
                             _client_sel.on_value_change(_on_card_client_change)
@@ -1200,8 +1201,11 @@ def render_project_list(container: ui.column, client):
                             # Populate persons for pre-assigned client, then a live total
                             _card_rec = _client_store.get_client(p["client_id"]) if p.get("client_id") else None
                             if _card_rec:
-                                _person_sel.options = {pp["name"]: pp["name"] for pp in _card_rec.responsible_persons}
-                                _person_sel.value = p.get("responsible_person") or None
+                                _persons = {pp["name"]: pp["name"] for pp in _card_rec.responsible_persons}
+                                _person_sel.set_options(
+                                    _persons,
+                                    value=p.get("responsible_person") or None,
+                                )
                             _rate = _card_rec.get_rate("Prevod", p["lang_pair"], "stran") if _card_rec else None
                             _total = round(p["pages"] * float(_rate), 2) if _rate is not None else 0.0
 
