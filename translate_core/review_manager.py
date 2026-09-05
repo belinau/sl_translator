@@ -316,8 +316,16 @@ def merge_review_into_original(
 # ======================================================================
 def reset_for_reopen(clone: dict) -> None:
     """Reset segments that were NOT approved so the reviewer gets a fresh
-    pass on the rejected/updated ones.  Approved segments stay as-is."""
+    pass on the rejected/updated ones.  Approved segments stay as-is.
+
+    Translator comments added during the merge view are frozen so the
+    reviewer can read but not edit them.
+    """
     for seg in clone["segments"]:
+        # Freeze translator comments so the reviewer can't edit them.
+        for c in cm.ensure_comments(seg):
+            if c.get("author") == cm.AUTHOR_TRANSLATOR and c.get("mutable", False):
+                c["mutable"] = False
         if seg.get("reviewer_status") != RS_APPROVED:
             seg["reviewer_target"] = ""
             cs = cm.ensure_comments(seg)

@@ -117,6 +117,25 @@ def _install_chrome() -> tuple | None:
     return dm, page_client, res
 
 
+def _logo_banner() -> None:
+    """Compact Bel Translation Suite branding banner — same gradient + icon
+    as the projects page (main.py page_home) so reviewers know which
+    software they are working in."""
+    with ui.row().classes(
+        "w-full px-6 py-3 items-center gap-4 text-white shrink-0"
+    ).style(
+        "background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);"
+    ):
+        ui.icon("blur_on", size="28px").props("color=primary")
+        with ui.column().classes("gap-0"):
+            ui.label("Bel Translation Suite").classes(
+                "text-lg font-black tracking-tighter"
+            )
+            ui.label("Professional Translation Workspace").classes(
+                "text-[9px] font-bold uppercase tracking-[0.2em] opacity-60"
+            )
+
+
 # ======================================================================
 # Page 1 — Translator-side review management
 # ======================================================================
@@ -137,6 +156,8 @@ def page_review(project_id: str):
         return
 
     filename = data.get("filename", project_id)
+    _logo_banner()
+
 
     # ------------------------------------------------------------------
     # Top bar
@@ -562,6 +583,104 @@ def _export_review_table(r: dict, glossary=None) -> None:
     ui.notify("Export failed", type="negative")
 
 
+def _compile_review_md(
+    segments: list[dict],
+    use_target: bool = True,
+    comments_mode: str = cm.EXPORT_NONE,
+) -> str:
+    """Build markdown for DOCX/TXT export from review segments.
+
+    Mirrors workspace._compile_md.  When *use_target* is True the
+    reviewer's suggestion (``reviewer_target``) is preferred, falling
+    back to ``target`` then ``source``.  When False only ``source`` is
+    used (reorganized-source export).  *comments_mode* injects segment
+    comments into the markdown stream (none / translator / all).
+    """
+    import re as _re
+    fn_def_re = _re.compile(r"^\[\^(\w+)\]:")
+    lines: list[str] = []
+    i = 0
+    while i < len(segments):
+        s = segments[i]
+        src = s.get("source", "").lstrip()
+        if fn_def_re.match(src):
+            j = i + 1
+            while j < len(segments):
+                nxt = segments[j].get("source", "").lstrip()
+                if fn_def_re.match(nxt):
+                    break
+                j += 1
+            parts: list[str] = []
+            for k in range(i, j):
+                seg = segments[k]
+                if use_target:
+                    txt = seg.get("reviewer_target", "").strip() or seg.get("target", "").strip()
+                    if not txt:
+                        txt = seg.get("source", "").strip()
+                else:
+                    txt = seg.get("source", "").strip()
+                if txt:
+                    parts.append(txt)
+            fn_text = " ".join(parts)
+            if comments_mode != cm.EXPORT_NONE:
+                for k in range(i, j):
+                    seg = segments[k]
+                    c_text = cm.format_comments_for_export(seg, comments_mode)
+                    if c_text:
+                        fn_text += c_text
+            lines.append(fn_text)
+            i = j
+        else:
+            if use_target:
+                txt = s.get("reviewer_target", "").strip() or s.get("target", "").strip()
+                if not txt:
+                    txt = s.get("source", "").strip()
+            else:
+                txt = s.get("source", "").strip()
+            if txt:
+                lines.append(txt)
+            if comments_mode != cm.EXPORT_NONE:
+                c_text = cm.format_comments_for_export(s, comments_mode)
+                if c_text:
+                    lines.append(c_text)
+            i += 1
+    return "\n\n".join(lines)
+
+
+def _build_merged_segments(clone: dict, original_project: dict) -> list[dict]:
+    """Overlay reviewer suggestions and clone comments onto the full
+    original project segment list.
+
+    For each original segment whose ID matches a clone segment with a
+    non-empty ``reviewer_target``, the suggestion replaces ``target`` and
+    the clone's comments are carried over (so comments-in-export works).
+    All other segments keep their original data.
+    """
+    reviewer_map: dict[int, dict] = {}
+    for cseg in clone.get("segments", []):
+        rt = (cseg.get("reviewer_target") or "").strip()
+        if cseg.get("original_id") is not None:
+            reviewer_map[cseg["original_id"]] = cseg
+    full_segs: list[dict] = []
+    for s in original_project.get("segments", []):
+        sid = s.get("id")
+        cseg = reviewer_map.get(sid) if sid is not None else None
+        if cseg and (cseg.get("reviewer_target") or "").strip():
+            merged = dict(s)
+            merged["target"] = cseg["reviewer_target"]
+            # Carry clone comments so comments-in-export sees them.
+            merged["comments"] = cm.ensure_comments(cseg)
+            full_segs.append(merged)
+        elif cseg:
+            # Segment was reviewed but no suggestion — still carry comments.
+            merged = dict(s)
+            merged["comments"] = cm.ensure_comments(cseg)
+            full_segs.append(merged)
+        else:
+            full_segs.append(s)
+    return full_segs
+
+
 async def _delete_review(review_id: str, container, project_id, client) -> None:
     from ui.components import confirm_dialog
     if await confirm_dialog(
@@ -598,6 +717,8 @@ def page_review_ext(review_id: str):
             ui.label("This review link has expired.").classes("text-lg text-amber-500")
             ui.label("Please ask the translator to prolong the link.").classes("text-sm opacity-60")
         return
+    _logo_banner()
+
 
     # Load the clone into a WorkspaceState-compatible dict.
     ws_dict = dict(clone)
@@ -676,6 +797,199 @@ def page_review_ext(review_id: str):
             ui.button(icon="save", on_click=lambda: _save_reviewer_name(clone, reviewer_input, _set_save_status)).props(
                 "flat round dense color=positive"
             ).tooltip("Save your name")
+            # ── Export dropdown — mirrors the workspace Export menu ──
+            import app_state as _ast
+            _proj_dir = _ast.PROJECTS_DIR
+            _doc_parser = _ast.doc_parser
+
+            def _open_review_export_dialog(export_type: str) -> None:
+                with ui.dialog() as dialog, ui.card().classes("min-w-[420px]"):
+                    ui.label("Export options").classes("text-h6")
+                    ui.label(
+                        "Comments can be embedded in the exported document:"
+                    ).classes("text-xs opacity-70 mt-1")
+                    mode = ui.toggle(
+                        {
+                            cm.EXPORT_NONE: "No comments (clean)",
+                            cm.EXPORT_TRANSLATOR_ONLY: "Translator only",
+                            cm.EXPORT_ALL: "All comments",
+                        },
+                        value=cm.EXPORT_NONE,
+                    ).classes("w-full mt-2")
+                    with ui.row().classes("w-full justify-end gap-2 mt-3"):
+                        ui.button("Cancel", on_click=lambda: dialog.close()).props("flat")
+                        ui.button(
+                            "Export",
+                            icon="file_download",
+                            on_click=lambda: (
+                                _run_review_export(export_type, mode.value),
+                                dialog.close(),
+                            ),
+                        ).props("unelevated color=positive")
+                dialog.open()
+
+            def _run_review_export(export_type: str, comments_mode: str) -> None:
+                rm.save_review(clone)
+                orig = res["load_project"](clone.get("original_project_id", ""))
+                if orig is not None:
+                    segs = _build_merged_segments(clone, orig)
+                    filename = orig.get("filename", clone.get("original_filename", "review"))
+                    pipeline = orig.get("pipeline", "academic")
+                    house_style = orig.get("house_style", clone.get("house_style", ""))
+                else:
+                    segs = clone.get("segments", [])
+                    filename = clone.get("original_filename", "review")
+                    pipeline = clone.get("pipeline", "academic")
+                    house_style = clone.get("house_style", "")
+                from translate_core.publisher_styles import resolve_typography
+                _house_typo = resolve_typography(house_style)
+                review_id = clone.get("review_id", "doc")
+
+                if export_type == "target_docx":
+                    _do_export_target(segs, filename, pipeline, comments_mode,
+                                      _house_typo, review_id, _proj_dir, _doc_parser)
+                elif export_type == "source_docx":
+                    _do_export_source(segs, filename, comments_mode,
+                                      _house_typo, review_id, _proj_dir, _doc_parser)
+                elif export_type == "txt":
+                    _do_export_txt(segs, filename, comments_mode)
+
+                ui.notify(
+                    "Formatting check of the final document has not yet been "
+                    "performed. The exported DOCX may differ from the final layout.",
+                    type="warning",
+                    timeout=8000,
+                )
+
+            def _do_export_target(segs, filename, pipeline, comments_mode,
+                                  house_typo, review_id, proj_dir, parser):
+                md = _compile_review_md(segs, use_target=True, comments_mode=comments_mode)
+                out = rm.REVIEWS_DIR / f"compiled_target_{review_id}.docx"
+                from translate_core.doc_parser import DocumentParser
+
+                if pipeline == "simple":
+                    # Simple pipeline: preserve original formatting via template
+                    if proj_dir is not None:
+                        template = proj_dir / f"{clone.get('original_project_id', '')}.docx"
+                        if template.exists() and parser is not None:
+                            try:
+                                parser.compile_from_template(
+                                    template, out, segs, comments_mode=comments_mode,
+                                )
+                                if out.exists():
+                                    ui.download(out.read_bytes(), f"translated_{filename}")
+                                    out.unlink(missing_ok=True)
+                                    return
+                            except Exception as e:
+                                log.error("review template export: %s", e)
+                        else:
+                            ui.notify(
+                                "No original DOCX — exporting with generic styling",
+                                type="warning",
+                            )
+                    # Simple fallback: no segments= (markdown-driven only)
+                    try:
+                        DocumentParser().compile_to_designed_docx(
+                            md, out, house_typography=house_typo,
+                        )
+                        if out.exists():
+                            ui.download(out.read_bytes(), f"translated_{filename}")
+                            out.unlink(missing_ok=True)
+                            return
+                    except Exception as e:
+                        log.error("review target export: %s", e)
+                    ui.notify("Export failed", type="negative")
+
+                elif pipeline == "academic":
+                    # Academic pipeline: restyled DOCX with real footnotes
+                    from translate_core.doc_parser import footnote_alignment_report
+                    report = footnote_alignment_report(segs)
+                    if not report["aligned"]:
+                        ui.notify(
+                            f"{report['refs']} footnote refs vs {report['defs']} definitions — "
+                            "misnumbered footnotes will be wrong in the DOCX; "
+                            "run scripts/repair_book_footnotes.py",
+                            type="warning",
+                        )
+                    try:
+                        DocumentParser().compile_to_designed_docx(
+                            md, out, segments=segs, house_typography=house_typo,
+                        )
+                        if out.exists():
+                            ui.download(out.read_bytes(), f"translated_{filename}")
+                            out.unlink(missing_ok=True)
+                            return
+                    except Exception as e:
+                        log.error("review target export: %s", e)
+                    ui.notify("Export failed", type="negative")
+
+                else:
+                    # Unknown pipeline — same as simple fallback
+                    try:
+                        DocumentParser().compile_to_designed_docx(
+                            md, out, house_typography=house_typo,
+                        )
+                        if out.exists():
+                            ui.download(out.read_bytes(), f"translated_{filename}")
+                            out.unlink(missing_ok=True)
+                            return
+                    except Exception as e:
+                        log.error("review target export: %s", e)
+                    ui.notify("Export failed", type="negative")
+
+            def _do_export_source(segs, filename, comments_mode,
+                                  house_typo, review_id, proj_dir, parser):
+                md = _compile_review_md(segs, use_target=False, comments_mode=comments_mode)
+                out = rm.REVIEWS_DIR / f"compiled_source_{review_id}.docx"
+                try:
+                    from translate_core.doc_parser import DocumentParser
+                    DocumentParser().compile_to_designed_docx(
+                        md, out, house_typography=house_typo,
+                    )
+                    if out.exists():
+                        ui.download(out.read_bytes(), f"reorganized_source_{filename}")
+                        out.unlink(missing_ok=True)
+                        return
+                except Exception as e:
+                    log.error("review source export: %s", e)
+                ui.notify("Export failed", type="negative")
+
+            def _do_export_txt(segs, filename, comments_mode):
+                content = _compile_review_md(segs, use_target=True, comments_mode=comments_mode)
+                ui.download(content.encode("utf-8"), f"translated_{filename}.txt")
+
+            def _open_review_change_style():
+                from translate_core.publisher_styles import get_style_options, get_style_label
+                with ui.dialog() as dialog, ui.card().classes("min-w-[360px]"):
+                    ui.label("Change house style").classes("text-lg font-bold mb-2")
+                    options = get_style_options()
+                    style_select = ui.select(
+                        options,
+                        label="Publisher",
+                        value=clone.get("house_style", ""),
+                    ).classes("w-full")
+
+                    def _apply():
+                        chosen = style_select.value
+                        if chosen:
+                            clone["house_style"] = chosen
+                            rm.save_review(clone)
+                            ui.notify(f"House style set to {get_style_label(chosen)}", type="positive")
+                        dialog.close()
+
+                    with ui.row().classes("w-full justify-end mt-4"):
+                        ui.button("Cancel", on_click=dialog.close).props("flat")
+                        ui.button("Apply", on_click=_apply).props("color=positive")
+                dialog.open()
+
+            with ui.dropdown_button("Export", icon="file_download", auto_close=True).props(
+                "rounded unelevated dense color=positive"
+            ):
+                ui.item("Translated Book (.docx)", on_click=lambda: _open_review_export_dialog("target_docx"))
+                ui.item("Reorganized Source (.docx)", on_click=lambda: _open_review_export_dialog("source_docx"))
+                ui.item("Plain .txt", on_click=lambda: _open_review_export_dialog("txt"))
+                ui.separator()
+                ui.item("Change house style…", on_click=_open_review_change_style)
 
 
             from ui import settings as ui_settings
@@ -954,9 +1268,11 @@ def page_review_ext(review_id: str):
             )
             _build_review_segment_list(clone, state, deps, page_client, _set_save_status)
 
-        # ── Review completed button ──
-        # When the reviewer is truly done, they click this to signal
-        # the translator. Sets reviewer_completed=True on the clone.
+        # ── Download & complete ──
+        # The bilingual table must be downloaded BEFORE completing the
+        # review — once completed, the page re-renders to a read-only
+        # state and the download buttons are gone. The notice makes this
+        # ordering explicit so reviewers don't lose their export.
         _completed = clone.get("reviewer_completed", False)
 
         with ui.column().classes("w-full max-w-4xl px-4 pb-6 gap-2"):
@@ -967,22 +1283,14 @@ def page_review_ext(review_id: str):
                         "text-sm font-bold text-positive"
                     )
             else:
-                with ui.row().classes("w-full items-center justify-center gap-3 py-4"):
-                    def _on_complete(_=None, c=clone):
-                        c["reviewer_completed"] = True
-                        c["reviewer_completed_at"] = datetime.now().isoformat(timespec="seconds")
-                        rm.save_review(c)
-                        ui.notify("Review completed — translator notified.", type="positive")
-                        # Re-render the page to show the completed state.
-                        ui.navigate.to(f"/review/ext/{c['review_id']}")
-
-                    ui.button(
-                        "Review completed",
-                        icon="task_alt",
-                        on_click=_on_complete,
-                    ).props("unelevated rounded color=positive size=lg").classes(
-                        "px-8 py-3 font-black tracking-[.2em] text-[12px]"
-                    ).tooltip("Click when you are done reviewing all segments")
+                ui.label(
+                    "⚠ Download your exports below BEFORE clicking \u201cReview completed\u201d — "
+                    "the download buttons disappear once the review is marked complete."
+                ).classes(
+                    "text-[11px] font-bold text-amber-600 dark:text-amber-400 "
+                    "px-4 py-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg text-center"
+                )
+                with ui.row().classes("w-full items-center justify-center gap-3 py-2"):
                     ui.button(
                         "Export finished work as bilingual table",
                         icon="grid_on",
@@ -990,6 +1298,23 @@ def page_review_ext(review_id: str):
                     ).props("unelevated rounded color=teal size=lg").classes(
                         "px-8 py-3 font-black tracking-[.2em] text-[12px]"
                     ).tooltip("Download your review as a bilingual table (DOCX)")
+
+                def _on_complete(_=None, c=clone):
+                    c["reviewer_completed"] = True
+                    c["reviewer_completed_at"] = datetime.now().isoformat(timespec="seconds")
+                    rm.save_review(c)
+                    ui.notify("Review completed — translator notified.", type="positive")
+                    # Re-render the page to show the completed state.
+                    ui.navigate.to(f"/review/ext/{c['review_id']}")
+
+                with ui.row().classes("w-full items-center justify-center gap-3 py-2"):
+                    ui.button(
+                        "Review completed",
+                        icon="task_alt",
+                        on_click=_on_complete,
+                    ).props("unelevated rounded color=positive size=lg").classes(
+                        "px-8 py-3 font-black tracking-[.2em] text-[12px]"
+                    ).tooltip("Click when you are done reviewing all segments and have downloaded your exports")
 
 
 def _save_reviewer_name(clone: dict, input_el, set_save_status=None) -> None:
@@ -1232,6 +1557,8 @@ def page_review_merge(review_id: str):
         return
 
     original["project_id"] = clone["original_project_id"]
+    _logo_banner()
+
 
     # ------------------------------------------------------------------
     # Top bar
@@ -1352,17 +1679,20 @@ def page_review_merge(review_id: str):
     with ui.column().classes("w-full max-w-4xl mx-auto px-4 py-2 gap-2"):
         ui.label(
             "Review each suggestion. Click Accept or Reject for each segment, "
-            "then merge at the top."
+            "then merge at the top. You can leave comments to explain your "
+            "decision (visible to the reviewer if reopened)."
         ).classes("text-[10px] opacity-50 pb-2")
+
+        def _on_comment_change():
+            rm.save_review(clone)
 
         scroll = ui.scroll_area().classes("w-full h-[78vh]")
         with scroll:
             with ui.column().classes("w-full gap-2"):
                 for seg in clone["segments"]:
-                    _build_merge_row(seg, clone, _update_count)
+                    _build_merge_row(seg, clone, _update_count, _on_comment_change)
 
-
-def _build_merge_row(seg: dict, clone: dict, update_count) -> None:
+def _build_merge_row(seg: dict, clone: dict, update_count, on_comment_change) -> None:
     """Build one comparison row in the merge view."""
     _oid = seg.get("original_id")
     orig_id: int = _oid if _oid is not None else seg.get("id", 0)
@@ -1432,18 +1762,20 @@ def _build_merge_row(seg: dict, clone: dict, update_count) -> None:
                 'font-family: "Inter", sans-serif; line-height: 1.625;'
             )
 
-        # Comments — full history, read-only
-        if has_comment:
-            with ui.column().classes("w-full mt-1 gap-1"):
-                ui.label("COMMENTS").classes(
-                    "text-[9px] font-black tracking-[0.2em] uppercase opacity-50"
-                )
-                panel = build_comments_panel(editable=False)
-                panel["rebuild"](
-                    seg, cm.AUTHOR_REVIEWER,
-                    round=seg.get("_clone_round", 1),
-                    review_id=clone.get("review_id", ""),
-                )
+        # Comments — reviewer history (read-only) + translator input.
+        # The translator can add comments to explain accept/reject
+        # decisions; these are visible to the reviewer if the review
+        # is reopened.
+        with ui.column().classes("w-full mt-1 gap-1"):
+            ui.label("COMMENTS").classes(
+                "text-[9px] font-black tracking-[0.2em] uppercase opacity-50"
+            )
+            panel = build_comments_panel(editable=True, on_change=on_comment_change)
+            panel["rebuild"](
+                seg, cm.AUTHOR_TRANSLATOR,
+                round=0,
+                review_id=clone.get("review_id", ""),
+            )
 
 
 def _render_diff(original: str, suggested: str) -> str:
