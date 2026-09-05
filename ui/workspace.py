@@ -154,7 +154,7 @@ def page_translate(project_id: str):
             ):
                 ui.item("Translated Book (.docx)", on_click=lambda: _open_export_dialog("target_docx"))
                 ui.item("Reorganized Source (.docx)", on_click=lambda: _open_export_dialog("source_docx"))
-                ui.item("Plain .txt", on_click=lambda: _open_export_dialog("txt"))
+                ui.item("Translation Memory (.tmx)", on_click=lambda: _export_tmx())
                 ui.separator()
                 _style_indicator = ui.label("").classes("text-xs opacity-60 px-2 py-1")
                 ui.item("Change house style…", on_click=lambda: _open_change_style_dialog(state, _style_indicator))
@@ -540,6 +540,50 @@ def page_translate(project_id: str):
     def _export_txt(comments_mode: str = cm.EXPORT_NONE):
         content = _compile_md(use_target=True, comments_mode=comments_mode)
         ui.download(content.encode("utf-8"), f"translated_{state.filename}.txt")
+
+    def _export_tmx() -> None:
+        """Export all translated segments from this project as a TMX file."""
+        src_lang, tgt_lang = parse_lang_pair(state.lang_pair)
+
+        def _esc(s: str) -> str:
+            return (
+                s.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace('"', "&quot;")
+            )
+
+        tus: list[str] = []
+        for s in state.segments:
+            src = (s.get("source") or "").strip()
+            tgt = (s.get("target") or "").strip()
+            if not src or not tgt:
+                continue
+            tus.append(
+                "    <tu>\n"
+                f'      <tuv xml:lang="{src_lang}"><seg>{_esc(src)}</seg></tuv>\n'
+                f'      <tuv xml:lang="{tgt_lang}"><seg>{_esc(tgt)}</seg></tuv>\n'
+                "    </tu>"
+            )
+
+        if not tus:
+            ui.notify("No translated segments to export.", type="warning")
+            return
+
+        tmx = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<tmx version="1.4">\n'
+            f'  <header creationtool="Bel Translation Suite" srclang="{src_lang}"/>\n'
+            "  <body>\n"
+            + "\n".join(tus)
+            + "\n  </body>\n"
+            "</tmx>\n"
+        )
+        ui.download(
+            tmx.encode("utf-8"),
+            f"{state.filename}.tmx",
+        )
+        ui.notify(f"Exported {len(tus)} segment pairs to TMX.", type="positive")
 
     # ------------------------------------------------------------------
     # Keyboard chords
