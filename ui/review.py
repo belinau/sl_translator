@@ -1647,6 +1647,9 @@ def page_review_merge(review_id: str):
                 async with busy_overlay("Merging & reopening…"):
                     rm.merge_review_into_original(original, clone, accepted)
                     res["save_project"](original)
+                    # Sync clone targets with the merged original so the
+                    # reviewer sees accepted changes as the new baseline.
+                    rm.sync_clone_targets(clone, original)
                     # Upsert each accepted segment to TM — same as the
                     # editor's confirm button does via save_pair_to_tm.
                     lang_pair = original.get("lang_pair", "en->sl")

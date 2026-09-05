@@ -314,28 +314,57 @@ def merge_review_into_original(
 # ======================================================================
 # Reopen for another reviewer round
 # ======================================================================
-def reset_for_reopen(clone: dict) -> None:
-    """Reset segments that were NOT approved so the reviewer gets a fresh
-    pass on the rejected/updated ones.  Approved segments stay as-is.
+def sync_clone_targets(clone: dict, original_project: dict) -> None:
+    """Sync clone segment ``target`` fields with the original project.
 
-    Translator comments added during the merge view are frozen so the
-    reviewer can read but not edit them.
+    Called after ``merge_review_into_original`` so that accepted
+    suggestions — now merged into the original's ``target`` — are
+    visible as the new "current translation" when the reviewer opens
+    round 2.  Also carries over any other field the original updated
+    (e.g. ``status`` changes from 'done' confirmation).
     """
+    orig_map = {s.get("id"): s for s in original_project.get("segments", [])}
+    for seg in clone["segments"]:
+        oid = seg.get("original_id")
+        orig = orig_map.get(oid) if oid is not None else None
+        if orig is not None:
+            seg["target"] = orig.get("target", seg.get("target", ""))
+            seg["status"] = orig.get("status", seg.get("status", "pending"))
+
+
+def reset_for_reopen(clone: dict) -> None:
+    """Reset **all** clone segments for a fresh reviewer round.
+
+    Every segment — whether accepted or rejected in the previous round —
+    gets a clean ``reviewer_target`` and ``RS_PENDING`` status.  The
+    ``target`` (current translation) should already be synced via
+    ``sync_clone_targets`` before this is called, so accepted changes
+    are visible as the new baseline.
+
+    ``_clone_round`` is bumped to the new ``round_trip_count`` so that
+    new reviewer comments are associated with the correct round.
+    Translator comments from the merge view are frozen (read-only for
+    the reviewer).  Mutable reviewer comments from the previous round
+    are removed (frozen history stays).
+    """
+    clone["round_trip_count"] = clone.get("round_trip_count", 0) + 1
+    new_round = clone["round_trip_count"]
     for seg in clone["segments"]:
         # Freeze translator comments so the reviewer can't edit them.
         for c in cm.ensure_comments(seg):
             if c.get("author") == cm.AUTHOR_TRANSLATOR and c.get("mutable", False):
                 c["mutable"] = False
-        if seg.get("reviewer_status") != RS_APPROVED:
-            seg["reviewer_target"] = ""
-            cs = cm.ensure_comments(seg)
-            cs[:] = [c for c in cs if not (
-                c.get("author") == cm.AUTHOR_REVIEWER
-                and c.get("round") == seg.get("_clone_round", 1)
-                and c.get("mutable", False)
-            )]
-            seg["reviewer_status"] = RS_PENDING
-    clone["round_trip_count"] = clone.get("round_trip_count", 0) + 1
+        # Clear old mutable reviewer comments from the previous round.
+        cs = cm.ensure_comments(seg)
+        cs[:] = [c for c in cs if not (
+            c.get("author") == cm.AUTHOR_REVIEWER
+            and c.get("mutable", False)
+        )]
+        # Fresh suggestion field + status for every segment.
+        seg["reviewer_target"] = ""
+        seg["reviewer_status"] = RS_PENDING
+        # Advance the round so new comments are tagged correctly.
+        seg["_clone_round"] = new_round
     clone["status"] = STATUS_REOPEN
     clone["reviewer_completed"] = False
     clone.pop("reviewer_completed_at", None)
@@ -552,6 +581,7 @@ __all__ = [
     "update_review_status",
     "merge_review_into_original",
     "reset_for_reopen",
+    "sync_clone_targets",
     "reopen_review",
     "start_funnel",
     "stop_funnel",
