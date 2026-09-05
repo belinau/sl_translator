@@ -982,12 +982,10 @@ def page_review_ext(review_id: str):
                         ui.button("Apply", on_click=_apply).props("color=positive")
                 dialog.open()
 
-            with ui.dropdown_button("Export", icon="file_download", auto_close=True).props(
+            with ui.dropdown_button("Export translated document", icon="file_download", auto_close=True).props(
                 "rounded unelevated dense color=positive"
             ):
                 ui.item("Translated Book (.docx)", on_click=lambda: _open_review_export_dialog("target_docx"))
-                ui.item("Reorganized Source (.docx)", on_click=lambda: _open_review_export_dialog("source_docx"))
-                ui.item("Plain .txt", on_click=lambda: _open_review_export_dialog("txt"))
                 ui.separator()
                 ui.item("Change house style…", on_click=_open_review_change_style)
 
