@@ -62,6 +62,34 @@ def _comp(parent: ET.Element, tag: str) -> ET.Element:
     return ET.SubElement(parent, tag)
 
 
+def _set_party_name(c080: ET.Element, name: str) -> None:
+    """Write a party name into C_C080, split across D_3036 fields.
+
+    Each D_3036[_n] holds up to 70 characters (eSLOG XSD string1..70).
+    The full name is written into D_3036; overflow continues into
+    D_3036_2 … D_3036_5 so no word is silently dropped.
+
+    En/em dashes (U+2013/2014) are normalised to a plain hyphen-minus
+    because some bank eSLOG visualisers render them as '?' while still
+    handling Slovenian diacritics (ČŠŽ) — keeping a renderable dash.
+    """
+    upper = name.upper().replace("\u2013", "-").replace("\u2014", "-")
+    chunks = [upper[i:i + 70] for i in range(0, len(upper), 70)] or [""]
+    _sub(c080, "D_3036", chunks[0])
+    for idx, chunk in enumerate(chunks[1:5], start=2):
+        _sub(c080, f"D_3036_{idx}", chunk)
+
+
+
+def _doc_type_qualifier(doc_type: str) -> str:
+    """Map the referenced-document type to the eSLOG RFF qualifier (D_1153).
+
+    "Pogodba"        → CT (contract)         → bank visualises "Pogodba"
+    "Naročilo kupca" → ON (order number)     → bank visualises "Naročilo kupca"
+    Anything else    → ON (the historical default).
+    """
+    return "CT" if doc_type == "Pogodba" else "ON"
+
 # ── XML generation ───────────────────────────────────────────────
 
 def generate_eslog_xml(data: InvoiceData) -> bytes:
@@ -140,17 +168,23 @@ def generate_eslog_xml(data: InvoiceData) -> bytes:
     _sub(c506, "D_1153", "PQ")
     _sub(c506, "D_1154", data.payment_reference)
 
-    # ON — order number + date
+    # Referenced document (contract / purchase order) + its date.
+    # D_1153 qualifier is chosen from doc_type so the bank visualises
+    # "Pogodba" (CT) or "Naročilo kupca" (ON).
     sg1b = _sub(invoic, "G_SG1")
     rffb = _sub(sg1b, "S_RFF")
     c506b = _comp(rffb, "C_C506")
-    _sub(c506b, "D_1153", "ON")
+    _sub(c506b, "D_1153", _doc_type_qualifier(data.doc_type))
     _sub(c506b, "D_1154", data.order_number)
-    if data.service_date_from:
+    # 384 = contract / purchase-order date (referenced document date).
+    # Falls back to service_date_from for records stored before the
+    # contract_date field existed.
+    ref_date = data.contract_date or data.service_date_from
+    if ref_date:
         dtm_on = _sub(sg1b, "S_DTM")
         c507_on = _comp(dtm_on, "C_C507")
         _sub(c507_on, "D_2005", "384")
-        _sub(c507_on, "D_2380", _fmt_date(data.service_date_from))
+        _sub(c507_on, "D_2380", _fmt_date(ref_date))
 
     # ── G_SG2 — parties ──
     _build_seller(invoic, data)
@@ -213,11 +247,7 @@ def _build_seller(invoic: ET.Element, data: InvoiceData) -> None:
     nad = _sub(sg2, "S_NAD")
     _sub(nad, "D_3035", "SE")
     c080 = _comp(nad, "C_C080")
-    # Name may exceed 35 chars — split across D_3036 fields
-    name = iss["name"].upper()
-    _sub(c080, "D_3036", name[:35])
-    if len(name) > 35:
-        _sub(c080, "D_3036_2", name[35:70])
+    _set_party_name(c080, iss["name"])
 
     c059 = _comp(nad, "C_C059")
     _sub(c059, "D_3042", iss["address"].upper())
@@ -266,10 +296,7 @@ def _build_buyer(invoic: ET.Element, data: InvoiceData) -> None:
     nad = _sub(sg2, "S_NAD")
     _sub(nad, "D_3035", "BY")
     c080 = _comp(nad, "C_C080")
-    name = c.name.upper()[:35]
-    _sub(c080, "D_3036", name)
-    if len(c.name) > 35:
-        _sub(c080, "D_3036_2", c.name.upper()[35:70])
+    _set_party_name(c080, c.name)
 
     c059 = _comp(nad, "C_C059")
     _sub(c059, "D_3042", c.address.upper())
@@ -329,7 +356,7 @@ def _build_delivery_party(invoic: ET.Element, data: InvoiceData) -> None:
     nad = _sub(sg2, "S_NAD")
     _sub(nad, "D_3035", "DP")
     c080 = _comp(nad, "C_C080")
-    _sub(c080, "D_3036", c.name.upper()[:35])
+    _set_party_name(c080, c.name)
 
     c059 = _comp(nad, "C_C059")
     _sub(c059, "D_3042", c.address.upper())
@@ -744,11 +771,10 @@ def generate_eslog_pdf(data: InvoiceData) -> bytes:
     _text(col_left_x, y, "Številka ref. dokumenta", sz=7, color=(0.3, 0.3, 0.3))
     _text(col_left_x + 200, y, data.order_number, sz=7)
     y += 9
-    _text(col_left_x, y, "Vrsta dokumenta", sz=7, color=(0.3, 0.3, 0.3))
-    _text(col_left_x + 200, y, "Pogodba", sz=7)
+    _text(col_left_x + 200, y, data.doc_type or "Pogodba", sz=7)
     y += 9
     _text(col_left_x, y, "Datum dokumenta", sz=7, color=(0.3, 0.3, 0.3))
-    _text(col_left_x + 200, y, _sl_date(data.service_date_from), sz=7)
+    _text(col_left_x + 200, y, _sl_date(data.contract_date or data.issue_date), sz=7)
     y += 16
 
     # ── Generation footer ──

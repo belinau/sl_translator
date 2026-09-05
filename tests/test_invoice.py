@@ -8,8 +8,8 @@ Covers:
 - eSLOG PDF: Slovenian dates, comma decimals, EUR amounts, diacritics
 """
 from __future__ import annotations
-
 import re
+import dataclasses
 from datetime import date
 from decimal import Decimal
 
@@ -24,6 +24,7 @@ from translate_core.invoice_eslog import (
     generate_eslog_xml,
 )
 from translate_core.invoice_models import (
+    ClientRecord,
     InvoiceData,
     InvoiceLineItem,
 )
@@ -398,3 +399,102 @@ def test_get_rate_lang_pair_variant(store, sample_client_data):
 
     # The variant should still resolve to target "SLO"
     assert rec.get_rate("Prevod", "ENG>SLO (100 % ujemanje)", "stran") == Decimal("22")
+
+
+# ── Contract date + party-name integrity tests ───────────────────
+
+def _long_name_client() -> ClientRecord:
+    """A client whose name exceeds one D_3036 chunk (>35 chars) to guard
+    against the pre-fix 35-char truncation that dropped the last word."""
+    return ClientRecord(
+        id="t", name="MGLC - Mednarodni grafični likovni center",
+        address="Pod turnom 003", postal_code="1000", city="Ljubljana",
+        country="Slovenija", country_code="SI", vat_id="39110079",
+        iban="SI56 0126 1600 0002 125",
+        iban_compact="SI56012616000002125", bic="UJPLSI2DICL",
+        maticna="3454428000", account_holder="MGLC", use_eracun=True,
+    )
+
+
+def test_eslog_xml_party_name_not_truncated():
+    """Long buyer/delivery-party name is preserved in full — no last word lost."""
+    c = _long_name_client()
+    data = InvoiceData(
+        invoice_number="2026-013", issue_date=date(2026, 8, 5),
+        due_date=date(2026, 8, 10), service_date_from=date(2026, 7, 1),
+        service_date_to=date(2026, 7, 31), client=c, issuer=config.ISSUER,
+        line_items=[InvoiceLineItem(description="x", service_type="Prevod",
+            lang_pair="ENG>SLO", unit="stran", quantity=Decimal("1"),
+            unit_price=Decimal("22"))],
+        legal_notes=config.INVOICE_LEGAL_NOTES,
+    )
+    xml = generate_eslog_xml(data).decode()
+    # The full name must be reconstructable from the BY and DP blocks.
+    full = "MGLC - MEDNARODNI GRAFIČNI LIKOVNI CENTER"
+    for qualifier in ("BY", "DP"):
+        block = re.search(
+            rf"<D_3035>{qualifier}</D_3035>.*?</G_SG2>", xml, re.S
+        )
+        assert block, f"missing {qualifier} party block"
+        name_parts = re.findall(r"<D_3036[^>]*>([^<]*)</D_3036[^>]*>", block.group(0))
+        joined = "".join(name_parts)
+        assert joined == full, f"{qualifier} name lost a word: {joined!r}"
+
+
+def test_eslog_xml_contract_date_in_on_reference(invoice_data):
+    """Contract date is emitted in the referenced-document block (D_2005=384).
+
+    Default doc_type is "Pogodba" → CT qualifier; "Naročilo kupca" → ON.
+    Either way the referenced document carries the contract/PO date.
+    """
+    for doc_type, qualifier in (("Pogodba", "CT"), ("Naročilo kupca", "ON")):
+        data = dataclasses.replace(invoice_data, contract_date=date(2026, 1, 16),
+                                   doc_type=doc_type)
+        xml = generate_eslog_xml(data).decode()
+        block = re.search(
+            rf"<D_1153>{qualifier}</D_1153>.*?</G_SG1>", xml, re.S
+        )
+        assert block, f"{qualifier} reference block missing for {doc_type}"
+        assert "<D_2005>384</D_2005>" in block.group(0)
+        assert "<D_2380>2026-01-16</D_2380>" in block.group(0)
+
+def test_eslog_pdf_contract_date(invoice_data):
+    """PDF 'Datum dokumenta' shows the contract date, not the service date."""
+    invoice_data = dataclasses.replace(invoice_data, contract_date=date(2026, 1, 16))
+    pdf = generate_eslog_pdf(invoice_data)
+    doc = fitz.open(stream=pdf, filetype="pdf")
+    text = doc[0].get_text().replace("\xa0", " ")
+    doc.close()
+    assert "16.01.2026" in text
+    # The service-from date must not be rendered as the document date.
+    # Locate the "Datum dokumenta" label and check the value that follows it.
+    idx = text.find("Datum dokumenta")
+    assert idx != -1
+    tail = text[idx:idx + 60]
+    assert "16.01.2026" in tail
+
+
+def test_eslog_xml_doc_type_qualifier(invoice_data):
+    """doc_type drives the referenced-document RFF qualifier (D_1153)."""
+    for doc_type, qualifier in (("Pogodba", "CT"), ("Naročilo kupca", "ON")):
+        data = dataclasses.replace(invoice_data, doc_type=doc_type)
+        xml = generate_eslog_xml(data).decode()
+        block = re.search(
+            rf"<D_1153>{qualifier}</D_1153>.*?</G_SG1>", xml, re.S
+        )
+        assert block, f"qualifier {qualifier} not emitted for {doc_type}"
+        # The other qualifier must not leak into the referenced-doc block.
+        other = "ON" if qualifier == "CT" else "CT"
+        assert f"<D_1153>{other}</D_1153>" not in block.group(0)
+
+
+def test_eslog_xml_party_name_dash_normalized(invoice_data):
+    """En-dash in a party name is written as hyphen-minus so bank
+    visualisers that render U+2013 as '?' still show a dash."""
+    issuer = dict(invoice_data.issuer)
+    issuer["name"] = "URBAN BELINA \u2013 SAMOZAPOSLEN V KULTURI"
+    data = dataclasses.replace(invoice_data, issuer=issuer)
+    xml = generate_eslog_xml(data).decode()
+    assert "\u2013" not in xml, "en-dash must be normalised to hyphen-minus"
+    assert "URBAN BELINA - SAMOZAPOSLEN V KULTURI" in xml
+    assert generate_eslog_xml(data)  # still serialises

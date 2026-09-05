@@ -318,6 +318,13 @@ def score_record(record_kind: str, signals: dict) -> ScoreResult:
             bump("has_bilingual_label", 0.15)
         if signals.get("has_originating_author"):
             bump("has_originating_author", 0.25)
+        # Verified attribution (grounded + roster/model-confirmed): the
+        # person→concept link has passed the three-layer verifier, so the
+        # concept + its attributed_to edge may direct-write. Unverified
+        # attributions keep the baseline author credit for the *node* tier;
+        # the edge itself is gated separately in kg_ingest_entities.
+        if signals.get("attribution_verified"):
+            bump("attribution_verified", 0.10)
         if signals.get("has_source_work"):
             bump("has_source_work", 0.20)
         if signals.get("has_container"):

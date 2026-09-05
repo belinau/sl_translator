@@ -599,7 +599,7 @@ def render_project_list(container: ui.column, client):
                                 "text-[10px] font-bold uppercase opacity-60"
                             )
                             _doc_type = ui.select(
-                                ["Pogodba", "Naročilnica", "Dnevni red", "Dogovor"],
+                                ["Pogodba", "Naročilo kupca"],
                                 value="Pogodba",
                             ).props("outlined dense").classes("w-full")
 
@@ -894,6 +894,10 @@ def render_project_list(container: ui.column, client):
                             due_d = date.fromisoformat(_due_date.value)
                             svc_f = date.fromisoformat(_svc_from.value)
                             svc_t = date.fromisoformat(_svc_to.value)
+                            contract_d = (
+                                date.fromisoformat(_doc_date.value)
+                                if _doc_date.value else None
+                            )
 
                             inv_num = store.next_invoice_number(issue_d.year)
 
@@ -903,12 +907,14 @@ def render_project_list(container: ui.column, client):
                                 due_date=due_d,
                                 service_date_from=svc_f,
                                 service_date_to=svc_t,
+                                contract_date=contract_d,
                                 client=rec,
                                 issuer=cfg.ISSUER,
                                 line_items=items,
                                 approver=approver,
                                 responsible_person="",
                                 order_number=_order_no.value or "dogovor",
+                                doc_type=_doc_type.value or "Pogodba",
                                 project_code=_proj_code.value or "/",
                                 legal_notes=cfg.INVOICE_LEGAL_NOTES,
                             )
@@ -2085,6 +2091,11 @@ def page_invoices():
                     due_date=date.fromisoformat(inv["due_date"]),
                     service_date_from=date.fromisoformat(inv["service_date_from"] or inv["issue_date"]),
                     service_date_to=date.fromisoformat(inv["service_date_to"] or inv["issue_date"]),
+                    contract_date=(
+                        date.fromisoformat(inv["doc_date"][:10])
+                        if inv.get("doc_date") else None
+                    ),
+                    doc_type=inv.get("doc_type") or "Pogodba",
                     client=rec,
                     issuer=config.ISSUER,
                     line_items=items,
@@ -2195,11 +2206,24 @@ def page_invoices():
                                         (inv.get("service_date_to") or inv["issue_date"])[:10]
                                     ).isoformat()
                                 ).props("outlined dense").classes("w-full")
+                            with ui.column().classes("flex-1 gap-1"):
+                                ui.label("Contract/PO date").classes("text-[10px] font-bold uppercase opacity-60")
+                                _e_doc_date = ui.date(
+                                    value=(
+                                        _date.fromisoformat(inv["doc_date"][:10]).isoformat()
+                                        if inv.get("doc_date") else ""
+                                    )
+                                ).props("outlined dense").classes("w-full")
 
                         # ── Order info ──
                         with ui.row().classes("w-full gap-2"):
                             _e_order = ui.input("Order no.", value=inv.get("order_number") or "dogovor").props("outlined dense").classes("flex-1 text-[10px]")
                             _e_proj = ui.input("Project code", value=inv.get("project_code") or "/").props("outlined dense").classes("flex-1 text-[10px]")
+                            _e_doc_type = ui.select(
+                                ["Pogodba", "Naročilo kupca"],
+                                value=inv.get("doc_type") or "Pogodba",
+                            ).props("outlined dense").classes("flex-1 text-[10px]")
+                            ui.label("Doc type").classes("text-[10px] opacity-50")
                             persons = {p["name"]: p["name"] for p in rec.responsible_persons}
                             _e_appr = ui.select(
                                 persons or {}, value=inv.get("approver") or None,
@@ -2297,11 +2321,14 @@ def page_invoices():
                                 if not items:
                                     ui.notify("No valid line items.", type="warning")
                                     return
-
+                                svc_t = _date.fromisoformat(_e_svc_t.value)
+                                contract_d = (
+                                    _date.fromisoformat(_e_doc_date.value)
+                                    if _e_doc_date.value else None
+                                )
                                 issue_d = _date.fromisoformat(_e_issue.value)
                                 due_d = _date.fromisoformat(_e_due.value)
                                 svc_f = _date.fromisoformat(_e_svc_f.value)
-                                svc_t = _date.fromisoformat(_e_svc_t.value)
                                 approver = _e_appr.value or ""
                                 num = inv["invoice_number"]
 
@@ -2311,11 +2338,13 @@ def page_invoices():
                                     due_date=due_d,
                                     service_date_from=svc_f,
                                     service_date_to=svc_t,
+                                    contract_date=contract_d,
                                     client=rec,
                                     issuer=config.ISSUER,
                                     line_items=items,
                                     approver=approver,
                                     order_number=_e_order.value or "dogovor",
+                                    doc_type=_e_doc_type.value or "Pogodba",
                                     project_code=_e_proj.value or "/",
                                     legal_notes=config.INVOICE_LEGAL_NOTES,
                                 )
@@ -2358,8 +2387,8 @@ def page_invoices():
                                     "approver": approver,
                                     "order_number": _e_order.value or "",
                                     "project_code": _e_proj.value or "",
-                                    "doc_type": inv.get("doc_type", "Pogodba"),
-                                    "doc_date": inv.get("doc_date", ""),
+                                    "doc_date": _e_doc_date.value or "",
+                                    "doc_type": _e_doc_type.value or "Pogodba",
                                     "total": str(inv_data.total),
                                     "pdf_path": pdf_path,
                                     "xml_path": xml_path,
@@ -2382,7 +2411,6 @@ def page_invoices():
                                 "unelevated color=positive")
                 _edlg.open()
             def _refresh():
-                _inv_container.clear()
                 invoices = store.list_invoices()
                 with _inv_container:
                     if not invoices:

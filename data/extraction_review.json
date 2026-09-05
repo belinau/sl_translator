@@ -1150,5 +1150,1103 @@
       "named_institution_kind"
     ],
     "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "YermilovCentre for Contemporary Art",
+      "name_translation": "Center Jermilov za sodobno umetnost",
+      "kind": "museum",
+      "city": "Kharkiv",
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_64f29917",
+          "segment_idx": 2
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_64f29917",
+      "segment_idx": 2,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Ukraine",
+      "name_translation": "Ukrajini",
+      "kind": "country",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_64f29917",
+          "segment_idx": 4
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_64f29917",
+      "segment_idx": 4,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "ART KUZEMYN",
+      "name_translation": null,
+      "kind": "organization",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_64f29917",
+          "segment_idx": 6
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_64f29917",
+      "segment_idx": 6,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "YermilovCentre",
+      "name_translation": "Centra Jermilov",
+      "kind": "organization",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_64f29917",
+          "segment_idx": 8
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_64f29917",
+      "segment_idx": 8,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "concept",
+    "payload": {
+      "concept_id": "concept:nondisabled-claim-to-be-crip",
+      "label": "nondisabled claim to be crip",
+      "label_orig": "nondisabled claim to be crip",
+      "label_translation": "uveljavljanje pravice neoviranih, da se označijo kot krip",
+      "orig_lang": "en",
+      "translation_lang": "sl",
+      "domain": "other",
+      "definition": "",
+      "originating_author": "Carrie Sandahl and Robert McRuer",
+      "evidence_span": "in Carrie Sandahl’s and Robert McRuer’s framings, a “nondisabled claim to be crip?”",
+      "container_work_id": "feminist-queer-crip-alison-kafer-pdf",
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_9f6cbcc5",
+          "segment_idx": 152
+        }
+      ],
+      "attribution_pending": true
+    },
+    "source": {
+      "origin": "editor_en-sl_9f6cbcc5",
+      "segment_idx": 152,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_label": true,
+      "has_bilingual_label": true,
+      "has_originating_author": true,
+      "has_evidence_span": true,
+      "has_source_work": false,
+      "has_container": true,
+      "smol_verified_classification": false,
+      "attribution_roster_confirmed": false,
+      "container_attached": true,
+      "attribution_grounded": false,
+      "attribution_verified": false
+    },
+    "confidence": 1.0,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "has_label",
+      "has_bilingual_label",
+      "has_originating_author",
+      "has_container"
+    ],
+    "tier": "direct_write",
+    "_route_reason": "attribution_unverified"
+  },
+  {
+    "kind": "concept",
+    "payload": {
+      "concept_id": "concept:crip-theory",
+      "label": "crip theory",
+      "label_orig": "crip theory",
+      "label_translation": "krip teorija",
+      "orig_lang": "en",
+      "translation_lang": "sl",
+      "domain": "other",
+      "definition": "",
+      "originating_author": "Sandahl and McRuer",
+      "evidence_span": "Sandahl and McRuer, disability studies and crip theory",
+      "container_work_id": "feminist-queer-crip-alison-kafer-pdf",
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_9f6cbcc5",
+          "segment_idx": 175
+        }
+      ],
+      "attribution_pending": true
+    },
+    "source": {
+      "origin": "editor_en-sl_9f6cbcc5",
+      "segment_idx": 175,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_label": true,
+      "has_bilingual_label": true,
+      "has_originating_author": true,
+      "has_evidence_span": true,
+      "has_source_work": false,
+      "has_container": true,
+      "smol_verified_classification": false,
+      "attribution_roster_confirmed": false,
+      "container_attached": true,
+      "attribution_grounded": true,
+      "attribution_roster_mismatch": false,
+      "attribution_model_verified": false,
+      "attribution_verified": false
+    },
+    "confidence": 1.0,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "has_label",
+      "has_bilingual_label",
+      "has_originating_author",
+      "has_container"
+    ],
+    "tier": "direct_write",
+    "_route_reason": "attribution_unverified"
+  },
+  {
+    "kind": "concept",
+    "payload": {
+      "concept_id": "concept:disability-studies",
+      "label": "disability studies",
+      "label_orig": "disability studies",
+      "label_translation": "študije oviranosti",
+      "orig_lang": "en",
+      "translation_lang": "sl",
+      "domain": "other",
+      "definition": "",
+      "originating_author": "Sandahl and McRuer",
+      "evidence_span": "Sandahl and McRuer, disability studies and crip theory",
+      "container_work_id": "feminist-queer-crip-alison-kafer-pdf",
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_9f6cbcc5",
+          "segment_idx": 175
+        }
+      ],
+      "attribution_pending": true
+    },
+    "source": {
+      "origin": "editor_en-sl_9f6cbcc5",
+      "segment_idx": 175,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_label": true,
+      "has_bilingual_label": true,
+      "has_originating_author": true,
+      "has_evidence_span": true,
+      "has_source_work": false,
+      "has_container": true,
+      "smol_verified_classification": false,
+      "attribution_roster_confirmed": false,
+      "container_attached": true,
+      "attribution_grounded": true,
+      "attribution_roster_mismatch": false,
+      "attribution_model_verified": false,
+      "attribution_verified": false
+    },
+    "confidence": 1.0,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "has_label",
+      "has_bilingual_label",
+      "has_originating_author",
+      "has_container"
+    ],
+    "tier": "direct_write",
+    "_route_reason": "attribution_unverified"
+  },
+  {
+    "kind": "concept",
+    "payload": {
+      "concept_id": "concept:we-are-everywhere",
+      "label": "we are everywhere",
+      "label_orig": "we are everywhere",
+      "label_translation": "smo povsod hkrati",
+      "orig_lang": "en",
+      "translation_lang": "sl",
+      "domain": "sociology",
+      "definition": "",
+      "originating_author": "Linton",
+      "evidence_span": "Linton's “we are everywhere”",
+      "container_work_id": "feminist-queer-crip-alison-kafer-pdf",
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_9f6cbcc5",
+          "segment_idx": 177
+        }
+      ],
+      "attribution_pending": true
+    },
+    "source": {
+      "origin": "editor_en-sl_9f6cbcc5",
+      "segment_idx": 177,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_label": true,
+      "has_bilingual_label": true,
+      "has_originating_author": true,
+      "has_evidence_span": true,
+      "has_source_work": false,
+      "has_container": true,
+      "smol_verified_classification": false,
+      "attribution_roster_confirmed": false,
+      "container_attached": true,
+      "attribution_grounded": false,
+      "attribution_verified": false
+    },
+    "confidence": 1.0,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "has_label",
+      "has_bilingual_label",
+      "has_originating_author",
+      "has_container"
+    ],
+    "tier": "direct_write",
+    "_route_reason": "attribution_unverified"
+  },
+  {
+    "kind": "concept",
+    "payload": {
+      "concept_id": "concept:crip",
+      "label": "crip",
+      "label_orig": "crip",
+      "label_translation": "krip",
+      "orig_lang": "en",
+      "translation_lang": "sl",
+      "domain": "feminism",
+      "definition": "",
+      "originating_author": "Sandahl",
+      "evidence_span": "Sandahl’s “crip”",
+      "container_work_id": "feminist-queer-crip-alison-kafer-pdf",
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_9f6cbcc5",
+          "segment_idx": 181
+        }
+      ],
+      "attribution_pending": true
+    },
+    "source": {
+      "origin": "editor_en-sl_9f6cbcc5",
+      "segment_idx": 181,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_label": true,
+      "has_bilingual_label": true,
+      "has_originating_author": true,
+      "has_evidence_span": true,
+      "has_source_work": false,
+      "has_container": true,
+      "smol_verified_classification": false,
+      "attribution_roster_confirmed": false,
+      "container_attached": true,
+      "attribution_grounded": false,
+      "attribution_verified": false
+    },
+    "confidence": 1.0,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "has_label",
+      "has_bilingual_label",
+      "has_originating_author",
+      "has_container"
+    ],
+    "tier": "direct_write",
+    "_route_reason": "attribution_unverified"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Society for Disability Studies",
+      "name_translation": "društva za študije oviranosti",
+      "kind": "organization",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_9f6cbcc5",
+          "segment_idx": 195
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_9f6cbcc5",
+      "segment_idx": 195,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Foundation for a Better Life",
+      "name_translation": "Foundation for a Better Life",
+      "kind": "organization",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_9f6cbcc5",
+          "segment_idx": 227
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_9f6cbcc5",
+      "segment_idx": 227,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "MGLC Švicarija",
+      "name_translation": "MGLC Švicarija",
+      "kind": "gallery",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_12f86692",
+          "segment_idx": 1
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_12f86692",
+      "segment_idx": 1,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Švicarija",
+      "name_translation": null,
+      "kind": "gallery",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_12f86692",
+          "segment_idx": 2
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_12f86692",
+      "segment_idx": 2,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Filozofska fakulteta UL",
+      "name_translation": "Faculty of Arts, University of Ljubljana",
+      "kind": "university",
+      "city": "Ljubljana",
+      "mention_segments": [
+        {
+          "origin": "editor_sl-en_12f86692",
+          "segment_idx": 3
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_sl-en_12f86692",
+      "segment_idx": 3,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Socialist Review",
+      "name_translation": null,
+      "kind": "journal",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_9f6cbcc5",
+          "segment_idx": 235
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_9f6cbcc5",
+      "segment_idx": 235,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "concept",
+    "payload": {
+      "concept_id": "concept:futurity",
+      "label": "futurity",
+      "label_orig": "futurity",
+      "label_translation": "bodočnost",
+      "orig_lang": "en",
+      "translation_lang": "sl",
+      "domain": "politics",
+      "definition": "",
+      "originating_author": "Lee Edelman",
+      "evidence_span": "Edelman argues that futurity",
+      "container_work_id": "feminist-queer-crip-alison-kafer-pdf",
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_9f6cbcc5",
+          "segment_idx": 272
+        }
+      ],
+      "attribution_pending": true
+    },
+    "source": {
+      "origin": "editor_en-sl_9f6cbcc5",
+      "segment_idx": 272,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_label": true,
+      "has_bilingual_label": true,
+      "has_originating_author": true,
+      "has_evidence_span": true,
+      "has_source_work": false,
+      "has_container": true,
+      "smol_verified_classification": false,
+      "attribution_roster_confirmed": false,
+      "container_attached": true,
+      "attribution_grounded": false,
+      "attribution_verified": false
+    },
+    "confidence": 1.0,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "has_label",
+      "has_bilingual_label",
+      "has_originating_author",
+      "has_container"
+    ],
+    "tier": "direct_write",
+    "_route_reason": "attribution_unverified"
+  },
+  {
+    "kind": "concept",
+    "payload": {
+      "concept_id": "concept:the-child-as-the-frontier-of-politics",
+      "label": "the Child as the frontier of politics",
+      "label_orig": "the Child as the frontier of politics",
+      "label_translation": "otrok kot napredne politike",
+      "orig_lang": "en",
+      "translation_lang": "sl",
+      "domain": "politics",
+      "definition": "",
+      "originating_author": "Edelman",
+      "evidence_span": "the idealization of the Child as the frontier of politics, the framing that troubles Edelman",
+      "container_work_id": "feminist-queer-crip-alison-kafer-pdf",
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_9f6cbcc5",
+          "segment_idx": 275
+        }
+      ],
+      "attribution_pending": true
+    },
+    "source": {
+      "origin": "editor_en-sl_9f6cbcc5",
+      "segment_idx": 275,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_label": true,
+      "has_bilingual_label": true,
+      "has_originating_author": true,
+      "has_evidence_span": true,
+      "has_source_work": false,
+      "has_container": true,
+      "smol_verified_classification": false,
+      "attribution_roster_confirmed": false,
+      "container_attached": true,
+      "attribution_grounded": true,
+      "attribution_roster_mismatch": false,
+      "attribution_model_verified": false,
+      "attribution_verified": false
+    },
+    "confidence": 1.0,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "has_label",
+      "has_bilingual_label",
+      "has_originating_author",
+      "has_container"
+    ],
+    "tier": "direct_write",
+    "_route_reason": "attribution_unverified"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "United States",
+      "name_translation": "ZDA",
+      "kind": "country",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_9f6cbcc5",
+          "segment_idx": 282
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_9f6cbcc5",
+      "segment_idx": 282,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Virginia",
+      "name_translation": null,
+      "kind": "other",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_9f6cbcc5",
+          "segment_idx": 285
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_9f6cbcc5",
+      "segment_idx": 285,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": false,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.55,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Supreme Court",
+      "name_translation": "vrhovno sodišče",
+      "kind": "other",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_9f6cbcc5",
+          "segment_idx": 285
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_9f6cbcc5",
+      "segment_idx": 285,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": false,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.55,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Human Betterment Foundation",
+      "name_translation": "Fundacije za človeške izboljšave",
+      "kind": "organization",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_9f6cbcc5",
+          "segment_idx": 289
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_9f6cbcc5",
+      "segment_idx": 289,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "concept",
+    "payload": {
+      "concept_id": "concept:no-future",
+      "label": "no future",
+      "label_orig": "no future",
+      "label_translation": "brez prihodnosti",
+      "orig_lang": "en",
+      "translation_lang": "sl",
+      "domain": "politics",
+      "definition": "",
+      "originating_author": "Edelman",
+      "evidence_span": "I part ways with Edelman. I do not think the only response to no future",
+      "container_work_id": "feminist-queer-crip-alison-kafer-pdf",
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_9f6cbcc5",
+          "segment_idx": 294
+        }
+      ],
+      "attribution_pending": true
+    },
+    "source": {
+      "origin": "editor_en-sl_9f6cbcc5",
+      "segment_idx": 294,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_label": true,
+      "has_bilingual_label": true,
+      "has_originating_author": true,
+      "has_evidence_span": true,
+      "has_source_work": false,
+      "has_container": true,
+      "smol_verified_classification": false,
+      "attribution_roster_confirmed": false,
+      "container_attached": true,
+      "attribution_grounded": true,
+      "attribution_roster_mismatch": false,
+      "attribution_model_verified": false,
+      "attribution_verified": false
+    },
+    "confidence": 1.0,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "has_label",
+      "has_bilingual_label",
+      "has_originating_author",
+      "has_container"
+    ],
+    "tier": "direct_write",
+    "_route_reason": "attribution_unverified"
+  },
+  {
+    "kind": "concept",
+    "payload": {
+      "concept_id": "concept:reproductive-futurism",
+      "label": "reproductive futurism",
+      "label_orig": "reproductive futurism",
+      "label_translation": "reproduktivni futurizem",
+      "orig_lang": "en",
+      "translation_lang": "sl",
+      "domain": "philosophy",
+      "definition": "",
+      "originating_author": "Lee Edelman",
+      "evidence_span": "Edelman’s warnings of reproductive futurism",
+      "source_work_title": "No Future",
+      "container_work_id": "feminist-queer-crip-alison-kafer-pdf",
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_9f6cbcc5",
+          "segment_idx": 296
+        }
+      ],
+      "attribution_pending": true
+    },
+    "source": {
+      "origin": "editor_en-sl_9f6cbcc5",
+      "segment_idx": 296,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_label": true,
+      "has_bilingual_label": true,
+      "has_originating_author": true,
+      "has_evidence_span": true,
+      "has_source_work": true,
+      "has_container": true,
+      "smol_verified_classification": true,
+      "attribution_roster_confirmed": false,
+      "container_attached": true,
+      "attribution_grounded": false,
+      "attribution_verified": false
+    },
+    "confidence": 1.0,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "has_label",
+      "has_bilingual_label",
+      "has_originating_author",
+      "has_source_work",
+      "has_container"
+    ],
+    "tier": "direct_write",
+    "_route_reason": "attribution_unverified"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Medicaid",
+      "name_translation": "Medicaid",
+      "kind": "organization",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_9f6cbcc5",
+          "segment_idx": 303
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_9f6cbcc5",
+      "segment_idx": 303,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "Medicare",
+      "name_translation": "Medicare",
+      "kind": "organization",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_9f6cbcc5",
+          "segment_idx": 312
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_9f6cbcc5",
+      "segment_idx": 312,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
+  },
+  {
+    "kind": "institution",
+    "payload": {
+      "name": "GLQ",
+      "name_translation": "GLQ",
+      "kind": "journal",
+      "city": null,
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_9f6cbcc5",
+          "segment_idx": 320
+        }
+      ]
+    },
+    "source": {
+      "origin": "editor_en-sl_9f6cbcc5",
+      "segment_idx": 320,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_name": true,
+      "named_institution_kind": true,
+      "smol_verified_classification": true
+    },
+    "confidence": 0.75,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "named_institution_kind"
+    ],
+    "tier": "review"
   }
 ]

@@ -68,8 +68,13 @@ def record_label(r: dict) -> str:
         return f"{p.get('author', '?')} — {(p.get('title_orig') or p.get('title_translation') or '?')[:60]} ({p.get('year') or '—'})"
     if r["kind"] == "agent_person":
         return f"{p.get('name', '?')} (×{p.get('mention_count', 1)}, group={p.get('dedup_group')})"
-    if r["kind"] == "institution":
-        return f"{p.get('name', '?')} ({p.get('kind', '?')}, {p.get('city') or '—'})"
+    if r["kind"] == "concept":
+        p = r.get("payload", {})
+        auth = p.get("originating_author")
+        suffix = f" — {auth}" if auth else ""
+        if p.get("attribution_pending"):
+            suffix += " (attribution unverified)"
+        return f"{(p.get('label') or p.get('label_orig') or '?')}{suffix}"
     return str(p)[:80]
 
 
@@ -167,8 +172,55 @@ def commit_record(kg, r: dict) -> str | None:
                     iid, name=pub["publisher"], kind="publisher",
                     city=pub.get("city"),
                 )
-            kg.link_published_by(cid, iid)
-
+    elif kind == "concept":
+        label = (p.get("label") or p.get("label_orig") or p.get("label_translation") or "").strip()
+        if not label:
+            return "Label is required."
+        concept_id = p.get("concept_id") or f"concept:{review_slugify(label)}"
+        if not concept_id.startswith("concept:"):
+            concept_id = f"concept:{concept_id}"
+        kg.add_concept_node(
+            concept_id,
+            label=label,
+            domain=p.get("domain") or "humanities",
+            definition=p.get("definition", ""),
+            label_orig=p.get("label_orig"),
+            label_translation=p.get("label_translation"),
+            orig_lang=p.get("orig_lang"),
+            translation_lang=p.get("translation_lang"),
+        )
+        # Curator confirm of a concept record IS the endorsement that lets
+        # us write the person→concept attribution edge (and the source work
+        # it is anchored to). This mirrors the verified path in Pass 6.
+        author = (p.get("originating_author") or "").strip()
+        if author and author.lower() not in ("urban-belina", "belina-urban"):
+            aid = review_slugify(author)
+            if not kg.G.has_node(f"agent:{aid.lower()}"):
+                kg.add_agent_node(
+                    aid, name=author, role="author",
+                    dedup_group=dedup_group_key(author),
+                    alt_spellings=[author], all_roles=["author"], mention_count=1,
+                )
+            kg.link_attributed_to(concept_id, aid)
+            source_work_title = (p.get("source_work_title") or "").strip()
+            if source_work_title:
+                try:
+                    year_int = int(p["source_work_year"]) if p.get("source_work_year") else None
+                except (TypeError, ValueError):
+                    year_int = None
+                sw_id = review_slugify("-".join(
+                    s for s in [author, source_work_title,
+                                str(p.get("source_work_year") or "")] if s
+                ))
+                if not kg.G.has_node(f"source:{sw_id.lower()}"):
+                    kg.add_source_text_node(
+                        sw_id, title=source_work_title, year=year_int,
+                        project_type="book",
+                    )
+                kg.link_written_by(sw_id, aid)
+                for cid in (p.get("cited_containers") or [p.get("container_work_id")] or []):
+                    if cid and cid != sw_id:
+                        kg.link_cited_in(sw_id, cid)
 
 # ---------------------------------------------------------------------------
 # Candidate texts / reclassify

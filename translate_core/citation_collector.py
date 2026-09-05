@@ -343,6 +343,7 @@ def extract_and_ingest(
     review_path: str = "data/extraction_review.json",
     dropped_path: str = "data/extraction_dropped.jsonl",
     extractor: Optional[Callable[..., Optional[list[dict]]]] = None,
+    model_verify: Optional[Callable[..., Optional[bool]]] = None,
 ) -> IngestReport:
     """Run live smol extraction + KG ingest on a batch of snippets.
 
@@ -352,6 +353,11 @@ def extract_and_ingest(
     pipeline picks the segment up later from working.tmx). Defaults to the
     live Ollama client.
 
+    ``model_verify`` has the smol_client.verify_attribution contract:
+    ``(src, tgt, concept_label, author_name, evidence_span) -> bool|None``
+    and is the second-pass attribution checker. Defaults to the live
+    client. Pass a fake in tests.
+
     Records flow through the same chokepoint as the batch pipeline:
     score_all → dedup_records → write_to_kg (O-10 confidence tiers).
 
@@ -359,10 +365,14 @@ def extract_and_ingest(
     """
     from .entity_extraction.smol_extractor import _detect_source_lang, build_record
     from .kg_ingest_entities import write_to_kg, score_all, dedup_records
+    from .entity_extraction.attribution_verifier import verify_records
 
     if extractor is None:
         from .entity_extraction.smol_client import extract_entities
         extractor = extract_entities
+    if model_verify is None:
+        from .entity_extraction.smol_client import verify_attribution as _va
+        model_verify = _va
 
     report = IngestReport()
     all_records: list[dict] = []
@@ -393,6 +403,7 @@ def extract_and_ingest(
             continue
 
         src_lang, tgt_lang = _detect_source_lang(snippet.origin)
+        seg_records: list[dict] = []
         for ent in entities:
             rec = build_record(
                 ent,
@@ -403,7 +414,17 @@ def extract_and_ingest(
                 tgt_lang=tgt_lang,
             )
             if rec is not None:
-                all_records.append(rec)
+                seg_records.append(rec)
+
+        # Ground + verify any concept attributions against this segment's
+        # text before scoring, so the scorer and the ingest chokepoint see
+        # the attribution_verified signal.
+        if seg_records:
+            verify_records(
+                seg_records, text, snippet.target_text or "",
+                model_verify=model_verify,
+            )
+            all_records.extend(seg_records)
 
     # Score → dedup → re-score (dedup merges rebuild records without tier),
     # then write through the O-10 chokepoint — same sequence as the batch

@@ -208,11 +208,12 @@ concept:
     "domain":"<one of: {concept_domains}>",
     "originating_author":"<author who introduced this concept, if mentioned>",
     "source_work_title":"<title of the work where the concept was first introduced, if mentioned>",
-    "source_work_year":<int or null>}}
+    "source_work_year":<int or null>,
+    "evidence_span":"<EXACT verbatim substring of the SOURCE or TARGET text where the concept is attributed to the originating_author — copy the words character-for-character; this is verified programmatically, so a fabricated or paraphrased span will be rejected>"}}
 
 Rules:
 - Only output entities ACTUALLY MENTIONED in the segment.
-- For concepts: only emit if the segment explicitly attributes the concept to an author or quotes it from a named work. Do NOT invent attributions.
+- For concepts: only emit if the segment explicitly attributes the concept to an author or quotes it from a named work. Do NOT invent attributions. The evidence_span MUST be a verbatim copy of a phrase that actually occurs in the SOURCE or TARGET text and that contains BOTH the concept term and the author name; if no such phrase exists, do NOT emit the concept.
 Known theorists and their lineages in this corpus (use ONLY when the segment actually names the theorist or unmistakably discusses their concept; never copy a name the segment does not mention): {theorist_roster}
 - For bilingual fields: if SOURCE and TARGET both name the same entity, fill BOTH name_orig/name_translation (or title_orig/title_translation).
 - For cited_work: container_work_id will be filled by the downstream pipeline from segment metadata; you do not need to emit it.
@@ -686,10 +687,13 @@ def _build_concept(
         source_work_year = int(source_work_year) if source_work_year is not None else None
     except (ValueError, TypeError):
         source_work_year = None
-
     concept_id = f"concept:{_slugify(canonical_label)}"
+    evidence_span = (ent.get("evidence_span") or "").strip() or None
+    # Roster fallback only when the model provided no author AND no evidence
+    # span — a roster-backed attribution is authority-confirmed by construction.
+    roster_author = _concept_theorist_roster().get(concept_id)
     if not originating_author:
-        originating_author = _concept_theorist_roster().get(concept_id)
+        originating_author = roster_author
 
     payload = {
         "concept_id": concept_id,
@@ -702,6 +706,7 @@ def _build_concept(
         "definition": "",  # curator fills in
         # Anchoring fields — used by ingestion to wire edges
         "originating_author": originating_author,
+        "evidence_span": evidence_span,
         "source_work_title": source_work_title,
         "source_work_year": source_work_year,
         "container_work_id": container_work_id or None,
@@ -722,11 +727,17 @@ def _build_concept(
             "has_label": True,
             "has_bilingual_label": bool(label_orig and label_translation),
             "has_originating_author": bool(originating_author),
+            "has_evidence_span": bool(evidence_span),
             "has_source_work": bool(source_work_title),
             "has_container": bool(container_work_id),
             # Smol returned a complete concept (label + originating author + source work)
             "smol_verified_classification": bool(
                 label_orig and originating_author and source_work_title
+            ),
+            # Roster-backed attribution (no model author, filled from
+            # data/concept_theorists.json) is authority-confirmed by construction.
+            "attribution_roster_confirmed": bool(
+                originating_author and originating_author == roster_author
             ),
             # Phase 3 composite-gate signal applicable to concept: only the
             # container axis is semantically meaningful. `title_bilingual` and

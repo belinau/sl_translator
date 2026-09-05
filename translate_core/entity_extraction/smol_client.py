@@ -85,6 +85,73 @@ def extract_entities(
     return parse_smol_response(body.get("response", ""))
 
 
+_VERIFY_PROMPT_TEMPLATE = """\
+You are a strict fact-checker for a translation knowledge graph.
+Decide whether the SOURCE/TARGET segment below EXPLICITLY attributes the
+concept "{label}" to the person "{author}" as its originator or holder.
+
+SOURCE: {src}
+TARGET: {tgt}
+Claimed evidence (must occur verbatim in SOURCE or TARGET): "{span}"
+
+Answer "yes" only if the segment genuinely and explicitly attributes this
+concept to this person (e.g. "{author}'s notion of {label}", "as {author}
+argues, the concept of {label}"). Answer "no" if the attribution is
+inferred, coincidental, misattributed, or absent. Reply with exactly one
+word: yes or no."""
+
+
+def verify_attribution(
+    src: str,
+    tgt: str,
+    concept_label: str,
+    author_name: str,
+    evidence_span: str,
+    *,
+    model: str | None = None,
+    base_url: str | None = None,
+    timeout: float = 60.0,
+) -> bool | None:
+    """Second-pass verification of a single concept→agent attribution.
+
+    Returns True (confirmed), False (rejected), or None when the LLM
+    endpoint is unavailable (the attribution is then treated as
+    unverified and queued for curator review rather than auto-written).
+    """
+    if model is None or base_url is None:
+        import config
+        model = model or config.SMOL_MODEL
+        base_url = base_url or config.OLLAMA_URL
+
+    prompt = _VERIFY_PROMPT_TEMPLATE.format(
+        src=src, tgt=tgt, label=concept_label,
+        author=author_name, span=evidence_span,
+    )
+    payload = json.dumps({
+        "model": model,
+        "prompt": prompt,
+        "stream": False,
+        "options": {"temperature": 0},
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        f"{base_url}/api/generate",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            body = json.loads(resp.read())
+    except (OSError, ValueError):
+        return None  # unavailable → caller queues for review
+    raw = (body.get("response") or "").strip().lower()
+    if raw.startswith("yes"):
+        return True
+    if raw.startswith("no"):
+        return False
+    # Ambiguous response → do not auto-write.
+    return None
+
+
 _BLOCK_LABELS = ("footnotes", "list", "bibliography", "other")
 
 

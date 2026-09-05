@@ -1101,6 +1101,12 @@ def write_to_kg(
             source_work_title = p.get("source_work_title")
             source_work_year = _to_int_year(p.get("source_work_year"))
             container_id = p.get("container_work_id")
+            # Attribution verification (attribution_verifier): only a link
+            # that passed grounding + roster/model confirmation may produce
+            # a KG attributed_to edge. Unverified attributions are withheld
+            # from the KG and queued for curator confirm so the graph stays
+            # noise-free while the proposed link stays recoverable.
+            attribution_verified = bool(r.get("signals", {}).get("attribution_verified"))
             # When a concept is mentioned across multiple containers, dedup
             # accumulates them on `cited_containers`. Union the primary +
             # the accumulated list (deduplicated).
@@ -1108,9 +1114,10 @@ def write_to_kg(
             if container_id and container_id not in cited_containers:
                 cited_containers.append(container_id)
 
-            # Originating author → agent node
+            # Originating author → agent node + attributed_to edge, ONLY when
+            # the attribution is verified. The translator is never a theorist.
             author_agent_id = None
-            if originating_author:
+            if originating_author and attribution_verified:
                 grp = dedup_group_key(originating_author)
                 author_agent_id = agent_id_by_dedup.get(grp) or _slugify(originating_author)
                 if not kg.G.has_node(f"agent:{author_agent_id.lower()}"):
@@ -1124,17 +1131,25 @@ def write_to_kg(
                         mention_count=1,
                     )
                     agent_id_by_dedup[grp] = author_agent_id
-            # Concept → theorist attribution (concept's own attributed_to edge,
-            # distinct from the mapping attribution which records the translator).
-            # Guard: a concept is held by its originating theorist, never by the
-            # translator (Citation-model invariant).
-            if author_agent_id and author_agent_id.lower() not in ("urban-belina", "belina-urban"):
-                kg.link_attributed_to(concept_id, author_agent_id)
+                if author_agent_id.lower() not in ("urban-belina", "belina-urban"):
+                    kg.link_attributed_to(concept_id, author_agent_id)
+            elif originating_author and not attribution_verified:
+                # Proposed-but-unverified person→concept link: queue it for
+                # curator confirm instead of writing the edge. Mark the
+                # record so the review UI can flag it as an attribution check.
+                review.append({
+                    **r,
+                    "payload": {**p, "attribution_pending": True},
+                    "_route_reason": "attribution_unverified",
+                })
+                stats.bump("concept", ConfidenceTier.REVIEW)
 
             # Source work → cited_work source_text, with cited_in →
-            # container(s) and written_by → originating author
+            # container(s) and written_by → originating author. The source
+            # work is only wired when the attribution is verified, since it
+            # is anchored to the (now-verified) originating author.
             sw_id = None
-            if source_work_title:
+            if source_work_title and attribution_verified:
                 src_parts = [originating_author, source_work_title]
                 if source_work_year:
                     src_parts.append(str(source_work_year))

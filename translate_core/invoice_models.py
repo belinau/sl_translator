@@ -99,6 +99,8 @@ class InvoiceData:
     due_date: date
     service_date_from: date
     service_date_to: date
+    contract_date: date | None = None    # date of the contract / purchase order
+    doc_type: str = "Pogodba"            # "Pogodba" (CT) or "Naročilo kupca" (ON)
     client: ClientRecord | None = None
     issuer: dict = field(default_factory=dict)
     line_items: list[InvoiceLineItem] = field(default_factory=list)
