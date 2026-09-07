@@ -67,6 +67,15 @@ _FOOTNOTES_CT = (
 _MD_EMPHASIS_RE = re.compile(
     r"(\*\*\*[^*\n]+\*\*\*|\*\*[^*\n]+\*\*|\*[^*\n]+\*)"
 )
+# Superscript ^...^ and hyperlink [text](url) markers captured by the
+# simple-pipeline parser; rendered back to real Word runs on export.
+_MD_SUPERSCRIPT_RE = re.compile(r"\^[^\^\[\]\n]+\^")
+_MD_LINK_RE = re.compile(r"\[[^\]\n]+\]\([^\)\n]+\)")
+# Inline tokeniser used inside an emphasis span: superscript or link.
+_MD_INLINE_RE = re.compile(
+    r"\^(?P<sup>[^\^\[\]\n]+)\^"
+    r"|\[(?P<ltxt>[^\]\n]+)\]\((?P<lurl>[^\)\n]+)\)"
+)
 
 
 # Legacy typography defaults (pre-Maska). Used when no segments/manifest is
@@ -1344,15 +1353,15 @@ class DocumentParser:
     def _replace_paragraph_text(paragraph, new_text: str) -> None:
         """Replace paragraph text, preserving formatting at the XML level.
 
-        When *new_text* contains markdown emphasis markers (*italic*,
-        **bold*, ***both***), the original runs are cleared and replaced
-        with new runs carrying the correct italic/bold flags — so the
-        translator's on-the-fly emphasis corrections land on the right
-        words instead of being distributed proportionally across the
-        original run boundaries.
+        When *new_text* carries inline structure captured by the simple
+        pipeline — ``*italic*`` / ``**bold**`` / ``***both***`` emphasis,
+        ``^superscript^``, ``[display](url)`` hyperlinks, or ``\\n`` soft
+        line breaks — the original runs and hyperlinks are cleared and
+        rebuilt as real Word runs so the export reproduces the original
+        document's formatting and line layout.
 
-        When *new_text* has no emphasis markers (legacy segments from
-        projects created before emphasis capture), the original
+        When *new_text* has none of those markers (legacy segments from
+        projects created before structure capture), the original
         proportional-distribution algorithm is used: runs are coalesced
         by formatting, then the new text is split across them by
         original character-length share.
@@ -1360,59 +1369,58 @@ class DocumentParser:
         _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
         p_el = paragraph._element
         r_elements = list(p_el.findall(f"{_W}r"))
-        if not r_elements:
+        h_elements = list(p_el.findall(f"{_W}hyperlink"))
+        if not r_elements and not h_elements:
             paragraph.add_run(new_text)
             return
 
-        # Markdown-emphasis path: clear original runs and rebuild with
-        # correct italic/bold formatting from the markers.
-        if _MD_EMPHASIS_RE.search(new_text):
-            # Preserve the first run's rPr (font name, size, color) as a
-            # template for the new runs so house styling survives — but
-            # strip any existing emphasis elements (w:i, w:b, …) so that
-            # plain spans don't inherit the template's italic/bold. The
-            # correct emphasis is then applied per-span via run.italic /
-            # run.bold below.
-            first_r = r_elements[0]
-            rPr_template = first_r.find(f"{_W}rPr")
+        has_structure = (
+            _MD_EMPHASIS_RE.search(new_text)
+            or _MD_SUPERSCRIPT_RE.search(new_text)
+            or _MD_LINK_RE.search(new_text)
+            or "\n" in new_text
+            or "\t" in new_text
+        )
+
+        if has_structure:
+            import copy
+            # rPr template from the first run: font/size/color, with
+            # emphasis + vertAlign stripped so plain spans inherit neither.
             rPr_base: Optional[Any] = None
-            if rPr_template is not None:
-                import copy
-                rPr_base = copy.deepcopy(rPr_template)
-                for _tag in ("i", "b", "iCs", "bCs"):
-                    for _el in rPr_base.findall(f"{_W}{_tag}"):
-                        rPr_base.remove(_el)
-            # Remove all existing runs.
+            if r_elements:
+                rPr_template = r_elements[0].find(f"{_W}rPr")
+                if rPr_template is not None:
+                    rPr_base = copy.deepcopy(rPr_template)
+                    for _tag in ("i", "b", "iCs", "bCs", "vertAlign"):
+                        for _el in rPr_base.findall(f"{_W}{_tag}"):
+                            rPr_base.remove(_el)
+            # Clear original runs AND hyperlinks so leftover display text
+            # (e.g. an old link's anchor) cannot bleed into the translation.
             for r_el in r_elements:
                 p_el.remove(r_el)
-            # Re-add runs from markdown emphasis spans.
-            spans = _MD_EMPHASIS_RE.split(new_text)
-            for span in spans:
+            for h_el in h_elements:
+                p_el.remove(h_el)
+            # Split on emphasis, then within each span emit superscript /
+            # link / literal runs. \n inside a run becomes <w:br/> via
+            # python-docx's Run.text setter.
+            for span in _MD_EMPHASIS_RE.split(new_text):
                 if not span:
                     continue
                 if span.startswith("***") and span.endswith("***"):
-                    run = paragraph.add_run(span[3:-3])
-                    if rPr_base is not None:
-                        run._r.insert(0, copy.deepcopy(rPr_base))
-                    run.bold = True
-                    run.italic = True
+                    DocumentParser._emit_inline_runs(
+                        paragraph, span[3:-3], True, True, rPr_base)
                 elif span.startswith("**") and span.endswith("**"):
-                    run = paragraph.add_run(span[2:-2])
-                    if rPr_base is not None:
-                        run._r.insert(0, copy.deepcopy(rPr_base))
-                    run.bold = True
-                elif span.startswith("*") and span.endswith("*") and not span.startswith("**"):
-                    run = paragraph.add_run(span[1:-1])
-                    if rPr_base is not None:
-                        run._r.insert(0, copy.deepcopy(rPr_base))
-                    run.italic = True
+                    DocumentParser._emit_inline_runs(
+                        paragraph, span[2:-2], True, False, rPr_base)
+                elif span.startswith("*") and span.endswith("*"):
+                    DocumentParser._emit_inline_runs(
+                        paragraph, span[1:-1], False, True, rPr_base)
                 else:
-                    run = paragraph.add_run(span)
-                    if rPr_base is not None:
-                        run._r.insert(0, copy.deepcopy(rPr_base))
+                    DocumentParser._emit_inline_runs(
+                        paragraph, span, False, False, rPr_base)
             return
 
-        # Legacy proportional-distribution path (no emphasis markers).
+        # Legacy proportional-distribution path (no inline markers).
         def _fmt_key(r_el):
             rPr = r_el.find(f"{_W}rPr")
             b = rPr is not None and rPr.find(f"{_W}b") is not None
@@ -1447,6 +1455,83 @@ class DocumentParser:
             cut = snap + 1 if snap != -1 and snap < len(remaining) else len(remaining)
             t_els[j].text = remaining[:cut]
             remaining = remaining[cut:]
+
+    @staticmethod
+    def _emit_inline_runs(paragraph, text: str, bold: bool, italic: bool,
+                          rPr_base: Optional[Any]) -> None:
+        """Emit runs for one emphasis span, handling ^superscript^,
+        [display](url) and literal text (with ``\\n``→``<w:br/>``).
+
+        *bold* / *italic* are the emphasis context inherited from the
+        enclosing ``**…*`` / ``*…*`` span; superscript and hyperlink runs
+        carry it too, so a link inside an italic footnote renders italic.
+        """
+        import copy
+        _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+        _XML_SPACE = "{http://www.w3.org/XML/1998/namespace}space"
+
+        def _apply_base(run) -> None:
+            if rPr_base is not None:
+                run._r.insert(0, copy.deepcopy(rPr_base))
+
+        def _add_text(txt: str, superscript: bool = False) -> None:
+            if not txt:
+                return
+            # add_run(text) routes through Run.text setter, which converts
+            # "\n" → <w:br/> and "\t" → <w:tab/>.
+            run = paragraph.add_run(txt)
+            _apply_base(run)
+            if bold:
+                run.bold = True
+            if italic:
+                run.italic = True
+            if superscript:
+                rPr = run._r.get_or_add_rPr()
+                va = OxmlElement("w:vertAlign")
+                va.set(qn("w:val"), "superscript")
+                rPr.append(va)
+
+        def _add_link(display: str, url: str) -> None:
+            from docx.opc.constants import RELATIONSHIP_TYPE as RT
+            r_id = paragraph.part.relate_to(url, RT.HYPERLINK, is_external=True)
+            hlink = OxmlElement("w:hyperlink")
+            hlink.set(qn("r:id"), r_id)
+            r_el = OxmlElement("w:r")
+            rPr = copy.deepcopy(rPr_base) if rPr_base is not None else OxmlElement("w:rPr")
+            # Drop any inherited color/underline so the link styling below
+            # is authoritative.
+            for _tag in ("color", "u"):
+                for _el in rPr.findall(f"{_W}{_tag}"):
+                    rPr.remove(_el)
+            if bold:
+                rPr.append(OxmlElement("w:b"))
+            if italic:
+                rPr.append(OxmlElement("w:i"))
+            u = OxmlElement("w:u")
+            u.set(qn("w:val"), "single")
+            rPr.append(u)
+            color = OxmlElement("w:color")
+            color.set(qn("w:val"), "0563C1")
+            rPr.append(color)
+            r_el.append(rPr)
+            t = OxmlElement("w:t")
+            t.set(_XML_SPACE, "preserve")
+            t.text = display
+            r_el.append(t)
+            hlink.append(r_el)
+            paragraph._element.append(hlink)
+
+        pos = 0
+        for m in _MD_INLINE_RE.finditer(text):
+            if m.start() > pos:
+                _add_text(text[pos:m.start()])
+            if m.group("sup") is not None:
+                _add_text(m.group("sup"), superscript=True)
+            elif m.group("ltxt") is not None:
+                _add_link(m.group("ltxt"), m.group("lurl"))
+            pos = m.end()
+        if pos < len(text):
+            _add_text(text[pos:])
 
     def _add_footnote_reference_run(self, paragraph, fn_global_id: int) -> None:
         """Add a footnoteReference inside a new superscript run."""

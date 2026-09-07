@@ -291,5 +291,122 @@ class TestCompileFromTemplateEmphasis:
                 )
 
 
+# ======================================================================
+# Superscript / soft line break / hyperlink round-trip
+# ======================================================================
+
+
+def _add_hyperlink(paragraph, display: str, url: str) -> None:
+    """Append a real external hyperlink to *paragraph* (python-docx has no
+    high-level API, so build the XML the same way the export does)."""
+    from docx.opc.constants import RELATIONSHIP_TYPE as RT
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    r_id = paragraph.part.relate_to(url, RT.HYPERLINK, is_external=True)
+    hlink = OxmlElement("w:hyperlink")
+    hlink.set(qn("r:id"), r_id)
+    r = OxmlElement("w:r")
+    t = OxmlElement("w:t")
+    t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+    t.text = display
+    r.append(t)
+    hlink.append(r)
+    paragraph._element.append(hlink)
+
+
+class TestSuperscriptBreakLink:
+    """Simple-pipeline round-trip for ^superscript^, \\n breaks, [text](url)."""
+
+    def test_superscript_captured_and_rendered(self, tmp_path):
+        from main import _docx_paragraph_to_markdown
+        from translate_core.doc_parser import DocumentParser
+        d = docx.Document()
+        p = d.add_paragraph()
+        p.add_run("Made in GT22 je nov poeticni arhiv")
+        sup = p.add_run("2")
+        sup.font.superscript = True
+        p.add_run(", ki ga tvori.")
+        template = tmp_path / "t.docx"
+        d.save(str(template))
+
+        md = _docx_paragraph_to_markdown(d.paragraphs[0])
+        assert "^2^" in md
+        assert "arhiv^2^" in md
+
+        segs = [{"id": 0, "source": md,
+                 "target": "Made in GT22 is a new poetic archive^2^, formed.",
+                 "status": "done", "docx_para_idx": 0}]
+        out = tmp_path / "out.docx"
+        DocumentParser().compile_from_template(template, out, segs)
+        result = docx.Document(str(out))
+        para = [p for p in result.paragraphs if p.text.strip()][0]
+        sup_runs = [r for r in para.runs
+                    if r.font.superscript is True]
+        assert len(sup_runs) == 1, [r.text for r in para.runs]
+        assert sup_runs[0].text == "2"
+
+    def test_soft_break_rendered(self, tmp_path):
+        from translate_core.doc_parser import DocumentParser
+        # Template: one paragraph with a <w:br/> between two bold runs.
+        d = docx.Document()
+        p = d.add_paragraph()
+        r1 = p.add_run("LINE ONE")
+        r1.bold = True
+        from docx.oxml import OxmlElement
+        br_run = p.add_run()
+        br_run._r.append(OxmlElement("w:br"))
+        r2 = p.add_run("LINE TWO")
+        r2.bold = True
+        template = tmp_path / "t.docx"
+        d.save(str(template))
+
+        segs = [{"id": 0, "source": "**LINE ONE**\n**LINE TWO**",
+                 "target": "**FIRST LINE**\n**SECOND LINE**",
+                 "status": "done", "docx_para_idx": 0}]
+        out = tmp_path / "out.docx"
+        DocumentParser().compile_from_template(template, out, segs)
+        result = docx.Document(str(out))
+        para = [p for p in result.paragraphs if p.text.strip()][0]
+        # A <w:br/> must be present in the paragraph XML.
+        from docx.oxml.ns import qn
+        brs = para._element.findall(".//" + qn("w:br"))
+        assert len(brs) == 1, "soft line break not rendered"
+        # Two bold runs, no literal newline in run text.
+        bold_texts = [r.text for r in para.runs if r.bold and not r.italic]
+        assert "FIRST LINE" in bold_texts
+        assert "SECOND LINE" in bold_texts
+
+    def test_hyperlink_captured_and_rendered(self, tmp_path):
+        from main import _docx_paragraph_to_markdown
+        from translate_core.doc_parser import DocumentParser
+        d = docx.Document()
+        p = d.add_paragraph()
+        p.add_run("See the ")
+        _add_hyperlink(p, "Town Hall", "https://en.wikipedia.org/wiki/Ljubljana_Town_Hall")
+        p.add_run(" page.")
+        template = tmp_path / "t.docx"
+        d.save(str(template))
+
+        md = _docx_paragraph_to_markdown(d.paragraphs[0])
+        assert "[Town Hall](https://en.wikipedia.org/wiki/Ljubljana_Town_Hall)" in md
+
+        segs = [{"id": 0, "source": md,
+                 "target": "Glej [Mestno hiso](https://sl.wikipedia.org/wiki/Mestna_hisa) stran.",
+                 "status": "done", "docx_para_idx": 0}]
+        out = tmp_path / "out.docx"
+        DocumentParser().compile_from_template(template, out, segs)
+        result = docx.Document(str(out))
+        para = [p for p in result.paragraphs if p.text.strip()][0]
+        # The original hyperlink element must be gone (no bleed) and exactly
+        # one new hyperlink with the translated URL present.
+        from docx.oxml.ns import qn
+        hlinks = para._element.findall(qn("w:hyperlink"))
+        assert len(hlinks) == 1
+        rid = hlinks[0].get(qn("r:id"))
+        rel = result.part.rels[rid]
+        assert rel.target_ref == "https://sl.wikipedia.org/wiki/Mestna_hisa"
+        display = "".join(t.text or "" for t in hlinks[0].iter(qn("w:t")))
+        assert display == "Mestno hiso"
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

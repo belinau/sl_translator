@@ -1553,45 +1553,125 @@ def _detect_pipeline(saved_path: Path, suffix: str) -> str:
 
 
 def _docx_paragraph_to_markdown(para) -> str:
-    """Convert a python-docx paragraph to markdown text with *italic* /
-    **bold** / ***bold-italic*** emphasis markers around runs whose font
-    flags indicate emphasis.
+    """Convert a python-docx paragraph to markdown text preserving the
+    inline structure the simple-pipeline export must reproduce:
 
-    This is the simple-pipeline counterpart of
-    DocumentParser.docx_to_markdown (academic) and
-    _pdf_dict_to_markdown_text (PDF). It walks paragraph.runs and emits
-    markdown emphasis markers so the translator can see and correct
-    italics/bolds on the fly — without restructuring the document.
+      * italic / ** bold / *** bold-italic ***   (existing emphasis)
+      ^superscript^                              (footnote ref digits, etc.)
+      \\n                                          (soft line break <w:br/> or a
+                                                  large intra-paragraph gap)
+      [display text](url)                         (hyperlinks)
 
-    Adjacent runs with identical emphasis flags are coalesced before
-    wrapping so the output stays compact: *one span*, not *one* *span*.
+    The paragraph's direct children are walked in document order so that
+    runs, hyperlinks and breaks interleave correctly. python-docx's
+    ``para.runs`` skips ``<w:hyperlink>`` elements (dropping their display
+    text) and ``run.text`` skips ``<w:br/>`` (dropping soft breaks), which
+    is exactly the data loss this function repairs.
     """
-    if not para.runs:
-        return para.text
-    # Collect (text, italic, bold) tuples, coalescing adjacent runs with
-    # identical (italic, bold) flags so we don't emit *a**b* when one
-    # italic run was split into two by Word's XML serializer.
-    coalesced: list[tuple[str, bool, bool]] = []
-    for run in para.runs:
-        txt = run.text
-        if not txt:
-            continue
-        it = bool(run.italic)
-        bd = bool(run.bold)
-        if coalesced and coalesced[-1][1] == it and coalesced[-1][2] == bd:
-            coalesced[-1] = (coalesced[-1][0] + txt, it, bd)
-        else:
-            coalesced.append((txt, it, bd))
+    from docx.oxml.ns import qn
+
+    _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    _XML_SPACE = "{http://www.w3.org/XML/1998/namespace}space"
+    # A pure-whitespace run this long is a deliberate separator (e.g. the
+    # spaced-out title line "LJUBLJANA ... IX        MADE IN GT22"), not a
+    # real word space; render it as a line break so the export reproduces
+    # the two-line layout instead of collapsing it to one space.
+    _GAP_MIN = 8
+
+    p_el = para._element
     parts: list[str] = []
-    for txt, it, bd in coalesced:
-        if it and bd:
-            parts.append(f"***{txt}***")
-        elif bd:
-            parts.append(f"**{txt}**")
-        elif it:
-            parts.append(f"*{txt}*")
-        else:
+    emph = (False, False)  # (italic, bold) currently open
+
+    def _open_marker(state: tuple[bool, bool]) -> str:
+        i, b = state
+        return "***" if (i and b) else "**" if b else "*" if i else ""
+
+    def _set_emph(new: tuple[bool, bool]) -> None:
+        nonlocal emph
+        if new == emph:
+            return
+        close = _open_marker(emph)
+        if close:
+            parts.append(close)
+        emph = new
+        open_ = _open_marker(emph)
+        if open_:
+            parts.append(open_)
+
+    def _emit_text(txt: str) -> None:
+        if txt:
             parts.append(txt)
+
+    def _bool_prop(rPr, tag: str) -> bool:
+        el = rPr.find(f"{_W}{tag}")
+        if el is None:
+            return False
+        val = el.get(qn("w:val"))
+        return val not in ("false", "0", "off")
+
+    def _run_flags(r_el):
+        rPr = r_el.find(f"{_W}rPr")
+        if rPr is None:
+            return False, False, False
+        i = _bool_prop(rPr, "i")
+        b = _bool_prop(rPr, "b")
+        va = rPr.find(f"{_W}vertAlign")
+        sup = va is not None and va.get(qn("w:val")) == "superscript"
+        return i, b, sup
+
+    def _emit_run(r_el) -> None:
+        i, b, sup = _run_flags(r_el)
+        _set_emph((i, b))
+        for child in r_el:
+            tag = child.tag
+            if tag == f"{_W}t":
+                txt = child.text or ""
+                if not txt:
+                    continue
+                if sup:
+                    parts.append(f"^{txt}^")
+                elif (not i and not b and not sup
+                      and txt.isspace() and len(txt) >= _GAP_MIN):
+                    # Big whitespace separator → line break.
+                    parts.append("\n")
+                else:
+                    _emit_text(txt)
+            elif tag == f"{_W}br" or tag == f"{_W}cr":
+                parts.append("\n")
+            elif tag == f"{_W}tab":
+                parts.append("\t")
+            # other run children (drawing, sym, footnoteReference, …) skipped
+
+    def _emit_hyperlink(h_el) -> None:
+        # Display text = all <w:t> inside, in order.
+        display = "".join(
+            (t.text or "") for t in h_el.iter(f"{_W}t")
+        )
+        rid = h_el.get(qn("r:id"))
+        anchor = h_el.get(qn("w:anchor"))
+        url = ""
+        if rid:
+            rels = para.part.rels
+            rel = rels.get(rid) if rid in rels else None
+            if rel is not None:
+                url = rel.target_ref or ""
+        if not url and anchor:
+            url = f"#{anchor}"
+        if url:
+            parts.append(f"[{display}]({url})")
+        else:
+            _emit_text(display)
+
+    for child in p_el:
+        tag = child.tag
+        if tag == f"{_W}r":
+            _emit_run(child)
+        elif tag == f"{_W}hyperlink":
+            _emit_hyperlink(child)
+        # pPr, bookmarkStart/End, proofErr, … are structural → skipped
+
+    # Close any emphasis left open.
+    _set_emph((False, False))
     return "".join(parts)
 
 
@@ -1599,25 +1679,35 @@ def _parse_docx(path: Path) -> list[dict]:
     """Extract paragraphs from a DOCX file for the simple pipeline.
 
     Preserves docx_para_idx for template-based export. Emits *italic* /
-    **bold** / ***bold-italic*** markdown markers around runs whose font
-    flags indicate emphasis, so the translator can see and correct emphasis
-    on the fly. Runs in a thread pool.
+    **bold** / ***bold-italic*** / ^superscript^ markers and [text](url)
+    hyperlinks, and keeps soft line breaks as literal ``\\n`` so they
+    round-trip to ``<w:br/>`` on export.
+
+    One DOCX paragraph = one segment (split only at sentence boundaries when
+    overlong). ``split_paragraphs`` is deliberately NOT used here: it folds
+    consecutive lines with a space and collapses multi-space runs, which
+    destroys the soft breaks and title gaps we just captured.
     """
     import docx as _docx
-    from translate_core.book_outline import split_paragraphs
+    from translate_core.book_outline import split_long_paragraph
     doc = _docx.Document(str(path))
     segments = []
+    # Protect \n so split_long_paragraph's sentence-boundary regex cannot
+    # consume it as whitespace; restored after splitting.
+    _BR = "\x00BR\x00"
     for i, p in enumerate(doc.paragraphs):
         txt = _docx_paragraph_to_markdown(p).strip()
-        if txt:
-            for chunk in split_paragraphs(txt, max_chars=config.SEGMENT_MAX_CHARS):
-                segments.append({
-                    "id": len(segments),
-                    "source": chunk,
-                    "target": "",
-                    "status": "pending",
-                    "docx_para_idx": i,
-                })
+        if not txt:
+            continue
+        protected = txt.replace("\n", _BR)
+        for chunk in split_long_paragraph(protected, max_chars=config.SEGMENT_MAX_CHARS):
+            segments.append({
+                "id": len(segments),
+                "source": chunk.replace(_BR, "\n"),
+                "target": "",
+                "status": "pending",
+                "docx_para_idx": i,
+            })
     return segments
 
 
