@@ -632,7 +632,8 @@ def _open_glossary(state, glossary, config, parse_lang_pair, kg=None, qa_engine=
     syncs changes to both the TSV file and the KG — closing the gap
     where raw-file edits never propagated to the KG.
     """
-    with ui.dialog() as dialog, ui.card().classes("min-w-[760px] max-h-[88vh] p-6"):
+    with ui.dialog() as dialog, ui.card().classes("w-full max-w-[1000px] max-h-[90vh] p-6"):
+        dialog.props("full-width")
         src_lang, tgt_lang = parse_lang_pair(state.lang_pair)
 
         with ui.tabs() as tabs:
@@ -640,9 +641,7 @@ def _open_glossary(state, glossary, config, parse_lang_pair, kg=None, qa_engine=
             edit_tab = ui.tab("Edit Existing")
         with ui.tab_panels(tabs, value=add_tab):
 
-            # ───────────────────────────────────────────────────────────
-            # Tab 1: Add new term (original logic preserved)
-            # ───────────────────────────────────────────────────────────
+            # ─── Tab 1: Add new term ───────────────────────────────
             with ui.tab_panel(add_tab):
                 ui.label("Add to Glossary").classes("text-lg font-bold mb-2")
                 src_input = ui.input(f"Source Term ({src_lang})").classes("w-full")
@@ -660,7 +659,6 @@ def _open_glossary(state, glossary, config, parse_lang_pair, kg=None, qa_engine=
                 ).classes("w-full")
 
                 def _do_save() -> bool:
-                    """Core save logic; returns True on success so callers decide UI."""
                     s = (src_input.value or "").strip()
                     t = (tgt_input.value or "").strip()
                     if not (s and t):
@@ -721,21 +719,22 @@ def _open_glossary(state, glossary, config, parse_lang_pair, kg=None, qa_engine=
                     ui.button("Save & add another", on_click=_save_and_add).props("outline")
                     ui.button("Save", on_click=_save).props("color=positive")
 
-            # ───────────────────────────────────────────────────────────
-            # Tab 2: Edit / delete existing entries with KG sync
-            # ───────────────────────────────────────────────────────────
+            # ─── Tab 2: Edit / delete existing entries ─────────────
             with ui.tab_panel(edit_tab):
                 entries_list = glossary.get_entries_for_pair(src_lang, tgt_lang) if glossary else []
 
-                with ui.row().classes("w-full items-center gap-2 mb-2"):
+                with ui.row().classes("w-full items-center gap-2 mb-3"):
                     search_input = ui.input("Filter by source, target, or note…").classes("flex-1").props(
-                        "dense clearable prepend-icon=search"
+                        "outlined dense clearable prepend-icon=search"
                     )
                     ui.label(f"{len(entries_list)} entries").classes(
                         "text-xs opacity-50 shrink-0"
                     )
 
-                entries_scroll = ui.scroll_area().classes("w-full h-[58vh]")
+                # Use a fixed-height scroll area with generous height.
+                entries_scroll = ui.scroll_area().classes("w-full").style(
+                    "height: 65vh; min-height: 400px;"
+                )
 
                 def _render_entries(filter_text: str = ""):
                     entries_scroll.clear()
@@ -759,42 +758,44 @@ def _open_glossary(state, glossary, config, parse_lang_pair, kg=None, qa_engine=
                 search_input.on_value_change(lambda e: _render_entries(e.value or ""))
                 _render_entries()
 
-                with ui.row().classes("w-full justify-end mt-2 gap-2"):
-                    ui.button("Close", on_click=dialog.close).props("flat")
+                with ui.row().classes("w-full justify-end mt-3 gap-2"):
+                    ui.button("Close", on_click=dialog.close).props("flat color=positive")
     dialog.open()
 def _render_editable_row(e, glossary, kg, qa_engine, src_lang, tgt_lang, config, proj_slug, state):
-    """Render one glossary entry as a spacious 2-line editable card.
-
-    Line 1: source term (left) → target term (right), read-only display.
-    Click the row to expand into an edit form with full-width inputs,
-    Save + Delete buttons on a second line.
-    """
+    """Render one glossary entry as a clickable display row that expands
+    into a full edit form. Uses explicit column widths so source and
+    target terms are both fully visible."""
     orig_src = e["source_term"]
     orig_tgt = e["target_term"]
     orig_note = e.get("note") or ""
 
     with ui.column().classes("w-full gap-0 mb-1"):
-        # Compact display row — click to expand
+        # Display row: source | → | target | note — explicit widths
         display = ui.card().props("flat bordered").classes(
-            "w-full px-3 py-2 rounded-lg cursor-pointer hover:bg-primary/5"
+            "w-full px-4 py-2.5 rounded-lg cursor-pointer hover:bg-primary/5"
         )
         with display:
-            with ui.row().classes("w-full items-center gap-2"):
+            with ui.row().classes("w-full items-center gap-3"):
+                # Source term — fixed 40% width, truncated
                 ui.label(orig_src).classes(
-                    "text-sm flex-1 min-w-0 truncate"
-                )
+                    "text-sm truncate"
+                ).style("width: 40%; min-width: 0;")
                 ui.label("→").classes("text-xs opacity-40 shrink-0")
+                # Target term — fixed 40% width, truncated, bold
                 ui.label(orig_tgt).classes(
-                    "text-sm font-bold flex-1 min-w-0 truncate"
-                )
+                    "text-sm font-bold truncate"
+                ).style("width: 40%; min-width: 0;")
+                # Note — small badge if present
                 if orig_note:
-                    ui.badge(orig_note[:20], color="grey-5").props(
+                    ui.badge(orig_note[:15], color="grey-5").props(
                         "outline"
                     ).classes("text-[8px] px-1 shrink-0").tooltip(orig_note)
-                ui.icon("edit", size="16px").props("color=grey-5").classes("shrink-0")
+                ui.icon("edit", size="16px").props("color=grey-5").classes("shrink-0 ml-auto")
 
         # Expandable edit form — hidden until display row is clicked
-        edit_col = ui.column().classes("w-full gap-2")
+        edit_col = ui.column().classes("w-full gap-3 p-3").style(
+            "background: rgba(var(--q-color-primary-rgb), 0.05);"
+        )
         edit_col.set_visibility(False)
 
         def _toggle_edit():
@@ -803,17 +804,17 @@ def _render_editable_row(e, glossary, kg, qa_engine, src_lang, tgt_lang, config,
         display.on("click", _toggle_edit)
 
         with edit_col:
-            with ui.row().classes("w-full gap-3 items-start"):
+            with ui.row().classes("w-full gap-4 items-center"):
                 src_f = ui.input(
                     f"Source ({src_lang})", value=orig_src,
-                ).classes("flex-1").props("dense")
+                ).classes("flex-1").style("min-width: 200px;")
                 tgt_f = ui.input(
                     f"Target ({tgt_lang})", value=orig_tgt,
-                ).classes("flex-1").props("dense")
+                ).classes("flex-1").style("min-width: 200px;")
             note_f = ui.input(
                 "Note", value=orig_note,
-            ).classes("w-full").props("dense")
-            with ui.row().classes("w-full justify-end gap-2"):
+            ).classes("w-full").style("min-width: 0;")
+            with ui.row().classes("w-full justify-end gap-2 mt-1"):
                 ui.button(
                     "Delete",
                     icon="delete",
