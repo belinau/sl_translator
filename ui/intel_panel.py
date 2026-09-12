@@ -678,10 +678,9 @@ def build(
         kg_container.clear()
         with kg_container:
             if not hits:
-                ui.label("No KG matches for this segment.").classes(
+                ui.label("No bilingual term matches for this segment.").classes(
                     "text-xs italic opacity-90"
                 )
-                return
             # Group by concept (insertion-order). Orphans go to a "TERMS"
             # card rendered after all concept groups, with the same visual
             # weight — unigram terms are the workhorse of humanities
@@ -907,8 +906,99 @@ def build(
                                             "flat dense rounded color=positive"
                                         ).classes(
                                             "text-[10px] normal-case h-5 px-1.5"
-                                        ).tooltip("alternative spelling — click to insert")
-
+                        ).tooltip("alternative spelling — click to insert")
+            # Institutions (publishers, galleries, universities) whose
+            # name appears in the source. Click to insert.
+            extra_institutions: list[dict] = []
+            try:
+                if hasattr(kg, "find_institutions_in_text"):
+                    for inst in kg.find_institutions_in_text(seg["source"]):
+                        extra_institutions.append(inst)
+            except Exception:
+                pass
+            if extra_institutions:
+                with ui.card().props("flat bordered").classes(
+                    "w-full p-3 rounded-2xl"
+                ):
+                    with ui.row().classes(
+                        "w-full items-center gap-x-2 gap-y-1 mb-1 flex-wrap"
+                    ):
+                        ui.icon("apartment", size="13px").props("color=primary")
+                        ui.label("INSTITUTIONS").classes(
+                            "text-[10px] font-black tracking-[.3em] opacity-90"
+                        )
+                    with ui.column().classes("w-full gap-1"):
+                        for inst in extra_institutions:
+                            name = inst.get("name") or ""
+                            kind = inst.get("kind") or "other"
+                            with ui.row().classes(
+                                "w-full items-center gap-x-1.5 gap-y-0.5 "
+                                "flex-wrap"
+                            ):
+                                with ui.row().classes(
+                                    "items-center gap-2 no-wrap cursor-pointer "
+                                    "hover:bg-primary/5 rounded"
+                                ).on(
+                                    "click",
+                                    lambda _e, t=name: _insert(t),
+                                ):
+                                    ui.label(name).classes(
+                                        "font-bold text-sm"
+                                    ).style(
+                                        "color: var(--q-positive)"
+                                    )
+                                ui.badge(kind, color="orange-4").props(
+                                    "outline"
+                                ).classes("text-[8px] px-1 normal-case")
+            # Works authored by agents found in this segment — shows
+            # the titles of books/articles written by the people
+            # mentioned in the source text.
+            if extra_agents and hasattr(kg, "find_agent_works"):
+                agent_ids = [a["id"] for a in extra_agents if a.get("id")]
+                agent_works: list[dict] = []
+                try:
+                    agent_works = kg.find_agent_works(agent_ids)
+                except Exception:
+                    pass
+                if agent_works:
+                    with ui.card().props("flat bordered").classes(
+                        "w-full p-3 rounded-2xl"
+                    ):
+                        with ui.row().classes(
+                            "w-full items-center gap-x-2 gap-y-1 mb-1 flex-wrap"
+                        ):
+                            ui.icon("menu_book", size="13px").props("color=primary")
+                            ui.label("WORKS BY THESE AUTHORS").classes(
+                                "text-[10px] font-black tracking-[.3em] opacity-90"
+                            )
+                        with ui.column().classes("w-full gap-1"):
+                            for w in agent_works:
+                                title = w.get("title") or ""
+                                author = w.get("author") or ""
+                                year = w.get("year")
+                                with ui.row().classes(
+                                    "w-full items-center gap-x-1.5 gap-y-0.5 "
+                                    "flex-wrap"
+                                ):
+                                    with ui.row().classes(
+                                        "items-center gap-2 no-wrap cursor-pointer "
+                                        "hover:bg-primary/5 rounded"
+                                    ).on(
+                                        "click",
+                                        lambda _e, t=title: _insert(t),
+                                    ):
+                                        ui.label(title).classes(
+                                            "text-sm font-semibold"
+                                        ).style(
+                                            "color: var(--q-positive)"
+                                        )
+                                    ui.label(f"by {author}").classes(
+                                        "text-[10px] opacity-50"
+                                    )
+                                    if year:
+                                        ui.badge(
+                                            str(year), color="grey-5"
+                                        ).classes("text-[8px] px-1")
     # ------------------------------------------------------------------
     # Translation Memory: fuzzy + concordance
     # ------------------------------------------------------------------

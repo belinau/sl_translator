@@ -1093,7 +1093,7 @@ def page_review_ext(review_id: str):
                     ui.label("Concepts").classes("text-[10px] opacity-70")
                 with ui.row().style("gap: 0.25rem;").classes("items-center"):
                     ui.label("").style("width: 1.5rem; height: 0; border-bottom: 2px solid #ff9800;")
-                    ui.label("Agents").classes("text-[10px] opacity-70")
+                    ui.label("Agents / Institutions").classes("text-[10px] opacity-70")
 
             # ---- Help (expandable, at bottom of drawer)
             with ui.expansion("How to use this review pane", icon="help_outline").classes("w-full").props("dense"):
@@ -1117,12 +1117,13 @@ def page_review_ext(review_id: str):
                     ui.label("Source highlights").classes("text-xs font-bold mt-2")
                     ui.label(
                         "When the underline toggle (top-right) is on, the source text shows coloured underlines:\n"
-                        "• Green = glossary term  • Blue = concept  • Orange = agent (person name)"
+                        "• Green = glossary term  • Blue = concept  • Orange = agent / institution (person or org name)"
                     ).classes("text-xs opacity-70").style("line-height: 1.5; white-space: pre-wrap;")
                     ui.label("Glossary, KG hits, and Find & Replace").classes("text-xs font-bold mt-2")
                     ui.label(
                         "• GLOSSARY shows terms from the current segment — click to insert.\n"
-                        "• KNOWLEDGE GRAPH shows concept translations and agent names — click to insert.\n"
+                        "• KNOWLEDGE GRAPH shows concept translations, agent names, institutions,\n"
+                        "  and works authored by people mentioned in the segment — click to insert.\n"
                         "• FIND & REPLACE lets you bulk-replace text across all suggested edits."
                     ).classes("text-xs opacity-70").style("line-height: 1.5; white-space: pre-wrap;")
                     ui.label("Exporting your work").classes("text-xs font-bold mt-2")
@@ -1363,7 +1364,52 @@ def page_review_ext(review_id: str):
                                 for alt in (a.get("alt_spellings") or [])[:2]:
                                     if alt and alt != name:
                                         ui.button(alt, on_click=lambda _e, t=alt: _insert(t)).props("flat dense rounded color=positive").classes("text-[10px] normal-case h-5 px-1.5").tooltip("alternative spelling — click to insert")
-            if not hits and not extra_concepts and not extra_agents:
+            # Institutions
+            extra_institutions: list[dict] = []
+            try:
+                if hasattr(kg, "find_institutions_in_text"):
+                    for inst in kg.find_institutions_in_text(seg["source"]):
+                        extra_institutions.append(inst)
+            except Exception:
+                pass
+            if extra_institutions:
+                with ui.card().props("flat bordered").classes("w-full p-3 rounded-2xl"):
+                    with ui.row().classes("w-full items-center flex-wrap").style("gap: 0.5rem; margin-bottom: 0.25rem;"):
+                        ui.icon("apartment", size="13px").props("color=primary")
+                        ui.label("INSTITUTIONS").classes("text-[10px] font-black tracking-[.3em] opacity-90")
+                    with ui.column().classes("w-full").style("gap: 0.25rem;"):
+                        for inst in extra_institutions:
+                            name = inst.get("name") or ""
+                            kind = inst.get("kind") or "other"
+                            with ui.row().classes("w-full items-center flex-wrap").style("gap: 0.375rem;"):
+                                with ui.row().classes("items-center no-wrap cursor-pointer hover:bg-primary/5 rounded").style("gap: 0.5rem;").on("click", lambda _e, t=name: _insert(t)):
+                                    ui.label(name).classes("font-bold text-sm").style("color: var(--q-positive)")
+                                ui.badge(kind, color="orange-4").props("outline").classes("text-[8px] px-1 normal-case")
+            # Works by authors mentioned in this segment
+            if extra_agents and hasattr(kg, "find_agent_works"):
+                agent_ids = [a["id"] for a in extra_agents if a.get("id")]
+                agent_works: list[dict] = []
+                try:
+                    agent_works = kg.find_agent_works(agent_ids)
+                except Exception:
+                    pass
+                if agent_works:
+                    with ui.card().props("flat bordered").classes("w-full p-3 rounded-2xl"):
+                        with ui.row().classes("w-full items-center flex-wrap").style("gap: 0.5rem; margin-bottom: 0.25rem;"):
+                            ui.icon("menu_book", size="13px").props("color=primary")
+                            ui.label("WORKS BY THESE AUTHORS").classes("text-[10px] font-black tracking-[.3em] opacity-90")
+                        with ui.column().classes("w-full").style("gap: 0.25rem;"):
+                            for w in agent_works:
+                                title = w.get("title") or ""
+                                author = w.get("author") or ""
+                                year = w.get("year")
+                                with ui.row().classes("w-full items-center flex-wrap").style("gap: 0.375rem;"):
+                                    with ui.row().classes("items-center no-wrap cursor-pointer hover:bg-primary/5 rounded").style("gap: 0.5rem;").on("click", lambda _e, t=title: _insert(t)):
+                                        ui.label(title).classes("text-sm font-semibold").style("color: var(--q-positive)")
+                                    ui.label(f"by {author}").classes("text-[10px] opacity-50")
+                                    if year:
+                                        ui.badge(str(year), color="grey-5").classes("text-[8px] px-1")
+            if not hits and not extra_concepts and not extra_agents and not extra_institutions:
                 ui.label("No KG matches for this segment.").classes("text-xs italic opacity-90")
 
     # Find & Replace logic
@@ -1580,6 +1626,7 @@ def _apply_reviewer_highlights(
                 g_terms: list[str] = []
                 c_terms: list[str] = []
                 a_terms: list[str] = []
+                inst_terms: list[str] = []
                 try:
                     if glossary:
                         for h in glossary.lookup_all_terms(src_text, src, tgt) or []:
@@ -1607,7 +1654,15 @@ def _apply_reviewer_highlights(
                                     a_terms.append(alt)
                 except Exception:
                     pass
-                html_content = _highlight_source(src_text, g_terms, c_terms, a_terms)
+                try:
+                    if kg and hasattr(kg, "find_institutions_in_text"):
+                        for inst in kg.find_institutions_in_text(src_text):
+                            name = inst.get("name") or ""
+                            if name:
+                                inst_terms.append(name)
+                except Exception:
+                    pass
+                html_content = _highlight_source(src_text, g_terms, c_terms, a_terms, inst_terms)
                 results.append((lbl, html_content))
             return results
 

@@ -332,6 +332,12 @@ async def push_bundle(textarea_id: int, source_text: str, src: str, tgt: str,
                     _add(ag.get("name") or "")
                     for alt in ag.get("alt_spellings") or []:
                         _add(alt)
+                # Institutions: names that appear in the source are
+                # proper names (publishers, galleries, universities)
+                # the translator will likely need in the target too.
+                if hasattr(kg, "find_institutions_in_text"):
+                    for inst in kg.find_institutions_in_text(source_text):
+                        _add(inst.get("name") or "")
                 # Concepts: label_translation (target-language form) is
                 # the useful completion; label (source form) is also
                 # added so it's available if the translator works in

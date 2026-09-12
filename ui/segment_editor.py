@@ -32,19 +32,21 @@ _HL_STYLES = {
                 "text-decoration-thickness: 2px; text-underline-offset: 3px;",
     "agent":    "text-decoration: underline; text-decoration-color: #ff9800; "
                 "text-decoration-thickness: 2px; text-underline-offset: 3px;",
+    "institution": "text-decoration: underline; text-decoration-color: #ff9800; "
+                   "text-decoration-thickness: 2px; text-underline-offset: 3px;",
 }
-
-
 def _highlight_source(
     source_text: str,
     glossary_terms: list[str],
     concept_terms: list[str],
     agent_terms: list[str],
+    institution_terms: list[str] | None = None,
 ) -> str:
     """Render *source_text* as escaped HTML with coloured underlines for
-    glossary terms (green), concept labels (blue), and agent names
-    (orange). Overlapping matches are resolved greedily — longest match
-    wins, ties broken by category priority (glossary > concept > agent)."""
+    glossary terms (green), concept labels (blue), and agent /
+    institution names (orange). Overlapping matches are resolved
+    greedily — longest match wins, ties broken by category priority
+    (glossary > concept > agent/institution)."""
     if not source_text:
         return ""
 
@@ -63,6 +65,8 @@ def _highlight_source(
         _find_all(t, 1)
     for t in agent_terms:
         _find_all(t, 2)
+    for t in (institution_terms or []):
+        _find_all(t, 2)  # same priority + colour as agents
 
     if not matches:
         return html_lib.escape(source_text).replace("\n", "<br/>")
@@ -141,10 +145,10 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
                     "text-[9px] font-black tracking-[0.2em] uppercase opacity-50"
                 )
                 # Toggle button for source-text highlights: glossary
-                # terms (green), concepts (blue), agents (orange).
+                # terms (green), concepts (blue), agents/institutions (orange).
                 hl_btn = ui.button(icon="format_underlined", on_click=lambda _: _toggle_hl()).props(
                     "flat round dense size=sm color=grey-6"
-                ).tooltip("Toggle source highlights: glossary / concepts / agents")
+                ).tooltip("Toggle source highlights: glossary / concepts / agents / institutions")
 
             with ui.card().props("flat bordered").classes(
                 "w-full rounded-xl p-4"
@@ -358,11 +362,11 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
         seg_now = state.segments[idx]
         src, tgt = _src_tgt()
         loop = asyncio.get_running_loop()
-
         def _compute() -> str:
             g_terms: list[str] = []
             c_terms: list[str] = []
             a_terms: list[str] = []
+            inst_terms: list[str] = []
             try:
                 if glossary:
                     for h in glossary.lookup_all_terms(seg_now["source"], src, tgt) or []:
@@ -390,7 +394,15 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
                                 a_terms.append(alt)
             except Exception:
                 pass
-            return _highlight_source(seg_now["source"], g_terms, c_terms, a_terms)
+            try:
+                if kg and hasattr(kg, "find_institutions_in_text"):
+                    for inst in kg.find_institutions_in_text(seg_now["source"]):
+                        name = inst.get("name") or ""
+                        if name:
+                            inst_terms.append(name)
+            except Exception:
+                pass
+            return _highlight_source(seg_now["source"], g_terms, c_terms, a_terms, inst_terms)
 
         try:
             html_content = await loop.run_in_executor(None, _compute)

@@ -225,6 +225,8 @@ class KnowledgeGraph:
         self._agent_kp_count: int = -1
         self._concept_kp: KeywordProcessor | None = None
         self._concept_kp_count: int = -1
+        self._inst_kp: KeywordProcessor | None = None
+        self._inst_kp_count: int = -1
 
         # NLP models (Spacy EN, Stanza/Classla SL) were previously loaded here
         # for promote_pair's NLP term-extraction. That extraction is removed:
@@ -406,6 +408,73 @@ class KnowledgeGraph:
                 "domain": d.get("domain") or "",
                 "definition": (d.get("definition") or "").strip(),
             })
+
+    def _ensure_institution_kp(self) -> KeywordProcessor:
+        """Build (or return cached) flashtext index of institution names.
+        Rebuilt when the institution node count changes."""
+        current = sum(
+            1 for _, d in self.G.nodes(data=True) if d.get("type") == "institution"
+        )
+        if self._inst_kp is not None and self._inst_kp_count == current:
+            return self._inst_kp
+        kp = KeywordProcessor(case_sensitive=False)
+        for node_id, d in self.G.nodes(data=True):
+            if d.get("type") != "institution":
+                continue
+            name = d.get("name") or ""
+            if name:
+                kp.add_keyword(name, node_id)
+        self._inst_kp = kp
+        self._inst_kp_count = current
+        return kp
+
+    def find_institutions_in_text(self, text: str) -> List[Dict]:
+        """Return institution nodes whose name appears in *text*.
+        Each result carries name, kind, and id — enough for the
+        prediction engine and intel panel."""
+        if not text.strip():
+            return []
+        kp = self._ensure_institution_kp()
+        found_ids = kp.extract_keywords(text.lower())
+        results: List[Dict] = []
+        seen: set[str] = set()
+        for node_id in found_ids:
+            if node_id in seen or not self.G.has_node(node_id):
+                continue
+            seen.add(node_id)
+            d = self.G.nodes[node_id]
+            results.append({
+                "id": node_id,
+                "name": d.get("name") or "",
+                "kind": d.get("kind") or "other",
+            })
+        return results
+
+    def find_agent_works(self, agent_ids: list[str]) -> List[Dict]:
+        """Return source_text nodes written by any of the given agents.
+
+        Walks ``written_by`` edges from source_text → agent. Returns
+        unique works with title, year, and the author's name."""
+        results: List[Dict] = []
+        seen: set[str] = set()
+        for agent_id in agent_ids:
+            if not self.G.has_node(agent_id):
+                continue
+            agent_name = self.G.nodes[agent_id].get("name") or ""
+            for src_id, _, edata in self.G.in_edges(agent_id, data=True):
+                if edata.get("relation") != "written_by":
+                    continue
+                if src_id in seen or not self.G.has_node(src_id):
+                    continue
+                seen.add(src_id)
+                d = self.G.nodes[src_id]
+                results.append({
+                    "id": src_id,
+                    "title": d.get("title") or "",
+                    "year": d.get("year"),
+                    "author": agent_name,
+                })
+        return results
         return results
 
     def _index_term_node(self, node_id: str, data: Dict):
