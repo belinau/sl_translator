@@ -25,6 +25,7 @@ from nicegui import background_tasks, ui
 from translate_core import review_manager as rm
 from translate_core import comments as cm
 from ui.comments_panel import build as build_comments_panel
+from ui.components import busy_overlay
 from ui.segment_editor import _highlight_source
 
 log = logging.getLogger(__name__)
