@@ -786,6 +786,129 @@ def build(
                         for h in group_hits:
                             _render_hit(h)
 
+            # ── Concepts found in this segment (not tied to term hits) ──
+            # These are concept nodes whose label appears in the source
+            # text but may not have term-level translation mappings. We
+            # surface their label_translation as an insertable chip.
+            seen_concept_ids: set[str] = set(concept_by_id.keys())
+            extra_concepts: list[dict] = []
+            try:
+                if hasattr(kg, "find_concepts_in_text"):
+                    for c in kg.find_concepts_in_text(seg["source"]):
+                        if c["id"] not in seen_concept_ids:
+                            seen_concept_ids.add(c["id"])
+                            extra_concepts.append(c)
+            except Exception:
+                pass
+            if extra_concepts:
+                with ui.card().props("flat bordered").classes(
+                    "w-full p-3 rounded-2xl"
+                ):
+                    with ui.row().classes(
+                        "w-full items-center gap-x-2 gap-y-1 mb-1 flex-wrap"
+                    ):
+                        ui.icon("lightbulb", size="13px").props("color=primary")
+                        ui.label("CONCEPTS").classes(
+                            "text-[10px] font-black tracking-[.3em] opacity-90"
+                        )
+                    with ui.column().classes("w-full gap-1"):
+                        for c in extra_concepts:
+                            label = c.get("label") or ""
+                            lt = (c.get("label_translation") or "").strip()
+                            domain = c.get("domain") or ""
+                            definition = c.get("definition") or ""
+                            with ui.row().classes(
+                                "w-full items-center gap-x-1.5 gap-y-0.5 flex-wrap"
+                            ):
+                                with ui.row().classes(
+                                    "items-center gap-2 no-wrap cursor-pointer "
+                                    "hover:bg-primary/5 rounded"
+                                ).on(
+                                    "click",
+                                    lambda _e, t=(lt or label): _insert(t),
+                                ):
+                                    ui.label(label).classes(
+                                        "text-sm opacity-70"
+                                    )
+                                    ui.label("→").classes(
+                                        "text-xs opacity-30"
+                                    )
+                                    if lt:
+                                        ui.label(lt).classes(
+                                            "font-bold text-sm"
+                                        ).style(
+                                            "color: var(--q-positive)"
+                                        )
+                                    else:
+                                        ui.label("(no translation)").classes(
+                                            "text-xs italic opacity-40"
+                                        )
+                                if domain:
+                                    ui.badge(domain, color="grey-5").classes(
+                                        "text-[8px] px-1"
+                                    )
+                            if definition:
+                                ui.label(definition).classes(
+                                    "text-[9px] leading-relaxed italic "
+                                    "opacity-50 pl-4"
+                                ).tooltip("concept definition")
+
+            # ── Agents found in this segment ──
+            # Person names (authors, translators, theorists) that appear
+            # in the source. Click to insert the canonical name.
+            extra_agents: list[dict] = []
+            try:
+                if hasattr(kg, "find_agents_in_text"):
+                    for a in kg.find_agents_in_text(seg["source"]):
+                        extra_agents.append(a)
+            except Exception:
+                pass
+            if extra_agents:
+                with ui.card().props("flat bordered").classes(
+                    "w-full p-3 rounded-2xl"
+                ):
+                    with ui.row().classes(
+                        "w-full items-center gap-x-2 gap-y-1 mb-1 flex-wrap"
+                    ):
+                        ui.icon("person", size="13px").props("color=primary")
+                        ui.label("AGENTS").classes(
+                            "text-[10px] font-black tracking-[.3em] opacity-90"
+                        )
+                    with ui.column().classes("w-full gap-1"):
+                        for a in extra_agents:
+                            name = a.get("name") or ""
+                            role = a.get("role") or "agent"
+                            alt_spells = a.get("alt_spellings") or []
+                            with ui.row().classes(
+                                "w-full items-center gap-x-1.5 gap-y-0.5 "
+                                "flex-wrap"
+                            ):
+                                with ui.row().classes(
+                                    "items-center gap-2 no-wrap cursor-pointer "
+                                    "hover:bg-primary/5 rounded"
+                                ).on(
+                                    "click",
+                                    lambda _e, t=name: _insert(t),
+                                ):
+                                    ui.label(name).classes(
+                                        "font-bold text-sm"
+                                    ).style(
+                                        "color: var(--q-positive)"
+                                    )
+                                ui.badge(role, color="purple-4").props(
+                                    "outline"
+                                ).classes("text-[8px] px-1 normal-case")
+                                for alt in alt_spells[:2]:
+                                    if alt and alt != name:
+                                        ui.button(
+                                            alt,
+                                            on_click=lambda _e, t=alt: _insert(t),
+                                        ).props(
+                                            "flat dense rounded color=positive"
+                                        ).classes(
+                                            "text-[10px] normal-case h-5 px-1.5"
+                                        ).tooltip("alternative spelling — click to insert")
+
     # ------------------------------------------------------------------
     # Translation Memory: fuzzy + concordance
     # ------------------------------------------------------------------
