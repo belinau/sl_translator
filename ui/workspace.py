@@ -130,7 +130,7 @@ def page_translate(project_id: str):
             ui.button(
                 icon="menu_book",
                 on_click=lambda: _open_glossary(state, glossary, config, parse_lang_pair, kg, qa_engine, _slugify_project(state)),
-            ).props("flat round dense size=sm color=grey-6").tooltip("Add Glossary Term")
+            ).props("flat round dense size=sm color=grey-6").tooltip("Glossary management")
             ui.button(
                 icon="rate_review",
                 on_click=lambda: ui.navigate.to(f"/review/{state.project_id}"),
@@ -650,7 +650,7 @@ def _open_glossary(state, glossary, config, parse_lang_pair, kg=None, qa_engine=
             with ui.tab_panel(add_tab).classes("w-full").style(
                 "flex: 1; overflow-y: auto; padding: 1rem;"
             ):
-                ui.label("Add to Glossary").classes("text-lg font-bold")
+                ui.label("Glossary Management").classes("text-lg font-bold")
                 ui.label("").style("height: 0.75rem")
                 src_input = ui.input(f"Source Term ({src_lang})").classes("w-full")
                 tgt_input = ui.input(f"Target Term ({tgt_lang})").classes("w-full")
@@ -723,12 +723,16 @@ def _open_glossary(state, glossary, config, parse_lang_pair, kg=None, qa_engine=
                         note_input.set_value("")
 
             # ─── Tab 2: Edit / delete existing entries ─────────────
+            # Lazy-loaded: don't render all entries on dialog open
+            # (816 ui.expansion elements took ~60s). Instead show a
+            # prompt, render only on filter or explicit "show all".
             with ui.tab_panel(edit_tab).classes("w-full").style(
                 "flex: 1; display: flex; flex-direction: column; overflow: hidden;"
             ):
                 entries_list = glossary.get_entries_for_pair(src_lang, tgt_lang) if glossary else []
+                _BATCH = 50
+                _visible_count = {"n": 0}
 
-                # Search bar — fixed at top, doesn't scroll.
                 with ui.row().classes("w-full items-center").style("gap: 0.5rem; padding: 0.5rem 0;"):
                     search_input = ui.input(
                         "Filter by source, target, or note…",
@@ -737,13 +741,11 @@ def _open_glossary(state, glossary, config, parse_lang_pair, kg=None, qa_engine=
                         "text-xs opacity-50"
                     ).style("white-space: nowrap;")
 
-                # Scrollable list — flex: 1 with explicit parent height.
                 entries_scroll = ui.scroll_area().classes("w-full").style(
                     "flex: 1; overflow-y: auto;"
                 )
 
-                def _render_entries(filter_text: str = ""):
-                    entries_scroll.clear()
+                def _render_entries(filter_text: str = "", increment: int = 0):
                     ft = filter_text.lower().strip()
                     filtered = [
                         e for e in entries_list
@@ -752,6 +754,16 @@ def _open_glossary(state, glossary, config, parse_lang_pair, kg=None, qa_engine=
                         or ft in e["target_term"].lower()
                         or ft in (e.get("note") or "").lower()
                     ]
+                    if increment:
+                        _visible_count["n"] = min(
+                            _visible_count["n"] + increment, len(filtered)
+                        )
+                    elif ft:
+                        _visible_count["n"] = min(_BATCH, len(filtered))
+                    else:
+                        _visible_count["n"] = 0
+
+                    entries_scroll.clear()
                     with entries_scroll:
                         with ui.column().classes("w-full").style("gap: 0.25rem; padding: 0.25rem;"):
                             if not filtered:
@@ -759,11 +771,30 @@ def _open_glossary(state, glossary, config, parse_lang_pair, kg=None, qa_engine=
                                     "text-sm italic opacity-60"
                                 ).style("padding: 1rem 0;")
                                 return
-                            for e in filtered:
+                            if _visible_count["n"] == 0:
+                                ui.label(
+                                    f"{len(filtered)} entries match. "
+                                    "Type to filter or click below to browse."
+                                ).classes("text-sm opacity-60").style("padding: 0.5rem 0;")
+                                ui.button(
+                                    f"Show first {_BATCH}",
+                                    on_click=lambda _: _render_entries(ft, increment=_BATCH),
+                                ).props("outline dense color=primary").classes("text-xs normal-case")
+                                return
+                            batch = filtered[:_visible_count["n"]]
+                            for e in batch:
                                 _render_editable_row(
                                     e, glossary, kg, qa_engine,
                                     src_lang, tgt_lang, config, proj_slug, state,
                                 )
+                            if _visible_count["n"] < len(filtered):
+                                remaining = len(filtered) - _visible_count["n"]
+                                ui.button(
+                                    f"Show {min(_BATCH, remaining)} more ({remaining} remaining)",
+                                    on_click=lambda _: _render_entries(ft, increment=_BATCH),
+                                ).props("outline dense color=primary").classes(
+                                    "text-xs normal-case"
+                                ).style("margin: 0.5rem 0;")
 
                 search_input.on_value_change(lambda e: _render_entries(e.value or ""))
                 _render_entries()
