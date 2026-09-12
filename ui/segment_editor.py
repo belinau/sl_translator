@@ -21,6 +21,74 @@ from .state import WorkspaceState
 from translate_core import comments as cm
 
 
+# ── Source-text highlight colours ─────────────────────────────────────
+# Glossary terms: green, Concepts: blue, Agents/persons: orange.
+# Applied as text-decoration underline so multi-word phrases underline
+# including the spaces between words.
+_HL_STYLES = {
+    "glossary": "text-decoration: underline; text-decoration-color: #4caf50; "
+                "text-decoration-thickness: 2px; text-underline-offset: 3px;",
+    "concept":  "text-decoration: underline; text-decoration-color: #2196f3; "
+                "text-decoration-thickness: 2px; text-underline-offset: 3px;",
+    "agent":    "text-decoration: underline; text-decoration-color: #ff9800; "
+                "text-decoration-thickness: 2px; text-underline-offset: 3px;",
+}
+
+
+def _highlight_source(
+    source_text: str,
+    glossary_terms: list[str],
+    concept_terms: list[str],
+    agent_terms: list[str],
+) -> str:
+    """Render *source_text* as escaped HTML with coloured underlines for
+    glossary terms (green), concept labels (blue), and agent names
+    (orange). Overlapping matches are resolved greedily — longest match
+    wins, ties broken by category priority (glossary > concept > agent)."""
+    if not source_text:
+        return ""
+
+    # Collect all matches as (start, end, category_priority).
+    matches: list[tuple[int, int, int]] = []
+
+    def _find_all(term: str, cat: int) -> None:
+        if not term or not term.strip():
+            return
+        for m in re.finditer(re.escape(term), source_text, re.IGNORECASE):
+            matches.append((m.start(), m.end(), cat))
+
+    for t in glossary_terms:
+        _find_all(t, 0)
+    for t in concept_terms:
+        _find_all(t, 1)
+    for t in agent_terms:
+        _find_all(t, 2)
+
+    if not matches:
+        return html_lib.escape(source_text).replace("\n", "<br/>")
+
+    # Sort by start, then by length (longer first), then by priority.
+    matches.sort(key=lambda x: (x[0], -(x[1] - x[0]), x[2]))
+
+    # Greedy non-overlapping selection: pick the first (earliest, longest,
+    # highest-priority) match, skip any that overlaps with a chosen one.
+    chosen: list[tuple[int, int, int]] = []
+    for start, end, cat in matches:
+        if not any(start < ce and end > cs for cs, ce, _ in chosen):
+            chosen.append((start, end, cat))
+
+    chosen.sort(key=lambda x: x[0])
+    cat_name = {0: "glossary", 1: "concept", 2: "agent"}
+    parts: list[str] = []
+    pos = 0
+    for start, end, cat in chosen:
+        parts.append(html_lib.escape(source_text[pos:start]).replace("\n", "<br/>"))
+        matched = html_lib.escape(source_text[start:end])
+        parts.append(f'<span style="{_HL_STYLES[cat_name[cat]]}">{matched}</span>')
+        pos = end
+    parts.append(html_lib.escape(source_text[pos:]).replace("\n", "<br/>"))
+    return "".join(parts)
+
 def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> dict:
     tm = deps["tm"]
     glossary = deps["glossary"]
@@ -63,12 +131,25 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
             ).classes("text-[9px] font-bold px-2 py-0.5 rounded-full")
 
         # --- Source zone (content-sized with cap; scrolls internally) ---
+        # Highlight toggle state (mutable closure — persists across
+        # segment switches but is per-editor-instance).
+        hl_state: dict = {"enabled": False}
+
         with ui.column().classes("w-full px-4 pt-3 pb-1 gap-1 shrink-0 no-wrap"):
-            ui.label("SOURCE").classes("text-[9px] font-black tracking-[0.2em] uppercase opacity-50")
+            with ui.row().classes("w-full items-center justify-between"):
+                ui.label("SOURCE").classes(
+                    "text-[9px] font-black tracking-[0.2em] uppercase opacity-50"
+                )
+                # Toggle button for source-text highlights: glossary
+                # terms (green), concepts (blue), agents (orange).
+                hl_btn = ui.button(icon="format_underlined", on_click=lambda _: _toggle_hl()).props(
+                    "flat round dense size=sm color=grey-6"
+                ).tooltip("Toggle source highlights: glossary / concepts / agents")
+
             with ui.card().props("flat bordered").classes(
                 "w-full rounded-xl p-4"
             ):
-                source_label = ui.label(seg["source"]).classes(
+                source_label = ui.html(html_lib.escape(seg["source"]).replace("\n", "<br/>")).classes(
                     "leading-relaxed"
                 ).style(
                     'font-family: "Inter", -apple-system, BlinkMacSystemFont, '
@@ -254,6 +335,71 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
                         ).classes("text-xs normal-case")
 
 
+    def _toggle_hl():
+        hl_state["enabled"] = not hl_state["enabled"]
+        if hl_state["enabled"]:
+            hl_btn.props("color=positive")
+            background_tasks.create(_refresh_source_hl(), name="source_hl")
+        else:
+            hl_btn.props("color=grey-6")
+            # Immediately reset to plain text.
+            if not source_label.is_deleted:
+                seg = state.segments[state.active_index] if state.segments else None
+                txt = seg["source"] if seg else ""
+                source_label.set_content(html_lib.escape(txt).replace("\n", "<br/>"))
+
+    async def _refresh_source_hl():
+        """Compute glossary/concept/agent matches for the current source
+        segment and render coloured underlines. Runs off the UI thread
+        so the segment switch stays responsive."""
+        if not hl_state["enabled"] or not state.segments:
+            return
+        idx = state.active_index
+        seg_now = state.segments[idx]
+        src, tgt = _src_tgt()
+        loop = asyncio.get_running_loop()
+
+        def _compute() -> str:
+            g_terms: list[str] = []
+            c_terms: list[str] = []
+            a_terms: list[str] = []
+            try:
+                if glossary:
+                    for h in glossary.lookup_all_terms(seg_now["source"], src, tgt) or []:
+                        s = h.get("source_term") or ""
+                        if s:
+                            g_terms.append(s)
+            except Exception:
+                pass
+            try:
+                if kg and hasattr(kg, "find_concepts_in_text"):
+                    for c in kg.find_concepts_in_text(seg_now["source"]):
+                        label = c.get("label") or ""
+                        if label:
+                            c_terms.append(label)
+            except Exception:
+                pass
+            try:
+                if kg and hasattr(kg, "find_agents_in_text"):
+                    for a in kg.find_agents_in_text(seg_now["source"]):
+                        name = a.get("name") or ""
+                        if name:
+                            a_terms.append(name)
+                        for alt in a.get("alt_spellings") or []:
+                            if alt:
+                                a_terms.append(alt)
+            except Exception:
+                pass
+            return _highlight_source(seg_now["source"], g_terms, c_terms, a_terms)
+
+        try:
+            html_content = await loop.run_in_executor(None, _compute)
+        except Exception as e:
+            print(f"[source highlight] {e}")
+            return
+        if state.active_index != idx or source_label.is_deleted:
+            return
+        source_label.set_content(html_content)
     def _on_active_change():
         if not state.segments:
             return
@@ -263,7 +409,10 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
         header_index_label.set_text(f"SEGMENT {seg_now['id'] + 1}")
         status_badge.set_text("CONFIRMED" if seg_now["status"] == "done" else "DRAFTING")
         status_badge.props(f'color={"positive" if seg_now["status"] == "done" else "info"}')
-        source_label.set_text(seg_now["source"])
+        # Source text: set plain escaped text immediately; if highlights
+        # are enabled, _refresh_source_hl will replace it with coloured
+        # underlines off the UI thread.
+        source_label.set_content(html_lib.escape(seg_now["source"]).replace("\n", "<br/>"))
         # Initial overlay paint for the newly-active segment — this is the
         # one time Python writes the overlay; from here on, the JS runtime
         # owns it.
@@ -280,6 +429,8 @@ def build(state: WorkspaceState, deps: dict, on_confirm: Callable[[], None]) -> 
             name=f"push_bundle_{sid}",
         )
         background_tasks.create(_refresh_qa(), name="qa_refresh")
+        if hl_state["enabled"]:
+            background_tasks.create(_refresh_source_hl(), name="source_hl")
         _rebuild_comments()
 
     def _on_status_change():
