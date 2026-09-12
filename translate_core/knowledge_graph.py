@@ -328,8 +328,11 @@ class KnowledgeGraph:
                 kp.add_keyword(label, node_id)
                 # Also index the Slovenian label_translation so Slovenian
                 # source text can match concepts with English labels.
+                # Skip translations shorter than 4 chars — they are
+                # almost always abbreviations or common words that
+                # produce massive false positives (e.g. "OF", "we").
                 label_tr = d.get("label_translation") or ""
-                if label_tr and label_tr.strip():
+                if label_tr and len(label_tr.strip()) >= 4:
                     kp.add_keyword(label_tr, node_id)
         self._concept_kp_count = current
         return kp
@@ -432,8 +435,11 @@ class KnowledgeGraph:
                 kp.add_keyword(name, node_id)
                 # Also index the Slovenian name_translation so Slovenian
                 # source text can match institutions with English names.
+                # Skip translations shorter than 4 chars — they are
+                # almost always abbreviations (e.g. "OF" = Osvobodilna
+                # fronta) that match every occurrence of a common word.
                 name_tr = d.get("name_translation") or ""
-                if name_tr and name_tr.strip():
+                if name_tr and len(name_tr.strip()) >= 4:
                     kp.add_keyword(name_tr, node_id)
         self._inst_kp = kp
         self._inst_kp_count = current
