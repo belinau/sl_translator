@@ -1127,17 +1127,19 @@ def page_review_ext(review_id: str):
                     ).classes("text-xs opacity-70").style("line-height: 1.5; white-space: pre-wrap;")
                     ui.label("Exporting your work").classes("text-xs font-bold mt-2")
                     ui.label(
-                        "• Use 'Export finished work as bilingual table' to download a DOCX.\n"
-                        "• Download BEFORE clicking 'Review completed'."
+                        "• Use 'Export finished work as bilingual table' to download a DOCX "
+                        "with the source, current translation, and your suggestions.\n"
+                        "• You MUST download BEFORE clicking 'Review completed' — "
+                        "the download button disappears after completion."
                     ).classes("text-xs opacity-70").style("line-height: 1.5; white-space: pre-wrap;")
                     ui.label("Finishing the review").classes("text-xs font-bold mt-2")
                     ui.label(
                         "When you click 'Review completed':\n"
                         "• Your suggestions and comments are finalised and saved.\n"
                         "• The translator is notified that the review is ready.\n"
-                        "• This page switches to a read-only view — you can no longer edit.\n"
+                        "• This page switches to a read-only view — you can no longer edit or download.\n"
                         "• The translator opens the merge view to accept or reject each suggestion.\n"
-                        "• You can still download the bilingual table after completion."
+                        "• The review link remains valid until the funnel expires or is stopped."
                     ).classes("text-xs opacity-70").style("line-height: 1.5; white-space: pre-wrap;")
 
     # ── Main content: segments + download/complete (single page scroll) ──
