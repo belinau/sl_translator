@@ -25,7 +25,7 @@ from nicegui import background_tasks, ui
 from translate_core import review_manager as rm
 from translate_core import comments as cm
 from ui.comments_panel import build as build_comments_panel
-from ui.components import busy_overlay
+from ui.segment_editor import _highlight_source
 
 log = logging.getLogger(__name__)
 
@@ -992,6 +992,29 @@ def page_review_ext(review_id: str):
 
             from ui import settings as ui_settings
             ui_settings.dark_toggle_button(dm)
+            # Source highlight toggle — on by default for reviewers.
+            hl_state: dict = {"enabled": True, "labels": []}
+            hl_btn = ui.button(
+                icon="format_underlined",
+                on_click=lambda _: _toggle_reviewer_hl(),
+            ).props("flat round dense size=sm color=positive").tooltip(
+                "Toggle source highlights: glossary / concepts / agents"
+            )
+
+            def _toggle_reviewer_hl():
+                hl_state["enabled"] = not hl_state["enabled"]
+                if hl_state["enabled"]:
+                    hl_btn.props("color=positive")
+                    _apply_reviewer_highlights(
+                        hl_state["labels"], deps, state, page_client,
+                    )
+                else:
+                    hl_btn.props("color=grey-6")
+                    for lbl, src_text in hl_state["labels"]:
+                        if not lbl.is_deleted:
+                            lbl.set_content(
+                                html_lib.escape(src_text).replace("\n", "<br/>")
+                            )
 
     # ------------------------------------------------------------------
     # Main content — Glossary + Find & Replace, then segment list.
@@ -1264,7 +1287,7 @@ def page_review_ext(review_id: str):
             ui.label("Review segments — suggest changes in the edit field, leave comments if needed. Use 'Copy' to start from the current translation.").classes(
                 "text-[10px] opacity-50 px-2 pb-2"
             )
-            _build_review_segment_list(clone, state, deps, page_client, _set_save_status)
+            _build_review_segment_list(clone, state, deps, page_client, _set_save_status, hl_state)
 
         # ── Download & complete ──
         # The bilingual table must be downloaded BEFORE completing the
@@ -1353,6 +1376,7 @@ def _on_comments_change(seg, clone, set_save_status):
 
 def _build_review_segment_list(
     clone: dict, state, deps: dict, page_client, set_save_status=None,
+    hl_state: dict | None = None,
 ) -> None:
     """Build the scrollable list of fully-expanded review segment cards.
 
@@ -1361,19 +1385,98 @@ def _build_review_segment_list(
     so the glossary panel populates for that segment, and
     predictions.push_bundle seeds the ghost-text predictor for that
     textarea.
+
+    If *hl_state* is provided with ``enabled: True``, source texts are
+    rendered with coloured underlines (glossary/concept/agent).
     """
     scroll = ui.scroll_area().classes("w-full h-[80vh]")
+    source_labels: list[tuple[Any, str]] = []
     with scroll:
         with ui.column().classes("w-full gap-1"):
             for i, seg in enumerate(clone["segments"]):
-                _build_segment_card(seg, i, clone, state, deps, page_client, set_save_status)
+                src_lbl = _build_segment_card(
+                    seg, i, clone, state, deps, page_client, set_save_status,
+                )
+                if src_lbl is not None:
+                    source_labels.append((src_lbl, seg.get("source", "")))
 
+    # Store labels for toggle access and apply highlights if enabled.
+    if hl_state is not None:
+        hl_state["labels"] = source_labels
+    if hl_state and hl_state.get("enabled"):
+        _apply_reviewer_highlights(source_labels, deps, state, page_client)
 
+def _apply_reviewer_highlights(
+    source_labels: list[tuple[Any, str]], deps: dict, state, page_client,
+) -> None:
+    """Compute glossary/concept/agent highlights for each source text
+    and update the html elements. Runs off the UI thread."""
+    glossary = deps["glossary"]
+    kg = deps["kg"]
+    parse_lang_pair = deps["parse_lang_pair"]
+    src, tgt = parse_lang_pair(state.lang_pair)
+
+    async def _run():
+        loop = asyncio.get_running_loop()
+
+        def _compute_all() -> list[tuple[Any, str]]:
+            """Compute highlighted HTML for all segments."""
+            results: list[tuple[Any, str]] = []
+            for lbl, src_text in source_labels:
+                if lbl.is_deleted:
+                    continue
+                g_terms: list[str] = []
+                c_terms: list[str] = []
+                a_terms: list[str] = []
+                try:
+                    if glossary:
+                        for h in glossary.lookup_all_terms(src_text, src, tgt) or []:
+                            s = h.get("source_term") or ""
+                            if s:
+                                g_terms.append(s)
+                except Exception:
+                    pass
+                try:
+                    if kg and hasattr(kg, "find_concepts_in_text"):
+                        for c in kg.find_concepts_in_text(src_text):
+                            label = c.get("label") or ""
+                            if label:
+                                c_terms.append(label)
+                except Exception:
+                    pass
+                try:
+                    if kg and hasattr(kg, "find_agents_in_text"):
+                        for a in kg.find_agents_in_text(src_text):
+                            name = a.get("name") or ""
+                            if name:
+                                a_terms.append(name)
+                            for alt in a.get("alt_spellings") or []:
+                                if alt:
+                                    a_terms.append(alt)
+                except Exception:
+                    pass
+                html_content = _highlight_source(src_text, g_terms, c_terms, a_terms)
+                results.append((lbl, html_content))
+            return results
+
+        try:
+            computed = await loop.run_in_executor(None, _compute_all)
+        except Exception as e:
+            print(f"[reviewer highlights] {e}")
+            return
+        with page_client:
+            for lbl, html_content in computed:
+                if not lbl.is_deleted:
+                    lbl.set_content(html_content)
+
+    background_tasks.create(_run(), name="reviewer_hl")
 def _build_segment_card(
     seg: dict, idx: int, clone: dict, state, deps: dict, page_client,
     set_save_status=None,
-) -> None:
+) -> Any:
     """Build one fully-expanded review segment card.
+
+    Returns the source html element so callers can apply highlights.
 
     No collapse/expand toggle — every segment is shown in full:
     source, current translation, suggested edit textarea (with Copy
@@ -1420,7 +1523,7 @@ def _build_segment_card(
             ui.label("SOURCE").classes(
                 "text-[9px] font-black tracking-[0.2em] uppercase opacity-50"
             )
-            ui.label(source).classes(
+            source_label = ui.html(html_lib.escape(source).replace("\n", "<br/>")).classes(
                 "leading-relaxed text-sm w-full"
             ).style(
                 'font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif; '
@@ -1528,6 +1631,7 @@ def _build_segment_card(
 
     suggestion_input.on_value_change(_on_suggest_change)
 
+    return source_label
 
 # ======================================================================
 # Page 3 — Merge view (side-by-side accept/reject)
