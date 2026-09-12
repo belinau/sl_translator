@@ -171,8 +171,11 @@ class Glossary:
         return "en", "sl"
 
     def _parse_tsv(self, content: str, filename: str):
-        """Parses simple Tab-Separated files."""
-        # Detect language pair from filename: e.g. "glossary-EN-SL.txt" → EN→SL
+        """Parses simple Tab-Separated files.
+
+        Supports an optional third column for notes:
+        ``source\\ttarget\\tnote``
+        """
         src_lang, tgt_lang = self._detect_lang_pair(filename)
 
         lines = content.split("\n")
@@ -183,7 +186,8 @@ class Glossary:
             if len(parts) >= 2:
                 src, tgt = parts[0].strip(), parts[1].strip()
                 if src and tgt:
-                    self._add_simple_entry(src, tgt, src_lang, tgt_lang, filename)
+                    note = parts[2].strip() if len(parts) >= 3 else ""
+                    self._add_simple_entry(src, tgt, src_lang, tgt_lang, filename, note)
 
     def _load_csv(self, path: Path):
         """Parses CSV files."""
@@ -259,15 +263,17 @@ class Glossary:
         return results
 
     def get_entries_for_pair(
-        self, source_lang: str, target_lang: str,
+        self, source_lang: str, target_lang: str, origin: str | None = None,
     ) -> List[Dict]:
         """Return all forward-direction entries for a language pair, sorted
-        by source term. Used by the glossary edit dialog to populate the
-        searchable list of existing terms."""
+        by source term. If *origin* is given, only entries from that file
+        are returned (e.g. origin='custom.tsv' to show only editable
+        entries in the glossary management dialog)."""
         out = [
             e for e in self.entries
             if e["source_lang"] == source_lang
             and e["target_lang"] == target_lang
+            and (origin is None or e.get("origin") == origin)
         ]
         out.sort(key=lambda e: e["source_term"].lower())
         return out

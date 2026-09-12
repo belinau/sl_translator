@@ -729,7 +729,7 @@ def _open_glossary(state, glossary, config, parse_lang_pair, kg=None, qa_engine=
             with ui.tab_panel(edit_tab).classes("w-full").style(
                 "flex: 1; display: flex; flex-direction: column; overflow: hidden;"
             ):
-                entries_list = glossary.get_entries_for_pair(src_lang, tgt_lang) if glossary else []
+                entries_list = glossary.get_entries_for_pair(src_lang, tgt_lang, origin="custom.tsv") if glossary else []
                 _BATCH = 50
                 _visible_count = {"n": 0}
 
