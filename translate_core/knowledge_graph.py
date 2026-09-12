@@ -304,7 +304,14 @@ class KnowledgeGraph:
         return kp
 
     def _ensure_concept_kp(self) -> KeywordProcessor:
-        """Build (or return cached) flashtext index of concept labels."""
+        """Build (or return cached) flashtext index of concept labels.
+
+        Filters out noise — the KG has ~4,900 concept nodes, most of them
+        single common English words (``we'', ``body'', ``mourning'') seeded
+        from bulk imports with domain=humanities and no Slovenian
+        translation. These produce spurious blue underlines on almost any
+        source text. Only concepts that pass _concept_is_meaningful are
+        indexed."""
         current = sum(
             1 for _, d in self.G.nodes(data=True) if d.get("type") == "concept"
         )
@@ -315,11 +322,41 @@ class KnowledgeGraph:
             if d.get("type") != "concept":
                 continue
             label = d.get("label") or ""
-            if label:
+            if label and self._concept_is_meaningful(d):
                 kp.add_keyword(label, node_id)
         self._concept_kp = kp
         self._concept_kp_count = current
         return kp
+
+    # Domains where concepts are almost always real theoretical terms.
+    _RELEVANT_CONCEPT_DOMAINS = frozenset({
+        "philosophy", "sociology", "feminism", "feminist-queer",
+        "politics", "crip theory", "aesthetics", "anthropology",
+    })
+
+    @staticmethod
+    def _concept_is_meaningful(d: Dict) -> bool:
+        """Return True if a concept node is likely a real theoretical
+        concept, not bulk-import noise.
+
+        Passes if ANY of:
+        - domain is in the relevant-philosophy/sociology/feminism set
+        - has a Slovenian label_translation (curated)
+        - label is multi-word (2+ words) — phrases are almost always real
+        - label is >10 chars (filters short common words like 'we', 'art')
+        """
+        label = d.get("label") or ""
+        domain = d.get("domain") or ""
+        lt = d.get("label_translation") or ""
+        if domain in KnowledgeGraph._RELEVANT_CONCEPT_DOMAINS:
+            return True
+        if lt.strip():
+            return True
+        if len(label.split()) >= 2:
+            return True
+        if len(label) > 10:
+            return True
+        return False
 
     def find_agents_in_text(self, text: str) -> List[Dict]:
         """Return agent nodes whose name or alt_spelling appears in *text*.

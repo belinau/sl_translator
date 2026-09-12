@@ -632,7 +632,7 @@ def _open_glossary(state, glossary, config, parse_lang_pair, kg=None, qa_engine=
     syncs changes to both the TSV file and the KG — closing the gap
     where raw-file edits never propagated to the KG.
     """
-    with ui.dialog() as dialog, ui.card().classes("min-w-[520px] max-h-[80vh]"):
+    with ui.dialog() as dialog, ui.card().classes("min-w-[760px] max-h-[88vh] p-6"):
         src_lang, tgt_lang = parse_lang_pair(state.lang_pair)
 
         with ui.tabs() as tabs:
@@ -673,7 +673,6 @@ def _open_glossary(state, glossary, config, parse_lang_pair, kg=None, qa_engine=
                         f.write(line)
                     if glossary is not None:
                         glossary.add_entry(s, t, src_lang, tgt_lang, note=note_input.value or "")
-                    # Push the term to the KG, tagged with the current project.
                     if kg is not None:
                         note_val = note_input.value or ""
                         lineage_val = (lineage_input.value or "").strip() or "general"
@@ -728,8 +727,15 @@ def _open_glossary(state, glossary, config, parse_lang_pair, kg=None, qa_engine=
             with ui.tab_panel(edit_tab):
                 entries_list = glossary.get_entries_for_pair(src_lang, tgt_lang) if glossary else []
 
-                search_input = ui.input("Filter…").classes("w-full").props("dense clearable")
-                entries_scroll = ui.scroll_area().classes("w-full h-[40vh]")
+                with ui.row().classes("w-full items-center gap-2 mb-2"):
+                    search_input = ui.input("Filter by source, target, or note…").classes("flex-1").props(
+                        "dense clearable prepend-icon=search"
+                    )
+                    ui.label(f"{len(entries_list)} entries").classes(
+                        "text-xs opacity-50 shrink-0"
+                    )
+
+                entries_scroll = ui.scroll_area().classes("w-full h-[58vh]")
 
                 def _render_entries(filter_text: str = ""):
                     entries_scroll.clear()
@@ -744,11 +750,11 @@ def _open_glossary(state, glossary, config, parse_lang_pair, kg=None, qa_engine=
                     with entries_scroll:
                         if not filtered:
                             ui.label("No matching entries.").classes(
-                                "text-xs italic opacity-60 py-4"
+                                "text-sm italic opacity-60 py-4"
                             )
                             return
                         for e in filtered:
-                            _render_editable_row(e, entries_list, glossary, kg, qa_engine, src_lang, tgt_lang, config, proj_slug, state)
+                            _render_editable_row(e, glossary, kg, qa_engine, src_lang, tgt_lang, config, proj_slug, state)
 
                 search_input.on_value_change(lambda e: _render_entries(e.value or ""))
                 _render_entries()
@@ -756,33 +762,76 @@ def _open_glossary(state, glossary, config, parse_lang_pair, kg=None, qa_engine=
                 with ui.row().classes("w-full justify-end mt-2 gap-2"):
                     ui.button("Close", on_click=dialog.close).props("flat")
     dialog.open()
+def _render_editable_row(e, glossary, kg, qa_engine, src_lang, tgt_lang, config, proj_slug, state):
+    """Render one glossary entry as a spacious 2-line editable card.
 
-
-def _render_editable_row(e, entries_list, glossary, kg, qa_engine, src_lang, tgt_lang, config, proj_slug, state):
-    """Render one glossary entry as an inline-editable row within the Edit tab."""
+    Line 1: source term (left) → target term (right), read-only display.
+    Click the row to expand into an edit form with full-width inputs,
+    Save + Delete buttons on a second line.
+    """
     orig_src = e["source_term"]
     orig_tgt = e["target_term"]
     orig_note = e.get("note") or ""
 
-    with ui.card().props("flat bordered").classes("w-full p-2 mb-1 rounded-lg"):
-        with ui.row().classes("w-full items-center gap-2"):
-            src_f = ui.input("Source", value=orig_src).props("dense").classes("flex-1")
-            tgt_f = ui.input("Target", value=orig_tgt).props("dense").classes("flex-1")
-            note_f = ui.input("Note", value=orig_note).props("dense").classes("w-32")
-            ui.button(
-                icon="save",
-                on_click=lambda _: _do_edit_save(
-                    orig_src, orig_tgt, orig_note,
-                    src_f, tgt_f, note_f,
-                    glossary, kg, qa_engine, src_lang, tgt_lang, config, proj_slug, state,
-                ),
-            ).props("flat dense round size=sm color=positive").tooltip("Save changes (syncs to KG)")
-            ui.button(
-                icon="delete",
-                on_click=lambda _: _do_edit_delete(
-                    orig_src, orig_tgt, glossary, kg, qa_engine, src_lang, tgt_lang, state,
-                ),
-            ).props("flat dense round size=sm color=negative").tooltip("Delete this entry")
+    with ui.column().classes("w-full gap-0 mb-1"):
+        # Compact display row — click to expand
+        display = ui.card().props("flat bordered").classes(
+            "w-full px-3 py-2 rounded-lg cursor-pointer hover:bg-primary/5"
+        )
+        with display:
+            with ui.row().classes("w-full items-center gap-2"):
+                ui.label(orig_src).classes(
+                    "text-sm flex-1 min-w-0 truncate"
+                )
+                ui.label("→").classes("text-xs opacity-40 shrink-0")
+                ui.label(orig_tgt).classes(
+                    "text-sm font-bold flex-1 min-w-0 truncate"
+                )
+                if orig_note:
+                    ui.badge(orig_note[:20], color="grey-5").props(
+                        "outline"
+                    ).classes("text-[8px] px-1 shrink-0").tooltip(orig_note)
+                ui.icon("edit", size="16px").props("color=grey-5").classes("shrink-0")
+
+        # Expandable edit form — hidden until display row is clicked
+        edit_col = ui.column().classes("w-full gap-2")
+        edit_col.set_visibility(False)
+
+        def _toggle_edit():
+            edit_col.set_visibility(not edit_col.visible)
+
+        display.on("click", _toggle_edit)
+
+        with edit_col:
+            with ui.row().classes("w-full gap-3 items-start"):
+                src_f = ui.input(
+                    f"Source ({src_lang})", value=orig_src,
+                ).classes("flex-1").props("dense")
+                tgt_f = ui.input(
+                    f"Target ({tgt_lang})", value=orig_tgt,
+                ).classes("flex-1").props("dense")
+            note_f = ui.input(
+                "Note", value=orig_note,
+            ).classes("w-full").props("dense")
+            with ui.row().classes("w-full justify-end gap-2"):
+                ui.button(
+                    "Delete",
+                    icon="delete",
+                    on_click=lambda _: _do_edit_delete(
+                        orig_src, orig_tgt, glossary, kg, qa_engine,
+                        src_lang, tgt_lang, state,
+                    ),
+                ).props("flat dense color=negative").classes("text-xs normal-case")
+                ui.button(
+                    "Save",
+                    icon="save",
+                    on_click=lambda _: _do_edit_save(
+                        orig_src, orig_tgt, orig_note,
+                        src_f, tgt_f, note_f,
+                        glossary, kg, qa_engine, src_lang, tgt_lang,
+                        config, proj_slug, state,
+                    ),
+                ).props("unelevated dense color=positive").classes("text-xs normal-case")
 
 
 def _do_edit_save(orig_src, orig_tgt, orig_note, src_f, tgt_f, note_f,
@@ -804,9 +853,6 @@ def _do_edit_save(orig_src, orig_tgt, orig_note, src_f, tgt_f, note_f,
         if not ok:
             ui.notify("Entry not found — may have been edited elsewhere", type="warning")
             return
-    # Sync to KG: update term nodes + mapping. The old src→tgt mapping
-    # gets its gloss/verified updated; if the term text changed, new term
-    # nodes + mapping are created so the KG reflects the edited pair.
     if kg is not None:
         slug = proj_slug or _slugify_project(state)
 
@@ -856,37 +902,6 @@ def _do_edit_delete(orig_src, orig_tgt, glossary, kg, qa_engine, src_lang, tgt_l
         except Exception:
             pass
     ui.notify(f"Deleted '{orig_src} → {orig_tgt}'", type="positive")
-
-
-# ---------------------------------------------------------------------------
-# Publisher house-style dialogs (module-level, called from Export dropdown)
-# ---------------------------------------------------------------------------
-def _open_change_style_dialog(state, style_indicator):
-    """Dialog to switch the project's house_style to a different profile."""
-    from translate_core.publisher_styles import get_style_options, get_style_label
-
-    with ui.dialog() as dialog, ui.card().classes("min-w-[360px]"):
-        ui.label("Change house style").classes("text-lg font-bold mb-2")
-        options = get_style_options()
-        style_select = ui.select(
-            options,
-            label="Publisher",
-            value=state.house_style,
-        ).classes("w-full")
-
-        async def _apply():
-            chosen = style_select.value
-            if chosen and chosen != state.house_style:
-                state.house_style = chosen
-                state.request_autosave()
-                style_indicator.set_text(f"Style: {get_style_label(chosen)}")
-                ui.notify(f"House style set to {get_style_label(chosen)}", type="positive")
-            dialog.close()
-
-        with ui.row().classes("w-full justify-end mt-4"):
-            ui.button("Cancel", on_click=dialog.close).props("flat")
-            ui.button("Apply", on_click=_apply).props("color=positive")
-    dialog.open()
 
 
 def _open_style_manager(state, style_indicator):
