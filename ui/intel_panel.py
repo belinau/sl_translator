@@ -930,6 +930,7 @@ def build(
                     with ui.column().classes("w-full gap-1"):
                         for inst in extra_institutions:
                             name = inst.get("name") or ""
+                            name_tr = (inst.get("name_translation") or "").strip()
                             kind = inst.get("kind") or "other"
                             with ui.row().classes(
                                 "w-full items-center gap-x-1.5 gap-y-0.5 "
@@ -947,6 +948,22 @@ def build(
                                     ).style(
                                         "color: var(--q-positive)"
                                     )
+                                    if name_tr and name_tr.lower() != name.lower():
+                                        ui.label("→").classes(
+                                            "text-xs opacity-30"
+                                        )
+                                        # Click the translation to insert it
+                                        with ui.row().classes(
+                                            "items-center gap-1 no-wrap cursor-pointer"
+                                        ).on(
+                                            "click",
+                                            lambda _e, t=name_tr: _insert(t),
+                                        ):
+                                            ui.label(name_tr).classes(
+                                                "font-bold text-sm"
+                                            ).style(
+                                                "color: var(--q-positive)"
+                                            )
                                 ui.badge(kind, color="orange-4").props(
                                     "outline"
                                 ).classes("text-[8px] px-1 normal-case")
@@ -974,8 +991,11 @@ def build(
                         with ui.column().classes("w-full gap-1"):
                             for w in agent_works:
                                 title = w.get("title") or ""
+                                title_tr = (w.get("title_translation") or "").strip()
                                 author = w.get("author") or ""
                                 year = w.get("year")
+                                container = w.get("container") or ""
+                                container_tr = (w.get("container_title_translation") or "").strip()
                                 with ui.row().classes(
                                     "w-full items-center gap-x-1.5 gap-y-0.5 "
                                     "flex-wrap"
@@ -992,6 +1012,21 @@ def build(
                                         ).style(
                                             "color: var(--q-positive)"
                                         )
+                                        if title_tr and title_tr.lower() != title.lower():
+                                            ui.label("→").classes(
+                                                "text-xs opacity-30"
+                                            )
+                                            with ui.row().classes(
+                                                "items-center gap-1 no-wrap cursor-pointer"
+                                            ).on(
+                                                "click",
+                                                lambda _e, t=title_tr: _insert(t),
+                                            ):
+                                                ui.label(title_tr).classes(
+                                                    "text-sm font-semibold"
+                                                ).style(
+                                                    "color: var(--q-positive)"
+                                                )
                                     ui.label(f"by {author}").classes(
                                         "text-[10px] opacity-50"
                                     )
@@ -999,6 +1034,13 @@ def build(
                                         ui.badge(
                                             str(year), color="grey-5"
                                         ).classes("text-[8px] px-1")
+                                if container:
+                                    ct_display = container
+                                    if container_tr and container_tr.lower() != container.lower():
+                                        ct_display = f"{container} → {container_tr}"
+                                    ui.label(f"in: {ct_display}").classes(
+                                        "text-[10px] opacity-40 italic"
+                                    ).style("margin-left: 0.5rem;")
     # ------------------------------------------------------------------
     # Translation Memory: fuzzy + concordance
     # ------------------------------------------------------------------

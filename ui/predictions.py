@@ -338,6 +338,7 @@ async def push_bundle(textarea_id: int, source_text: str, src: str, tgt: str,
                 if hasattr(kg, "find_institutions_in_text"):
                     for inst in kg.find_institutions_in_text(source_text):
                         _add(inst.get("name") or "")
+                        _add(inst.get("name_translation") or "")
                 # Concepts: label_translation (target-language form) is
                 # the useful completion; label (source form) is also
                 # added so it's available if the translator works in

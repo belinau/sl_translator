@@ -446,6 +446,7 @@ class KnowledgeGraph:
             results.append({
                 "id": node_id,
                 "name": d.get("name") or "",
+                "name_translation": d.get("name_translation") or "",
                 "kind": d.get("kind") or "other",
             })
         return results
@@ -453,8 +454,11 @@ class KnowledgeGraph:
     def find_agent_works(self, agent_ids: list[str]) -> List[Dict]:
         """Return source_text nodes written by any of the given agents.
 
-        Walks ``written_by`` edges from source_text → agent. Returns
-        unique works with title, year, and the author's name."""
+        Walks ``written_by`` edges from source_text → agent. For each
+        work, also looks up its container (via ``cited_in`` edges) —
+        the book or journal in which it appears. Returns unique works
+        with title, title_translation, year, author name, and container
+        title."""
         results: List[Dict] = []
         seen: set[str] = set()
         for agent_id in agent_ids:
@@ -468,13 +472,24 @@ class KnowledgeGraph:
                     continue
                 seen.add(src_id)
                 d = self.G.nodes[src_id]
+                # Find container via cited_in edge
+                container_title = ""
+                container_title_tr = ""
+                for _, tgt_id, cdata in self.G.out_edges(src_id, data=True):
+                    if cdata.get("relation") == "cited_in" and self.G.has_node(tgt_id):
+                        cd = self.G.nodes[tgt_id]
+                        container_title = cd.get("title") or ""
+                        container_title_tr = cd.get("title_translation") or ""
+                        break
                 results.append({
                     "id": src_id,
                     "title": d.get("title") or "",
+                    "title_translation": d.get("title_translation") or "",
                     "year": d.get("year"),
                     "author": agent_name,
+                    "container": container_title,
+                    "container_title_translation": container_title_tr,
                 })
-        return results
         return results
 
     def _index_term_node(self, node_id: str, data: Dict):
