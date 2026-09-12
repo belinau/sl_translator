@@ -1022,7 +1022,7 @@ def page_review_ext(review_id: str):
     # the glossary for terminology and a search/replace tool for bulk
     # edits across their suggested translations.
     # ------------------------------------------------------------------
-    from ui.intel_panel import _truncate
+    from ui.intel_panel import _truncate, _kg_query, _render_hit_fn
     from ui.kg_search import highlight_query
     from nicegui import run
     import re
@@ -1033,14 +1033,98 @@ def page_review_ext(review_id: str):
 
     with ui.column().classes("w-full items-center gap-0"):
         with ui.column().classes("w-full max-w-4xl px-4 pt-2 pb-2 gap-2"):
+
+            # ── Help section (expandable) ──────────────────────────
+            with ui.expansion("How to use this review pane", icon="help_outline").classes("w-full").props("dense"):
+                with ui.column().classes("w-full").style("gap: 0.75rem; padding: 0.5rem 0;"):
+                    ui.label("Overview").classes("text-xs font-bold")
+                    ui.label(
+                        "This pane shows the translator's draft translation for each segment. "
+                        "Your job is to review it and suggest improvements."
+                    ).classes("text-xs opacity-70").style("line-height: 1.5;")
+
+                    ui.label("Suggesting changes").classes("text-xs font-bold mt-2")
+                    ui.label(
+                        "• Type your suggested translation in the 'SUGGESTED EDIT' field under each segment.\n"
+                        "• Click 'Copy translation' to start from the current draft, then modify.\n"
+                        "• Your edits are saved automatically as you type."
+                    ).classes("text-xs opacity-70").style("line-height: 1.5; white-space: pre-wrap;")
+
+                    ui.label("Comments").classes("text-xs font-bold mt-2")
+                    ui.label(
+                        "• Leave a comment on any segment to explain your suggestion or flag an issue.\n"
+                        "• Comments are visible to the translator in the merge view."
+                    ).classes("text-xs opacity-70").style("line-height: 1.5; white-space: pre-wrap;")
+
+                    ui.label("Source highlights").classes("text-xs font-bold mt-2")
+                    ui.label(
+                        "When the underline toggle (top-right) is on, the source text shows coloured underlines:\n"
+                        "• Green underline = glossary term (confirmed translation exists)\n"
+                        "• Blue underline = concept (theoretical term with a Slovenian equivalent)\n"
+                        "• Orange underline = agent (person name — author, theorist, etc.)"
+                    ).classes("text-xs opacity-70").style("line-height: 1.5; white-space: pre-wrap;")
+
+                    ui.label("Glossary, KG hits, and Find & Replace").classes("text-xs font-bold mt-2")
+                    ui.label(
+                        "• GLOSSARY shows terms from the current segment with confirmed translations — click any chip to insert it.\n"
+                        "• KNOWLEDGE GRAPH shows concept translations and agent names detected in the source — click to insert.\n"
+                        "• FIND & REPLACE lets you bulk-replace text across all your suggested edits."
+                    ).classes("text-xs opacity-70").style("line-height: 1.5; white-space: pre-wrap;")
+
+                    ui.label("Exporting your work").classes("text-xs font-bold mt-2")
+                    ui.label(
+                        "• Use 'Export finished work as bilingual table' to download a DOCX with the source, "
+                        "current translation, and your suggestions side by side.\n"
+                        "• Download BEFORE clicking 'Review completed'."
+                    ).classes("text-xs opacity-70").style("line-height: 1.5; white-space: pre-wrap;")
+
+                    ui.label("Finishing the review").classes("text-xs font-bold mt-2")
+                    ui.label(
+                        "When you click 'Review completed':\n"
+                        "• Your suggestions and comments are finalised and saved.\n"
+                        "• The translator is notified that the review is ready.\n"
+                        "• This page switches to a read-only view — you can no longer edit.\n"
+                        "• The translator opens the merge view to accept or reject each suggestion.\n"
+                        "• You can still download the bilingual table after completion."
+                    ).classes("text-xs opacity-70").style("line-height: 1.5; white-space: pre-wrap;")
+
+            # ── Colour legend ──────────────────────────────────────
+            with ui.row().classes("w-full items-center").style("gap: 1rem; padding: 0.25rem 0.5rem;"):
+                with ui.row().style("gap: 0.25rem;").classes("items-center"):
+                    ui.label("").style(
+                        "width: 1.5rem; height: 0; border-bottom: 2px solid #4caf50;"
+                    )
+                    ui.label("Glossary").classes("text-[10px] opacity-70")
+                with ui.row().style("gap: 0.25rem;").classes("items-center"):
+                    ui.label("").style(
+                        "width: 1.5rem; height: 0; border-bottom: 2px solid #2196f3;"
+                    )
+                    ui.label("Concepts").classes("text-[10px] opacity-70")
+                with ui.row().style("gap: 0.25rem;").classes("items-center"):
+                    ui.label("").style(
+                        "width: 1.5rem; height: 0; border-bottom: 2px solid #ff9800;"
+                    )
+                    ui.label("Agents").classes("text-[10px] opacity-70")
+
             # ---------------------------------------------------- Glossary
             with ui.card().props("flat bordered").classes("w-full p-4 rounded-2xl"):
-                with ui.row().classes("w-full items-center gap-2 mb-2"):
+                with ui.row().classes("w-full items-center").style("gap: 0.5rem; margin-bottom: 0.5rem;"):
                     ui.icon("menu_book", size="16px").props("color=primary")
                     ui.label("GLOSSARY").classes(
                         "text-[10px] font-black tracking-[.3em] opacity-70"
                     )
-                gl_container = ui.column().classes("w-full gap-2")
+                gl_container = ui.column().classes("w-full").style("gap: 0.5rem;")
+
+            # ---------------------------------------------------- KG hits
+            with ui.card().props("flat bordered").classes("w-full p-4 rounded-2xl"):
+                with ui.row().classes("w-full items-center").style("gap: 0.5rem; margin-bottom: 0.5rem;"):
+                    ui.icon("account_tree", size="16px").props("color=primary")
+                    ui.label("KNOWLEDGE GRAPH").classes(
+                        "text-[10px] font-black tracking-[.3em] opacity-70"
+                    )
+                kg_container = ui.column().classes("w-full").style("gap: 0.5rem;")
+    with ui.column().classes("w-full items-center gap-0"):
+        with ui.column().classes("w-full max-w-4xl px-4 pt-2 pb-2 gap-2"):
 
             # ---------------------------------------- Find & Replace in targets
             with ui.card().props("flat bordered").classes("w-full p-4 rounded-2xl"):
@@ -1094,7 +1178,7 @@ def page_review_ext(review_id: str):
                 src, tgt = parse_lang_pair(state.lang_pair)
                 try:
                     hits = await run.io_bound(
-                        glossary.lookup_terms, seg["source"], src, tgt,
+                        glossary.lookup_all_terms, seg["source"], src, tgt,
                     ) or []
                 except Exception as e:
                     print(f"[review glossary] {e}")
@@ -1108,21 +1192,160 @@ def page_review_ext(review_id: str):
                             "text-xs italic opacity-60"
                         )
                         return
-                    with ui.row().classes("w-full gap-2 items-center flex-wrap"):
-                        for g in hits:
-                            s_term = g.get("source_term", "")
-                            t_term = g.get("target_term", "")
-                            chip_label = f"{_truncate(s_term, 30)} → {_truncate(t_term, 30)}" if t_term else _truncate(s_term, 30)
-                            ui.button(
-                                chip_label,
-                                on_click=lambda _e, t=t_term: _insert(t),
-                            ).props("unelevated rounded dense color=positive").classes(
-                                "text-[11px] font-bold px-3 h-8 normal-case"
-                            ).tooltip(
-                                g.get("note") or "Click to insert"
+                    # Group by source term so variants are clustered.
+                    by_src: dict[str, list[dict]] = {}
+                    order: list[str] = []
+                    for g in hits:
+                        s = g.get("source_term", "")
+                        if s not in by_src:
+                            by_src[s] = []
+                            order.append(s)
+                        by_src[s].append(g)
+                    for s_term in order:
+                        variants = by_src[s_term]
+                        with ui.row().classes("w-full items-center flex-wrap").style("gap: 0.375rem;"):
+                            ui.label(_truncate(s_term, 30)).classes(
+                                "text-[11px] opacity-50 shrink-0"
                             )
+                            ui.label("→").classes("text-[10px] opacity-30 shrink-0")
+                            for v in variants:
+                                t_term = v.get("target_term", "")
+                                if not t_term:
+                                    continue
+                                note = v.get("note") or ""
+                                chip = ui.button(
+                                    _truncate(t_term, 30),
+                                    on_click=lambda _e, t=t_term: _insert(t),
+                                ).props("unelevated rounded dense color=positive").classes(
+                                    "text-[11px] font-bold px-3 h-8 normal-case"
+                                )
+                                chip.tooltip(note or "Click to insert")
+
 
             # ----------------------------------------------------------------
+            # KG refresh — same concept/agent hits as the main workspace.
+            # Uses _kg_query for term hits, find_concepts_in_text and
+            # find_agents_in_text for standalone concept/agent cards.
+            # ----------------------------------------------------------------
+            async def _refresh_kg():
+                if not state.segments or kg is None:
+                    return
+                idx = state.active_index
+                seg = state.segments[idx]
+                src, tgt = parse_lang_pair(state.lang_pair)
+                try:
+                    hits = await run.io_bound(
+                        _kg_query, seg["source"], src, tgt, kg,
+                    ) or []
+                except Exception as e:
+                    print(f"[review KG] {e}")
+                    return
+                if state.active_index != idx or kg_container.is_deleted:
+                    return
+                kg_container.clear()
+                with kg_container:
+                    if not hits:
+                        # Still show concepts/agents even without term hits.
+                        pass
+                    # Render term hits grouped by concept (same as intel_panel).
+                    by_concept: dict[str, list[dict]] = {}
+                    order: list[str] = []
+                    concept_by_id: dict[str, dict] = {}
+                    orphans: list[dict] = []
+                    for h in hits:
+                        c = h.get("concept")
+                        if c and c.get("id"):
+                            cid = c["id"]
+                            if cid not in by_concept:
+                                by_concept[cid] = []
+                                order.append(cid)
+                                concept_by_id[cid] = c
+                            by_concept[cid].append(h)
+                        else:
+                            orphans.append(h)
+                    groups: list[tuple[dict | None, list[dict]]] = [
+                        (concept_by_id[cid], by_concept[cid]) for cid in order
+                    ]
+                    if orphans:
+                        groups.append((None, orphans))
+
+                    for concept, group_hits in groups:
+                        with ui.card().props("flat bordered").classes("w-full p-3 rounded-2xl"):
+                            with ui.row().classes("w-full items-center flex-wrap").style("gap: 0.5rem; margin-bottom: 0.25rem;"):
+                                ui.icon("hub", size="13px").props("color=primary")
+                                if concept is None:
+                                    ui.label("TERMS").classes("text-[10px] font-black tracking-[.3em] opacity-90")
+                                else:
+                                    label = str(concept.get("label") or "").upper()
+                                    label_tr = concept.get("label_translation") or ""
+                                    if label_tr:
+                                        ui.label(f"{label} · {label_tr}").classes("text-[10px] font-black tracking-[.2em] opacity-90")
+                                    else:
+                                        ui.label(label).classes("text-[10px] font-black tracking-[.3em] opacity-90")
+                                    if concept.get("domain"):
+                                        ui.badge(concept["domain"], color="grey-5").classes("text-[9px] px-1")
+                            with ui.column().classes("w-full").style("gap: 0.25rem;"):
+                                for h in group_hits:
+                                    _render_hit_fn(h, _insert)
+
+                    # Standalone concepts (not tied to term hits).
+                    seen_cids = set(concept_by_id.keys())
+                    extra_concepts: list[dict] = []
+                    try:
+                        if hasattr(kg, "find_concepts_in_text"):
+                            for c in kg.find_concepts_in_text(seg["source"]):
+                                if c["id"] not in seen_cids:
+                                    seen_cids.add(c["id"])
+                                    extra_concepts.append(c)
+                    except Exception:
+                        pass
+                    if extra_concepts:
+                        with ui.card().props("flat bordered").classes("w-full p-3 rounded-2xl"):
+                            with ui.row().classes("w-full items-center flex-wrap").style("gap: 0.5rem; margin-bottom: 0.25rem;"):
+                                ui.icon("lightbulb", size="13px").props("color=primary")
+                                ui.label("CONCEPTS").classes("text-[10px] font-black tracking-[.3em] opacity-90")
+                            with ui.column().classes("w-full").style("gap: 0.25rem;"):
+                                for c in extra_concepts:
+                                    label = c.get("label") or ""
+                                    lt = (c.get("label_translation") or "").strip()
+                                    with ui.row().classes("w-full items-center flex-wrap").style("gap: 0.375rem;"):
+                                        with ui.row().classes("items-center no-wrap cursor-pointer hover:bg-primary/5 rounded").style("gap: 0.5rem;").on("click", lambda _e, t=(lt or label): _insert(t)):
+                                            ui.label(label).classes("text-sm opacity-70")
+                                            ui.label("→").classes("text-xs opacity-30")
+                                            if lt:
+                                                ui.label(lt).classes("font-bold text-sm").style("color: var(--q-positive)")
+                                            else:
+                                                ui.label("(no translation)").classes("text-xs italic opacity-40")
+                                        if c.get("domain"):
+                                            ui.badge(c["domain"], color="grey-5").classes("text-[8px] px-1")
+
+                    # Agents found in source.
+                    extra_agents: list[dict] = []
+                    try:
+                        if hasattr(kg, "find_agents_in_text"):
+                            for a in kg.find_agents_in_text(seg["source"]):
+                                extra_agents.append(a)
+                    except Exception:
+                        pass
+                    if extra_agents:
+                        with ui.card().props("flat bordered").classes("w-full p-3 rounded-2xl"):
+                            with ui.row().classes("w-full items-center flex-wrap").style("gap: 0.5rem; margin-bottom: 0.25rem;"):
+                                ui.icon("person", size="13px").props("color=primary")
+                                ui.label("AGENTS").classes("text-[10px] font-black tracking-[.3em] opacity-90")
+                            with ui.column().classes("w-full").style("gap: 0.25rem;"):
+                                for a in extra_agents:
+                                    name = a.get("name") or ""
+                                    role = a.get("role") or "agent"
+                                    with ui.row().classes("w-full items-center flex-wrap").style("gap: 0.375rem;"):
+                                        with ui.row().classes("items-center no-wrap cursor-pointer hover:bg-primary/5 rounded").style("gap: 0.5rem;").on("click", lambda _e, t=name: _insert(t)):
+                                            ui.label(name).classes("font-bold text-sm").style("color: var(--q-positive)")
+                                        ui.badge(role, color="purple-4").props("outline").classes("text-[8px] px-1 normal-case")
+                                        for alt in (a.get("alt_spellings") or [])[:2]:
+                                            if alt and alt != name:
+                                                ui.button(alt, on_click=lambda _e, t=alt: _insert(t)).props("flat dense rounded color=positive").classes("text-[10px] normal-case h-5 px-1.5").tooltip("alternative spelling — click to insert")
+
+                    if not hits and not extra_concepts and not extra_agents:
+                        ui.label("No KG matches for this segment.").classes("text-xs italic opacity-90")
             # Find & Replace — searches reviewer_target across all segments
             # in this review. Replace All mutates the clone and saves.
             # ----------------------------------------------------------------
@@ -1271,14 +1494,10 @@ def page_review_ext(review_id: str):
             fr_search_btn.on("click", lambda _e: _fr_run_search())
             fr_find_input.on("keydown.enter", lambda _e: _fr_run_search())
             fr_replace_btn.on("click", lambda _e: _fr_run_replace())
-
-            # ----------------------------------------------------------------
-            # Refresh Glossary on segment change.
-            # ----------------------------------------------------------------
             def _refresh_all():
                 sid = id(state)
                 background_tasks.create_lazy(_refresh_gl(), name=f"review_gl_refresh_{sid}")
-
+                background_tasks.create_lazy(_refresh_kg(), name=f"review_kg_refresh_{sid}")
             state.subscribe("active_index", _refresh_all)
             _refresh_all()
 
