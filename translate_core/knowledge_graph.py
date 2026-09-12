@@ -319,6 +319,11 @@ class KnowledgeGraph:
         translation. These produce spurious blue underlines on almost any
         source text. Only concepts that pass _concept_is_meaningful are
         indexed."""
+        current = sum(
+            1 for _, d in self.G.nodes(data=True) if d.get("type") == "concept"
+        )
+        if self._concept_kp is not None and self._concept_kp_count == current:
+            return self._concept_kp
         kp = KeywordProcessor(case_sensitive=False)
         short_kp = KeywordProcessor(case_sensitive=True)
         for node_id, d in self.G.nodes(data=True):
