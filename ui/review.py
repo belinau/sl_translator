@@ -1018,10 +1018,8 @@ def page_review_ext(review_id: str):
                             )
 
     # ------------------------------------------------------------------
-    # Main content — Glossary + Find & Replace, then segment list.
-    # KG is intentionally excluded: it confuses reviewers who only need
-    # the glossary for terminology and a search/replace tool for bulk
-    # edits across their suggested translations.
+    # Layout: segments first (main work area), then intel panels,
+    # then download/complete, then help+legend at the bottom.
     # ------------------------------------------------------------------
     from ui.intel_panel import _truncate, _kg_query, _render_hit_fn
     from ui.kg_search import highlight_query
@@ -1033,81 +1031,60 @@ def page_review_ext(review_id: str):
     parse_lang_pair = deps["parse_lang_pair"]
 
     with ui.column().classes("w-full items-center gap-0"):
+
+        # ── 1. Segment list (main work area — first thing visible) ──
+        with ui.column().classes("w-full max-w-4xl px-4 pt-2 pb-2 gap-0"):
+            ui.label("Review segments — suggest changes in the edit field, leave comments if needed. Use 'Copy' to start from the current translation.").classes(
+                "text-[10px] opacity-50 px-2 pb-2"
+            )
+            _build_review_segment_list(clone, state, deps, page_client, _set_save_status, hl_state)
+
+        # ── 2. Download & complete ──
+        _completed = clone.get("reviewer_completed", False)
+        with ui.column().classes("w-full max-w-4xl px-4 pb-6 gap-2"):
+            if _completed:
+                with ui.row().classes("w-full items-center justify-center gap-2 py-4"):
+                    ui.icon("check_circle", size="24px").props("color=positive")
+                    ui.label("Review completed — the translator has been notified.").classes(
+                        "text-sm font-bold text-positive"
+                    )
+            else:
+                ui.label(
+                    "⚠ Download your exports below BEFORE clicking \u201cReview completed\u201d — "
+                    "the download buttons disappear once the review is marked complete."
+                ).classes(
+                    "text-[11px] font-bold text-amber-600 dark:text-amber-400 "
+                    "px-4 py-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg text-center"
+                )
+                with ui.row().classes("w-full items-center justify-center gap-3 py-2"):
+                    ui.button(
+                        "Export finished work as bilingual table",
+                        icon="grid_on",
+                        on_click=lambda: (rm.save_review(clone), _export_review_table(clone, glossary=res.get("glossary"))),
+                    ).props("unelevated rounded color=teal size=lg").classes(
+                        "px-8 py-3 font-black tracking-[.2em] text-[12px]"
+                    ).tooltip("Download your review as a bilingual table (DOCX)")
+
+                def _on_complete(_=None, c=clone):
+                    c["reviewer_completed"] = True
+                    c["reviewer_completed_at"] = datetime.now().isoformat(timespec="seconds")
+                    rm.save_review(c)
+                    ui.notify("Review completed — translator notified.", type="positive")
+                    ui.navigate.to(f"/review/ext/{c['review_id']}")
+
+                with ui.row().classes("w-full items-center justify-center gap-3 py-2"):
+                    ui.button(
+                        "Review completed",
+                        icon="task_alt",
+                        on_click=_on_complete,
+                    ).props("unelevated rounded color=positive size=lg").classes(
+                        "px-8 py-3 font-black tracking-[.2em] text-[12px]"
+                    ).tooltip("Click when you are done reviewing all segments and have downloaded your exports")
+
+        # ── 3. Intel panels (glossary, KG, find & replace) ─────────
         with ui.column().classes("w-full max-w-4xl px-4 pt-2 pb-2 gap-2"):
 
-            # ── Help section (expandable) ──────────────────────────
-            with ui.expansion("How to use this review pane", icon="help_outline").classes("w-full").props("dense"):
-                with ui.column().classes("w-full").style("gap: 0.75rem; padding: 0.5rem 0;"):
-                    ui.label("Overview").classes("text-xs font-bold")
-                    ui.label(
-                        "This pane shows the translator's draft translation for each segment. "
-                        "Your job is to review it and suggest improvements."
-                    ).classes("text-xs opacity-70").style("line-height: 1.5;")
-
-                    ui.label("Suggesting changes").classes("text-xs font-bold mt-2")
-                    ui.label(
-                        "• Type your suggested translation in the 'SUGGESTED EDIT' field under each segment.\n"
-                        "• Click 'Copy translation' to start from the current draft, then modify.\n"
-                        "• Your edits are saved automatically as you type."
-                    ).classes("text-xs opacity-70").style("line-height: 1.5; white-space: pre-wrap;")
-
-                    ui.label("Comments").classes("text-xs font-bold mt-2")
-                    ui.label(
-                        "• Leave a comment on any segment to explain your suggestion or flag an issue.\n"
-                        "• Comments are visible to the translator in the merge view."
-                    ).classes("text-xs opacity-70").style("line-height: 1.5; white-space: pre-wrap;")
-
-                    ui.label("Source highlights").classes("text-xs font-bold mt-2")
-                    ui.label(
-                        "When the underline toggle (top-right) is on, the source text shows coloured underlines:\n"
-                        "• Green underline = glossary term (confirmed translation exists)\n"
-                        "• Blue underline = concept (theoretical term with a Slovenian equivalent)\n"
-                        "• Orange underline = agent (person name — author, theorist, etc.)"
-                    ).classes("text-xs opacity-70").style("line-height: 1.5; white-space: pre-wrap;")
-
-                    ui.label("Glossary, KG hits, and Find & Replace").classes("text-xs font-bold mt-2")
-                    ui.label(
-                        "• GLOSSARY shows terms from the current segment with confirmed translations — click any chip to insert it.\n"
-                        "• KNOWLEDGE GRAPH shows concept translations and agent names detected in the source — click to insert.\n"
-                        "• FIND & REPLACE lets you bulk-replace text across all your suggested edits."
-                    ).classes("text-xs opacity-70").style("line-height: 1.5; white-space: pre-wrap;")
-
-                    ui.label("Exporting your work").classes("text-xs font-bold mt-2")
-                    ui.label(
-                        "• Use 'Export finished work as bilingual table' to download a DOCX with the source, "
-                        "current translation, and your suggestions side by side.\n"
-                        "• Download BEFORE clicking 'Review completed'."
-                    ).classes("text-xs opacity-70").style("line-height: 1.5; white-space: pre-wrap;")
-
-                    ui.label("Finishing the review").classes("text-xs font-bold mt-2")
-                    ui.label(
-                        "When you click 'Review completed':\n"
-                        "• Your suggestions and comments are finalised and saved.\n"
-                        "• The translator is notified that the review is ready.\n"
-                        "• This page switches to a read-only view — you can no longer edit.\n"
-                        "• The translator opens the merge view to accept or reject each suggestion.\n"
-                        "• You can still download the bilingual table after completion."
-                    ).classes("text-xs opacity-70").style("line-height: 1.5; white-space: pre-wrap;")
-
-            # ── Colour legend ──────────────────────────────────────
-            with ui.row().classes("w-full items-center").style("gap: 1rem; padding: 0.25rem 0.5rem;"):
-                with ui.row().style("gap: 0.25rem;").classes("items-center"):
-                    ui.label("").style(
-                        "width: 1.5rem; height: 0; border-bottom: 2px solid #4caf50;"
-                    )
-                    ui.label("Glossary").classes("text-[10px] opacity-70")
-                with ui.row().style("gap: 0.25rem;").classes("items-center"):
-                    ui.label("").style(
-                        "width: 1.5rem; height: 0; border-bottom: 2px solid #2196f3;"
-                    )
-                    ui.label("Concepts").classes("text-[10px] opacity-70")
-                with ui.row().style("gap: 0.25rem;").classes("items-center"):
-                    ui.label("").style(
-                        "width: 1.5rem; height: 0; border-bottom: 2px solid #ff9800;"
-                    )
-                    ui.label("Agents").classes("text-[10px] opacity-70")
-
-            # ---------------------------------------------------- Glossary
+            # ---- Glossary
             with ui.card().props("flat bordered").classes("w-full p-4 rounded-2xl"):
                 with ui.row().classes("w-full items-center").style("gap: 0.5rem; margin-bottom: 0.5rem;"):
                     ui.icon("menu_book", size="16px").props("color=primary")
@@ -1116,7 +1093,7 @@ def page_review_ext(review_id: str):
                     )
                 gl_container = ui.column().classes("w-full").style("gap: 0.5rem;")
 
-            # ---------------------------------------------------- KG hits
+            # ---- KG hits
             with ui.card().props("flat bordered").classes("w-full p-4 rounded-2xl"):
                 with ui.row().classes("w-full items-center").style("gap: 0.5rem; margin-bottom: 0.5rem;"):
                     ui.icon("account_tree", size="16px").props("color=primary")
@@ -1124,12 +1101,10 @@ def page_review_ext(review_id: str):
                         "text-[10px] font-black tracking-[.3em] opacity-70"
                     )
                 kg_container = ui.column().classes("w-full").style("gap: 0.5rem;")
-    with ui.column().classes("w-full items-center gap-0"):
-        with ui.column().classes("w-full max-w-4xl px-4 pt-2 pb-2 gap-2"):
 
-            # ---------------------------------------- Find & Replace in targets
+            # ---- Find & Replace
             with ui.card().props("flat bordered").classes("w-full p-4 rounded-2xl"):
-                with ui.row().classes("w-full items-center gap-2 mb-2"):
+                with ui.row().classes("w-full items-center").style("gap: 0.5rem; margin-bottom: 0.5rem;"):
                     ui.icon("find_replace", size="16px").props("color=primary")
                     ui.label("FIND & REPLACE IN REVIEW EDITS").classes(
                         "text-[10px] font-black tracking-[.3em] opacity-70"
@@ -1144,7 +1119,7 @@ def page_review_ext(review_id: str):
                     .props("dense outlined clearable")
                     .classes("w-full")
                 )
-                with ui.row().classes("w-full items-center gap-2 mt-1"):
+                with ui.row().classes("w-full items-center").style("gap: 0.5rem; margin-top: 0.25rem;"):
                     fr_match_case = ui.checkbox("Match case", value=False).classes("text-xs")
                     fr_search_btn = ui.button("Search", icon="search").props(
                         "flat dense color=primary"
@@ -1152,12 +1127,9 @@ def page_review_ext(review_id: str):
                     fr_replace_btn = ui.button(
                         "Replace All", icon="find_replace"
                     ).props("flat dense color=warning").classes("text-xs")
-                fr_results = ui.column().classes("w-full gap-1 mt-2")
+                fr_results = ui.column().classes("w-full").style("gap: 0.25rem; margin-top: 0.5rem;")
 
-            # ----------------------------------------------------------------
-            # Insert helper — routes through the predictor's JS runtime
-            # so click-to-insert targets the focused suggestion textarea.
-            # ----------------------------------------------------------------
+            # ---- Insert helper
             def _insert(text: str) -> None:
                 if not text:
                     return
@@ -1168,9 +1140,7 @@ def page_review_ext(review_id: str):
                 except Exception as ex:
                     print(f"[review insert] {ex}")
 
-            # ----------------------------------------------------------------
-            # Glossary refresh — exact same logic as intel_panel._refresh_gl
-            # ----------------------------------------------------------------
+            # ---- Glossary refresh
             async def _refresh_gl():
                 if not state.segments or glossary is None:
                     return
@@ -1193,7 +1163,6 @@ def page_review_ext(review_id: str):
                             "text-xs italic opacity-60"
                         )
                         return
-                    # Group by source term so variants are clustered.
                     by_src: dict[str, list[dict]] = {}
                     order: list[str] = []
                     for g in hits:
@@ -1222,12 +1191,7 @@ def page_review_ext(review_id: str):
                                 )
                                 chip.tooltip(note or "Click to insert")
 
-
-            # ----------------------------------------------------------------
-            # KG refresh — same concept/agent hits as the main workspace.
-            # Uses _kg_query for term hits, find_concepts_in_text and
-            # find_agents_in_text for standalone concept/agent cards.
-            # ----------------------------------------------------------------
+            # ---- KG refresh
             async def _refresh_kg():
                 if not state.segments or kg is None:
                     return
@@ -1245,10 +1209,6 @@ def page_review_ext(review_id: str):
                     return
                 kg_container.clear()
                 with kg_container:
-                    if not hits:
-                        # Still show concepts/agents even without term hits.
-                        pass
-                    # Render term hits grouped by concept (same as intel_panel).
                     by_concept: dict[str, list[dict]] = {}
                     order: list[str] = []
                     concept_by_id: dict[str, dict] = {}
@@ -1269,7 +1229,6 @@ def page_review_ext(review_id: str):
                     ]
                     if orphans:
                         groups.append((None, orphans))
-
                     for concept, group_hits in groups:
                         with ui.card().props("flat bordered").classes("w-full p-3 rounded-2xl"):
                             with ui.row().classes("w-full items-center flex-wrap").style("gap: 0.5rem; margin-bottom: 0.25rem;"):
@@ -1288,8 +1247,7 @@ def page_review_ext(review_id: str):
                             with ui.column().classes("w-full").style("gap: 0.25rem;"):
                                 for h in group_hits:
                                     _render_hit_fn(h, _insert)
-
-                    # Standalone concepts (not tied to term hits).
+                    # Standalone concepts
                     seen_cids = set(concept_by_id.keys())
                     extra_concepts: list[dict] = []
                     try:
@@ -1319,8 +1277,7 @@ def page_review_ext(review_id: str):
                                                 ui.label("(no translation)").classes("text-xs italic opacity-40")
                                         if c.get("domain"):
                                             ui.badge(c["domain"], color="grey-5").classes("text-[8px] px-1")
-
-                    # Agents found in source.
+                    # Agents
                     extra_agents: list[dict] = []
                     try:
                         if hasattr(kg, "find_agents_in_text"):
@@ -1344,12 +1301,10 @@ def page_review_ext(review_id: str):
                                         for alt in (a.get("alt_spellings") or [])[:2]:
                                             if alt and alt != name:
                                                 ui.button(alt, on_click=lambda _e, t=alt: _insert(t)).props("flat dense rounded color=positive").classes("text-[10px] normal-case h-5 px-1.5").tooltip("alternative spelling — click to insert")
-
                     if not hits and not extra_concepts and not extra_agents:
                         ui.label("No KG matches for this segment.").classes("text-xs italic opacity-90")
-            # Find & Replace — searches reviewer_target across all segments
-            # in this review. Replace All mutates the clone and saves.
-            # ----------------------------------------------------------------
+
+            # ---- Find & Replace logic
             def _fr_matches(text: str, q: str) -> bool:
                 if not q:
                     return False
@@ -1426,7 +1381,6 @@ def page_review_ext(review_id: str):
                     ui.notify("No matches to replace.", type="info")
                     return
                 total_occ = sum(n for _, _, n in matched)
-
                 with ui.dialog() as dialog, ui.card().classes("min-w-[420px] p-4 gap-3"):
                     ui.label("Confirm Replace All").classes("text-base font-bold")
                     ui.label(
@@ -1464,7 +1418,6 @@ def page_review_ext(review_id: str):
                             ui.label(
                                 f"… and {len(matched) - 3} more"
                             ).classes("text-[9px] italic opacity-50")
-
                     with ui.row().classes("w-full justify-end gap-2 mt-2"):
                         ui.button("Cancel", on_click=dialog.close).props(
                             "flat dense color=grey-6"
@@ -1495,6 +1448,7 @@ def page_review_ext(review_id: str):
             fr_search_btn.on("click", lambda _e: _fr_run_search())
             fr_find_input.on("keydown.enter", lambda _e: _fr_run_search())
             fr_replace_btn.on("click", lambda _e: _fr_run_replace())
+
             def _refresh_all():
                 sid = id(state)
                 background_tasks.create_lazy(_refresh_gl(), name=f"review_gl_refresh_{sid}")
@@ -1502,60 +1456,74 @@ def page_review_ext(review_id: str):
             state.subscribe("active_index", _refresh_all)
             _refresh_all()
 
-        # Segment list below the intel panel
-        with ui.column().classes("w-full max-w-4xl px-4 py-2 gap-0"):
-            ui.label("Review segments — suggest changes in the edit field, leave comments if needed. Use 'Copy' to start from the current translation.").classes(
-                "text-[10px] opacity-50 px-2 pb-2"
-            )
-            _build_review_segment_list(clone, state, deps, page_client, _set_save_status, hl_state)
-
-        # ── Download & complete ──
-        # The bilingual table must be downloaded BEFORE completing the
-        # review — once completed, the page re-renders to a read-only
-        # state and the download buttons are gone. The notice makes this
-        # ordering explicit so reviewers don't lose their export.
-        _completed = clone.get("reviewer_completed", False)
-
+        # ── 4. Colour legend + Help section (at the very bottom) ───
         with ui.column().classes("w-full max-w-4xl px-4 pb-6 gap-2"):
-            if _completed:
-                with ui.row().classes("w-full items-center justify-center gap-2 py-4"):
-                    ui.icon("check_circle", size="24px").props("color=positive")
-                    ui.label("Review completed — the translator has been notified.").classes(
-                        "text-sm font-bold text-positive"
+            # Colour legend
+            with ui.row().classes("w-full items-center").style("gap: 1rem; padding: 0.25rem 0.5rem;"):
+                with ui.row().style("gap: 0.25rem;").classes("items-center"):
+                    ui.label("").style(
+                        "width: 1.5rem; height: 0; border-bottom: 2px solid #4caf50;"
                     )
-            else:
-                ui.label(
-                    "⚠ Download your exports below BEFORE clicking \u201cReview completed\u201d — "
-                    "the download buttons disappear once the review is marked complete."
-                ).classes(
-                    "text-[11px] font-bold text-amber-600 dark:text-amber-400 "
-                    "px-4 py-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg text-center"
-                )
-                with ui.row().classes("w-full items-center justify-center gap-3 py-2"):
-                    ui.button(
-                        "Export finished work as bilingual table",
-                        icon="grid_on",
-                        on_click=lambda: (rm.save_review(clone), _export_review_table(clone, glossary=res.get("glossary"))),
-                    ).props("unelevated rounded color=teal size=lg").classes(
-                        "px-8 py-3 font-black tracking-[.2em] text-[12px]"
-                    ).tooltip("Download your review as a bilingual table (DOCX)")
+                    ui.label("Glossary").classes("text-[10px] opacity-70")
+                with ui.row().style("gap: 0.25rem;").classes("items-center"):
+                    ui.label("").style(
+                        "width: 1.5rem; height: 0; border-bottom: 2px solid #2196f3;"
+                    )
+                    ui.label("Concepts").classes("text-[10px] opacity-70")
+                with ui.row().style("gap: 0.25rem;").classes("items-center"):
+                    ui.label("").style(
+                        "width: 1.5rem; height: 0; border-bottom: 2px solid #ff9800;"
+                    )
+                    ui.label("Agents").classes("text-[10px] opacity-70")
 
-                def _on_complete(_=None, c=clone):
-                    c["reviewer_completed"] = True
-                    c["reviewer_completed_at"] = datetime.now().isoformat(timespec="seconds")
-                    rm.save_review(c)
-                    ui.notify("Review completed — translator notified.", type="positive")
-                    # Re-render the page to show the completed state.
-                    ui.navigate.to(f"/review/ext/{c['review_id']}")
+            # Help section (expandable)
+            with ui.expansion("How to use this review pane", icon="help_outline").classes("w-full").props("dense"):
+                with ui.column().classes("w-full").style("gap: 0.75rem; padding: 0.5rem 0;"):
+                    ui.label("Overview").classes("text-xs font-bold")
+                    ui.label(
+                        "This pane shows the translator's draft translation for each segment. "
+                        "Your job is to review it and suggest improvements."
+                    ).classes("text-xs opacity-70").style("line-height: 1.5;")
+                    ui.label("Suggesting changes").classes("text-xs font-bold mt-2")
+                    ui.label(
+                        "• Type your suggested translation in the 'SUGGESTED EDIT' field under each segment.\n"
+                        "• Click 'Copy translation' to start from the current draft, then modify.\n"
+                        "• Your edits are saved automatically as you type."
+                    ).classes("text-xs opacity-70").style("line-height: 1.5; white-space: pre-wrap;")
+                    ui.label("Comments").classes("text-xs font-bold mt-2")
+                    ui.label(
+                        "• Leave a comment on any segment to explain your suggestion or flag an issue.\n"
+                        "• Comments are visible to the translator in the merge view."
+                    ).classes("text-xs opacity-70").style("line-height: 1.5; white-space: pre-wrap;")
+                    ui.label("Source highlights").classes("text-xs font-bold mt-2")
+                    ui.label(
+                        "When the underline toggle (top-right) is on, the source text shows coloured underlines:\n"
+                        "• Green underline = glossary term (confirmed translation exists)\n"
+                        "• Blue underline = concept (theoretical term with a Slovenian equivalent)\n"
+                        "• Orange underline = agent (person name — author, theorist, etc.)"
+                    ).classes("text-xs opacity-70").style("line-height: 1.5; white-space: pre-wrap;")
+                    ui.label("Glossary, KG hits, and Find & Replace").classes("text-xs font-bold mt-2")
+                    ui.label(
+                        "• GLOSSARY shows terms from the current segment with confirmed translations — click any chip to insert it.\n"
+                        "• KNOWLEDGE GRAPH shows concept translations and agent names detected in the source — click to insert.\n"
+                        "• FIND & REPLACE lets you bulk-replace text across all your suggested edits."
+                    ).classes("text-xs opacity-70").style("line-height: 1.5; white-space: pre-wrap;")
+                    ui.label("Exporting your work").classes("text-xs font-bold mt-2")
+                    ui.label(
+                        "• Use 'Export finished work as bilingual table' to download a DOCX with the source, "
+                        "current translation, and your suggestions side by side.\n"
+                        "• Download BEFORE clicking 'Review completed'."
+                    ).classes("text-xs opacity-70").style("line-height: 1.5; white-space: pre-wrap;")
+                    ui.label("Finishing the review").classes("text-xs font-bold mt-2")
+                    ui.label(
+                        "When you click 'Review completed':\n"
+                        "• Your suggestions and comments are finalised and saved.\n"
+                        "• The translator is notified that the review is ready.\n"
+                        "• This page switches to a read-only view — you can no longer edit.\n"
+                        "• The translator opens the merge view to accept or reject each suggestion.\n"
+                        "• You can still download the bilingual table after completion."
+                    ).classes("text-xs opacity-70").style("line-height: 1.5; white-space: pre-wrap;")
 
-                with ui.row().classes("w-full items-center justify-center gap-3 py-2"):
-                    ui.button(
-                        "Review completed",
-                        icon="task_alt",
-                        on_click=_on_complete,
-                    ).props("unelevated rounded color=positive size=lg").classes(
-                        "px-8 py-3 font-black tracking-[.2em] text-[12px]"
-                    ).tooltip("Click when you are done reviewing all segments and have downloaded your exports")
 
 
 def _save_reviewer_name(clone: dict, input_el, set_save_status=None) -> None:
