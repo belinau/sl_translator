@@ -451,14 +451,28 @@ class KnowledgeGraph:
             })
         return results
 
+    # Noise container patterns — auto-generated TMX boundary nodes, not
+    # real published works. Used to filter cited_in containers.
+    _TMX_NOISE_MARKERS = ("boundary inferred", "tmx apparatus", "apparatus density")
+
+    @classmethod
+    def _is_tmx_noise(cls, title: str) -> bool:
+        """True if a source_text title is an auto-generated TMX boundary
+        placeholder, not a real published work."""
+        low = (title or "").lower()
+        return any(m in low for m in cls._TMX_NOISE_MARKERS)
+
     def find_agent_works(self, agent_ids: list[str]) -> List[Dict]:
         """Return source_text nodes written by any of the given agents.
 
         Walks ``written_by`` edges from source_text → agent. For each
         work, also looks up its container (via ``cited_in`` edges) —
-        the book or journal in which it appears. Returns unique works
-        with title, title_translation, year, author name, and container
-        title."""
+        the book or journal in which it was published. TMX apparatus
+        boundary nodes are filtered out — they are auto-generated
+        placeholders, not real containers.
+
+        Returns unique works with title, title_translation, year, author
+        name, and container title (+ translation)."""
         results: List[Dict] = []
         seen: set[str] = set()
         for agent_id in agent_ids:
@@ -470,20 +484,30 @@ class KnowledgeGraph:
                     continue
                 if src_id in seen or not self.G.has_node(src_id):
                     continue
-                seen.add(src_id)
                 d = self.G.nodes[src_id]
-                # Find container via cited_in edge
+                work_title = d.get("title") or ""
+                # Skip TMX noise works themselves
+                if self._is_tmx_noise(work_title):
+                    continue
+                seen.add(src_id)
+                # Find a real container via cited_in edge (skip TMX noise)
                 container_title = ""
                 container_title_tr = ""
                 for _, tgt_id, cdata in self.G.out_edges(src_id, data=True):
-                    if cdata.get("relation") == "cited_in" and self.G.has_node(tgt_id):
-                        cd = self.G.nodes[tgt_id]
-                        container_title = cd.get("title") or ""
-                        container_title_tr = cd.get("title_translation") or ""
-                        break
+                    if cdata.get("relation") != "cited_in":
+                        continue
+                    if not self.G.has_node(tgt_id):
+                        continue
+                    cd = self.G.nodes[tgt_id]
+                    ct = cd.get("title") or ""
+                    if self._is_tmx_noise(ct):
+                        continue
+                    container_title = ct
+                    container_title_tr = cd.get("title_translation") or ""
+                    break
                 results.append({
                     "id": src_id,
-                    "title": d.get("title") or "",
+                    "title": work_title,
                     "title_translation": d.get("title_translation") or "",
                     "year": d.get("year"),
                     "author": agent_name,
