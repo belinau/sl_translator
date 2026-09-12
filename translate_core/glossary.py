@@ -163,12 +163,13 @@ class Glossary:
     def _detect_lang_pair(filename: str) -> tuple:
         """Extract (src_lang, tgt_lang) from filename pattern like 'glossary-EN-SL.txt'.
 
-        Returns ("en", "sl") as default if no pattern is found.
+        Returns config defaults if no pattern is found.
         """
         m = re.search(r"([A-Za-z]{2})-([A-Za-z]{2})(?=\.\w+$)", filename)
         if m:
             return m.group(1).lower(), m.group(2).lower()
-        return "en", "sl"
+        from config import DEFAULT_SOURCE_LANG, DEFAULT_TARGET_LANG
+        return DEFAULT_SOURCE_LANG, DEFAULT_TARGET_LANG
 
     def _parse_tsv(self, content: str, filename: str):
         """Parses simple Tab-Separated files.
@@ -380,7 +381,12 @@ class Glossary:
         path.write_text("\n".join(lines) + "\n" if lines else "", encoding="utf-8")
 
     def _build_indices(self):
-        """Builds FlashText indices for fast lookup."""
+        """Builds FlashText indices for fast lookup.
+
+        For Slovenian source terms, also generates all declined forms
+        (6 cases × 3 numbers) via sl_morph.generate_forms and adds them
+        to the index, so that inflected source text like 'umetnosti'
+        matches a stored lemma 'umetnost'."""
         # Group by (source_lang, target_lang)
         temp: Dict[tuple, List[str]] = {}
         for e in self.entries:
@@ -388,8 +394,24 @@ class Glossary:
             temp.setdefault(key, []).append(e["source_term"])
 
         for key, terms in temp.items():
+            src_lang = key[0]
             kp = KeywordProcessor()
-            kp.add_keywords_from_list(terms)
+            # Add each term with itself as clean_name so extract_keywords
+            # returns the original term even when a declined form matches.
+            for term in terms:
+                kp.add_keyword(term, term)
+                # Slovenian declension expansion: generate inflected
+                # forms (6 cases × 3 numbers) and map them back to the
+                # original term so source text with any case/number
+                # form matches the stored lemma.
+                if src_lang == "sl":
+                    try:
+                        from translate_core.sl_morph import generate_forms
+                        for form in generate_forms(term):
+                            if form and form != term:
+                                kp.add_keyword(form, term)
+                    except Exception:
+                        pass
             self._index_by_lang[key] = kp
 
     def lookup_terms(

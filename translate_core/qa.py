@@ -325,6 +325,21 @@ class QAEngine:
                     src_found = all(lm in src_text_lemmas for lm in src_term_lemmas)
 
                 if not src_found:
+                    # Slovenian declension fallback for SOURCE side —
+                    # same logic as the target-side fallback below.
+                    # Recovers matches the lemmatiser loses when the
+                    # source text has inflected Slovenian forms.
+                    if g_key[0] == "sl":
+                        source_tokens = set(re.findall(r'\w+', source.lower()))
+                        src_term_words = src_term.split()
+                        src_matched = []
+                        for w in src_term_words:
+                            w_lemmas = _lemmatize(w, g_key[0])
+                            w_lemma = w_lemmas[0] if w_lemmas else w.lower()
+                            forms = generate_forms(w_lemma)
+                            src_matched.append(bool(forms & source_tokens))
+                        src_found = all(src_matched)
+                if not src_found:
                     continue
                 # --- Target side: does the target term appear (exact or lemma)? ---
                 tgt_found = bool(re.search(re.escape(tgt_term), target, re.IGNORECASE))

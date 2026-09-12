@@ -2248,5 +2248,60 @@
       "named_institution_kind"
     ],
     "tier": "review"
+  },
+  {
+    "kind": "concept",
+    "payload": {
+      "concept_id": "concept:repeated-attempt",
+      "label": "repeated attempt",
+      "label_orig": "repeated attempt",
+      "label_translation": "ponovljeni poskus",
+      "orig_lang": "en",
+      "translation_lang": "sl",
+      "domain": "philosophy",
+      "definition": "",
+      "originating_author": "Nealon",
+      "evidence_span": "Nealon’s notion of the “repeated attempt”",
+      "container_work_id": "feminist-queer-crip-alison-kafer-pdf",
+      "mention_segments": [
+        {
+          "origin": "editor_en-sl_9f6cbcc5",
+          "segment_idx": 398
+        }
+      ],
+      "attribution_pending": true
+    },
+    "source": {
+      "origin": "editor_en-sl_9f6cbcc5",
+      "segment_idx": 398,
+      "segment_class": "smol_extracted",
+      "provenance": "tm_smol"
+    },
+    "signals": {
+      "smol_extracted": true,
+      "verified_from_text": true,
+      "has_label": true,
+      "has_bilingual_label": true,
+      "has_originating_author": true,
+      "has_evidence_span": true,
+      "has_source_work": false,
+      "has_container": true,
+      "smol_verified_classification": false,
+      "attribution_roster_confirmed": false,
+      "container_attached": true,
+      "attribution_grounded": false,
+      "attribution_verified": false
+    },
+    "confidence": 1.0,
+    "reason_codes": [
+      "smol_extracted",
+      "verified_from_text",
+      "has_label",
+      "has_bilingual_label",
+      "has_originating_author",
+      "has_container"
+    ],
+    "tier": "direct_write",
+    "_route_reason": "attribution_unverified"
   }
 ]

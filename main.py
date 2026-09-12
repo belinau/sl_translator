@@ -74,11 +74,12 @@ def _is_review_expired(r: dict) -> bool:
 
 
 def parse_lang_pair(pair: str) -> Tuple[str, str]:
-    """Return (src, tgt) from 'src->tgt'. Defaults to ('en', 'sl')."""
+    """Return (src, tgt) from 'src->tgt'. Falls back to config defaults."""
+    from config import DEFAULT_SOURCE_LANG, DEFAULT_TARGET_LANG
     if not pair or "->" not in pair:
-        return "en", "sl"
+        return DEFAULT_SOURCE_LANG, DEFAULT_TARGET_LANG
     src, _, tgt = pair.partition("->")
-    return (src or "en"), (tgt or "sl")
+    return (src or DEFAULT_SOURCE_LANG), (tgt or DEFAULT_TARGET_LANG)
 
 
 def _count_target_text(segments: list) -> tuple[int, int, float]:

@@ -556,6 +556,34 @@ class TranslationMemory:
         if not words:
             return []
         uniq = list(dict.fromkeys(words))
+
+        # Slovenian morphological fallback: inflected query words are
+        # often longer than their lemma (suffixes added). The standard
+        # prefix expansion checks if stored tokens START WITH the query
+        # word — so 'umetnosti' can't match stored 'umetnost'. For
+        # Slovenian, when a word yields no postings, try progressively
+        # shorter prefixes (drop 1-4 chars) to catch the lemma stem.
+        if src_lang == "sl":
+            expanded = []
+            for w in uniq:
+                ids = self._prefix_postings_in(inv_tokens, inv, w)
+                if ids:
+                    expanded.append(w)
+                else:
+                    # Try shorter prefixes (strip Slovenian inflection suffixes)
+                    found = False
+                    for trim in range(1, min(5, len(w) - 2)):
+                        shorter = w[:-trim]
+                        if len(shorter) < 3:
+                            break
+                        if self._prefix_postings_in(inv_tokens, inv, shorter):
+                            expanded.append(shorter)
+                            found = True
+                            break
+                    if not found:
+                        expanded.append(w)
+            uniq = list(dict.fromkeys(expanded))
+
         if len(uniq) > max_words:
             # Prefix-aware document frequency: a word that expands to no
             # corpus token can never produce a candidate — drop it rather

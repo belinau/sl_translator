@@ -326,7 +326,11 @@ class KnowledgeGraph:
             label = d.get("label") or ""
             if label and self._concept_is_meaningful(d):
                 kp.add_keyword(label, node_id)
-        self._concept_kp = kp
+                # Also index the Slovenian label_translation so Slovenian
+                # source text can match concepts with English labels.
+                label_tr = d.get("label_translation") or ""
+                if label_tr and label_tr.strip():
+                    kp.add_keyword(label_tr, node_id)
         self._concept_kp_count = current
         return kp
 
@@ -408,6 +412,8 @@ class KnowledgeGraph:
                 "domain": d.get("domain") or "",
                 "definition": (d.get("definition") or "").strip(),
             })
+        return results
+
 
     def _ensure_institution_kp(self) -> KeywordProcessor:
         """Build (or return cached) flashtext index of institution names.
@@ -424,6 +430,11 @@ class KnowledgeGraph:
             name = d.get("name") or ""
             if name:
                 kp.add_keyword(name, node_id)
+                # Also index the Slovenian name_translation so Slovenian
+                # source text can match institutions with English names.
+                name_tr = d.get("name_translation") or ""
+                if name_tr and name_tr.strip():
+                    kp.add_keyword(name_tr, node_id)
         self._inst_kp = kp
         self._inst_kp_count = current
         return kp
@@ -521,8 +532,18 @@ class KnowledgeGraph:
         lang = data.get("lang", "")
         if term:
             self._exact_kp.add_keyword(term, node_id)
-            if lang != "sl":
-                self._norm_kp.add_keyword(_normalize(term), node_id)
+            self._norm_kp.add_keyword(_normalize(term), node_id)
+            # Slovenian declension expansion: generate all inflected
+            # forms (6 cases × 3 numbers) so that source text with
+            # 'umetnosti' matches a stored lemma 'umetnost'.
+            if lang == "sl":
+                try:
+                    from translate_core.sl_morph import generate_forms
+                    for form in generate_forms(term):
+                        if form and form != term:
+                            self._exact_kp.add_keyword(form, node_id)
+                except Exception:
+                    pass
 
         strategies = data.get("gender_strategies", {})
         for strat_val in strategies.values():
@@ -532,8 +553,15 @@ class KnowledgeGraph:
         for variant in data.get("variants", []):
             if variant:
                 self._exact_kp.add_keyword(variant, node_id)
-                if lang != "sl":
-                    self._norm_kp.add_keyword(_normalize(variant), node_id)
+                self._norm_kp.add_keyword(_normalize(variant), node_id)
+                if lang == "sl":
+                    try:
+                        from translate_core.sl_morph import generate_forms
+                        for form in generate_forms(variant):
+                            if form and form != variant:
+                                self._exact_kp.add_keyword(form, node_id)
+                    except Exception:
+                        pass
 
     def _rebuild_indices(self):
         self._exact_kp = KeywordProcessor(case_sensitive=False)
@@ -1119,8 +1147,17 @@ class KnowledgeGraph:
     # ------------------------------------------------------------------
     # Query & Editor Integration
     # ------------------------------------------------------------------
-    def extract_entities(self, text: str, target_lang: str = "sl") -> List[Dict]:
-        found_ids = set(self._exact_kp.extract_keywords(text.lower()))
+    def extract_entities(self, text: str, target_lang: str = "") -> List[Dict]:
+        low = text.lower()
+        if not target_lang:
+            from config import DEFAULT_TARGET_LANG
+            target_lang = DEFAULT_TARGET_LANG
+        found_ids = set(self._exact_kp.extract_keywords(low))
+        # Diacritic-stripped fallback: normalise the query text and check
+        # _norm_kp. This catches matches where the stored term has
+        # diacritics but the source text drops them (or vice versa).
+        norm_ids = set(self._norm_kp.extract_keywords(_normalize(low)))
+        found_ids |= norm_ids
         results = []
         for node_id in found_ids:
             if not self.G.has_node(node_id):
@@ -1134,7 +1171,10 @@ class KnowledgeGraph:
         )
         return results
 
-    def _get_translations(self, term_id: str, target_lang: str = "sl") -> List[Dict]:
+    def _get_translations(self, term_id: str, target_lang: str = "") -> List[Dict]:
+        if not target_lang:
+            from config import DEFAULT_TARGET_LANG
+            target_lang = DEFAULT_TARGET_LANG
         res = []
         seen = set()
 
