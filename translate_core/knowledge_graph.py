@@ -227,6 +227,11 @@ class KnowledgeGraph:
         self._concept_kp_count: int = -1
         self._inst_kp: KeywordProcessor | None = None
         self._inst_kp_count: int = -1
+        # Short keywords (≤3 chars) get a separate CASE-SENSITIVE KP so
+        # that abbreviations like "OF" (Osvobodilna fronta) only match
+        # the capitalized form, not every lowercase "of" in the text.
+        self._concept_short_kp: KeywordProcessor | None = None
+        self._inst_short_kp: KeywordProcessor | None = None
 
         # NLP models (Spacy EN, Stanza/Classla SL) were previously loaded here
         # for promote_pair's NLP term-extraction. That extraction is removed:
@@ -314,26 +319,28 @@ class KnowledgeGraph:
         translation. These produce spurious blue underlines on almost any
         source text. Only concepts that pass _concept_is_meaningful are
         indexed."""
-        current = sum(
-            1 for _, d in self.G.nodes(data=True) if d.get("type") == "concept"
-        )
-        if self._concept_kp is not None and self._concept_kp_count == current:
-            return self._concept_kp
         kp = KeywordProcessor(case_sensitive=False)
+        short_kp = KeywordProcessor(case_sensitive=True)
         for node_id, d in self.G.nodes(data=True):
             if d.get("type") != "concept":
                 continue
             label = d.get("label") or ""
             if label and self._concept_is_meaningful(d):
-                kp.add_keyword(label, node_id)
-                # Also index the Slovenian label_translation so Slovenian
-                # source text can match concepts with English labels.
-                # Skip translations shorter than 4 chars — they are
-                # almost always abbreviations or common words that
-                # produce massive false positives (e.g. "OF", "we").
+                if len(label.strip()) <= 3:
+                    short_kp.add_keyword(label, node_id)
+                else:
+                    kp.add_keyword(label, node_id)
+                # Index label_translation for Slovenian source matching.
+                # Short translations (≤3 chars) go to the case-sensitive
+                # KP so "OF" only matches capitalized "OF", not "of".
                 label_tr = d.get("label_translation") or ""
-                if label_tr and len(label_tr.strip()) >= 4:
-                    kp.add_keyword(label_tr, node_id)
+                if label_tr and label_tr.strip():
+                    if len(label_tr.strip()) <= 3:
+                        short_kp.add_keyword(label_tr, node_id)
+                    else:
+                        kp.add_keyword(label_tr, node_id)
+        self._concept_kp = kp
+        self._concept_short_kp = short_kp
         self._concept_kp_count = current
         return kp
 
@@ -400,7 +407,13 @@ class KnowledgeGraph:
         if not text.strip():
             return []
         kp = self._ensure_concept_kp()
-        found_ids = kp.extract_keywords(text.lower())
+        # Case-insensitive KP for long keywords (≥4 chars), queried
+        # with lowercased text. Case-sensitive KP for short keywords
+        # (≤3 chars like "OF"), queried with original-case text so
+        # "OF" only matches capitalized "OF", not "of".
+        found_ids = set(kp.extract_keywords(text.lower()))
+        if self._concept_short_kp is not None:
+            found_ids.update(self._concept_short_kp.extract_keywords(text))
         results: List[Dict] = []
         seen: set[str] = set()
         for node_id in found_ids:
@@ -427,21 +440,28 @@ class KnowledgeGraph:
         if self._inst_kp is not None and self._inst_kp_count == current:
             return self._inst_kp
         kp = KeywordProcessor(case_sensitive=False)
+        short_kp = KeywordProcessor(case_sensitive=True)
         for node_id, d in self.G.nodes(data=True):
             if d.get("type") != "institution":
                 continue
             name = d.get("name") or ""
             if name:
-                kp.add_keyword(name, node_id)
-                # Also index the Slovenian name_translation so Slovenian
-                # source text can match institutions with English names.
-                # Skip translations shorter than 4 chars — they are
-                # almost always abbreviations (e.g. "OF" = Osvobodilna
-                # fronta) that match every occurrence of a common word.
+                if len(name.strip()) <= 3:
+                    short_kp.add_keyword(name, node_id)
+                else:
+                    kp.add_keyword(name, node_id)
+                # Index name_translation for Slovenian source matching.
+                # Short translations (≤3 chars like "OF") go to the
+                # case-sensitive KP so "OF" only matches capitalized
+                # "OF", not every "of" in English text.
                 name_tr = d.get("name_translation") or ""
-                if name_tr and len(name_tr.strip()) >= 4:
-                    kp.add_keyword(name_tr, node_id)
+                if name_tr and name_tr.strip():
+                    if len(name_tr.strip()) <= 3:
+                        short_kp.add_keyword(name_tr, node_id)
+                    else:
+                        kp.add_keyword(name_tr, node_id)
         self._inst_kp = kp
+        self._inst_short_kp = short_kp
         self._inst_kp_count = current
         return kp
 
@@ -452,7 +472,13 @@ class KnowledgeGraph:
         if not text.strip():
             return []
         kp = self._ensure_institution_kp()
-        found_ids = kp.extract_keywords(text.lower())
+        # Case-insensitive KP for long keywords (≥4 chars), queried
+        # with lowercased text. Case-sensitive KP for short keywords
+        # (≤3 chars like "OF"), queried with original-case text so
+        # "OF" only matches capitalized "OF", not "of".
+        found_ids = set(kp.extract_keywords(text.lower()))
+        if self._inst_short_kp is not None:
+            found_ids.update(self._inst_short_kp.extract_keywords(text))
         results: List[Dict] = []
         seen: set[str] = set()
         for node_id in found_ids:
