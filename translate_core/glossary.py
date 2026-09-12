@@ -230,6 +230,149 @@ class Glossary:
         self._add_simple_entry(src, tgt, src_lang, tgt_lang, origin, note)
         self._build_indices()
 
+    def lookup_all_terms(
+        self,
+        text: str,
+        source_lang: str,
+ target_lang: str,
+    ) -> List[Dict]:
+        """Like lookup_terms but returns ALL variant entries per source term,
+        not just the first match. Essential for terms with several accepted
+        translations — the translator needs every variant offered."""
+        kp = self._index_by_lang.get((source_lang, target_lang))
+        if not kp:
+            return []
+        extracted = kp.extract_keywords(text)
+        results: List[Dict] = []
+        found_terms: set[str] = set()
+        for term in extracted:
+            if term in found_terms:
+                continue
+            found_terms.add(term)
+            for e in self.entries:
+                if (
+                    e["source_term"] == term
+                    and e["source_lang"] == source_lang
+                    and e["target_lang"] == target_lang
+                ):
+                    results.append(e)
+        return results
+
+    def get_entries_for_pair(
+        self, source_lang: str, target_lang: str,
+    ) -> List[Dict]:
+        """Return all forward-direction entries for a language pair, sorted
+        by source term. Used by the glossary edit dialog to populate the
+        searchable list of existing terms."""
+        out = [
+            e for e in self.entries
+            if e["source_lang"] == source_lang
+            and e["target_lang"] == target_lang
+        ]
+        out.sort(key=lambda e: e["source_term"].lower())
+        return out
+
+    def update_entry(
+        self,
+        old_src: str,
+        old_tgt: str,
+        new_src: str,
+        new_tgt: str,
+        src_lang: str,
+        tgt_lang: str,
+        note: str = "",
+        origin: str = "custom.tsv",
+    ) -> bool:
+        """Replace a glossary entry in both the in-memory list and the
+        origin TSV file, then rebuild indices.
+
+        Matches on (old_src, old_tgt, src_lang, tgt_lang) and removes the
+        forward + reverse pair. Then adds the new forward + reverse pair.
+        Returns True if the old entry was found and replaced.
+        """
+        # Remove old forward + reverse from in-memory list
+        old_fwd = {
+            "source_term": old_src, "target_term": old_tgt,
+            "source_lang": src_lang, "target_lang": tgt_lang,
+        }
+        old_rev = {
+            "source_term": old_tgt, "target_term": old_src,
+            "source_lang": tgt_lang, "target_lang": src_lang,
+        }
+        removed = False
+        kept: List[Dict] = []
+        for e in self.entries:
+            if not removed and all(e.get(k) == v for k, v in old_fwd.items()):
+                removed = True
+                continue
+            kept.append(e)
+        # Remove the matching reverse entry too
+        rev_removed = False
+        kept2: List[Dict] = []
+        for e in kept:
+            if not rev_removed and all(e.get(k) == v for k, v in old_rev.items()):
+                rev_removed = True
+                continue
+            kept2.append(e)
+        self.entries = kept2
+        if not removed:
+            return False
+        # Add new entry (forward + reverse)
+        self._add_simple_entry(new_src, new_tgt, src_lang, tgt_lang, origin, note)
+        self._build_indices()
+        # Rewrite the origin TSV file so the change persists to disk.
+        self._rewrite_tsv(origin, src_lang, tgt_lang)
+        return True
+
+    def delete_entry(
+        self,
+        src: str,
+        tgt: str,
+        src_lang: str,
+        tgt_lang: str,
+        origin: str = "custom.tsv",
+    ) -> bool:
+        """Remove a glossary entry (forward + reverse) from memory and disk."""
+        fwd_key = (src, tgt, src_lang, tgt_lang)
+        rev_key = (tgt, src, tgt_lang, src_lang)
+        removed = False
+        kept: List[Dict] = []
+        for e in self.entries:
+            ek = (e["source_term"], e["target_term"], e["source_lang"], e["target_lang"])
+            if ek in (fwd_key, rev_key):
+                removed = True
+                continue
+            kept.append(e)
+        self.entries = kept
+        if not removed:
+            return False
+        self._build_indices()
+        self._rewrite_tsv(origin, src_lang, tgt_lang)
+        return True
+
+    def _rewrite_tsv(self, origin: str, src_lang: str, tgt_lang: str) -> None:
+        """Rewrite a TSV glossary file from current in-memory entries.
+        Only writes entries matching (src_lang, tgt_lang) and the given origin.
+        Preserves the note column when present."""
+        path = self.glossary_dir / origin
+        lines: List[str] = []
+        seen: set[tuple[str, str]] = set()
+        for e in self.entries:
+            if e.get("origin") != origin:
+                continue
+            if e["source_lang"] != src_lang or e["target_lang"] != tgt_lang:
+                continue
+            key = (e["source_term"].lower(), e["target_term"].lower())
+            if key in seen:
+                continue
+            seen.add(key)
+            note = e.get("note") or ""
+            if note:
+                lines.append(f"{e['source_term']}\t{e['target_term']}\t{note}")
+            else:
+                lines.append(f"{e['source_term']}\t{e['target_term']}")
+        path.write_text("\n".join(lines) + "\n" if lines else "", encoding="utf-8")
+
     def _build_indices(self):
         """Builds FlashText indices for fast lookup."""
         # Group by (source_lang, target_lang)

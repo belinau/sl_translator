@@ -104,6 +104,9 @@ class StubGlossary:
     def lookup_terms(self, text, src, tgt):
         return list(self._hits)
 
+    def lookup_all_terms(self, text, src, tgt):
+        return list(self._hits)
+
 
 class StubKG:
     def __init__(self, entities=None):

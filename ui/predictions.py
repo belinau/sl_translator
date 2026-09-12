@@ -295,58 +295,74 @@ async def push_bundle(textarea_id: int, source_text: str, src: str, tgt: str,
     def _compute() -> dict:
         candidates: list[str] = []
         kg_hits: list[dict] = []
-        # Priority order: verified KG translations → glossary → TM.
+        seen_low: set[str] = set()
+
+        def _add(term: str) -> None:
+            if not term:
+                return
+            low = term.lower()
+            if low not in seen_low:
+                seen_low.add(low)
+                candidates.append(term)
+
+        # Priority order: verified KG translations → glossary (all variants)
+        # → agents → concepts → TM.
         try:
             if kg and hasattr(kg, 'G'):
                 from .intel_panel import _kg_query as _kq
                 for h in _kq(source_text, src, tgt, kg):
                     if h.get("tgt_term"):
-                        candidates.append(h["tgt_term"])
+                        _add(h["tgt_term"])
                         kg_hits.append({
                             "term": h["tgt_term"],
                             "confidence": h.get("confidence", 0.5),
                         })
                     for alt in h.get("alt_translations", []):
                         t = alt.get("term")
-                        if t and t.lower() not in {c.lower() for c in candidates}:
-                            candidates.append(t)
+                        if t:
+                            _add(t)
                     for sib in h.get("related") or []:
                         if sib.get("lang") != tgt:
                             continue
-                        t = sib.get("term")
-                        if t and t.lower() not in {c.lower() for c in candidates}:
-                            candidates.append(t)
+                        _add(sib.get("term"))
+                # Agents: names that appear in the source segment are
+                # offered as completions — proper names the translator
+                # will likely need to type in the target too.
+                for ag in kg.find_agents_in_text(source_text):
+                    _add(ag.get("name") or "")
+                    for alt in ag.get("alt_spellings") or []:
+                        _add(alt)
+                # Concepts: label_translation (target-language form) is
+                # the useful completion; label (source form) is also
+                # added so it's available if the translator works in
+                # the source language.
+                for con in kg.find_concepts_in_text(source_text):
+                    _add(con.get("label_translation") or "")
+                    _add(con.get("label") or "")
         except Exception as e:
             print(f"[predictions kg] {e}")
         try:
             if glossary:
-                for h in glossary.lookup_terms(source_text, src, tgt) or []:
-                    t = h.get("target_term")
-                    if t:
-                        candidates.append(t)
+                # lookup_all_terms returns EVERY variant entry per source
+                # term, not just the first — so the 2nd/3rd translation
+                # is offered as a completion candidate alongside the 1st.
+                for h in glossary.lookup_all_terms(source_text, src, tgt) or []:
+                    _add(h.get("target_term"))
         except Exception as e:
             print(f"[predictions glossary] {e}")
         try:
             if tm:
                 for m in tm.lookup_fuzzy(source_text, src, tgt, threshold=70.0, limit=3) or []:
-                    t = m.get("target")
-                    if t:
-                        candidates.append(t)
+                    _add(m.get("target"))
         except Exception as e:
             print(f"[predictions tm] {e}")
 
-        seen: set[str] = set()
-        deduped: list[str] = []
-        for c in candidates:
-            if c and c.lower() not in seen:
-                seen.add(c.lower())
-                deduped.append(c)
         multiword: list[list[str]] = []
-        for c in deduped:
+        for c in candidates:
             words = c.split()
             if 2 <= len(words) <= 5:
                 multiword.append(words)
-        return {"candidates": deduped, "multiword": multiword, "kg": kg_hits}
+        return {"candidates": candidates, "multiword": multiword, "kg": kg_hits}
 
     try:
         bundle = await loop.run_in_executor(None, _compute)

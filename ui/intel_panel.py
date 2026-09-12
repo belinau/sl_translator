@@ -900,8 +900,11 @@ def build(
         idx = state.active_index
         src, tgt = parse_lang_pair(state.lang_pair)
         try:
+            # lookup_all_terms returns every variant entry per source
+            # term, so terms with several accepted translations show all
+            # of them as individually insertable chips.
             hits = await run.io_bound(
-                glossary.lookup_terms, seg["source"], src, tgt,
+                glossary.lookup_all_terms, seg["source"], src, tgt,
             ) or []
         except Exception as e:
             print(f"[intel glossary] {e}")
@@ -915,19 +918,43 @@ def build(
                     "text-xs italic opacity-60"
                 )
                 return
-            with ui.row().classes("w-full gap-2 items-center flex-wrap"):
-                for g in hits:
-                    s_term = g.get("source_term", "")
-                    t_term = g.get("target_term", "")
-                    chip_label = f"{_truncate(s_term, 30)} → {_truncate(t_term, 30)}" if t_term else _truncate(s_term, 30)
-                    ui.button(
-                        chip_label,
-                        on_click=lambda _e, t=t_term: _insert(t),
-                    ).props("unelevated rounded dense color=positive").classes(
-                        "text-[11px] font-bold px-3 h-8 normal-case"
-                    ).tooltip(
-                        g.get("note") or "Click to insert"
+            # Group by source term so variants are visually clustered.
+            by_src: dict[str, list[dict]] = {}
+            order: list[str] = []
+            for g in hits:
+                s = g.get("source_term", "")
+                if s not in by_src:
+                    by_src[s] = []
+                    order.append(s)
+                by_src[s].append(g)
+            for s_term in order:
+                variants = by_src[s_term]
+                with ui.row().classes(
+                    "w-full items-center gap-1.5 flex-wrap"
+                ):
+                    # Source term label — dim, left-aligned
+                    ui.label(_truncate(s_term, 30)).classes(
+                        "text-[11px] opacity-50 shrink-0"
                     )
+                    ui.label("→").classes("text-[10px] opacity-30 shrink-0")
+                    # Each variant is its own insertable chip.
+                    for v in variants:
+                        t_term = v.get("target_term", "")
+                        if not t_term:
+                            continue
+                        note = v.get("note") or ""
+                        chip = ui.button(
+                            _truncate(t_term, 30),
+                            on_click=lambda _e, t=t_term: _insert(t),
+                        ).props("unelevated rounded dense color=positive").classes(
+                            "text-[11px] font-bold px-3 h-8 normal-case"
+                        )
+                        if note:
+                            chip.tooltip(note)
+                        elif len(variants) > 1:
+                            chip.tooltip("alternative translation — click to insert")
+                        else:
+                            chip.tooltip("Click to insert")
 
     # ------------------------------------------------------------------
     # Refresh all sections on segment change

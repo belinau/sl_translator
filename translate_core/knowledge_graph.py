@@ -218,6 +218,13 @@ class KnowledgeGraph:
         self.G: nx.DiGraph = nx.DiGraph()
         self._exact_kp = KeywordProcessor(case_sensitive=False)
         self._norm_kp = KeywordProcessor(case_sensitive=False)
+        # Lazy-built keyword processors for agent names and concept labels.
+        # Invalidated when the respective node count changes (see
+        # _ensure_agent_kp / _ensure_concept_kp).
+        self._agent_kp: KeywordProcessor | None = None
+        self._agent_kp_count: int = -1
+        self._concept_kp: KeywordProcessor | None = None
+        self._concept_kp_count: int = -1
 
         # NLP models (Spacy EN, Stanza/Classla SL) were previously loaded here
         # for promote_pair's NLP term-extraction. That extraction is removed:
@@ -274,6 +281,95 @@ class KnowledgeGraph:
         database incrementally. Kept for API compatibility with the
         ``request_kg_save`` debounce and all existing callers."""
         pass
+    def _ensure_agent_kp(self) -> KeywordProcessor:
+        """Build (or return cached) flashtext index of agent names +
+        alt_spellings. Rebuilt when the agent node count changes."""
+        current = sum(
+            1 for _, d in self.G.nodes(data=True) if d.get("type") == "agent"
+        )
+        if self._agent_kp is not None and self._agent_kp_count == current:
+            return self._agent_kp
+        kp = KeywordProcessor(case_sensitive=False)
+        for node_id, d in self.G.nodes(data=True):
+            if d.get("type") != "agent":
+                continue
+            name = d.get("name") or ""
+            if name:
+                kp.add_keyword(name, node_id)
+            for alt in d.get("alt_spellings") or []:
+                if alt and alt != name:
+                    kp.add_keyword(alt, node_id)
+        self._agent_kp = kp
+        self._agent_kp_count = current
+        return kp
+
+    def _ensure_concept_kp(self) -> KeywordProcessor:
+        """Build (or return cached) flashtext index of concept labels."""
+        current = sum(
+            1 for _, d in self.G.nodes(data=True) if d.get("type") == "concept"
+        )
+        if self._concept_kp is not None and self._concept_kp_count == current:
+            return self._concept_kp
+        kp = KeywordProcessor(case_sensitive=False)
+        for node_id, d in self.G.nodes(data=True):
+            if d.get("type") != "concept":
+                continue
+            label = d.get("label") or ""
+            if label:
+                kp.add_keyword(label, node_id)
+        self._concept_kp = kp
+        self._concept_kp_count = current
+        return kp
+
+    def find_agents_in_text(self, text: str) -> List[Dict]:
+        """Return agent nodes whose name or alt_spelling appears in *text*.
+        Each result carries the agent's name, alt_spellings, role, and
+        dedup_group — enough for the prediction engine and intel panel
+        to offer the correct form as the translator types."""
+        if not text.strip():
+            return []
+        kp = self._ensure_agent_kp()
+        found_ids = kp.extract_keywords(text.lower())
+        results: List[Dict] = []
+        seen: set[str] = set()
+        for node_id in found_ids:
+            if node_id in seen or not self.G.has_node(node_id):
+                continue
+            seen.add(node_id)
+            d = self.G.nodes[node_id]
+            results.append({
+                "id": node_id,
+                "name": d.get("name") or "",
+                "alt_spellings": d.get("alt_spellings") or [],
+                "role": d.get("role") or "agent",
+                "dedup_group": d.get("dedup_group") or "",
+            })
+        return results
+
+    def find_concepts_in_text(self, text: str) -> List[Dict]:
+        """Return concept nodes whose label appears in *text*.
+        Each result carries label, label_translation, domain, and
+        definition — the prediction engine offers label_translation
+        as a completion candidate."""
+        if not text.strip():
+            return []
+        kp = self._ensure_concept_kp()
+        found_ids = kp.extract_keywords(text.lower())
+        results: List[Dict] = []
+        seen: set[str] = set()
+        for node_id in found_ids:
+            if node_id in seen or not self.G.has_node(node_id):
+                continue
+            seen.add(node_id)
+            d = self.G.nodes[node_id]
+            results.append({
+                "id": node_id,
+                "label": d.get("label") or "",
+                "label_translation": d.get("label_translation") or "",
+                "domain": d.get("domain") or "",
+                "definition": (d.get("definition") or "").strip(),
+            })
+        return results
 
     def _index_term_node(self, node_id: str, data: Dict):
         term = data.get("term", "")

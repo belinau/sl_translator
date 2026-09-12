@@ -625,90 +625,237 @@ def _ensure_project_container(kg, slug: str, title: str, project_type: str) -> N
 # Glossary dialog (module-level for cleanliness; called from top bar)
 # ---------------------------------------------------------------------------
 def _open_glossary(state, glossary, config, parse_lang_pair, kg=None, qa_engine=None, proj_slug=""):
-    with ui.dialog() as dialog, ui.card().classes("min-w-[400px]"):
-        ui.label("Add to Glossary").classes("text-lg font-bold mb-2")
+    """Glossary dialog with two tabs: Add new term and Edit existing terms.
+
+    The Edit tab lists all glossary entries for the current language pair,
+    lets the translator modify the target term / note / lineage, and
+    syncs changes to both the TSV file and the KG — closing the gap
+    where raw-file edits never propagated to the KG.
+    """
+    with ui.dialog() as dialog, ui.card().classes("min-w-[520px] max-h-[80vh]"):
         src_lang, tgt_lang = parse_lang_pair(state.lang_pair)
-        src_input = ui.input(f"Source Term ({src_lang})").classes("w-full")
-        tgt_input = ui.input(f"Target Term ({tgt_lang})").classes("w-full")
-        note_input = ui.input("Note (optional)").classes("w-full")
-        # Searchable dropdown of existing lineages + type-to-add, so the same
-        # theoretical lineage is reused (no free-text variant proliferation).
-        try:
-            _existing_lineages = kg.get_all_lineages() if kg is not None else []
-        except Exception:
-            _existing_lineages = []
-        lineage_input = ui.select(
-            options=_existing_lineages,
-            label="Theoretical lineage (pick existing or type to add)",
-            with_input=True,
-            new_value_mode="add-unique",
-        ).classes("w-full")
 
-        def _do_save() -> bool:
-            """Core save logic; returns True on success so callers decide UI."""
-            s = (src_input.value or "").strip()
-            t = (tgt_input.value or "").strip()
-            if not (s and t):
-                ui.notify("Both terms are required", type="negative")
-                return False
-            config.GLOSSARY_DIR.mkdir(parents=True, exist_ok=True)
-            custom_path = config.GLOSSARY_DIR / "custom.tsv"
-            line = f"{s}\t{t}\t{note_input.value or ''}\n"
-            with open(custom_path, "a", encoding="utf-8") as f:
-                f.write(line)
-            if glossary is not None:
-                glossary.add_entry(s, t, src_lang, tgt_lang, note=note_input.value or "")
-            # Push the term to the KG, tagged with the current project so the
-            # mapping carries "made while translating this project" provenance.
-            # Done off the UI thread; debounced save avoids clobbering external edits.
-            if kg is not None:
-                note_val = note_input.value or ""
-                lineage_val = (lineage_input.value or "").strip() or "general"
-                slug = proj_slug or _slugify_project(state)
+        with ui.tabs() as tabs:
+            add_tab = ui.tab("Add Term")
+            edit_tab = ui.tab("Edit Existing")
+        with ui.tab_panels(tabs, value=add_tab):
 
-                async def _kg_add():
-                    loop = asyncio.get_running_loop()
-                    try:
-                        def _do():
-                            kg.reload_if_changed()
-                            _ensure_project_container(kg, slug, state.filename or "current project", state.project_type)
-                            sid = kg.add_term_node(s, src_lang, is_phrase=" " in s)
-                            tid = kg.add_term_node(t, tgt_lang, is_phrase=" " in t)
-                            kg.link_translations_with_context(
-                                src_term_id=sid, tgt_term_id=tid, confidence=1.0,
-                                lineage=lineage_val, gloss=note_val, verified=True,
-                                source_text_id=slug,
+            # ───────────────────────────────────────────────────────────
+            # Tab 1: Add new term (original logic preserved)
+            # ───────────────────────────────────────────────────────────
+            with ui.tab_panel(add_tab):
+                ui.label("Add to Glossary").classes("text-lg font-bold mb-2")
+                src_input = ui.input(f"Source Term ({src_lang})").classes("w-full")
+                tgt_input = ui.input(f"Target Term ({tgt_lang})").classes("w-full")
+                note_input = ui.input("Note (optional)").classes("w-full")
+                try:
+                    _existing_lineages = kg.get_all_lineages() if kg is not None else []
+                except Exception:
+                    _existing_lineages = []
+                lineage_input = ui.select(
+                    options=_existing_lineages,
+                    label="Theoretical lineage (pick existing or type to add)",
+                    with_input=True,
+                    new_value_mode="add-unique",
+                ).classes("w-full")
+
+                def _do_save() -> bool:
+                    """Core save logic; returns True on success so callers decide UI."""
+                    s = (src_input.value or "").strip()
+                    t = (tgt_input.value or "").strip()
+                    if not (s and t):
+                        ui.notify("Both terms are required", type="negative")
+                        return False
+                    config.GLOSSARY_DIR.mkdir(parents=True, exist_ok=True)
+                    custom_path = config.GLOSSARY_DIR / "custom.tsv"
+                    line = f"{s}\t{t}\t{note_input.value or ''}\n"
+                    with open(custom_path, "a", encoding="utf-8") as f:
+                        f.write(line)
+                    if glossary is not None:
+                        glossary.add_entry(s, t, src_lang, tgt_lang, note=note_input.value or "")
+                    # Push the term to the KG, tagged with the current project.
+                    if kg is not None:
+                        note_val = note_input.value or ""
+                        lineage_val = (lineage_input.value or "").strip() or "general"
+                        slug = proj_slug or _slugify_project(state)
+
+                        async def _kg_add():
+                            loop = asyncio.get_running_loop()
+                            try:
+                                def _do():
+                                    kg.reload_if_changed()
+                                    _ensure_project_container(kg, slug, state.filename or "current project", state.project_type)
+                                    sid = kg.add_term_node(s, src_lang, is_phrase=" " in s)
+                                    tid = kg.add_term_node(t, tgt_lang, is_phrase=" " in t)
+                                    kg.link_translations_with_context(
+                                        src_term_id=sid, tgt_term_id=tid, confidence=1.0,
+                                        lineage=lineage_val, gloss=note_val, verified=True,
+                                        source_text_id=slug,
+                                    )
+                                await loop.run_in_executor(None, _do)
+                                request_kg_save(kg.save, delay=5.0)
+                                if qa_engine is not None and glossary is not None:
+                                    await loop.run_in_executor(None, lambda: qa_engine.build_lemma_index(glossary.entries))
+                                with state.client:
+                                    ui.notify(f"'{s} → {t}' synced to KG", type="positive")
+                            except Exception as e:
+                                log.warning(f"glossary KG sync: {e}")
+                                with state.client:
+                                    ui.notify("KG sync failed — term kept in glossary file", type="warning")
+
+                        background_tasks.create(_kg_add(), name="glossary_kg")
+                    return True
+
+                def _save():
+                    if _do_save():
+                        ui.notify("Term added to glossary", type="positive")
+                        dialog.close()
+
+                def _save_and_add():
+                    if _do_save():
+                        src_input.set_value("")
+                        tgt_input.set_value("")
+                        note_input.set_value("")
+
+                with ui.row().classes("w-full justify-end mt-4 gap-2"):
+                    ui.button("Cancel", on_click=dialog.close).props("flat")
+                    ui.button("Save & add another", on_click=_save_and_add).props("outline")
+                    ui.button("Save", on_click=_save).props("color=positive")
+
+            # ───────────────────────────────────────────────────────────
+            # Tab 2: Edit / delete existing entries with KG sync
+            # ───────────────────────────────────────────────────────────
+            with ui.tab_panel(edit_tab):
+                entries_list = glossary.get_entries_for_pair(src_lang, tgt_lang) if glossary else []
+
+                search_input = ui.input("Filter…").classes("w-full").props("dense clearable")
+                entries_scroll = ui.scroll_area().classes("w-full h-[40vh]")
+
+                def _render_entries(filter_text: str = ""):
+                    entries_scroll.clear()
+                    ft = filter_text.lower().strip()
+                    filtered = [
+                        e for e in entries_list
+                        if not ft
+                        or ft in e["source_term"].lower()
+                        or ft in e["target_term"].lower()
+                        or ft in (e.get("note") or "").lower()
+                    ]
+                    with entries_scroll:
+                        if not filtered:
+                            ui.label("No matching entries.").classes(
+                                "text-xs italic opacity-60 py-4"
                             )
-                        await loop.run_in_executor(None, _do)
-                        request_kg_save(kg.save, delay=5.0)
-                        if qa_engine is not None and glossary is not None:
-                            await loop.run_in_executor(None, lambda: qa_engine.build_lemma_index(glossary.entries))
-                        with state.client:
-                            ui.notify(f"'{s} → {t}' synced to KG", type="positive")
-                    except Exception as e:
-                        log.warning(f"glossary KG sync: {e}")
-                        with state.client:
-                            ui.notify("KG sync failed — term kept in glossary file; run scripts/ingest_glossary_to_kg.py --apply to re-sync", type="warning")
+                            return
+                        for e in filtered:
+                            _render_editable_row(e, entries_list, glossary, kg, qa_engine, src_lang, tgt_lang, config, proj_slug, state)
 
-                background_tasks.create(_kg_add(), name="glossary_kg")
-            return True
+                search_input.on_value_change(lambda e: _render_entries(e.value or ""))
+                _render_entries()
 
-        def _save():
-            if _do_save():
-                ui.notify("Term added to glossary", type="positive")
-                dialog.close()
-
-        def _save_and_add():
-            if _do_save():
-                src_input.set_value("")
-                tgt_input.set_value("")
-                note_input.set_value("")
-
-        with ui.row().classes("w-full justify-end mt-4 gap-2"):
-            ui.button("Cancel", on_click=dialog.close).props("flat")
-            ui.button("Save & add another", on_click=_save_and_add).props("outline")
-            ui.button("Save", on_click=_save).props("color=positive")
+                with ui.row().classes("w-full justify-end mt-2 gap-2"):
+                    ui.button("Close", on_click=dialog.close).props("flat")
     dialog.open()
+
+
+def _render_editable_row(e, entries_list, glossary, kg, qa_engine, src_lang, tgt_lang, config, proj_slug, state):
+    """Render one glossary entry as an inline-editable row within the Edit tab."""
+    orig_src = e["source_term"]
+    orig_tgt = e["target_term"]
+    orig_note = e.get("note") or ""
+
+    with ui.card().props("flat bordered").classes("w-full p-2 mb-1 rounded-lg"):
+        with ui.row().classes("w-full items-center gap-2"):
+            src_f = ui.input("Source", value=orig_src).props("dense").classes("flex-1")
+            tgt_f = ui.input("Target", value=orig_tgt).props("dense").classes("flex-1")
+            note_f = ui.input("Note", value=orig_note).props("dense").classes("w-32")
+            ui.button(
+                icon="save",
+                on_click=lambda _: _do_edit_save(
+                    orig_src, orig_tgt, orig_note,
+                    src_f, tgt_f, note_f,
+                    glossary, kg, qa_engine, src_lang, tgt_lang, config, proj_slug, state,
+                ),
+            ).props("flat dense round size=sm color=positive").tooltip("Save changes (syncs to KG)")
+            ui.button(
+                icon="delete",
+                on_click=lambda _: _do_edit_delete(
+                    orig_src, orig_tgt, glossary, kg, qa_engine, src_lang, tgt_lang, state,
+                ),
+            ).props("flat dense round size=sm color=negative").tooltip("Delete this entry")
+
+
+def _do_edit_save(orig_src, orig_tgt, orig_note, src_f, tgt_f, note_f,
+                   glossary, kg, qa_engine, src_lang, tgt_lang, config, proj_slug, state):
+    """Persist an edited glossary entry to TSV + in-memory + KG."""
+    new_src = (src_f.value or "").strip()
+    new_tgt = (tgt_f.value or "").strip()
+    new_note = (note_f.value or "").strip()
+    if not (new_src and new_tgt):
+        ui.notify("Both terms are required", type="negative")
+        return
+    if glossary is not None:
+        ok = glossary.update_entry(
+            old_src=orig_src, old_tgt=orig_tgt,
+            new_src=new_src, new_tgt=new_tgt,
+            src_lang=src_lang, tgt_lang=tgt_lang,
+            note=new_note,
+        )
+        if not ok:
+            ui.notify("Entry not found — may have been edited elsewhere", type="warning")
+            return
+    # Sync to KG: update term nodes + mapping. The old src→tgt mapping
+    # gets its gloss/verified updated; if the term text changed, new term
+    # nodes + mapping are created so the KG reflects the edited pair.
+    if kg is not None:
+        slug = proj_slug or _slugify_project(state)
+
+        async def _kg_sync():
+            loop = asyncio.get_running_loop()
+            try:
+                def _do():
+                    _ensure_project_container(kg, slug, state.filename or "current project", state.project_type)
+                    sid = kg.add_term_node(new_src, src_lang, is_phrase=" " in new_src)
+                    tid = kg.add_term_node(new_tgt, tgt_lang, is_phrase=" " in new_tgt)
+                    kg.link_translations_with_context(
+                        src_term_id=sid, tgt_term_id=tid, confidence=1.0,
+                        lineage="general", gloss=new_note, verified=True,
+                        source_text_id=slug,
+                    )
+                await loop.run_in_executor(None, _do)
+                request_kg_save(kg.save, delay=5.0)
+                if qa_engine is not None and glossary is not None:
+                    await loop.run_in_executor(None, lambda: qa_engine.build_lemma_index(glossary.entries))
+                with state.client:
+                    ui.notify(f"'{new_src} → {new_tgt}' updated + synced to KG", type="positive")
+            except Exception as ex:
+                log.warning(f"glossary edit KG sync: {ex}")
+                with state.client:
+                    ui.notify("KG sync failed — glossary file updated; re-sync manually", type="warning")
+
+        background_tasks.create(_kg_sync(), name="glossary_edit_kg")
+    else:
+        ui.notify("Glossary entry updated", type="positive")
+
+
+def _do_edit_delete(orig_src, orig_tgt, glossary, kg, qa_engine, src_lang, tgt_lang, state):
+    """Delete a glossary entry from TSV + in-memory. KG term nodes are
+    left in place (they may be referenced by other mappings); only the
+    glossary file is pruned."""
+    if glossary is not None:
+        ok = glossary.delete_entry(
+            src=orig_src, tgt=orig_tgt,
+            src_lang=src_lang, tgt_lang=tgt_lang,
+        )
+        if not ok:
+            ui.notify("Entry not found", type="warning")
+            return
+    if qa_engine is not None and glossary is not None:
+        try:
+            qa_engine.build_lemma_index(glossary.entries)
+        except Exception:
+            pass
+    ui.notify(f"Deleted '{orig_src} → {orig_tgt}'", type="positive")
 
 
 # ---------------------------------------------------------------------------
