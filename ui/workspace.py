@@ -799,25 +799,27 @@ def _open_glossary(state, glossary, config, parse_lang_pair, kg=None, qa_engine=
                 search_input.on_value_change(lambda e: _render_entries(e.value or ""))
                 _render_entries()
 
-            # ─── Docked bottom action bar (always visible) ─────────
-            docked = ui.element("div").style(
-                "flex-shrink: 0; padding: 0.75rem; "
-                "border-top: 1px solid rgba(128,128,128,0.2);"
-            )
+            # ─── Docked bottom action bar (OUTSIDE tab_panels so it's
+            # always visible — Quasar hides non-tab-panel children
+            # inside q-tab-panels) ──────────────────────────────────
+        docked = ui.element("div").style(
+            "flex-shrink: 0; padding: 0.75rem; "
+            "border-top: 1px solid rgba(128,128,128,0.2);"
+        )
 
-            def _update_docked(_=None):
-                docked.clear()
-                with docked:
-                    with ui.row().classes("w-full justify-end").style("gap: 0.5rem;"):
-                        if tabs.value == add_tab:
-                            ui.button("Cancel", on_click=dialog.close).props("flat")
-                            ui.button("Save & add another", on_click=_save_and_add).props("outline")
-                            ui.button("Save", on_click=_save).props("color=positive")
-                        else:
-                            ui.button("Close", on_click=dialog.close).props("flat color=positive")
+        def _update_docked(_=None):
+            docked.clear()
+            with docked:
+                with ui.row().classes("w-full justify-end").style("gap: 0.5rem;"):
+                    if tabs.value == add_tab:
+                        ui.button("Cancel", on_click=dialog.close).props("flat")
+                        ui.button("Save & add another", on_click=_save_and_add).props("outline")
+                        ui.button("Save", on_click=_save).props("color=positive")
+                    else:
+                        ui.button("Close", on_click=dialog.close).props("flat color=positive")
 
-            _update_docked()
-            tabs.on_value_change(_update_docked)
+        _update_docked()
+        tabs.on_value_change(_update_docked)
     dialog.open()
 
 
