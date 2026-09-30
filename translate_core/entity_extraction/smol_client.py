@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import fnmatch
 import json
 import logging
 import re
@@ -26,6 +27,66 @@ log = logging.getLogger(__name__)
 # Log "Ollama unreachable" once per outage, not once per confirmed segment.
 _unavailable_logged = False
 
+
+
+_resolved_smol_model: str | None = None
+
+
+def _parse_deepseek_version(name: str) -> tuple[int, ...] | None:
+    """Version tuple for a `deepseek-vX[.Y]-flash:cloud` tag, else None."""
+    m = re.match(r"deepseek-v(\d+(?:\.\d+)*)-flash", name)
+    if not m:
+        return None
+    return tuple(int(p) for p in m.group(1).split("."))
+
+
+def resolve_smol_model(*, base_url: str | None = None) -> str:
+    """Return the smol model tag to use for live extraction.
+
+    Auto-follows upstream DeepSeek flash upgrades: when SMOL_MODEL is not
+    explicitly pinned via env, query Ollama `/api/tags` and pick the
+    highest-version tag matching `config.SMOL_MODEL_FAMILY`. Falls back to
+    `config.SMOL_MODEL` (the hardcoded default) when Ollama is unreachable
+    or no tag matches. The result is cached for the process lifetime.
+    """
+    global _resolved_smol_model
+    if _resolved_smol_model is not None:
+        return _resolved_smol_model
+    import config
+
+    if config.SMOL_MODEL_PINNED:
+        _resolved_smol_model = config.SMOL_MODEL
+        return _resolved_smol_model
+
+    base = base_url or config.OLLAMA_URL
+    fallback = config.SMOL_MODEL
+    family = getattr(config, "SMOL_MODEL_FAMILY", "deepseek-*-flash:cloud")
+    try:
+        req = urllib.request.Request(
+            f"{base}/api/tags", headers={"Accept": "application/json"}
+        )
+        with urllib.request.urlopen(req, timeout=10.0) as resp:
+            data = json.loads(resp.read())
+    except (OSError, ValueError) as e:
+        log.info("smol model auto-discovery unavailable (%s); using %s", e, fallback)
+        _resolved_smol_model = fallback
+        return _resolved_smol_model
+
+    best: tuple[tuple[int, ...], str] | None = None
+    for m in data.get("models", []):
+        name = m.get("name", "")
+        if not fnmatch.fnmatch(name, family):
+            continue
+        ver = _parse_deepseek_version(name)
+        if ver is None:
+            continue
+        if best is None or ver > best[0]:
+            best = (ver, name)
+    chosen = best[1] if best is not None else fallback
+    if chosen != fallback:
+        log.info("smol auto-follow: resolved %s (default fallback %s)", chosen, fallback)
+    _resolved_smol_model = chosen
+    return _resolved_smol_model
 
 def extract_entities(
     src: str,
@@ -47,8 +108,8 @@ def extract_entities(
     if model is None or base_url is None:
         import config
 
-        model = model or config.SMOL_MODEL
         base_url = base_url or config.OLLAMA_URL
+        model = model or resolve_smol_model(base_url=base_url)
 
     prompt = format_extract_prompt(
         src=src, tgt=tgt, origin=origin, container_work_id=container_work_id
@@ -120,8 +181,8 @@ def verify_attribution(
     """
     if model is None or base_url is None:
         import config
-        model = model or config.SMOL_MODEL
         base_url = base_url or config.OLLAMA_URL
+        model = model or resolve_smol_model(base_url=base_url)
 
     prompt = _VERIFY_PROMPT_TEMPLATE.format(
         src=src, tgt=tgt, label=concept_label,
@@ -177,8 +238,8 @@ def classify_numbered_block(
     if model is None or base_url is None:
         import config
 
-        model = model or config.SMOL_MODEL
         base_url = base_url or config.OLLAMA_URL
+        model = model or resolve_smol_model(base_url=base_url)
 
     rows = "\n".join(r[:160] for r in sample_rows[:3])
     prompt = (
@@ -241,8 +302,8 @@ def classify_person_names(
     if model is None or base_url is None:
         import config
 
-        model = model or config.SMOL_MODEL
         base_url = base_url or config.OLLAMA_URL
+        model = model or resolve_smol_model(base_url=base_url)
 
     # Deduplicate to avoid asking about the same label twice.
     unique = sorted(set(labels))

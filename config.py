@@ -20,7 +20,16 @@ KG_DB_PATH = BASE_DIR / "data" / "knowledge.db"
 # Live smol entity extraction (editor confirm → Ollama → KG).
 # When the endpoint is unreachable, confirmed segments are simply left for
 # the offline batch pipeline (working.tmx → run_entity_extraction.py).
-SMOL_MODEL = os.environ.get("SMOL_MODEL", "deepseek-v4-flash:cloud")
+#
+# SMOL_MODEL is the fallback tag used when Ollama is unreachable or when the
+# SMOL_MODEL env var is set (an explicit pin). When no SMOL_MODEL env var is
+# set, smol_client.resolve_smol_model() auto-discovers the highest-version
+# tag matching SMOL_MODEL_FAMILY installed in Ollama, so an upstream DeepSeek
+# flash bump (v4 → v4.1 → v5 …) is followed without a code change. To pin a
+# specific tag and opt out of auto-follow, set SMOL_MODEL explicitly.
+SMOL_MODEL = os.environ.get("SMOL_MODEL", "deepseek-v4.1-flash:cloud")
+SMOL_MODEL_FAMILY = os.environ.get("SMOL_MODEL_FAMILY", "deepseek-*-flash:cloud")
+SMOL_MODEL_PINNED = os.environ.get("SMOL_MODEL") is not None
 SMOL_LIVE_EXTRACTION = True
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
 STORAGE_SECRET = os.environ.get("STORAGE_SECRET", "zen-translator-local-storage")
