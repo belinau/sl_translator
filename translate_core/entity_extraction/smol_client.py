@@ -142,8 +142,9 @@ def extract_entities(
             )
             _unavailable_logged = True
         return None
-    _unavailable_logged = False
-    return parse_smol_response(body.get("response", ""))
+    parsed = parse_smol_response(body.get("response", ""))
+    log.warning("EXTRACT_DEBUG model=%s ents=%d", model, len(parsed))
+    return parsed
 
 
 _VERIFY_PROMPT_TEMPLATE = """\

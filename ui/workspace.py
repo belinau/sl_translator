@@ -293,7 +293,6 @@ def page_translate(project_id: str):
                     ),
                 )
                 _needs_kg_save = True
-
             # Live smol entity extraction runs for every segment. Apparatus
             # segments now have a correct ``type`` in ``segments_meta`` so
             # collect_from_editor_segment formats them as citation snippets.
@@ -311,10 +310,17 @@ def page_translate(project_id: str):
                         target_text=seg["target"],
                         lang_pair=f"{src}-{tgt}",
                     )
-                    if snippet is not None:
+                    if snippet is None:
+                        log.warning("CONFIRM_DEBUG snippet=None src=%r", seg["source"][:60])
+                    else:
                         report = await loop.run_in_executor(
                             None,
                             lambda: extract_and_ingest([snippet], kg),
+                        )
+                        log.warning(
+                            "CONFIRM_DEBUG type=%s fmt=%s written=%s queued=%s errors=%s dropped=%s",
+                            seg_type, snippet.format, report.written,
+                            report.queued, report.errors, report.dropped,
                         )
                         if report.written or report.queued:
                             with state.client:
@@ -326,7 +332,11 @@ def page_translate(project_id: str):
                         _needs_kg_save = True
                 except Exception as e:
                     log.warning(f"promote_pair entity extraction: {e}")
-
+            else:
+                log.warning(
+                    "CONFIRM_DEBUG skipped (kg=%s live=%s)",
+                    kg is not None, getattr(config, "SMOL_LIVE_EXTRACTION", False),
+                )
             # Single coalesced save with a generous debounce so the 50MB
             # serialize-and-write doesn't fire while the user is mid-keystroke
             # on the next segment. Multiple confirms within the window collapse
