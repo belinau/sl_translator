@@ -114,6 +114,7 @@ def list_projects() -> list:
                     "pages": pages,
                     "billing_rate": data.get("billing_rate"),
                     "client_id": data.get("client_id"),
+                    "billing_unit": data.get("billing_unit", "stran"),
                     "responsible_person": data.get("responsible_person", ""),
                 }
             )
@@ -141,11 +142,28 @@ def save_project(ws: dict):
     # `if ws.get(k)` guard silently dropped segments_meta when it was an
     # empty list, losing role classification on round-trip. Per-segment
     # manifest keys (pdf_para_idx, heading_level, …) ride inside `segments`.
-    for k in ("pipeline", "project_type", "segments_meta", "house_style",
-              "billing_rate", "client_id", "responsible_person"):
+    for k in ("pipeline", "project_type", "segments_meta", "house_style"):
         if k in ws:
             data[k] = ws[k]
     path = PROJECTS_DIR / f"{ws['project_id']}.json"
+
+    # Billing fields (client_id, responsible_person, billing_rate,
+    # billing_unit) are patched onto the project JSON from the overview
+    # cards and are NOT part of the workspace autosave payload
+    # (WorkspaceState._save_after_delay). Carry them over from the
+    # existing file so a workspace autosave never wipes the client and
+    # responsible person the user selected — explicit keys in ws win.
+    billing_keys = ("billing_rate", "client_id", "responsible_person", "billing_unit")
+    for k in billing_keys:
+        if k in ws:
+            data[k] = ws[k]
+    try:
+        existing = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except Exception:
+        existing = {}
+    for k in billing_keys:
+        if k not in data and k in existing:
+            data[k] = existing[k]
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
@@ -177,8 +195,8 @@ def delete_project(project_id: str):
             p.unlink()
 
 def _save_billing_fields(project_id: str, fields: dict) -> None:
-    """Patch billing fields (client_id, responsible_person, billing_rate)
-    into a project JSON without rewriting segments."""
+    """Patch billing fields (client_id, responsible_person, billing_rate,
+    billing_unit) into a project JSON without rewriting segments."""
     validate_project_id(project_id)
     path = PROJECTS_DIR / f"{project_id}.json"
     if not path.exists():
@@ -190,6 +208,34 @@ def _save_billing_fields(project_id: str, fields: dict) -> None:
         path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception:
         pass
+
+
+# ---------------------------------------------------------------------------
+# Billing units — which charging unit a project card is billed in.
+# "stran" (1500 chars without spaces) is the default for every client;
+# "znak" (per character) and "avtorska pola" (30.000 chars with spaces)
+# only appear on cards when the client actually has rates for them.
+# ---------------------------------------------------------------------------
+ALTERNATE_BILLING_UNITS = ("znak", "avtorska pola")
+
+
+def _available_billing_units(rec, lang_pair: str) -> list[str]:
+    """Units selectable on a project card for *lang_pair*.
+
+    Always includes "stran"; an alternate unit joins only when the client
+    has a rate for it (get_rate falls back service→default keys, so a
+    "default:znak" rate counts too). No client → per-page only, so most
+    cards never show a toggle.
+    """
+    units = ["stran"]
+    if rec is None:
+        return units
+    for unit in ALTERNATE_BILLING_UNITS:
+        if rec.get_rate("Prevod", lang_pair, unit) is not None:
+            units.append(unit)
+    return units
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -474,7 +520,12 @@ def render_project_list(container: ui.column, client):
                 )
 
         def _get_selected_projects() -> list:
-            """Collect billing dicts for all checked projects, with client rate lookup."""
+            """Collect billing dicts for all checked projects, with client rate lookup.
+
+            "rate" is the client's rate for the project's billing_unit (znak,
+            avtorska pola or stran) so the billing report and the invoice
+            dialog both price each project in the unit chosen on its card.
+            """
             from translate_core.client_store import ClientStore
             _cs = ClientStore()
             out = []
@@ -482,11 +533,12 @@ def render_project_list(container: ui.column, client):
                 if st.get("_checked"):
                     p = st["project"]
                     cid = p.get("client_id")
+                    unit = p.get("billing_unit") or "stran"
                     rate = 0.0
                     if cid:
                         rec = _cs.get_client(cid)
                         if rec:
-                            _r = rec.get_rate("Prevod", p["lang_pair"], "stran")
+                            _r = rec.get_rate("Prevod", p["lang_pair"], unit)
                             if _r is not None:
                                 rate = float(_r)
                     out.append({
@@ -497,6 +549,7 @@ def render_project_list(container: ui.column, client):
                         "chars_without": p["chars_without"],
                         "pages": p["pages"],
                         "rate": rate,
+                        "billing_unit": p.get("billing_unit") or "stran",
                         "client_id": cid,
                         "responsible_person": p.get("responsible_person", ""),
                     })
@@ -651,18 +704,28 @@ def render_project_list(container: ui.column, client):
                                 return o
                         return opts[0]
 
+                    def _apply_unit_input_formats(lw):
+                        """Re-fit qty/price input precision to the row's charging
+                        unit — znak prices and avtorska-pola quantities carry
+                        four decimals. Must run BEFORE values are (re)set:
+                        NiceGUI Number pushes every assignment (and blur)
+                        through `format`, so a %.2f price field silently
+                        truncates 0.012 → 0.01."""
+                        unit = lw["unit"].value or "stran"
+                        lw["qty"].format = cfg.unit_qty_format(unit)
+                        lw["price"].format = cfg.unit_price_format(unit)
+                        lw["price"].props(f"step={cfg.unit_price_step(unit)}")
+                        lw["qty"].update()
+                        lw["price"].update()
+
                     def _recalc_qty(lw):
                         unit = lw["unit"].value or "stran"
-                        cw = lw["chars_with"]
-                        cwo = lw["chars_without"]
                         if unit == "pavšal":
                             lw["qty"].value = 1.0
-                        elif unit == "stran":
-                            lw["qty"].value = round(cwo / 1500, 2)
-                        elif unit == "znak":
-                            lw["qty"].value = float(cwo)
-                        elif unit == "avtorska pola":
-                            lw["qty"].value = round(cw / cfg.AUTHORIAL_SHEET_CHARS, 4)
+                        else:
+                            lw["qty"].value = config.unit_quantity(
+                                unit, lw["chars_with"], lw["chars_without"]
+                            )
 
                     def _upd_line(e, lw):
                         q = float(lw["qty"].value or 0)
@@ -672,6 +735,7 @@ def render_project_list(container: ui.column, client):
 
                     def _refill_rate(lw):
                         rec = _current_rec[0]
+                        _apply_unit_input_formats(lw)
                         _recalc_qty(lw)
                         if rec:
                             rate = rec.get_rate(
@@ -689,9 +753,14 @@ def render_project_list(container: ui.column, client):
                             with ui.row().classes("w-full gap-1 items-center") as row_el:
                                 _svcw = ui.select(cfg.INVOICE_SERVICE_TYPES, value="Prevod").props("outlined dense").classes("flex-[2] text-[10px]")
                                 _pairw = ui.select(cfg.INVOICE_LANG_PAIRS, value=_pair_code(proj["lang_pair"]) if proj else "ENG>SLO").props("outlined dense").classes("flex-[2] text-[10px]")
-                                _unitw = ui.select(cfg.INVOICE_UNITS, value="stran").props("outlined dense").classes("w-28 text-[10px]")
-                                _qtyw = ui.number(value=round(proj["pages"], 2) if proj else 1.0, min=0, step=0.01, format="%.2f").props("outlined dense").classes("w-20 text-[10px]")
-                                _pricew = ui.number(value=0, min=0, step=0.5, format="%.2f").props("outlined dense").classes("w-20 text-[10px]")
+                                # Unit chosen on the project card's toggle; only
+                                # values the dropdown actually offers are kept.
+                                _unit_val = (proj or {}).get("billing_unit") or "stran"
+                                if _unit_val not in cfg.INVOICE_UNITS:
+                                    _unit_val = "stran"
+                                _unitw = ui.select(cfg.INVOICE_UNITS, value=_unit_val).props("outlined dense").classes("w-28 text-[10px]")
+                                _qtyw = ui.number(value=1.0, min=0, step=0.01, format=cfg.unit_qty_format(_unit_val)).props("outlined dense").classes("w-20 text-[10px]")
+                                _pricew = ui.number(value=0, min=0, step=cfg.unit_price_step(_unit_val), format=cfg.unit_price_format(_unit_val)).props("outlined dense").classes("w-20 text-[10px]")
                                 _desc_val = proj["filename"] if proj else ""
                                 # Person is NOT appended here — full_description
                                 # property on InvoiceLineItem handles that.
@@ -721,6 +790,8 @@ def render_project_list(container: ui.column, client):
                                 _svcw.on_value_change(_rf)
                                 _pairw.on_value_change(_rf)
                                 _unitw.on_value_change(_rf)
+                                if proj:
+                                    _recalc_qty(lw)
                         return lw
 
                     for proj in sel:
@@ -1178,6 +1249,7 @@ def render_project_list(container: ui.column, client):
                             _inv_num = None
                             _inv_rate = None
                             _inv_total = None
+                            _inv_unit = None
                             try:
                                 _inv_store = ClientStore()
                                 _all_invs = _inv_store.list_invoices()
@@ -1187,6 +1259,7 @@ def render_project_list(container: ui.column, client):
                                             _inv_num = _inv["invoice_number"]
                                             _inv_rate = float(_li.get("price", "0"))
                                             _inv_total = float(Decimal(str(_li.get("qty", "0"))) * Decimal(str(_li.get("price", "0"))))
+                                            _inv_unit = _li.get("unit") or "stran"
                                             break
                                     if _inv_num:
                                         break
@@ -1196,7 +1269,8 @@ def render_project_list(container: ui.column, client):
                             with ui.row().classes("items-center gap-1"):
                                 if _inv_num:
                                     ui.badge(_inv_num, color="positive").classes("text-[7px]").tooltip(
-                                        f"Invoiced — rate locked at {_inv_rate or 0:.2f} EUR/stran, total {_inv_total or 0:.2f} EUR"
+                                        f"Invoiced — rate locked at {_inv_rate or 0:,.{config.unit_price_decimals(_inv_unit or 'stran')}f} "
+                                        f"EUR/{config.unit_short_label(_inv_unit or 'stran')}, total {_inv_total or 0:,.2f} EUR"
                                     )
                                 _cb = ui.checkbox("Select", value=False).props(
                                     "dense size=sm"
@@ -1250,133 +1324,222 @@ def render_project_list(container: ui.column, client):
                                 "flat round dense size=sm color=primary"
                             ).tooltip("Add new responsible person for this project")
 
-                            def _persist_billing(_pid, **fields):
-                                _save_billing_fields(_pid, fields)
-
-                            def _on_card_client_change(e, _pid=_pid, _p=p, _csel=_client_sel, _psel=_person_sel, _store=_client_store):
-                                _cid = _csel.value
-                                rec = _store.get_client(_cid) if _cid else None
-                                _persons_opts = {}
-                                if rec:
-                                    _persons_opts = {pp["name"]: pp["name"] for pp in rec.responsible_persons}
-                                # Preserve a previously-saved person even if not in client list
-                                _saved = _p.get("responsible_person") or ""
-                                if _saved and _saved not in _persons_opts:
-                                    _persons_opts[_saved] = _saved
-                                _psel.set_options(
-                                    _persons_opts,
-                                    value=_saved or (
-                                        next(iter(_persons_opts.values()), None)
-                                    ),
-                                )
-                                _persist_billing(_pid, client_id=_cid)
-
-                            def _on_card_person_change(e, _pid=_pid, _psel=_person_sel):
-                                _persist_billing(_pid, responsible_person=e.value or "")
-
-                            def _on_add_person(_pid=_pid, _csel=_client_sel, _psel=_person_sel, _store=_client_store):
-                                """Add a new responsible person to the selected client.
-
-                                Captured by value (default args) to avoid the Python
-                                closure-in-loop bug where all closures would share
-                                the last iteration's _client_sel.
-                                """
-                                _cid = _csel.value
-                                if not _cid:
-                                    ui.notify("Select a client first.", type="warning")
-                                    return
-                                _rec = _store.get_client(_cid)
-                                if not _rec:
-                                    return
-
-                                with ui.dialog() as p_dlg:
-                                    with ui.card().classes("min-w-[360px] p-4 gap-3"):
-                                        ui.label(f"Add person to {_rec.name}").classes("text-sm font-bold")
-                                        _pn = ui.input("Name").props("outlined dense").classes("w-full")
-                                        _pr = ui.input("Role (optional)").props("outlined dense").classes("w-full")
-                                        with ui.row().classes("w-full justify-end gap-2"):
-                                            ui.button("Cancel", on_click=lambda: p_dlg.close()).props("flat")
-
-                                            def _save_person():
-                                                name = _pn.value.strip()
-                                                if not name:
-                                                    ui.notify("Name is required.", type="warning")
-                                                    return
-                                                role = _pr.value.strip()
-                                                # 1. Add to client's person list (persists, reusable)
-                                                existing = list(_rec.responsible_persons)
-                                                if not any(p["name"] == name for p in existing):
-                                                    existing.append({"name": name, "role": role})
-                                                    # Rebuild data dict from current record + new person
-                                                    _client_data = {
-                                                        "name": _rec.name,
-                                                        "address": _rec.address,
-                                                        "postal_code": _rec.postal_code,
-                                                        "city": _rec.city,
-                                                        "country": _rec.country,
-                                                        "country_code": _rec.country_code,
-                                                        "vat_id": _rec.vat_id,
-                                                        "vat_obliged": _rec.vat_obliged,
-                                                        "iban": _rec.iban,
-                                                        "bic": _rec.bic,
-                                                        "bank_name": _rec.bank_name,
-                                                        "maticna": _rec.maticna,
-                                                        "account_holder": _rec.account_holder,
-                                                        "default_order_number": _rec.default_order_number,
-                                                        "default_project_code": _rec.default_project_code,
-                                                        "default_doc_type": _rec.default_doc_type,
-                                                        "default_doc_ref": _rec.default_doc_ref,
-                                                        "use_eracun": _rec.use_eracun,
-                                                        "rates": {k: str(v) for k, v in _rec.rates.items()},
-                                                        "responsible_persons": existing,
-                                                    }
-                                                    _store.update_client(_cid, _client_data)
-                                                # 2. Update the dropdown to show all client persons + select new one
-                                                all_persons = {p["name"]: p["name"] for p in existing}
-                                                _psel.set_options(all_persons, value=name)
-                                                # 3. Persist to this project
-                                                _persist_billing(_pid, responsible_person=name)
-                                                p_dlg.close()
-                                                ui.notify(f"Added {name} to {_rec.name} and selected for this project", type="positive")
-
-                                            ui.button("Add", icon="add", on_click=_save_person).props(
-                                                "unelevated color=positive"
-                                            )
-                                p_dlg.open()
-
-                            _client_sel.on_value_change(_on_card_client_change)
-                            _person_sel.on_value_change(_on_card_person_change)
-                            _add_person_btn.on("click", lambda _, fn=_on_add_person: fn())
-
-                            # Populate persons: always include the project's saved
-                            # responsible_person (even if no client, or the person was
-                            # added on-the-fly and isn't in the client's list).
-                            _saved_person = p.get("responsible_person") or ""
-                            _card_rec = _client_store.get_client(p["client_id"]) if p.get("client_id") else None
-                            _persons = {}
-                            if _card_rec:
-                                _persons = {pp["name"]: pp["name"] for pp in _card_rec.responsible_persons}
-                            if _saved_person and _saved_person not in _persons:
-                                _persons[_saved_person] = _saved_person
-                            if _persons:
-                                _person_sel.set_options(_persons, value=_saved_person or None)
-                            # Use invoiced rate if project was already invoiced (rate lock)
-                            if _inv_num and _inv_rate is not None:
-                                _rate = _inv_rate
-                                _total = _inv_total if _inv_total else round(p["pages"] * float(_rate), 2)
-                                _rate_label = "total (invoiced)"
-                            else:
-                                _rate = _card_rec.get_rate("Prevod", p["lang_pair"], "stran") if _card_rec else None
-                                _total = round(p["pages"] * float(_rate), 2) if _rate is not None else 0.0
-                                _rate_label = "total (client rate)"
-
-                        with ui.row().classes("w-full items-baseline justify-between"):
-                            ui.label(_rate_label).classes(
+                        # ── Billing unit ──
+                        # Toggle appears only when the client actually has
+                        # znak / avtorska-pola rates — per-page clients never
+                        # see it. Options are rebuilt on client change.
+                        with ui.row().classes("w-full items-center gap-1") as _unit_row:
+                            ui.label("unit").classes(
                                 "text-[8px] uppercase tracking-wider opacity-50"
                             )
-                            ui.label(f"{_total:,.2f} EUR").classes(
+                            _unit_sel = ui.toggle(
+                                {"stran": "stran"}, value="stran",
+                            ).props("dense no-caps").classes("text-[9px]").tooltip(
+                                "Charging unit — stran: 1500 chars w/o spaces · "
+                                "znak: all chars incl. spaces · "
+                                "avt. pola: 30,000 chars incl. spaces"
+                            )
+
+                        # ── Live rate + total (recomputed on client/unit change) ──
+                        with ui.row().classes("w-full items-baseline justify-between"):
+                            ui.label("rate").classes(
+                                "text-[8px] uppercase tracking-wider opacity-50"
+                            )
+                            _rate_val_el = ui.label("—").classes(
+                                "text-[10px] font-bold tabular-nums opacity-80"
+                            )
+                        with ui.row().classes("w-full items-baseline justify-between"):
+                            _total_cap_el = ui.label("total (client rate)").classes(
+                                "text-[8px] uppercase tracking-wider opacity-50"
+                            )
+                            _total_val_el = ui.label("0,00 EUR").classes(
                                 "text-base font-black tabular-nums text-positive"
                             )
+
+                        _unit_state = {"unit": p.get("billing_unit") or "stran"}
+
+                        def _persist_billing(_pid, **fields):
+                            _save_billing_fields(_pid, fields)
+
+                        def _refresh_card_billing(_p=p, _store=_client_store,
+                                                  _csel=_client_sel, _usel=_unit_sel,
+                                                  _urow=_unit_row, _rv=_rate_val_el,
+                                                  _tv=_total_val_el, _tc=_total_cap_el,
+                                                  _ust=_unit_state, _pid=_pid,
+                                                  _inv_n=_inv_num, _inv_r=_inv_rate,
+                                                  _inv_t=_inv_total, _inv_u=_inv_unit,
+                                                  persist_unit=False):
+                            """Recompute unit options + rate + total for the
+                            currently selected client. All per-iteration
+                            widgets are captured by value (default args) —
+                            the loop rebinds these names for every card.
+
+                            persist_unit: on user-interaction paths, write an
+                            effective-unit fallback (stran after switching to
+                            a client without the current unit's rates) to
+                            the project JSON.
+                            """
+                            _cid = _csel.value
+                            rec = _store.get_client(_cid) if _cid else None
+                            units = _available_billing_units(rec, _p["lang_pair"])
+                            unit = _ust["unit"] if _ust["unit"] in units else "stran"
+                            if persist_unit and unit != _ust["unit"]:
+                                _ust["unit"] = unit
+                                _p["billing_unit"] = unit
+                                _persist_billing(_pid, billing_unit=unit)
+                            _usel.set_options(
+                                {u: config.unit_short_label(u) for u in units}, value=unit
+                            )
+                            _urow.set_visibility(len(units) > 1 and not _inv_n)
+                            if _inv_n and _inv_r is not None:
+                                # Rate lock: show what was actually invoiced.
+                                _tc.set_text("total (invoiced)")
+                                _dec = config.unit_price_decimals(_inv_u or "stran")
+                                _rv.set_text(
+                                    f"{_inv_r:,.{_dec}f} EUR/{config.unit_short_label(_inv_u or 'stran')}"
+                                )
+                                _tot = _inv_t if _inv_t else round(_p["pages"] * _inv_r, 2)
+                                _tv.set_text(f"{_tot:,.2f} EUR")
+                                return
+                            rate = rec.get_rate("Prevod", _p["lang_pair"], unit) if rec else None
+                            if rate is None:
+                                _rv.set_text("—")
+                                _tv.set_text("0,00 EUR")
+                            else:
+                                _dec = config.unit_price_decimals(unit)
+                                _rv.set_text(
+                                    f"{float(rate):,.{_dec}f} EUR/{config.unit_short_label(unit)}"
+                                )
+                                _qty = config.unit_quantity(
+                                    unit, _p["chars_with"], _p["chars_without"]
+                                )
+                                _tv.set_text(f"{_qty * float(rate):,.2f} EUR")
+                            _tc.set_text("total (client rate)")
+
+                        def _on_card_client_change(e, _pid=_pid, _p=p, _csel=_client_sel,
+                                                   _psel=_person_sel, _store=_client_store,
+                                                   _refresh=_refresh_card_billing):
+                            _cid = _csel.value
+                            rec = _store.get_client(_cid) if _cid else None
+                            _persons_opts = {}
+                            if rec:
+                                _persons_opts = {pp["name"]: pp["name"] for pp in rec.responsible_persons}
+                            # Preserve a previously-saved person even if not in client list
+                            _saved = _p.get("responsible_person") or ""
+                            if _saved and _saved not in _persons_opts:
+                                _persons_opts[_saved] = _saved
+                            _psel.set_options(
+                                _persons_opts,
+                                value=_saved or (
+                                    next(iter(_persons_opts.values()), None)
+                                ),
+                            )
+                            _persist_billing(_pid, client_id=_cid)
+                            _refresh(persist_unit=True)
+
+                        def _on_card_unit_change(e, _pid=_pid, _p=p, _ust=_unit_state,
+                                                 _refresh=_refresh_card_billing):
+                            unit = e.value or "stran"
+                            _ust["unit"] = unit
+                            # Keep the in-memory project dict live for
+                            # _get_selected_projects and persist to disk.
+                            _p["billing_unit"] = unit
+                            _persist_billing(_pid, billing_unit=unit)
+                            _refresh()
+
+                        def _on_card_person_change(e, _pid=_pid, _psel=_person_sel):
+                            _persist_billing(_pid, responsible_person=e.value or "")
+
+                        def _on_add_person(_pid=_pid, _csel=_client_sel, _psel=_person_sel, _store=_client_store):
+                            """Add a new responsible person to the selected client.
+
+                            Captured by value (default args) to avoid the Python
+                            closure-in-loop bug where all closures would share
+                            the last iteration's _client_sel.
+                            """
+                            _cid = _csel.value
+                            if not _cid:
+                                ui.notify("Select a client first.", type="warning")
+                                return
+                            _rec = _store.get_client(_cid)
+                            if not _rec:
+                                return
+
+                            with ui.dialog() as p_dlg:
+                                with ui.card().classes("min-w-[360px] p-4 gap-3"):
+                                    ui.label(f"Add person to {_rec.name}").classes("text-sm font-bold")
+                                    _pn = ui.input("Name").props("outlined dense").classes("w-full")
+                                    _pr = ui.input("Role (optional)").props("outlined dense").classes("w-full")
+                                    with ui.row().classes("w-full justify-end gap-2"):
+                                        ui.button("Cancel", on_click=lambda: p_dlg.close()).props("flat")
+
+                                        def _save_person():
+                                            name = _pn.value.strip()
+                                            if not name:
+                                                ui.notify("Name is required.", type="warning")
+                                                return
+                                            role = _pr.value.strip()
+                                            # 1. Add to client's person list (persists, reusable)
+                                            existing = list(_rec.responsible_persons)
+                                            if not any(pp["name"] == name for pp in existing):
+                                                existing.append({"name": name, "role": role})
+                                                # Rebuild data dict from current record + new person
+                                                _client_data = {
+                                                    "name": _rec.name,
+                                                    "address": _rec.address,
+                                                    "postal_code": _rec.postal_code,
+                                                    "city": _rec.city,
+                                                    "country": _rec.country,
+                                                    "country_code": _rec.country_code,
+                                                    "vat_id": _rec.vat_id,
+                                                    "vat_obliged": _rec.vat_obliged,
+                                                    "iban": _rec.iban,
+                                                    "bic": _rec.bic,
+                                                    "bank_name": _rec.bank_name,
+                                                    "maticna": _rec.maticna,
+                                                    "account_holder": _rec.account_holder,
+                                                    "default_order_number": _rec.default_order_number,
+                                                    "default_project_code": _rec.default_project_code,
+                                                    "default_doc_type": _rec.default_doc_type,
+                                                    "default_doc_ref": _rec.default_doc_ref,
+                                                    "use_eracun": _rec.use_eracun,
+                                                    "rates": {k: str(v) for k, v in _rec.rates.items()},
+                                                    "responsible_persons": existing,
+                                                }
+                                                _store.update_client(_cid, _client_data)
+                                            # 2. Update the dropdown to show all client persons + select new one
+                                            all_persons = {pp["name"]: pp["name"] for pp in existing}
+                                            _psel.set_options(all_persons, value=name)
+                                            # 3. Persist to this project
+                                            _persist_billing(_pid, responsible_person=name)
+                                            p_dlg.close()
+                                            ui.notify(f"Added {name} to {_rec.name} and selected for this project", type="positive")
+
+                                        ui.button("Add", icon="add", on_click=_save_person).props(
+                                            "unelevated color=positive"
+                                        )
+                            p_dlg.open()
+
+                        _client_sel.on_value_change(_on_card_client_change)
+                        _person_sel.on_value_change(_on_card_person_change)
+                        _unit_sel.on_value_change(_on_card_unit_change)
+                        _add_person_btn.on("click", lambda _, fn=_on_add_person: fn())
+
+                        # Populate persons: always include the project's saved
+                        # responsible_person (even if no client, or the person was
+                        # added on-the-fly and isn't in the client's list).
+                        _saved_person = p.get("responsible_person") or ""
+                        _card_rec = _client_store.get_client(p["client_id"]) if p.get("client_id") else None
+                        _persons = {}
+                        if _card_rec:
+                            _persons = {pp["name"]: pp["name"] for pp in _card_rec.responsible_persons}
+                        if _saved_person and _saved_person not in _persons:
+                            _persons[_saved_person] = _saved_person
+                        if _persons:
+                            _person_sel.set_options(_persons, value=_saved_person or None)
+
+                        # Initial unit options + rate/total for the saved client.
+                        _refresh_card_billing()
 
 
 
@@ -1892,12 +2055,17 @@ def page_clients():
                                                     _rk = _cfg.rate_key(svc, tgt, unit)
                                                     has = rec and _rk in rec.rates
                                                     _rv = float(rec.rates.get(_rk, 0)) if has else None
+                                                    # Per-unit precision: znak
+                                                    # (per-character) rates
+                                                    # carry four decimals —
+                                                    # a %.2f field would round
+                                                    # 0.012 down to 0.01 on blur.
                                                     _inp = ui.number(
                                                         label=unit,
                                                         value=_rv,
                                                         min=0,
-                                                        step=0.5,
-                                                        format="%.2f",
+                                                        step=_cfg.unit_price_step(unit),
+                                                        format=_cfg.unit_price_format(unit),
                                                     ).props("outlined dense").classes("w-24 text-[9px]")
                                                     _rate_inputs[_rk] = _inp
                                                     if has:
@@ -2344,16 +2512,21 @@ def page_invoices():
                         def _e_make_row(li: dict | None = None):
                             with _e_container:
                                 with ui.row().classes("w-full gap-1 items-center") as row_el:
+                                    _u_val = (li or {}).get("unit", "stran")
+                                    if _u_val not in cfg.INVOICE_UNITS:
+                                        _u_val = "stran"
                                     _s = ui.select(cfg.INVOICE_SERVICE_TYPES,
                                         value=(li or {}).get("service_type", "Prevod")).props("outlined dense").classes("flex-[2] text-[10px]")
                                     _p = ui.select(cfg.INVOICE_LANG_PAIRS,
                                         value=(li or {}).get("lang_pair", "ENG>SLO")).props("outlined dense").classes("flex-[2] text-[10px]")
                                     _u = ui.select(cfg.INVOICE_UNITS,
-                                        value=(li or {}).get("unit", "stran")).props("outlined dense").classes("w-28 text-[10px]")
+                                        value=_u_val).props("outlined dense").classes("w-28 text-[10px]")
+                                    # Qty/price precision follows the line's unit
+                                    # (znak price 0.0120; avtorska-pola qty 1.2345).
                                     _q = ui.number(value=float(Decimal(str((li or {}).get("qty", "1")))),
-                                        min=0, step=0.01, format="%.2f").props("outlined dense").classes("w-20 text-[10px]")
+                                        min=0, step=0.01, format=cfg.unit_qty_format(_u_val)).props("outlined dense").classes("w-20 text-[10px]")
                                     _pr = ui.number(value=float(Decimal(str((li or {}).get("price", "0")))),
-                                        min=0, step=0.01, format="%.4f").props("outlined dense").classes("w-20 text-[10px]")
+                                        min=0, step=cfg.unit_price_step(_u_val), format=cfg.unit_price_format(_u_val)).props("outlined dense").classes("w-20 text-[10px]")
                                     _d = ui.input(value=(li or {}).get("desc", "")).props("outlined dense").classes("flex-[3] text-[10px]")
                                     _rm = ui.button(icon="delete").props("flat round dense size=sm color=negative")
                                     _tl = ui.label("0,00 EUR").classes("text-[10px] font-bold tabular-nums text-positive w-16 text-right")
@@ -2363,6 +2536,16 @@ def page_invoices():
                                           "__rem": _rm, "__row": row_el}
                                     _q.on_value_change(lambda e, l=lw: _e_upd_line(l))
                                     _pr.on_value_change(lambda e, l=lw: _e_upd_line(l))
+
+                                    def _e_unit_changed(e, l=lw):
+                                        """Unit switch: re-fit input precision, then
+                                        refresh the row total with the new format."""
+                                        l["qty"].format = cfg.unit_qty_format(l["unit"].value or "stran")
+                                        l["price"].format = cfg.unit_price_format(l["unit"].value or "stran")
+                                        l["qty"].update()
+                                        l["price"].update()
+                                        _e_upd_line(l)
+                                    _u.on_value_change(lambda e, l=lw: _e_unit_changed(e, l))
 
                                     def _del(l=lw):
                                         if l in _e_lines:

@@ -191,8 +191,10 @@ def generate_plain_invoice_xlsx(data: InvoiceData) -> bytes:
         ws.cell(row=row, column=2, value=item.unit).font = _body_font
         ws.cell(row=row, column=2).border = _thin_border
         ws.cell(row=row, column=2).alignment = _center
-        _qty_str = f"{float(item.quantity):.2f}".replace(".", ",")
-        _price_str = f"{float(item.unit_price):.4f}".replace(".", ",") if item.unit in ("znak", "avtorska pola") else f"{float(item.unit_price):.2f}".replace(".", ",")
+        # Per-unit precision (config): znak prices carry 4 decimals,
+        # avtorska-pola quantities carry 4 decimals; others 2.
+        _qty_str = f"{float(item.quantity):.{config.unit_qty_decimals(item.unit)}f}".replace(".", ",")
+        _price_str = f"{float(item.unit_price):.{config.unit_price_decimals(item.unit)}f}".replace(".", ",")
         _total_str = f"{float(item.line_total):.2f}".replace(".", ",") + " EUR"
         ws.cell(row=row, column=3, value=_qty_str).font = _body_font
         ws.cell(row=row, column=3).border = _thin_border

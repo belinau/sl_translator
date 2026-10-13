@@ -150,11 +150,65 @@ INVOICE_SERVICE_TYPES = [
 INVOICE_TARGET_LANGS = ["SLO", "ENG", "HRV", "SRB", "DE", "FR", "IT"]
 
 # Unit dropdown (B21 in XLSX template).
-# "avtorska pola" = 16 strani × 1800 znakov s presledki = 28.800 znakov.
+# "avtorska pola" = 30.000 znakov s presledki (chars with spaces).
 INVOICE_UNITS = [
     "pavšal", "ura", "stran", "beseda", "projekt", "kos", "verz", "znak",
     "avtorska pola",
 ]
+
+# Per-unit numeric precision for billing inputs and displays.
+# "znak" prices carry four decimals (e.g. 0.0120 EUR/character);
+# "avtorska pola" quantities carry four decimals (e.g. 1.2345 sheets).
+UNIT_PRICE_DECIMALS = {"znak": 4}
+UNIT_QTY_DECIMALS = {"avtorska pola": 4}
+DEFAULT_UNIT_DECIMALS = 2
+UNIT_PRICE_STEPS = {"znak": 0.001}
+DEFAULT_PRICE_STEP = 0.5
+
+
+def unit_price_decimals(unit: str) -> int:
+    """Decimal places a per-unit price carries (4 for znak, else 2)."""
+    return UNIT_PRICE_DECIMALS.get(unit, DEFAULT_UNIT_DECIMALS)
+
+
+def unit_price_format(unit: str) -> str:
+    """Printf format for a per-unit price input."""
+    return f"%.{unit_price_decimals(unit)}f"
+
+
+def unit_price_step(unit: str) -> float:
+    """Spinner step for a per-unit price input."""
+    return UNIT_PRICE_STEPS.get(unit, DEFAULT_PRICE_STEP)
+
+
+def unit_qty_decimals(unit: str) -> int:
+    """Decimal places a quantity carries (4 for avtorska pola, else 2)."""
+    return UNIT_QTY_DECIMALS.get(unit, DEFAULT_UNIT_DECIMALS)
+
+
+def unit_qty_format(unit: str) -> str:
+    """Printf format for a quantity input."""
+    return f"%.{unit_qty_decimals(unit)}f"
+
+
+def unit_quantity(unit: str, chars_with: int, chars_without: int) -> float:
+    """Billable quantity for *unit* from target-text character counts.
+
+    stran = 1500 chars without spaces; znak = ALL chars including spaces
+    (per-character rates are charged on the full character count);
+    avtorska pola = 30.000 chars with spaces. Shared by the project
+    cards, the invoice dialogs and the billing report.
+    """
+    if unit == "znak":
+        return float(chars_with)
+    if unit == "avtorska pola":
+        return round(chars_with / AUTHORIAL_SHEET_CHARS, 4)
+    return round(chars_without / 1500, 2)
+
+
+def unit_short_label(unit: str) -> str:
+    """Short display label for a billing unit ("avt. pola" etc.)."""
+    return {"avtorska pola": "avt. pola"}.get(unit, unit)
 
 # Rate key: "{service_type}:{target_lang}:{unit}".
 # e.g. "Prevod:SLO:stran" = 22 EUR/page for translation into Slovenian.
@@ -204,8 +258,8 @@ INVOICE_LANG_PAIRS = [
     "HRV>ENG",
 ]
 
-# Avtorska pola: 16 strani × 1800 znakov s presledki = 28.800 znakov.
-AUTHORIAL_SHEET_CHARS = 28800
+# Avtorska pola: 30.000 znakov s presledki (characters WITH spaces).
+AUTHORIAL_SHEET_CHARS = 30000
 
 # eSLOG unit-of-measure codes (D_6411 in QTY segment).
 ESLOG_UNIT_CODES = {

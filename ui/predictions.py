@@ -144,12 +144,10 @@ _RUNTIME_JS = r"""
       const prefix = wm[0], prefixLow = prefix.toLowerCase();
       const match = P._findMatch(prefixLow, prefix.length);
       if (match) {
+        // Full multi-word remainder — no 2-word cap. The ghost may be
+        // long; acceptAll (Cmd+Shift+E) inserts the whole suggestion,
+        // acceptWord (Cmd+E) inserts just the leading word.
         let rem = match.slice(prefix.length);
-        const words = rem.split(SPLIT_RE).filter(Boolean);
-        if (words.length > 2) {
-          const lead = rem.match(/^\s*/)[0];
-          rem = lead + words.slice(0, 2).join(' ');
-        }
         suggestion = rem;
       }
     } else {
@@ -161,7 +159,8 @@ _RUNTIME_JS = r"""
           if ((phrase[i] || '').toLowerCase() !== typed[i].toLowerCase()) { ok = false; break; }
         }
         if (ok) {
-          const next = phrase.slice(typed.length, typed.length + 2).join(' ');
+          // All remaining words in the phrase, not just the next 2.
+          const next = phrase.slice(typed.length).join(' ');
           if (next) { suggestion = (before.endsWith(' ') ? '' : ' ') + next; break; }
         }
       }

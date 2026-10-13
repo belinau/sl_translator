@@ -311,6 +311,33 @@ class ClientStore:
         finally:
             conn.close()
 
+    def update_client_rates(self, cid: str, rates: dict[str, Any]) -> bool:
+        """Merge *rates* into the client's rate map.
+
+        Existing keys named in *rates* are overwritten; all other client
+        fields (and rates) stay untouched. Values are coerced to ``str`` so
+        four-decimal prices like "0.012" survive exactly — never via float.
+        """
+        rec = self.get_client(cid)
+        if rec is None:
+            return False
+        merged = {k: str(v) for k, v in rec.rates.items()}
+        merged.update({k: str(v) for k, v in rates.items()})
+        conn = self._connect()
+        try:
+            cur = conn.execute(
+                "UPDATE clients SET rates = ?, updated_at = ? WHERE id = ?",
+                (
+                    json.dumps(merged, ensure_ascii=False),
+                    datetime.now().isoformat(timespec="seconds"),
+                    cid,
+                ),
+            )
+            conn.commit()
+            return cur.rowcount > 0
+        finally:
+            conn.close()
+
     def delete_client(self, cid: str) -> bool:
         conn = self._connect()
         try:

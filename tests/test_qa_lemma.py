@@ -395,6 +395,34 @@ class TestDeclensionFallback:
         )
         assert [w for w in warnings if "Glossary" in w["message"]] == []
 
+    def test_stem_overlap_catches_mislemmatised_adjective(self):
+        """When the lemmatiser returns the surface form (no NLP or
+        mis-lemmatisation), generate_forms applies the wrong paradigm
+        to inflected adjectives (knjižno → neuter noun, not adjective).
+        The stem-overlap fallback catches this by matching the shared
+        stem prefix (knjižno / knjižnih → 'knj')."""
+        hits = [_entry("literary work", "knjižno delo")]
+        mock = self._make_lemmatize()  # returns surface forms — no NLP
+        with patch("translate_core.qa._lemmatize", mock):
+            warnings = self.engine.check_segment(
+                "The literary work is known.", "V knjižnih delih je znanje.",
+                hits, src_lang="en", tgt_lang="sl",
+            )
+        assert [w for w in warnings if "Glossary" in w["message"]] == []
+
+    def test_stem_overlap_does_not_false_match(self):
+        """Unrelated words sharing a short prefix must not match."""
+        hits = [_entry("author", "avtor")]
+        mock = self._make_lemmatize()
+        with patch("translate_core.qa._lemmatize", mock):
+            warnings = self.engine.check_segment(
+                "The author wrote.", "Pisatelj je napisal.",
+                hits, src_lang="en", tgt_lang="sl",
+            )
+        gw = [w for w in warnings if "Glossary" in w["message"]]
+        assert len(gw) == 1
+        assert "avtor" in gw[0]["message"]
+
     def test_generator_only_adds_matches(self):
         # With a mocked lemmatiser that fails to find the term, the generator
         # fallback must still not clear an existing successful exact match.

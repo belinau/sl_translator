@@ -53,19 +53,30 @@ def _sl_float(val: float, decimals: int = 2) -> str:
 
 
 def _prepare_rows(projects: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Normalise project dicts for the report, filling defaults."""
+    """Normalise project dicts for the report, filling defaults.
+
+    Each row carries the project's billing_unit, the unit-appropriate
+    quantity (qty) and total = qty × rate — so a znak/avtorska-pola
+    project is priced in its unit, not forced into per-page math.
+    """
     rows = []
     for p in projects:
+        chars_with = p.get("chars_with", 0)
+        chars_without = p.get("chars_without", 0)
         pages = round(p.get("pages", 0.0) or 0.0, 2)
+        unit = p.get("billing_unit") or "stran"
         rate = p.get("rate") or 0.0
-        total = round(pages * rate, 2)
+        qty = config.unit_quantity(unit, chars_with, chars_without)
+        total = round(qty * rate, 2)
         rows.append({
             "filename": p.get("filename", "Brez naslova"),
             "direction": _format_lang_pair(p.get("lang_pair", "")),
             "direction_sl": _format_lang_pair_sl(p.get("lang_pair", "")),
-            "chars_with": p.get("chars_with", 0),
-            "chars_without": p.get("chars_without", 0),
+            "chars_with": chars_with,
+            "chars_without": chars_without,
             "pages": pages,
+            "unit": unit,
+            "qty": qty,
             "rate": rate,
             "total": total,
             "responsible_person": p.get("responsible_person", ""),
@@ -161,7 +172,7 @@ def generate_pdf(projects: list[dict[str, Any]]) -> bytes:
     page.draw_rect(fitz.Rect(margin_l, y, table_right, y + header_h),
                    color=(0.133, 0.773, 0.369), fill=(0.133, 0.773, 0.369))
     headers = ["Dokument", "Oseba", "Smer", "Znaki s presl.",
-               "Znaki brez", "Strani", "Cena/stran", "Skupaj (EUR)"]
+               "Znaki brez", "Strani", "Cena/enota", "Skupaj (EUR)"]
     for i, h in enumerate(headers):
         _text(col_x[i] + 3, y + 13, h, sz=8, color=(1, 1, 1))
     y += header_h
@@ -213,7 +224,7 @@ def generate_pdf(projects: list[dict[str, Any]]) -> bytes:
 
         _text(col_x[5] + 3, y + 12, _sl_float(r["pages"]), sz=8)
 
-        rate_str = _sl_float(r["rate"], 4) if r["rate"] > 0 else "—"
+        rate_str = (f"{_sl_float(r['rate'], config.unit_price_decimals(r['unit']))} {config.unit_short_label(r['unit'])}") if r["rate"] > 0 else "—"
         _text(col_x[6] + 3, y + 12, rate_str, sz=8, color=(0.3, 0.3, 0.3))
 
         total_str = f"{_sl_float(r['total'])} EUR"
@@ -241,11 +252,12 @@ def generate_pdf(projects: list[dict[str, Any]]) -> bytes:
     # ── Footer notes ──
     y += 30
     _text(margin_l, y,
-          "Strani = znaki brez presledkov ÷ 1500.  Skupaj = strani × cena.",
+          "Strani = znaki brez presledkov ÷ 1500.  Količina: stran = 1500 znakov brez presledkov · "
+          "znak = vsi znaki s presledki · avtorska pola = 30.000 znakov s presledki.  Skupaj = količina × cena.",
           sz=7, color=(0.6, 0.6, 0.6))
     y += 10
     _text(margin_l, y,
-          f"Cena na stran in skupne vrednosti so po projektu ({now}).",
+          f"Cena na enoto in skupne vrednosti so po projektu ({now}).",
           sz=7, color=(0.6, 0.6, 0.6))
 
     # ── Generation footer ──
@@ -280,7 +292,7 @@ def generate_xlsx(projects: list[dict[str, Any]]) -> bytes:
     center_align = Alignment(horizontal="center")
     wrap_align = Alignment(horizontal="left", wrap_text=True)
 
-    n_cols = 9  # #, Dokument, Oseba, Smer, chars_w, chars_no, pages, rate, total
+    n_cols = 10  # #, Dokument, Oseba, Smer, chars_w, chars_no, pages, enota, rate, total
 
     # ── Issuer header (rows 1-3) ──
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=n_cols)
@@ -303,7 +315,7 @@ def generate_xlsx(projects: list[dict[str, Any]]) -> bytes:
     # ── Header row (row 5) ──
     header_row = 5
     headers = ["#", "Dokument", "Odgovorna oseba", "Smer", "Znaki s presledki",
-               "Znaki brez presledkov", "Strani (÷1500)", "Cena (EUR/stran)", "Skupaj (EUR)"]
+               "Znaki brez presledkov", "Strani (÷1500)", "Enota", "Cena (EUR/enota)", "Skupaj (EUR)"]
     for col, h in enumerate(headers, 1):
         cell = ws.cell(row=header_row, column=col, value=h)
         cell.font = header_font
@@ -325,12 +337,14 @@ def generate_xlsx(projects: list[dict[str, Any]]) -> bytes:
         pages_cell = ws.cell(row=row_num, column=7, value=float(r["pages"]))
         pages_cell.alignment = right_align
         pages_cell.number_format = "0.00"
-        # Rate
-        rate_cell = ws.cell(row=row_num, column=8, value=float(r["rate"]))
+        # Enota (billing unit)
+        ws.cell(row=row_num, column=8, value=config.unit_short_label(r["unit"])).alignment = center_align
+        # Rate (per-unit price; znak carries 4 decimals)
+        rate_cell = ws.cell(row=row_num, column=9, value=float(r["rate"]))
         rate_cell.alignment = right_align
-        rate_cell.number_format = "0.0000"
+        rate_cell.number_format = f"0.{'0' * config.unit_price_decimals(r['unit'])}"
         # Total
-        total_cell = ws.cell(row=row_num, column=9, value=float(r["total"]))
+        total_cell = ws.cell(row=row_num, column=10, value=float(r["total"]))
         total_cell.alignment = right_align
         total_cell.number_format = '#,##0.00" EUR"'
         # Borders
@@ -354,13 +368,13 @@ def generate_xlsx(projects: list[dict[str, Any]]) -> bytes:
     gp_cell.font = total_font
     gp_cell.alignment = right_align
     # Sum total
-    gt_cell = ws.cell(row=total_row, column=9, value=float(grand_total))
+    gt_cell = ws.cell(row=total_row, column=10, value=float(grand_total))
     gt_cell.number_format = '#,##0.00" EUR"'
     gt_cell.font = total_font
     gt_cell.alignment = right_align
 
     # ── Column widths ──
-    widths = [5, 45, 18, 14, 18, 18, 16, 16, 16]
+    widths = [5, 42, 16, 12, 16, 16, 14, 14, 16, 16]
     for col, w in enumerate(widths, 1):
         ws.column_dimensions[chr(64 + col)].width = w
 
@@ -368,8 +382,9 @@ def generate_xlsx(projects: list[dict[str, Any]]) -> bytes:
     note_row = total_row + 2
     ws.merge_cells(start_row=note_row, start_column=1, end_row=note_row, end_column=n_cols)
     ws.cell(row=note_row, column=1,
-            value="Strani = znaki brez presledkov ÷ 1500.  Skupaj = strani × cena.  "
-                  "Vrednosti so izračunane ob izvozu.")
+            value="Strani = znaki brez presledkov ÷ 1500.  Količina: stran = 1500 znakov brez presledkov · "
+                  "znak = vsi znaki s presledki · avtorska pola = 30.000 znakov s presledki.  "
+                  "Skupaj = količina × cena.  Vrednosti so izračunane ob izvozu.")
     ws.cell(row=note_row, column=1).font = Font(name="Calibri", size=8, color="999999", italic=True)
 
     # ── Generation footer ──

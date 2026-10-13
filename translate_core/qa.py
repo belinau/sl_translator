@@ -337,7 +337,18 @@ class QAEngine:
                             w_lemmas = _lemmatize(w, g_key[0])
                             w_lemma = w_lemmas[0] if w_lemmas else w.lower()
                             forms = generate_forms(w_lemma)
-                            src_matched.append(bool(forms & source_tokens))
+                            if forms & source_tokens:
+                                src_matched.append(True)
+                            else:
+                                # Stem-overlap fallback (see target-side
+                                # comment below for rationale).
+                                w_low = w.lower()
+                                min_stem = max(3, len(w_low) // 2)
+                                src_matched.append(any(
+                                    st[:min_stem] == w_low[:min_stem]
+                                    for st in source_tokens
+                                    if len(st) >= min_stem
+                                ))
                         src_found = all(src_matched)
                 if not src_found:
                     continue
@@ -364,7 +375,23 @@ class QAEngine:
                         w_lemmas = _lemmatize(w, g_key[1])
                         w_lemma = w_lemmas[0] if w_lemmas else w.lower()
                         forms = generate_forms(w_lemma)
-                        matched.append(bool(forms & target_tokens))
+                        if forms & target_tokens:
+                            matched.append(True)
+                        else:
+                            # Stem-overlap fallback: when the lemmatiser
+                            # returns the surface form (not the lemma),
+                            # generate_forms applies the wrong paradigm.
+                            # Catch inflected forms of the same lemma by
+                            # checking if any target token shares a long
+                            # enough common prefix (Slovenian inflection
+                            # changes only the ending, preserving the stem).
+                            w_low = w.lower()
+                            min_stem = max(3, len(w_low) // 2)
+                            matched.append(any(
+                                tt[:min_stem] == w_low[:min_stem]
+                                for tt in target_tokens
+                                if len(tt) >= min_stem
+                            ))
                     tgt_found = all(matched)
 
                 if not tgt_found:

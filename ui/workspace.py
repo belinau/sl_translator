@@ -845,7 +845,7 @@ def _render_editable_row(e, glossary, kg, qa_engine, src_lang, tgt_lang, config,
     if orig_note:
         label_text += f"  ·  {orig_note[:30]}"
 
-    with ui.expansion(label_text, icon="edit").classes("w-full").props("dense"):
+    with ui.expansion(label_text, icon="edit").classes("w-full").props("dense") as exp:
         with ui.column().classes("w-full").style("gap: 0.75rem; padding: 0.5rem 0;"):
             src_f = ui.input(
                 f"Source ({src_lang})", value=orig_src,
@@ -857,13 +857,18 @@ def _render_editable_row(e, glossary, kg, qa_engine, src_lang, tgt_lang, config,
                 "Note", value=orig_note,
             ).classes("w-full").props("outlined dense")
             with ui.row().classes("w-full justify-end").style("gap: 0.5rem;"):
+                def _on_delete(_, _exp=exp, _os=orig_src, _ot=orig_tgt,
+                               _g=glossary, _k=kg, _q=qa_engine,
+                               _sl=src_lang, _tl=tgt_lang, _st=state):
+                    _do_edit_delete(_os, _ot, _g, _k, _q, _sl, _tl, _st)
+                    try:
+                        _exp.delete()
+                    except Exception:
+                        pass
                 ui.button(
                     "Delete",
                     icon="delete",
-                    on_click=lambda _: _do_edit_delete(
-                        orig_src, orig_tgt, glossary, kg, qa_engine,
-                        src_lang, tgt_lang, state,
-                    ),
+                    on_click=_on_delete,
                 ).props("flat dense color=negative")
                 ui.button(
                     "Save",
