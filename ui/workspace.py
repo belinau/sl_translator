@@ -368,6 +368,7 @@ def page_translate(project_id: str):
         """
         import re as _re
         fn_def_re = _re.compile(r"^\[\^(\w+)\]:")
+        _FN_DEF_LINE_RE = _re.compile(r"^\[\^(\w+)\]:")
         lines: list[str] = []
         i = 0
         segs = state.segments
@@ -386,6 +387,12 @@ def page_translate(project_id: str):
                 for k in range(i, j):
                     seg = segs[k]
                     txt = seg.get("target", "").strip() if use_target else ""
+                    # A footnote-def segment whose target is not itself a
+                    # footnote def (no [^N]: prefix) is a malformed
+                    # translation — fall back to the source def so the
+                    # footnote is not lost in export.
+                    if use_target and txt and not _FN_DEF_LINE_RE.match(txt):
+                        txt = seg.get("source", "").strip()
                     if not txt:
                         txt = seg.get("source", "").strip()
                     if txt:
@@ -450,6 +457,42 @@ def page_translate(project_id: str):
         elif export_type == "txt":
             _export_txt(comments_mode)
 
+    def _ensure_para_unit_idx():
+        """Ensure every body segment carries ``para_unit_idx`` (the source
+        paragraph it belongs to) so the export groups split-apart segments
+        back into one DOCX paragraph per source paragraph — exactly
+        matching the source layout, with no text splitting.
+
+        New imports already store it. Existing projects (imported before
+        this) lack it; re-derive it once from the stored source file and
+        persist via autosave so later exports are instant. The source file
+        lives at ``data/projects/<id>.<ext>``."""
+        if any(s.get("para_unit_idx") is not None for s in state.segments):
+            return  # already present
+        import os as _os
+        suffix = _os.path.splitext(state.filename or "")[1].lower()
+        src_path = PROJECTS_DIR / f"{state.project_id}{suffix}"
+        if not src_path.exists():
+            return  # cannot re-derive; export falls back to per-segment paragraphs
+        try:
+            from collections import OrderedDict
+            from translate_core.book_outline import split_paragraphs_with_unit_ids
+            from translate_core.pdf_format_capture import attach_unit_ids_to_segments
+            if suffix == ".docx":
+                md = doc_parser.docx_to_markdown(src_path)
+            else:
+                md, _ = doc_parser.to_markdown_with_meta(src_path, preprocess=True)
+            # Rebuild the source-paragraph units (pre-split_long), in order.
+            units: OrderedDict[int, list[str]] = OrderedDict()
+            for txt, uid in split_paragraphs_with_unit_ids(md, max_chars=config.SEGMENT_MAX_CHARS):
+                units.setdefault(uid, []).append(txt)
+            unit_texts = [" ".join(units[i]) for i in sorted(units)]
+            attach_unit_ids_to_segments(state.segments, unit_texts)
+            state.request_autosave()
+        except Exception as ex:
+            log.warning("para_unit_idx re-derive failed (non-fatal): %s", ex)
+
+
     def _export_target_docx(comments_mode: str = cm.EXPORT_NONE):
         if state.pipeline == "simple":
             # Simple pipeline: preserve original formatting via template
@@ -512,7 +555,11 @@ def page_translate(project_id: str):
             md = _compile_md(use_target=True, comments_mode=comments_mode)
             path = PROJECTS_DIR / f"compiled_target_{state.project_id}.docx"
             try:
-                doc_parser.compile_to_designed_docx(md, path, segments=state.segments, house_typography=_house_typo)
+                _ensure_para_unit_idx()
+                doc_parser.compile_to_designed_docx(
+                    md, path, segments=state.segments,
+                    house_typography=_house_typo,
+                )
                 if path.exists():
                     ui.download(path.read_bytes(), f"translated_{state.filename}")
                     path.unlink(missing_ok=True)

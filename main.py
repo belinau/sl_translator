@@ -1877,12 +1877,34 @@ def _parse_docx(path: Path) -> list[dict]:
 
 def _parse_academic_docx(parser: "DocumentParser", path: Path) -> list[dict]:
     """Parse a DOCX via the academic pipeline (docx_to_markdown).
-    No docx_para_idx — segments are restyled on export. Runs in a thread pool."""
-    from translate_core.book_outline import split_paragraphs
+
+    Captures a per-paragraph DOCX manifest (heading level, alignment,
+    indent, block-quote) and attaches ``pdf_para_idx`` to each segment by
+    normalized-text containment, so the export reconstructs the original
+    DOCX paragraphs instead of emitting one paragraph per bilingual
+    segment. ``docx_to_markdown`` keeps one markdown line per source
+    paragraph, so segments are 1:1 with paragraphs except for
+    ``split_long_paragraph`` sentence splits, which the shared
+    ``pdf_para_idx`` rejoins at export. Runs in a thread pool."""
+    from translate_core.book_outline import split_paragraphs_with_unit_ids
+    from translate_core.docx_format_capture import capture_docx_paragraph_manifest
+    from translate_core.pdf_format_capture import attach_manifest_to_segments
     md = parser.docx_to_markdown(path)
-    segments = []
-    for txt in split_paragraphs(md, max_chars=config.SEGMENT_MAX_CHARS):
-        segments.append({"id": len(segments), "source": txt, "target": "", "status": "pending"})
+    segments: list[dict] = []
+    for txt, unit_idx in split_paragraphs_with_unit_ids(md, max_chars=config.SEGMENT_MAX_CHARS):
+        segments.append({
+            "id": len(segments), "source": txt, "target": "", "status": "pending",
+            "para_unit_idx": unit_idx,
+        })
+    # Attach the DOCX paragraph manifest as additive metadata so the
+    # manifest export path groups split-apart segments back into one
+    # paragraph per source paragraph. Never alters source/target/status/id.
+    try:
+        manifest = capture_docx_paragraph_manifest(path)
+        if manifest.paragraphs:
+            attach_manifest_to_segments(segments, manifest)
+    except Exception as ex:
+        log.warning("docx_format_capture failed (non-fatal): %s", ex)
     return segments
 
 
@@ -1897,15 +1919,18 @@ def _parse_pdf(parser: "DocumentParser", path: Path, *, preprocess: bool = True)
     para_indent_in, is_blockquote). The manifest is purely metadata; it never
     re-splits or re-merges segments — the translator's segmentation is frozen.
     """
-    from translate_core.book_outline import split_paragraphs
+    from translate_core.book_outline import split_paragraphs_with_unit_ids
     from translate_core.pdf_format_capture import (
         capture_paragraph_manifest,
         attach_manifest_to_segments,
     )
     md_text, _ = parser.to_markdown_with_meta(path, preprocess=preprocess)
     segments: list[dict] = []
-    for txt in split_paragraphs(md_text, max_chars=config.SEGMENT_MAX_CHARS):
-        segments.append({"id": len(segments), "source": txt, "target": "", "status": "pending"})
+    for txt, unit_idx in split_paragraphs_with_unit_ids(md_text, max_chars=config.SEGMENT_MAX_CHARS):
+        segments.append({
+            "id": len(segments), "source": txt, "target": "", "status": "pending",
+            "para_unit_idx": unit_idx,
+        })
     # Attach the PDF paragraph manifest as additive metadata (never alters
     # source/target/status/id). Unmatched segments (footnote defs, edge
     # cases) simply lack pdf_para_idx and fall back to one-paragraph-per-segment
@@ -2806,8 +2831,7 @@ if __name__ in {"__main__", "__mp_main__"}:
         show=True,
         storage_secret=config.STORAGE_SECRET,
         # kg.save on the 97MB KG can legitimately block a worker thread
-        # for 1-3 s during a confirm. NiceGUI's default ping_timeout =
-        # max(reconnect_timeout * 0.4, 2) = 2 s, which drops the page on
-        # any such call. Widen the window so the editor survives it.
+        # for 1-3 s during a confirm. Widen the ping window so the editor
+        # survives it.
         reconnect_timeout=30.0,
     )

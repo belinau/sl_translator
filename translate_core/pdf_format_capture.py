@@ -261,6 +261,11 @@ _HYPHEN_JOIN_RE = re.compile(r"([a-zA-Z])-\s+([a-zA-Z])")
 # rewrites bare digits to [^N], so the segment text diverges from the PDF
 # block text; stripping both lets alignment compare prose only.
 _FN_MARKER_RE = re.compile(r"\[\^\d{1,3}\]|(?<=[.!?:;\"\u201d\u2019\u00bb])\d{1,3}(?=\s|$)")
+# Markdown emphasis markers (*, **, ***) and leading heading prefixes (#),
+# present in segment text but absent from plain manifest text. Stripped in
+# _normalize_strong so containment matching is marker-agnostic.
+_MD_EMPHASIS_RE = re.compile(r"\*{1,3}")
+_MD_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+")
 
 
 def _normalize(text: str) -> str:
@@ -270,11 +275,19 @@ def _normalize(text: str) -> str:
 
 def _normalize_strong(text: str) -> str:
     """Stronger normalization for stream alignment: repairs hyphenated
-    line-breaks and strips footnote markers so the manifest stream matches
-    reflow+renumber-repaired segment text."""
+    line-breaks and strips footnote markers, markdown emphasis, and heading
+    prefixes so the manifest stream matches reflow+renumber-repaired segment
+    text regardless of whether the source path added ``*italic*``/``#`` markup.
+
+    DOCX segments carry ``*emphasis*``/``#`` markers the plain manifest text
+    lacks; PDF segments carry ``*emphasis*`` added by the dict walk. Stripping
+    both sides keeps containment matching marker-agnostic.
+    """
     t = text.replace("\xa0", " ")
     t = _HYPHEN_JOIN_RE.sub(r"\1\2", t)   # "fore-\ncloses" → "forecloses"
     t = _FN_MARKER_RE.sub(" ", t)          # drop [^N] / bare superscript digits
+    t = _MD_EMPHASIS_RE.sub("", t)         # drop * / ** / *** emphasis markers
+    t = _MD_HEADING_RE.sub("", t)          # drop leading # heading prefixes
     return _WS_RE.sub(" ", t).strip()
 
 def attach_manifest_to_segments(
@@ -375,8 +388,76 @@ def _attach(seg: dict, rec: ParagraphRecord) -> None:
     seg["para_indent_in"] = rec.para_indent_in
     seg["is_blockquote"] = rec.is_blockquote
 
+# --------------------------------------------------------------------------
+# Export grouping (source-paragraph unit ids, never modifies segment text)
+# --------------------------------------------------------------------------
 
 
+_FN_DEF_LINE_RE = re.compile(r"^\[\^(\w+)\]:")
+
+
+def _strip_heading_prefix(text: str) -> str:
+    return _MD_HEADING_RE.sub("", text, count=1)
+
+
+def attach_unit_ids_to_segments(
+    segments: list[dict],
+    unit_texts: list[str],
+) -> int:
+    """Assign ``para_unit_idx`` to each segment by stream containment.
+
+    *unit_texts* are the source document's paragraph units in order (the
+    reflow/markdown paragraphs the segmentation was built from). A normalized
+    stream is built from them; each segment's normalized source is located
+    in the stream and the segment is attributed to the unit whose offset
+    range contains the start of that match. ``split_long_paragraph``
+    fragments of one unit all start inside that unit's range and thus share
+    the same ``para_unit_idx``, so the export groups them back into one DOCX
+    paragraph per source paragraph — exactly matching the source layout.
+
+    Footnote-definition segments (``[^N]:``) are left untouched (caller
+    emits them as footnotes). NEVER modifies source/target/status/id.
+    Returns the number of segments matched.
+    """
+    if not unit_texts:
+        return 0
+    para_texts = [_normalize_strong(t) for t in unit_texts]
+    block_offsets: list[tuple[int, int]] = []
+    parts: list[str] = []
+    pos = 0
+    for bi, pt in enumerate(para_texts):
+        if not pt:
+            continue
+        block_offsets.append((pos, bi))
+        parts.append(pt)
+        pos += len(pt) + 1
+    stream = " ".join(parts)
+
+    matched = 0
+    search_cursor = 0
+    for seg in segments:
+        if _FN_DEF_LINE_RE.match(seg.get("source", "").lstrip()):
+            continue
+        src = _normalize_strong(seg.get("source", ""))
+        if not src:
+            continue
+        found_at = -1
+        probe = src[:60]
+        if probe:
+            found_at = stream.find(probe, search_cursor)
+        if found_at < 0 and len(src) > 10:
+            found_at = stream.find(src, search_cursor)
+        if found_at < 0 and len(src) >= 30:
+            found_at = stream.find(src[:30])
+        if found_at < 0:
+            continue
+        bi = _block_at(block_offsets, found_at)
+        if bi < 0:
+            continue
+        seg["para_unit_idx"] = bi
+        search_cursor = found_at + len(src)
+        matched += 1
+    return matched
 
 # --------------------------------------------------------------------------
 # Helpers

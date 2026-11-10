@@ -70,6 +70,7 @@ _MD_STRUCTURAL_LINE_RE = re.compile(
 )
 _MULTI_SPACE_RE = re.compile(r"  +")
 _SENTENCE_BOUNDARY_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z\"“‘«¿¡])")
+_FN_DEF_LINE_RE = re.compile(r"^\[\^(\w+)\]:")
 
 
 def _flush_buffer(buf: list[str], out: list[str]) -> None:
@@ -122,6 +123,40 @@ def split_paragraphs(text: str, max_chars: int = 1500) -> list[str]:
     result: list[str] = []
     for p in paragraphs:
         result.extend(split_long_paragraph(p, max_chars))
+    return result
+
+def split_paragraphs_with_unit_ids(text: str, max_chars: int = 1500) -> list[tuple[str, int]]:
+    """Like :func:`split_paragraphs` but also returns the source-paragraph
+    unit id each segment belongs to.
+
+    Returns ``[(segment_text, unit_idx), ...]`` where ``unit_idx`` is the
+    index of the reflow/markdown paragraph unit (the source document's
+    paragraph) the segment was split from. ``split_long_paragraph`` fragments
+    of one unit all share the same ``unit_idx``. The export groups segments
+    by ``unit_idx`` to reconstruct one DOCX paragraph per source paragraph —
+    exactly matching the source layout, with no text splitting.
+    """
+    if not text or not text.strip():
+        return []
+
+    paragraphs: list[str] = []
+    buffer: list[str] = []
+
+    for line in text.split("\n"):
+        if not line.strip():
+            _flush_buffer(buffer, paragraphs)
+            continue
+        if _MD_STRUCTURAL_LINE_RE.match(line):
+            _flush_buffer(buffer, paragraphs)
+            buffer.append(line)
+            continue
+        buffer.append(line)
+    _flush_buffer(buffer, paragraphs)
+
+    result: list[tuple[str, int]] = []
+    for unit_idx, p in enumerate(paragraphs):
+        for chunk in split_long_paragraph(p, max_chars):
+            result.append((chunk, unit_idx))
     return result
 
 
@@ -245,23 +280,35 @@ def resegment_pending(ws: dict, max_chars: int) -> dict:
 
 
 def group_segments_by_para(segments: list[dict]) -> list[list[dict]]:
-    """Group segments that share the same pdf_para_idx into one paragraph.
+    """Group segments that share the same source paragraph into one paragraph.
 
-    Segments without pdf_para_idx (footnote defs, unmatched edge cases) each
-    form their own one-element group, preserving the current one-paragraph-
-    per-segment export behavior for them. Segments with the same pdf_para_idx
-    are grouped in their original order so the export emits one DOCX paragraph
-    per original PDF paragraph.
+    The grouping key is ``para_unit_idx`` (the reflow/markdown source
+    paragraph the segment was split from) when any segment carries it,
+    falling back to ``pdf_para_idx`` (the fitz-block / DOCX-paragraph
+    manifest key) otherwise. Segments without the key (footnote defs,
+    unmatched edge cases) each form their own one-element group. Segments
+    with the same key are grouped in their original order so the export
+    emits one DOCX paragraph per source paragraph — exactly matching the
+    source document's layout.
 
     Never reorders segments and never touches their contents.
     """
+    use_unit = any(s.get("para_unit_idx") is not None for s in segments)
+    key = "para_unit_idx" if use_unit else "pdf_para_idx"
     groups: list[list[dict]] = []
     current_idx: object = _SENTINEL
     current_group: list[dict] = []
     for seg in segments:
-        pi = seg.get("pdf_para_idx")
+        pi = seg.get(key)
+        # Footnote-definition segments carry no paragraph key and are
+        # emitted as real Word footnotes by the caller, so they must NOT
+        # break the current body run — skipping them keeps one source
+        # paragraph as one DOCX paragraph even when footnote defs are
+        # interleaved between its split-apart body segments.
+        if pi is None and _FN_DEF_LINE_RE.match(seg.get("source", "").lstrip()):
+            continue
         if pi is None:
-            # No manifest key → own group (fallback to per-segment paragraphs)
+            # Unmatched body segment → own group (per-segment paragraph)
             if current_group:
                 groups.append(current_group)
                 current_group = []
@@ -282,4 +329,4 @@ def group_segments_by_para(segments: list[dict]) -> list[list[dict]]:
 
 _SENTINEL = object()
 
-__all__ = ["TOCEntry", "BookOutline", "split_paragraphs", "split_long_paragraph", "resegment_pending", "group_segments_by_para"]
+__all__ = ["TOCEntry", "BookOutline", "split_paragraphs", "split_paragraphs_with_unit_ids", "split_long_paragraph", "resegment_pending", "group_segments_by_para"]

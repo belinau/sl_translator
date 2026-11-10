@@ -584,6 +584,44 @@ def _export_review_table(r: dict, glossary=None) -> None:
     ui.notify("Export failed", type="negative")
 
 
+def _ensure_review_para_unit_idx(
+    segs: list[dict], project_id: str, filename: str, proj_dir,
+) -> None:
+    """Ensure every body segment in *segs* carries ``para_unit_idx`` (the
+    source paragraph it belongs to) so the academic review export groups
+    split-apart segments back into one DOCX paragraph per source
+    paragraph — exactly matching the source layout, with no text splitting.
+
+    Review segments are an in-memory merged list (reviewer suggestions
+    overlaid on the original project), so para_unit_idx is re-derived
+    on each export from the original project's stored source file."""
+    if any(s.get("para_unit_idx") is not None for s in segs):
+        return  # already present
+    import os as _os
+    suffix = _os.path.splitext(filename or "")[1].lower()
+    src_path = proj_dir / f"{project_id}{suffix}" if proj_dir is not None else None
+    if src_path is None or not src_path.exists():
+        return  # cannot re-derive; export falls back to per-segment paragraphs
+    try:
+        from collections import OrderedDict
+        from translate_core.book_outline import split_paragraphs_with_unit_ids
+        from translate_core.pdf_format_capture import attach_unit_ids_to_segments
+        from translate_core.doc_parser import DocumentParser
+        import config as _config
+        parser = DocumentParser()
+        if suffix == ".docx":
+            md = parser.docx_to_markdown(src_path)
+        else:
+            md, _ = parser.to_markdown_with_meta(src_path, preprocess=True)
+        units: OrderedDict[int, list[str]] = OrderedDict()
+        for txt, uid in split_paragraphs_with_unit_ids(md, max_chars=_config.SEGMENT_MAX_CHARS):
+            units.setdefault(uid, []).append(txt)
+        unit_texts = [" ".join(units[i]) for i in sorted(units)]
+        attach_unit_ids_to_segments(segs, unit_texts)
+    except Exception as ex:
+        log.warning("review para_unit_idx re-derive failed (non-fatal): %s", ex)
+
+
 def _compile_review_md(
     segments: list[dict],
     use_target: bool = True,
@@ -599,6 +637,7 @@ def _compile_review_md(
     """
     import re as _re
     fn_def_re = _re.compile(r"^\[\^(\w+)\]:")
+    _FN_DEF_LINE_RE = _re.compile(r"^\[\^(\w+)\]:")
     lines: list[str] = []
     i = 0
     while i < len(segments):
@@ -616,6 +655,12 @@ def _compile_review_md(
                 seg = segments[k]
                 if use_target:
                     txt = seg.get("reviewer_target", "").strip() or seg.get("target", "").strip()
+                    # A footnote-def segment whose target is not itself a
+                    # footnote def (no [^N]: prefix) is a malformed
+                    # translation — fall back to the source def so the
+                    # footnote is not lost in export.
+                    if txt and not _FN_DEF_LINE_RE.match(txt):
+                        txt = seg.get("source", "").strip()
                     if not txt:
                         txt = seg.get("source", "").strip()
                 else:
@@ -913,6 +958,9 @@ def page_review_ext(review_id: str):
                             type="warning",
                         )
                     try:
+                        _ensure_review_para_unit_idx(
+                            segs, clone.get("original_project_id", ""), filename, proj_dir,
+                        )
                         DocumentParser().compile_to_designed_docx(
                             md, out, segments=segs, house_typography=house_typo,
                         )

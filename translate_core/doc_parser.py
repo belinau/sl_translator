@@ -1008,11 +1008,18 @@ class DocumentParser:
 
         When ``segments`` is provided (a list of segment dicts carrying
         pdf_para_idx/heading_level/para_align/para_indent_in/is_blockquote
-        manifest keys), the export reconstructs the original PDF paragraphs:
+        manifest keys), the export reconstructs the original paragraphs:
         segments sharing the same pdf_para_idx are joined into one DOCX
         paragraph, headings render at their detected level, and block quotes
         get the house block-quote style. The translator's segmentation is
         never changed — only grouped for paragraph reconstruction.
+
+        When ``manifest`` (a ``FormatManifest``) is also provided,
+        reconstruction is exact: one DOCX paragraph per manifest source
+        paragraph, and a segment whose source spans several manifest
+        paragraphs is split at sentence boundaries so the output matches the
+        source layout. Without a manifest the export falls back to
+        ``pdf_para_idx`` grouping.
 
         ``house_typography`` (default: config.MASKA_TYPOGRAPHY when segments
         are given, else the legacy Georgia/11pt defaults) governs fonts,
@@ -1077,9 +1084,14 @@ class DocumentParser:
         footnotes_to_add: List[Tuple[int, str]] = []
         is_first_chapter = True
 
-        if segments is not None and any("pdf_para_idx" in s for s in segments):
-            # Manifest path: group segments by pdf_para_idx → one DOCX
-            # paragraph per original PDF paragraph.
+        if segments is not None and (
+            any("para_unit_idx" in s for s in segments)
+            or any("pdf_para_idx" in s for s in segments)
+        ):
+            # Manifest path: group segments by source paragraph → one
+            # DOCX paragraph per original source paragraph. Segments sharing
+            # the same para_unit_idx (reflow unit) or pdf_para_idx (fitz/DOCX
+            # manifest) are joined into one paragraph; split_long fragments rejoin.
             from translate_core.book_outline import group_segments_by_para
             groups = group_segments_by_para(segments)
             for grp in groups:
@@ -1090,7 +1102,7 @@ class DocumentParser:
                 ).strip()
                 if not text:
                     continue
-                # Footnote-def segments (no pdf_para_idx) pass through as
+                # Footnote-def segments (no manifest key) pass through as
                 # their own group; skip them here — they're in footnote_defs.
                 if text.lstrip().startswith("[^") and re.match(r"^\[\^(\w+)\]:", text.lstrip()):
                     continue
